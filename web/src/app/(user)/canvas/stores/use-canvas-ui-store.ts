@@ -3,6 +3,10 @@ import { persist } from "zustand/middleware";
 import type { CanvasNodeMetadata, CanvasNodeType } from "../types";
 
 type CanvasUiStore = {
+    shortcutsOpen: boolean;
+    setShortcutsOpen: (shortcutsOpen: boolean) => void;
+    wheelMode: "zoom" | "pan";
+    setWheelMode: (wheelMode: "zoom" | "pan") => void;
     generationDefaults: Partial<Record<CanvasNodeType.Image | CanvasNodeType.Video, Pick<CanvasNodeMetadata, "quality" | "size" | "vquality">>>;
     editingProjectId: string | null;
     editingProjectTitle: string;
@@ -18,6 +22,10 @@ type CanvasUiStore = {
 
 export const useCanvasUiStore = create<CanvasUiStore>()(persist((set) => ({
     generationDefaults: {},
+    shortcutsOpen: false,
+    setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+    wheelMode: "zoom",
+    setWheelMode: (wheelMode) => set({ wheelMode }),
     editingProjectId: null,
     editingProjectTitle: "",
     selectedProjectIds: [],
@@ -30,5 +38,5 @@ export const useCanvasUiStore = create<CanvasUiStore>()(persist((set) => ({
     removeSelectedProjectIds: (ids) => set((state) => ({ selectedProjectIds: state.selectedProjectIds.filter((id) => !ids.includes(id)) })),
 }), {
     name: "infinite-canvas:canvas_ui_store",
-    partialize: (state) => ({ generationDefaults: state.generationDefaults }),
+    partialize: (state) => ({ generationDefaults: state.generationDefaults, wheelMode: state.wheelMode }),
 }));

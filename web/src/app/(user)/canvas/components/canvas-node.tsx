@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useSy
 import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
+import { Modal, theme as antdTheme } from "antd";
 import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, RefreshCw, Star, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -503,23 +504,25 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
         return (
             <div className="flex h-full w-full flex-col justify-between overflow-hidden p-4" style={{ color: theme.node.text }}>
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
-                    <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: selectionBlue }} />
-                    <div className="text-sm font-semibold" style={{ color: selectionBlue }}>
-                        {stopLabel || `正在创作 ${progress}%`}
+                    <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
+                    <div className="text-sm font-semibold" style={{ color: theme.node.activeStroke }}>
+                        {stopLabel || (progress > 0 ? `正在创作 ${progress}%` : "处理中")}
                     </div>
                     <span className="rounded-full px-2 py-1 text-xs" style={{ background: theme.toolbar.panel, color: theme.node.text }}>
                         {formatDuration(elapsedMs)}
                     </span>
                 </div>
-                <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px]" style={{ color: theme.node.muted }}>
-                        <span>当前创作进度</span>
-                        <span>{progress}%</span>
+                {progress > 0 ? (
+                    <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]" style={{ color: theme.node.muted }}>
+                            <span>当前创作进度</span>
+                            <span>{progress}%</span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
+                            <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
+                        </div>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
-                        <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: selectionBlue }} />
-                    </div>
-                </div>
+                ) : null}
             </div>
         );
     }
@@ -527,7 +530,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.activeStroke }}>
             <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
-            <span className="text-[10px] tracking-[0.2em]">{stopLabel || (progress > 0 ? `生成中 ${progress}%` : "生成中")}</span>
+            <span className="text-[10px] tracking-[0.2em]">{stopLabel || (progress > 0 ? `生成中 ${progress}%` : "处理中")}</span>
             <span className="rounded-full border px-2 py-1 text-xs tracking-normal" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
                 {formatDuration(elapsedMs)}
             </span>
@@ -541,22 +544,58 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
 }
 
 function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
+    const { token } = antdTheme.useToken();
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const detailsButtonRef = useRef<HTMLButtonElement>(null);
+    const errorDetails = node.metadata?.errorDetails || "未提供错误详情";
+    const summary = errorDetails.replace(/\s+/g, " ").trim();
+
     return (
-        <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
-            <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || "生成失败"}</div>
-            <button
-                type="button"
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
-                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
-                onClick={(event) => {
-                    event.stopPropagation();
-                    onRetry?.(node);
-                }}
-                onMouseDown={(event) => event.stopPropagation()}
-            >
-                <RefreshCw className="size-3.5" />
-                重试
-            </button>
+        <div className="flex w-full max-w-[260px] flex-col items-center gap-3 px-5 text-center">
+            <div className="text-sm font-medium" style={{ color: token.colorError }}>生成失败</div>
+            <div className="line-clamp-2 w-full break-all text-xs leading-5" style={{ color: theme.node.muted }}>
+                {summary.length > 80 ? `${summary.slice(0, 80)}…` : summary}
+            </div>
+            <div className="flex items-center gap-2" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                <button
+                    ref={detailsButtonRef}
+                    type="button"
+                    aria-haspopup="dialog"
+                    className="h-8 rounded-full px-3 text-xs underline-offset-4 hover:underline"
+                    style={{ color: theme.node.text }}
+                    onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}
+                >
+                    查看详情
+                </button>
+                <button
+                    type="button"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
+                    style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                    onClick={(event) => { event.stopPropagation(); onRetry?.(node); }}
+                >
+                    <RefreshCw className="size-3.5" />
+                    重试
+                </button>
+            </div>
+            <div onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()} onContextMenu={(event) => event.stopPropagation()}>
+                <Modal
+                    title="生成失败详情"
+                    open={detailsOpen}
+                    centered
+                    width={640}
+                    footer={null}
+                    destroyOnHidden
+                    focusable={{ trap: true, focusTriggerAfterClose: true }}
+                    afterClose={() => detailsButtonRef.current?.focus({ preventScroll: true })}
+                    onCancel={() => setDetailsOpen(false)}
+                    styles={{ container: { background: theme.node.panel, color: theme.node.text }, header: { background: theme.node.panel }, title: { color: theme.node.text }, close: { color: theme.node.muted } }}
+                    modalRender={(content) => <div data-canvas-no-zoom>{content}</div>}
+                >
+                    <div tabIndex={0} role="region" aria-label="完整错误详情" className="thin-scrollbar max-h-[60vh] select-text overflow-auto overscroll-contain whitespace-pre-wrap text-sm leading-6 [overflow-wrap:anywhere]" style={{ color: theme.node.text }}>
+                        {errorDetails}
+                    </div>
+                </Modal>
+            </div>
         </div>
     );
 }

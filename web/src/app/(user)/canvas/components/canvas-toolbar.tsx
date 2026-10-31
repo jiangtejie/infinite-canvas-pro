@@ -1,11 +1,12 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useRef, useState } from "react";
-import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, FolderOpen, Globe2, Grid2x2, Hand, Image as ImageIcon, Info, Layers3, Library, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import { Button, Dropdown, Segmented, Switch } from "antd";
+import { CircleDot, Ellipsis, FolderOpen, Globe2, Grid2x2, Hand, Image as ImageIcon, Info, Layers3, Library, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
+import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 
 export function CanvasToolbar({
     selectedCount,
@@ -25,7 +26,6 @@ export function CanvasToolbar({
     onRedo,
     onUpload,
     onDelete,
-    onClear,
     onCanvasToolChange,
     onBackgroundModeChange,
     onShowImageInfoChange,
@@ -50,7 +50,6 @@ export function CanvasToolbar({
     onRedo: () => void;
     onUpload: () => void;
     onDelete: () => void;
-    onClear: () => void;
     onCanvasToolChange: (tool: "select" | "pan") => void;
     onBackgroundModeChange: (mode: CanvasBackgroundMode) => void;
     onShowImageInfoChange: (show: boolean) => void;
@@ -62,6 +61,9 @@ export function CanvasToolbar({
     const colorTheme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
     const theme = canvasThemes[colorTheme];
+    const wheelMode = useCanvasUiStore((state) => state.wheelMode);
+    const setWheelMode = useCanvasUiStore((state) => state.setWheelMode);
+    const [openMenu, setOpenMenu] = useState<"more" | "assets" | null>(null);
     const [hovered, setHovered] = useState<string | null>(null);
     const [tipX, setTipX] = useState(0);
     const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -97,25 +99,43 @@ export function CanvasToolbar({
                 <ToolbarButton id="tool-audio" label="音频" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
                     <Music2 className="size-4.5" />
                 </ToolbarButton>
-                <ToolbarButton id="tool-panorama" label="全景图" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddPanorama}>
-                    <Globe2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-director" label="导演台" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddDirector}>
-                    <Layers3 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-config" label="生成配置" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddConfig}>
-                    <Settings2 className="size-4.5" />
-                </ToolbarButton>
                 <ToolbarButton id="tool-upload" label="上传素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
                     <Upload className="size-4.5" />
                 </ToolbarButton>
                 <Divider theme={theme} />
-                <ToolbarButton id="tool-library" label="素材库" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenAssetLibrary}>
-                    <Library className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-assets" label="我的素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenMyAssets}>
-                    <FolderOpen className="size-4.5" />
-                </ToolbarButton>
+                <Dropdown
+                    trigger={["click"]}
+                    placement="top"
+                    open={openMenu === "more"}
+                    onOpenChange={(open) => { setOpenMenu(open ? "more" : null); setAppearanceOpen(false); setHovered(null); }}
+                    menu={{
+                        style: { background: theme.toolbar.panel, color: theme.toolbar.item },
+                        onClick: () => setOpenMenu(null),
+                        items: [
+                            { key: "panorama", label: "全景图", icon: <Globe2 className="size-4" />, onClick: onAddPanorama },
+                            { key: "director", label: "导演台", icon: <Layers3 className="size-4" />, onClick: onAddDirector },
+                            { key: "config", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: onAddConfig },
+                        ],
+                    }}
+                >
+                    <Button type="text" className="!h-8 !px-2" style={openMenu === "more" ? activeStyle : { color: theme.toolbar.item }} icon={<Ellipsis className="size-4" />} aria-label="更多工具" aria-haspopup="menu" aria-expanded={openMenu === "more"}>更多</Button>
+                </Dropdown>
+                <Dropdown
+                    trigger={["click"]}
+                    placement="top"
+                    open={openMenu === "assets"}
+                    onOpenChange={(open) => { setOpenMenu(open ? "assets" : null); setAppearanceOpen(false); setHovered(null); }}
+                    menu={{
+                        style: { background: theme.toolbar.panel, color: theme.toolbar.item },
+                        onClick: () => setOpenMenu(null),
+                        items: [
+                            { key: "library", label: "素材库", icon: <Library className="size-4" />, onClick: onOpenAssetLibrary },
+                            { key: "assets", label: "我的素材", icon: <FolderOpen className="size-4" />, onClick: onOpenMyAssets },
+                        ],
+                    }}
+                >
+                    <Button type="text" className="!h-8 !px-2" style={openMenu === "assets" ? activeStyle : { color: theme.toolbar.item }} aria-label="素材" aria-haspopup="menu" aria-expanded={openMenu === "assets"}>素材</Button>
+                </Dropdown>
                 <ToolbarButton
                     id="tool-style"
                     label="画布外观"
@@ -127,6 +147,7 @@ export function CanvasToolbar({
                     onTipX={setTipX}
                     onHover={setHovered}
                     onClick={(event) => {
+                        setOpenMenu(null);
                         setPanelX(getTipX(wrapRef.current, event.currentTarget));
                         setAppearanceOpen((value) => !value);
                     }}
@@ -141,10 +162,6 @@ export function CanvasToolbar({
                         </ToolbarButton>
                     </>
                 ) : null}
-                <Divider theme={theme} />
-                <ToolbarButton id="tool-clear" label="清空画布" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onClear} danger>
-                    <Eraser className="size-4.5" />
-                </ToolbarButton>
             </div>
 
             {appearanceOpen ? (
@@ -197,6 +214,15 @@ export function CanvasToolbar({
                             },
                         ]}
                     />
+                    <div className="mt-3 px-1 pb-1.5 text-[11px] font-medium opacity-50">操作方式</div>
+                    <Segmented<"zoom" | "pan">
+                        block
+                        aria-label="画布操作方式"
+                        value={wheelMode}
+                        onChange={setWheelMode}
+                        options={[{ label: "鼠标", value: "zoom" }, { label: "触控板", value: "pan" }]}
+                    />
+                    <p className="mt-2 px-1 text-[11px] leading-relaxed opacity-65">鼠标：滚轮缩放；触控板：双指平移。按住 Ctrl / ⌘ 滚动可缩放。</p>
                     <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
                         <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65">
                             <Info className="size-3.5" />
@@ -254,6 +280,11 @@ function ToolbarButton({
                 onTipX(getTipX(wrapRef.current, event.currentTarget));
             }}
             onMouseLeave={() => onHover(null)}
+            onFocus={(event) => {
+                onHover(id);
+                onTipX(getTipX(wrapRef.current, event.currentTarget));
+            }}
+            onBlur={() => onHover(null)}
             onClick={onClick}
         />
     );
@@ -300,15 +331,9 @@ function toolLabel(id: string) {
     if (id === "tool-image") return "图片";
     if (id === "tool-video") return "视频";
     if (id === "tool-audio") return "音频";
-    if (id === "tool-panorama") return "全景图";
-    if (id === "tool-director") return "导演台";
-    if (id === "tool-config") return "生成配置";
     if (id === "tool-upload") return "上传素材";
-    if (id === "tool-library") return "素材库";
-    if (id === "tool-assets") return "我的素材";
     if (id === "tool-style") return "画布外观";
     if (id === "tool-delete") return "删除选中";
-    if (id === "tool-clear") return "清空画布";
     return "";
 }
 

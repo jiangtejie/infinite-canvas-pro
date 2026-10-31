@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { ViewportTransform } from "../types";
+import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import type { CanvasAlignmentGuides } from "../utils/canvas-alignment";
 
 type InfiniteCanvasProps = {
@@ -24,6 +25,7 @@ type InfiniteCanvasProps = {
 
 export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = "lines", alignmentGuides = {}, onViewportChange, onCanvasMouseDown, onCanvasDeselect, onCanvasDoubleClick, onContextMenu, onDrop, children }: InfiniteCanvasProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const wheelMode = useCanvasUiStore((state) => state.wheelMode);
     const panState = useRef({
         isPanning: false,
         startX: 0,
@@ -54,19 +56,15 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.code !== "Space") return;
+            if (event.code !== "Space" || event.defaultPrevented || event.isComposing) return;
             const target = event.target instanceof Element ? event.target : null;
-            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true']")) return;
+            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true'],button,a,[role='button'],[role='menu'],.ant-modal,[data-canvas-no-zoom]")) return;
             event.preventDefault();
             setIsSpacePressed(true);
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
-            if (event.code === "Space") {
-                const target = event.target instanceof Element ? event.target : null;
-                if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true']"))) event.preventDefault();
-                setIsSpacePressed(false);
-            }
+            if (event.code === "Space") setIsSpacePressed(false);
         };
 
         const handleBlur = () => {
@@ -88,34 +86,33 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
 
     const handleWheel = (event: React.WheelEvent<HTMLDivElement> | WheelEvent) => {
         const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("[data-canvas-no-zoom],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown")) return;
         if (event instanceof WheelEvent) {
             if (!event.ctrlKey || !containerRef.current?.contains(target)) return;
             event.preventDefault();
             event.stopPropagation();
-        } else if (target?.closest("[data-canvas-no-zoom],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown")) return;
-
-        const delta = -event.deltaY;
-        const factor = Math.pow(1.1, delta / 100);
-        const newScale = Math.min(Math.max(viewport.k * factor, 0.05), 5);
+        }
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
-
-        const mouseX = event.clientX - rect.left;
-        const mouseY = event.clientY - rect.top;
-        const worldX = (mouseX - viewport.x) / viewport.k;
-        const worldY = (mouseY - viewport.y) / viewport.k;
-
-        onViewportChange({
-            x: mouseX - worldX * newScale,
-            y: mouseY - worldY * newScale,
-            k: newScale,
-        });
+        const current = viewportRef.current;
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1;
+        let next: ViewportTransform;
+        if (wheelMode === "pan" && !event.ctrlKey && !event.metaKey) {
+            next = { ...current, x: current.x - event.deltaX * unit, y: current.y - event.deltaY * unit };
+        } else {
+            const newScale = Math.min(Math.max(current.k * Math.pow(1.1, -event.deltaY * unit / 100), 0.05), 5);
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            next = { x: mouseX - ((mouseX - current.x) / current.k) * newScale, y: mouseY - ((mouseY - current.y) / current.k) * newScale, k: newScale };
+        }
+        viewportRef.current = next;
+        onViewportChange(next);
     };
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target instanceof Element ? event.target : null;
         const temporaryTool = isSpacePressed;
-        const activeTool = temporaryTool ? (tool === "select" ? "pan" : "select") : tool;
+        const activeTool = temporaryTool ? "pan" : tool;
         if (activeTool === "pan" && (!target || !event.currentTarget.contains(target))) return;
         if (target?.closest("[data-canvas-no-zoom]") && activeTool !== "pan") return;
         if (target?.closest("[data-connection-create-menu]")) return;
@@ -280,7 +277,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
     }, [containerRef, onViewportChange]);
 
     const temporaryTool = isSpacePressed;
-    const activeTool = temporaryTool ? (tool === "select" ? "pan" : "select") : tool;
+    const activeTool = temporaryTool ? "pan" : tool;
     const cursor = isPanning ? "grabbing" : activeTool === "pan" ? "grab" : undefined;
 
     return (

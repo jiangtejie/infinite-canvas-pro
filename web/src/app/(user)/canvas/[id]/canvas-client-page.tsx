@@ -396,7 +396,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [nodeCreatePosition, setNodeCreatePosition] = useState<Position | null>(null);
     const [runningNodeId, setRunningNodeId] = useState<string | null>(null);
     const [isMiniMapOpen, setIsMiniMapOpen] = useState(false);
-    const [shortcutsOpen, setShortcutsOpen] = useState(false);
+    const setShortcutsOpen = useCanvasUiStore((state) => state.setShortcutsOpen);
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
     const [showImageInfo, setShowImageInfo] = useState(false);
     const [sidePanel, setSidePanel] = useState(() => DEFAULT_CANVAS_SIDE_PANEL);
@@ -657,6 +657,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setAgentConfig(project.agentConfig || null);
             setBackgroundMode(project.backgroundMode);
             setShowImageInfo(project.showImageInfo || false);
+            didInitialCenterRef.current = restoredNodes.length > 0 || project.viewport.x !== 0 || project.viewport.y !== 0 || project.viewport.k !== 1;
             setViewport(project.viewport);
             setSidePanel(project.sidePanel || DEFAULT_CANVAS_SIDE_PANEL);
             const restoredAgentPanel = project.agentPanel || DEFAULT_CANVAS_AGENT_PANEL;
@@ -908,7 +909,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         const resizeObserver = new ResizeObserver(updateSize);
         resizeObserver.observe(el);
         return () => resizeObserver.disconnect();
-    }, []);
+    }, [projectLoaded]);
 
     const screenToCanvas = useCallback((clientX: number, clientY: number) => {
         const rect = containerRef.current?.getBoundingClientRect();
@@ -1535,19 +1536,66 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         return true;
     }, [getCanvasCenter]);
 
-    const resetViewport = useCallback(() => {
-        setViewport({ x: size.width / 2, y: size.height / 2, k: 1 });
+    const animateViewport = useCallback((target: ViewportTransform) => {
+        if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
         setContextMenu(null);
-    }, [size.height, size.width]);
+        const start = { ...viewportRef.current };
+        const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 300;
+        const startedAt = performance.now();
+        const step = (now: number) => {
+            const progress = duration ? Math.min(1, (now - startedAt) / duration) : 1;
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const next = { x: start.x + (target.x - start.x) * eased, y: start.y + (target.y - start.y) * eased, k: start.k + (target.k - start.k) * eased };
+            viewportRef.current = next;
+            setViewport(next);
+            focusAnimationRef.current = progress < 1 ? requestAnimationFrame(step) : null;
+        };
+        step(startedAt);
+    }, []);
+
+    const fitNodesToView = useCallback((targets: CanvasNodeData[]) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        const width = rect?.width || size.width;
+        const height = rect?.height || size.height;
+        // Side panels occupy flex space; measure the canvas itself to avoid subtracting them twice.
+        const top = 88;
+        const bottom = window.matchMedia("(max-width: 639px)").matches ? 172 : 96;
+        const centerX = width / 2;
+        const centerY = top + Math.max(1, height - top - bottom) / 2;
+        if (!targets.length) {
+            animateViewport({ x: centerX, y: centerY, k: 1 });
+            return;
+        }
+        const left = Math.min(...targets.map((node) => node.position.x));
+        const right = Math.max(...targets.map((node) => node.position.x + node.width));
+        const upper = Math.min(...targets.map((node) => node.position.y));
+        const lower = Math.max(...targets.map((node) => node.position.y + node.height));
+        const k = Math.min(1, Math.max(0.05, Math.min(Math.max(1, width - 80) / Math.max(1, right - left), Math.max(1, height - top - bottom) / Math.max(1, lower - upper))));
+        animateViewport({ x: centerX - (left + right) / 2 * k, y: centerY - (upper + lower) / 2 * k, k });
+    }, [animateViewport, size.height, size.width]);
+
+    const fitAllNodes = useCallback(() => {
+        fitNodesToView(nodesRef.current.filter((node) => !isHiddenBatchChild(node, nodesRef.current)));
+    }, [fitNodesToView]);
+
+    const fitSelectedNodes = useCallback(() => {
+        const selected = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id)).map((node) =>
+            isHiddenBatchChild(node, nodesRef.current) ? nodesRef.current.find((root) => root.id === node.metadata?.batchRootId) || node : node);
+        if (selected.length) fitNodesToView(selected);
+    }, [fitNodesToView]);
 
     const setZoomScale = useCallback(
         (scale: number) => {
             const nextScale = Math.min(Math.max(scale, 0.05), 5);
-            setViewport((prev) => ({
-                x: size.width / 2 - ((size.width / 2 - prev.x) / prev.k) * nextScale,
-                y: size.height / 2 - ((size.height / 2 - prev.y) / prev.k) * nextScale,
-                k: nextScale,
-            }));
+            if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
+            focusAnimationRef.current = null;
+            const rect = containerRef.current?.getBoundingClientRect();
+            const centerX = (rect?.width || size.width) / 2;
+            const centerY = (rect?.height || size.height) / 2;
+            const current = viewportRef.current;
+            const next = { x: centerX - ((centerX - current.x) / current.k) * nextScale, y: centerY - ((centerY - current.y) / current.k) * nextScale, k: nextScale };
+            viewportRef.current = next;
+            setViewport(next);
             setContextMenu(null);
         },
         [size.height, size.width],
@@ -2115,10 +2163,17 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const target = event.target instanceof Element ? event.target : null;
             const targetNodeId = target?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId;
             const isSelectedVideo = event.target instanceof HTMLVideoElement && Boolean(targetNodeId && selectedNodeIdsRef.current.has(targetNodeId));
-            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true']") || (target?.closest("[data-canvas-no-zoom]") && !isSelectedVideo)) return;
+            if (event.defaultPrevented || event.isComposing || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true'],.ant-modal,.ant-dropdown,.ant-select-dropdown") || (target?.closest("[data-canvas-no-zoom]") && !isSelectedVideo)) return;
 
             const key = event.key.toLowerCase();
             const isModifierShortcut = event.metaKey || event.ctrlKey;
+            if (!isModifierShortcut && !event.altKey && event.shiftKey && ["Digit0", "Digit1", "Digit2"].includes(event.code)) {
+                event.preventDefault();
+                if (event.code === "Digit1") fitAllNodes();
+                else if (event.code === "Digit2") fitSelectedNodes();
+                else setZoomScale(1);
+                return;
+            }
 
             if (isModifierShortcut && !event.altKey && key === "z") {
                 event.preventDefault();
@@ -2190,7 +2245,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [copySelectedNodes, createGroupFromSelection, deleteConnection, deleteNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, undoCanvas]);
+    }, [copySelectedNodes, createGroupFromSelection, deleteConnection, deleteNodes, fitAllNodes, fitSelectedNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, setZoomScale, undoCanvas]);
 
     const handleConnectStart = useCallback(
         (event: ReactMouseEvent, nodeId: string, handleType: "source" | "target") => {
@@ -4433,29 +4488,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             if (rootId && !nodesRef.current.find((item) => item.id === rootId)?.metadata?.imageBatchExpanded) {
                 toggleBatchExpanded(rootId);
             }
-            const worldX = node.position.x + node.width / 2;
-            const worldY = node.position.y + node.height / 2;
-            const k = Math.min(Math.max(Math.min((size.width * 0.6) / node.width, (size.height * 0.6) / node.height), 0.05), 1);
-            const target = { x: size.width / 2 - worldX * k, y: size.height / 2 - worldY * k, k };
             setSelectedNodeIds(new Set([node.id]));
             setSelectedConnectionId(null);
-            setContextMenu(null);
-            if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
-            const start = { ...viewportRef.current };
-            const duration = 450;
-            let startTime: number | null = null;
-            const step = (now: number) => {
-                if (!startTime) startTime = now;
-                const progress = Math.min(1, (now - startTime) / duration);
-                const eased = 1 - Math.pow(1 - progress, 3);
-                const next = { x: start.x + (target.x - start.x) * eased, y: start.y + (target.y - start.y) * eased, k: start.k + (target.k - start.k) * eased };
-                viewportRef.current = next;
-                setViewport(next);
-                focusAnimationRef.current = progress < 1 ? requestAnimationFrame(step) : null;
-            };
-            focusAnimationRef.current = requestAnimationFrame(step);
+            fitNodesToView([node]);
         },
-        [size.height, size.width, toggleBatchExpanded],
+        [fitNodesToView, toggleBatchExpanded],
     );
 
     useEffect(() => () => {
@@ -4515,6 +4552,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onProjects={() => router.push("/canvas")}
                     onCreateProject={createAndOpenProject}
                     onDeleteProject={deleteCurrentProject}
+                    onClear={() => setClearConfirmOpen(true)}
                     onImportImage={() => handleUploadRequest()}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
@@ -4535,6 +4573,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     backgroundMode={backgroundMode}
                     alignmentGuides={alignmentGuides}
                     onViewportChange={(next) => {
+                        if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
+                        focusAnimationRef.current = null;
+                        viewportRef.current = next;
                         setViewport(next);
                         setContextMenu(null);
                     }}
@@ -4791,7 +4832,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onRedo={redoCanvas}
                     onUpload={() => handleUploadRequest()}
                     onDelete={() => deleteNodes(new Set(selectedNodeIds))}
-                    onClear={() => setClearConfirmOpen(true)}
                     onCanvasToolChange={setCanvasTool}
                     onBackgroundModeChange={setBackgroundMode}
                     onShowImageInfoChange={setShowImageInfo}
@@ -4808,7 +4848,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
                 {isMiniMapOpen ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
 
-                <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onReset={resetViewport} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} onOpenShortcuts={() => setShortcutsOpen(true)} />
+                <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onFitAll={fitAllNodes} onFitSelected={fitSelectedNodes} hasSelection={selectedNodeIds.size > 0} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} onOpenShortcuts={() => setShortcutsOpen(true)} />
 
                 {contextMenu ? (
                     <CanvasNodeContextMenu
@@ -5271,6 +5311,7 @@ function CanvasTopBar({
     onProjects,
     onCreateProject,
     onDeleteProject,
+    onClear,
     onImportImage,
     onUndo,
     onRedo,
@@ -5292,6 +5333,7 @@ function CanvasTopBar({
     onProjects: () => void;
     onCreateProject: () => void;
     onDeleteProject: () => void;
+    onClear: () => void;
     onImportImage: () => void;
     onUndo: () => void;
     onRedo: () => void;
@@ -5301,9 +5343,22 @@ function CanvasTopBar({
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
     const titleRef = useRef<HTMLDivElement>(null);
+    const wasTitleEditingRef = useRef(false);
     const accountRef = useRef<HTMLDivElement>(null);
-    const [shortcutsOpen, setShortcutsOpen] = useState(false);
+    const setShortcutsOpen = useCanvasUiStore((state) => state.setShortcutsOpen);
     const [accountOpen, setAccountOpen] = useState(false);
+    const shortcutsOpen = useCanvasUiStore((state) => state.shortcutsOpen);
+    const wheelMode = useCanvasUiStore((state) => state.wheelMode);
+    const [modifierKey, setModifierKey] = useState("Ctrl");
+
+    useEffect(() => {
+        setModifierKey(/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl");
+    }, []);
+
+    useEffect(() => {
+        if (wasTitleEditingRef.current && !isTitleEditing) titleRef.current?.querySelector("button")?.focus({ preventScroll: true });
+        wasTitleEditingRef.current = isTitleEditing;
+    }, [isTitleEditing]);
 
     useEffect(() => {
         if (!isTitleEditing) return;
@@ -5325,9 +5380,9 @@ function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4">
+            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}>
                 <div className="pointer-events-auto flex min-w-0 items-center gap-3">
-                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
+                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)]" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                         {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                     </button>
                     <Dropdown
@@ -5338,16 +5393,17 @@ function CanvasTopBar({
                                 { key: "projects", icon: <Images className="size-4" />, label: "我的画布", onClick: onProjects },
                                 { type: "divider" },
                                 { key: "new", icon: <Plus className="size-4" />, label: "新建画布", onClick: onCreateProject },
+                                { key: "clear", danger: true, icon: <Trash2 className="size-4" />, label: "清空画布内容", onClick: onClear },
                                 { key: "delete", danger: true, icon: <Trash2 className="size-4" />, label: "删除当前画布", onClick: onDeleteProject },
                                 { type: "divider" },
                                 { key: "import", icon: <Upload className="size-4" />, label: "导入素材", onClick: onImportImage },
                                 { type: "divider" },
-                                { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text="撤销" shortcut="⌘ Z" />, onClick: onUndo },
-                                { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text="重做" shortcut="⌘ ⇧ Z / ⌘ Y" />, onClick: onRedo },
+                                { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text="撤销" shortcut={`${modifierKey} Z`} />, onClick: onUndo },
+                                { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text="重做" shortcut={`${modifierKey} Shift Z / ${modifierKey} Y`} />, onClick: onRedo },
                             ],
                         }}
                     >
-                        <button type="button" className="grid size-9 place-items-center rounded-full transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }} aria-label="打开画布菜单">
+                        <button type="button" className="grid size-9 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)]" style={{ color: theme.node.text }} aria-label="打开画布菜单">
                             <Menu className="size-5" />
                         </button>
                     </Dropdown>
@@ -5356,12 +5412,16 @@ function CanvasTopBar({
                         {isTitleEditing ? (
                             <input
                                 autoFocus
+                                aria-label="画布名称"
+                                onFocus={(event) => event.currentTarget.select()}
                                 value={titleDraft}
                                 onChange={(event) => onTitleDraftChange(event.target.value)}
                                 onBlur={onFinishTitleEditing}
                                 onKeyDown={(event) => {
-                                    if (event.key === "Enter") onFinishTitleEditing();
-                                    if (event.key === "Escape") onCancelTitleEditing();
+                                    event.stopPropagation();
+                                    if (event.nativeEvent.isComposing) return;
+                                    if (event.key === "Enter") { event.preventDefault(); onFinishTitleEditing(); }
+                                    if (event.key === "Escape") { event.preventDefault(); onCancelTitleEditing(); }
                                 }}
                                 className="max-w-[280px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none"
                                 style={{ color: theme.node.text }}
@@ -5370,8 +5430,12 @@ function CanvasTopBar({
                             <button
                                 type="button"
                                 className="max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
-                                onDoubleClick={onStartTitleEditing}
-                                title="双击修改画布名称"
+                                onClick={onStartTitleEditing}
+                                onKeyDown={(event) => {
+                                    if (event.key === "F2") { event.preventDefault(); onStartTitleEditing(); }
+                                }}
+                                aria-label={`重命名画布：${title}`}
+                                title="点击修改画布名称；聚焦后也可按 Enter 或 F2"
                             >
                                 {title}
                             </button>
@@ -5396,12 +5460,12 @@ function CanvasTopBar({
                             <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                             <Button
                                 type="text"
-                                className="!h-10 !rounded-xl !px-3 !font-medium"
-                                style={{ background: theme.toolbar.panel, color: theme.node.text, boxShadow: "0 10px 30px rgba(28,25,23,.10)" }}
+                                className="!h-9 !px-2 !font-medium"
+                                style={{ color: theme.node.text }}
                                 icon={<Bot className="size-4" />}
                                 onClick={onExpandAssistant}
                             >
-                                Agent
+                                助手
                             </Button>
                         </>
                     ) : null}
@@ -5409,14 +5473,16 @@ function CanvasTopBar({
             </div>
             <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-2 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
-                    <Shortcut keys={["Space", "拖动"]} value="临时反转选择/移动工具" />
-                    <Shortcut keys={["滚轮"]} value="缩放画布" />
+                    <Shortcut keys={["Space", "拖动"]} value="按住临时移动，松开恢复原工具" />
+                    <Shortcut keys={[wheelMode === "pan" ? "双指滚动" : "滚轮"]} value={wheelMode === "pan" ? "平移画布" : "缩放画布"} />
+                    <Shortcut keys={[modifierKey, "滚动"]} value="缩放画布；触控板也可直接捏合" />
+                    <Shortcut keys={["Shift", "1 / 2 / 0"]} value="查看全部 / 聚焦选中 / 100%" />
                     <Shortcut keys={["拖动"]} value="使用当前工具操作画布" />
-                    <Shortcut keys={["Shift / Ctrl / Cmd", "点击"]} value="追加选择节点" />
-                    <Shortcut keys={["Ctrl / Cmd", "G"]} value="创建组" />
-                    <Shortcut keys={["Ctrl / Cmd", "C / V"]} value="复制 / 粘贴节点，或粘贴剪切板文本/图片" />
-                    <Shortcut keys={["Ctrl / Cmd", "Z"]} value="撤销" />
-                    <Shortcut keys={["Ctrl / Cmd", "Shift", "Z"]} value="重做" />
+                    <Shortcut keys={[`Shift / ${modifierKey}`, "点击"]} value="追加选择节点" />
+                    <Shortcut keys={[modifierKey, "G"]} value="创建组" />
+                    <Shortcut keys={[modifierKey, "C / V"]} value="复制 / 粘贴节点，或粘贴剪切板文本/图片" />
+                    <Shortcut keys={[modifierKey, "Z"]} value="撤销" />
+                    <Shortcut keys={[modifierKey, "Shift", "Z"]} value="重做" />
                     <Shortcut keys={["Delete / Backspace"]} value="删除选中" />
                     <Shortcut keys={["Esc"]} value="取消选择并关闭浮层" />
                     <Shortcut keys={["拖入图片/视频/音频"]} value="上传到画布" />
@@ -5436,6 +5502,7 @@ function MenuLabel({ text, shortcut }: { text: string; shortcut: string }) {
 }
 
 function Shortcut({ keys, value }: { keys: string[]; value: string }) {
+    const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
         <div className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-6 rounded-lg px-1 py-1.5">
             <span className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -5443,8 +5510,8 @@ function Shortcut({ keys, value }: { keys: string[]; value: string }) {
                     <span key={`${key}-${index}`} className="flex items-center gap-1.5">
                         {index ? <span className="text-xs opacity-35">+</span> : null}
                         <kbd
-                            className="min-w-9 rounded-md border px-2.5 py-1.5 text-center text-xs font-medium leading-none shadow-[inset_0_-1px_0_rgba(0,0,0,.08),0_1px_2px_rgba(0,0,0,.06)]"
-                            style={{ borderColor: "rgba(120,113,108,.28)", background: "linear-gradient(#fff, rgba(245,245,244,.92))", color: "rgb(68,64,60)" }}
+                            className="min-w-9 rounded-md border px-2.5 py-1.5 text-center text-xs font-medium leading-none"
+                            style={{ borderColor: theme.toolbar.border, background: theme.toolbar.itemHover, color: theme.node.text }}
                         >
                             {key}
                         </kbd>
