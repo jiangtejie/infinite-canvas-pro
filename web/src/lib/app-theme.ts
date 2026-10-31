@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import type { ThemeConfig } from "antd";
 import { theme as antdTheme } from "antd";
+import { appFontFamily } from "@/lib/app-font";
 
 const neutral = {
     light: {
@@ -50,6 +51,10 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
             colorLinkHover: color.primaryHover,
             colorLinkActive: color.primary,
             colorTextLightSolid: color.primaryText,
+            fontFamily: appFontFamily,
+            borderRadius: 10,
+            borderRadiusLG: 14,
+            borderRadiusSM: 6,
         },
         components: {
             Button: {

@@ -575,22 +575,24 @@ export function CanvasAssistantPanel({
     };
 
     return (
-        <motion.div
-            className="flex shrink-0"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: closing ? 0 : width + 1, opacity: closing ? 0 : 1 }}
-            transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
-            style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
-        >
+        <>
+            {!closing ? <div className="fixed inset-0 z-[65] bg-black/35 md:hidden" onClick={collapse} aria-hidden /> : null}
+            <motion.div
+                className={cn("flex shrink-0 max-md:fixed max-md:inset-y-0 max-md:right-0 max-md:z-[70]", !closing && "max-md:!w-[92vw]")}
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: closing ? 0 : width + 1, opacity: closing ? 0 : 1 }}
+                transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
+                style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
+            >
             <motion.aside
                 data-canvas-agent-panel
-                className="relative flex shrink-0 flex-col border-l"
+                className={cn("relative flex shrink-0 flex-col border-l max-md:shadow-2xl", !closing && "max-md:!w-[92vw]")}
                 initial={{ x: 48 }}
                 animate={{ x: closing ? 28 : 0 }}
                 transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}
                 style={{ width, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             >
-                <button type="button" className="absolute inset-y-0 left-0 z-40 w-4 -translate-x-1/2 cursor-col-resize" onMouseDown={(event) => { event.preventDefault(); startResize(); }} aria-label="调整右侧面板宽度" />
+                <button type="button" className="absolute inset-y-0 left-0 z-40 hidden w-4 -translate-x-1/2 cursor-col-resize md:block" onMouseDown={(event) => { event.preventDefault(); startResize(); }} aria-label="调整右侧面板宽度" />
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: theme.node.stroke }}>
                     <div className="flex items-center gap-2 text-sm font-medium">
                         <Bot className="size-4" />
@@ -763,7 +765,8 @@ export function CanvasAssistantPanel({
                     <p className="text-sm opacity-60">将删除 {deleteChatIds.length} 条对话记录，此操作不可撤销</p>
                 </Modal>
             </motion.aside>
-        </motion.div>
+            </motion.div>
+        </>
     );
 }
 

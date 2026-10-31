@@ -15,7 +15,6 @@ import {
     History,
     ImagePlus,
     LoaderCircle,
-    PanelBottom,
     PanelLeft,
     PenLine,
     Plus,
@@ -27,23 +26,22 @@ import {
     WandSparkles,
 } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
-import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Segmented, Tag, Typography } from "antd";
+import dynamic from "next/dynamic";
+import { App, Button, Checkbox, Drawer, Image, Input, Modal, Segmented, Tag, Typography } from "antd";
 import localforage from "localforage";
 import { saveAs } from "file-saver";
 
 import { ImageSettingsPanel, imageFormatLabel, imageQualityLabel, imageSizeLabel, imageSizeOptions } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
+import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-header";
+import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
+import { EmptyState } from "@/components/ui/state-panel";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/app/(user)/canvas/components/canvas-node-mask-edit-dialog";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { IMAGE_MASK_EDIT_PROMPT_PREFIX } from "@/lib/image-reference-prompt";
-import {
-    CreativeWorkflowWorkspace,
-    type WorkflowExternalTaskFailure,
-    type WorkflowExternalTaskStart,
-    type WorkflowExternalTaskSuccess,
-} from "@/components/workflows/creative-workflow-workspace";
+import type { WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess } from "@/components/workflows/creative-workflow-workspace";
 import { normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { nanoid } from "nanoid";
@@ -128,15 +126,18 @@ type ResultViewMode = "all" | "category";
 type WorkflowPollContext = { token: string; signal: AbortSignal };
 
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
-type WorkbenchLayout = "side" | "bottom";
 const LOG_STORE_KEY = "infinite-canvas:image_generation_logs";
 const CATEGORY_STORE_KEY = "infinite-canvas:image_generation_categories";
-const WORKBENCH_LAYOUT_KEY = "infinite-canvas:image-workbench-layout";
+const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const RESULT_VIEW_MODE_KEY = "infinite-canvas:image-result-view-mode";
 const IMAGE_TASK_POLL_INTERVAL_MS = 10000;
 const WORKFLOW_BUTTON_POSITION_KEY = "infinite-canvas:workflow-button-position";
 const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
 const categoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
+const CreativeWorkflowWorkspace = dynamic(
+    () => import("@/components/workflows/creative-workflow-workspace").then((module) => module.CreativeWorkflowWorkspace),
+    { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-sm text-muted-foreground">正在加载工作流...</div> },
+);
 export default function ImagePage() {
     const { message, modal } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1227,8 +1228,8 @@ export default function ImagePage() {
     };
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
-            <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:overflow-hidden`}>
+        <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+            <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:overflow-hidden`}>
                 {workbenchLayout === "side" ? (
                     <>
                         <WorkbenchPanel
@@ -1353,7 +1354,7 @@ export default function ImagePage() {
             <button
                 ref={workflowButtonRef}
                 type="button"
-                className="fixed z-50 inline-flex touch-none select-none items-center gap-2 rounded-full border border-sky-300/70 bg-white/90 px-4 py-3 text-sm font-semibold text-stone-950 shadow-[0_18px_50px_rgba(14,165,233,0.28),0_8px_18px_rgba(0,0,0,0.14)] ring-1 ring-white/70 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-sky-300 hover:bg-white hover:shadow-[0_22px_64px_rgba(14,165,233,0.36),0_10px_22px_rgba(0,0,0,0.18)] dark:border-sky-400/40 dark:bg-stone-900/88 dark:text-stone-100 dark:ring-white/10 dark:hover:bg-stone-900"
+                className="fixed z-50 inline-flex touch-none select-none items-center gap-2 rounded-full border border-border bg-background/90 px-4 py-3 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-accent"
                 style={{
                     left: (typeof window === "undefined" ? defaultWorkflowButtonPosition() : clampWorkflowButtonPosition(workflowButtonPosition.x || workflowButtonPosition.y ? workflowButtonPosition : defaultWorkflowButtonPosition())).x,
                     top: (typeof window === "undefined" ? defaultWorkflowButtonPosition() : clampWorkflowButtonPosition(workflowButtonPosition.x || workflowButtonPosition.y ? workflowButtonPosition : defaultWorkflowButtonPosition())).y
@@ -1482,7 +1483,7 @@ function WorkbenchPanel({
     if (layout === "bottom") {
         return (
             <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-5 sm:bottom-7 sm:px-10 lg:px-16">
-                <div className="pointer-events-auto w-full max-w-5xl rounded-[24px] bg-white/65 p-4 shadow-[0_32px_100px_rgba(15,23,42,.22),0_10px_34px_rgba(15,23,42,.10)] ring-1 ring-white/50 backdrop-blur-2xl dark:bg-stone-950/60 dark:ring-white/10 dark:shadow-[0_34px_110px_rgba(0,0,0,.58)]">
+                <div className="pointer-events-auto w-full max-w-5xl rounded-xl border border-border bg-background/95 p-4 shadow-2xl backdrop-blur-xl dark:bg-card/95">
                     <div className="flex flex-col gap-3">
                         <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                             <Input.TextArea
@@ -1490,29 +1491,30 @@ function WorkbenchPanel({
                                 onChange={(event) => onPromptChange(event.target.value)}
                                 placeholder="描述你想生成的图片，可输入 @ 来指定参考图..."
                                 autoSize={{ minRows: 2, maxRows: 4 }}
-                                className="rounded-2xl"
+                                className="rounded-lg"
                                 onPressEnter={(event) => {
                                     if (!event.shiftKey && canGenerate) onGenerate();
                                 }}
                             />
                             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                <Button title="清空输入" icon={<Trash2 className="size-4" />} onClick={onClearPrompt} />
-                                <Button title="提示词库" icon={<BookOpen className="size-4" />} onClick={onOpenPromptLibrary} />
-                                <Button title="我的素材" icon={<FolderPlus className="size-4" />} onClick={onOpenAssetPicker} />
+                                <Button title="清空输入" aria-label="清空输入" icon={<Trash2 className="size-4" />} onClick={onClearPrompt} />
+                                <Button title="提示词库" aria-label="提示词库" icon={<BookOpen className="size-4" />} onClick={onOpenPromptLibrary} />
+                                <Button title="我的素材" aria-label="我的素材" icon={<FolderPlus className="size-4" />} onClick={onOpenAssetPicker} />
                                 <Button
                                     title="参数配置"
+                                    aria-label="参数配置"
                                     className={`lg:hidden ${!bottomSettingsCollapsed ? "!bg-sky-500/10 !text-sky-500 !border-sky-500/30" : ""}`}
                                     icon={<SlidersHorizontal className="size-4" />}
                                     onClick={() => setBottomSettingsCollapsed(!bottomSettingsCollapsed)}
                                 />
-                                <Button title="切换到侧边工作台" icon={<PanelLeft className="size-4" />} onClick={() => onLayoutChange("side")} />
+                                <Button title="切换到侧边工作台" aria-label="切换到侧边工作台" icon={<PanelLeft className="size-4" />} onClick={() => onLayoutChange("side")} />
                                 <Button type="primary" className="h-9 rounded-xl lg:!hidden font-medium px-4" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                                     {pendingCount ? `${pendingCount} 生成中` : "开始创作"}
                                 </Button>
                             </div>
                         </div>
                         <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[1.3fr_1.1fr_0.9fr_0.9fr_0.9fr_0.85fr_0.8fr_0.8fr_auto_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
-                            <label className="grid gap-1 text-xs text-stone-500 dark:text-stone-400">
+                            <label className="grid gap-1 text-xs text-muted-foreground">
                                 模型
                                 <ModelPicker
                                     config={config}
@@ -1530,9 +1532,9 @@ function WorkbenchPanel({
                                     fullWidth
                                 />
                             </label>
-                            <label className="grid gap-1 text-xs text-stone-500 dark:text-stone-400">
+                            <label className="grid gap-1 text-xs text-muted-foreground">
                                 接口模式
-                                <div className="flex h-11 items-center rounded-xl border border-stone-200 bg-background px-2.5 dark:border-stone-800">
+                                <div className="flex h-11 items-center rounded-xl border border-border bg-background px-2.5">
                                     <Segmented
                                         size="small"
                                         className="canvas-config-mode !rounded-md !p-0.5 w-full"
@@ -1562,16 +1564,16 @@ function WorkbenchPanel({
     }
 
     return (
-        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-stone-200 bg-card shadow-sm dark:border-stone-800 lg:min-h-0">
+        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:min-h-0">
             <div className="shrink-0 p-4 pb-3">
-                <WorkbenchHeader currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
+                <WorkbenchHeader title="生图工作台" currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
             </div>
             <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-3">
-                <section className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
+                <section className="overflow-hidden rounded-lg border border-border bg-background">
                     <div className="px-3 py-2">
                         <span className="font-medium text-sm">提示词</span>
                     </div>
-                    <div className="border-t border-stone-200 p-3 dark:border-stone-800 space-y-2">
+                    <div className="border-t border-border p-3 space-y-2">
                         <div className="flex flex-wrap gap-1">
                             <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPastePrompt}>读取剪贴板</Button>
                             <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={onClearPrompt}>清空</Button>
@@ -1582,12 +1584,12 @@ function WorkbenchPanel({
                     </div>
                 </section>
 
-                <section className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
+                <section className="overflow-hidden rounded-lg border border-border bg-background">
                     <div className="flex items-center gap-2 px-3 py-2">
                         <span className="font-medium text-sm">参考图</span>
                         <Tag className="m-0 text-xs">{references.length}</Tag>
                     </div>
-                    <div className="border-t border-stone-200 p-3 dark:border-stone-800 space-y-2">
+                    <div className="border-t border-border p-3 space-y-2">
                         <div className="flex flex-wrap gap-1">
                             <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteReferences}>剪切板</Button>
                             <Button size="small" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
@@ -1601,27 +1603,9 @@ function WorkbenchPanel({
                     <GenerationSettings config={config} model={model} updateConfig={updateConfig} openConfigDialog={openConfigDialog} />
                 </div>
             </div>
-            <div className="shrink-0 border-t border-stone-200 p-4 dark:border-stone-800">
+            <div className="shrink-0 border-t border-border p-4">
                 <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                     {pendingCount ? `继续提交（${pendingCount} 个生成中）` : "开始生成"}
-                </Button>
-            </div>
-        </div>
-    );
-}
-
-function WorkbenchHeader({ currentLayout, onLayoutChange, compact = false }: { currentLayout: WorkbenchLayout; onLayoutChange: (layout: WorkbenchLayout) => void; compact?: boolean }) {
-    return (
-        <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-                <h1 className={`${compact ? "text-base" : "text-2xl"} font-semibold text-stone-950 dark:text-stone-100`}>生图工作台</h1>
-            </div>
-            <div className="flex shrink-0 rounded-lg border border-stone-200 bg-stone-50 p-1 dark:border-stone-800 dark:bg-stone-900">
-                <Button size="small" type={currentLayout === "side" ? "primary" : "text"} icon={<PanelLeft className="size-3.5" />} onClick={() => onLayoutChange("side")}>
-                    侧边
-                </Button>
-                <Button size="small" type={currentLayout === "bottom" ? "primary" : "text"} icon={<PanelBottom className="size-3.5" />} onClick={() => onLayoutChange("bottom")}>
-                    底部
                 </Button>
             </div>
         </div>
@@ -1631,7 +1615,7 @@ function WorkbenchHeader({ currentLayout, onLayoutChange, compact = false }: { c
 function ReferenceStrip({ references, compact = false, className = "", onRemoveReference, uploadingCount = 0 }: { references: ReferenceImage[]; compact?: boolean; className?: string; onRemoveReference: (id: string) => void; uploadingCount?: number }) {
     return (
         <div
-            className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 overscroll-x-contain dark:border-stone-700 ${compact ? "min-h-14" : "min-h-24 pb-3"} ${className}`}
+            className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-border p-2 overscroll-x-contain ${compact ? "min-h-14" : "min-h-24 pb-3"} ${className}`}
             onWheel={(event) => {
                 if (event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return;
                 event.preventDefault();
@@ -1639,7 +1623,7 @@ function ReferenceStrip({ references, compact = false, className = "", onRemoveR
             }}
         >
             {references.map((item) => (
-                <div key={item.id} className={`${compact ? "size-12" : "size-20"} group relative shrink-0 overflow-hidden rounded-md border border-stone-200 dark:border-stone-800`}>
+                <div key={item.id} className={`${compact ? "size-12" : "size-20"} group relative shrink-0 overflow-hidden rounded-md border border-border`}>
                     <Image
                         src={item.dataUrl || undefined}
                         alt={item.name}
@@ -1655,54 +1639,22 @@ function ReferenceStrip({ references, compact = false, className = "", onRemoveR
                 </div>
             ))}
             {Array.from({ length: uploadingCount }).map((_, i) => (
-                <div key={`loading-${i}`} className={`${compact ? "size-12" : "size-20"} shrink-0 flex items-center justify-center rounded-md border border-stone-200 dark:border-stone-800 bg-stone-100/50 dark:bg-stone-900/50`}>
-                    <LoaderCircle className="size-5 animate-spin text-stone-400" />
+                <div key={`loading-${i}`} className={`${compact ? "size-12" : "size-20"} shrink-0 flex items-center justify-center rounded-md border border-border bg-muted/50`}>
+                    <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
                 </div>
             ))}
-            {!references.length && !uploadingCount ? <div className="flex min-w-full items-center justify-center text-sm text-stone-500">暂无参考图</div> : null}
+            {!references.length && !uploadingCount ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">暂无参考图</div> : null}
         </div>
     );
 }
 
 function ReferenceQuickActions({ references, onUploadReferences }: { references: ReferenceImage[]; onUploadReferences: () => void }) {
     return (
-        <div className="flex h-11 items-center gap-1 rounded-xl border border-stone-200 bg-background px-2 dark:border-stone-800">
+        <div className="flex h-11 items-center gap-1 rounded-xl border border-border bg-background px-2">
             {references[0] ? <img src={references[0].dataUrl || undefined} alt={references[0].name} className="size-7 rounded object-cover" /> : null}
-            {references.length ? <span className="min-w-7 text-xs text-stone-500">{references.length} 张</span> : null}
+            {references.length ? <span className="min-w-7 text-xs text-muted-foreground">{references.length} 张</span> : null}
             <Button size="small" type="text" icon={<Upload className="size-3.5" />} onClick={onUploadReferences} />
         </div>
-    );
-}
-
-function QuickSelect({ label, value, options, onChange }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {
-    return (
-        <label className="grid gap-1 text-xs text-stone-500 dark:text-stone-400">
-            {label}
-            <select className="h-11 min-w-0 rounded-xl border border-stone-200 bg-background px-3 text-sm text-stone-900 outline-none dark:border-stone-800 dark:text-stone-100" value={value} onChange={(event) => onChange(event.target.value)}>
-                {options.map((item) => (
-                    <option key={item.value} value={item.value}>
-                        {item.label}
-                    </option>
-                ))}
-            </select>
-        </label>
-    );
-}
-
-function QuickNumber({ label, value, min, max, disabled, onChange }: { label: string; value: string; min: number; max: number; disabled?: boolean; onChange: (value: string) => void }) {
-    return (
-        <label className="grid gap-1 text-xs text-stone-500 dark:text-stone-400">
-            {label}
-            <input
-                className="h-11 min-w-0 rounded-xl border border-stone-200 bg-background px-3 text-sm text-stone-900 outline-none disabled:opacity-50 dark:border-stone-800 dark:text-stone-100"
-                type="number"
-                min={min}
-                max={max}
-                disabled={disabled}
-                value={value}
-                onChange={(event) => onChange(String(Math.max(min, Math.min(max, Number(event.target.value) || min))))}
-            />
-        </label>
     );
 }
 
@@ -1820,10 +1772,10 @@ function ResultsPanel({
     }, [logs, results]);
 
     return (
-        <div className={`thin-scrollbar rounded-lg border border-stone-200 bg-card p-4 shadow-sm dark:border-stone-800 lg:min-h-0 lg:overflow-y-auto lg:p-5 ${className}`}>
+        <div className={`thin-scrollbar rounded-lg border border-border bg-card p-4 shadow-sm lg:min-h-0 lg:overflow-y-auto lg:p-5 ${className}`}>
             <div className="mb-4 flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
-                    <History className="size-4 text-stone-400" />
+                    <History className="size-4 text-muted-foreground" />
                     <h2 className="truncate text-xl font-semibold">{activeCategory ? activeCategory.name : "全部结果"}</h2>
                     <Tag className="m-0">{totalCount}</Tag>
                     {pendingCount ? <Tag className="m-0 px-2 py-1">{pendingCount} 个生成中</Tag> : null}
@@ -1834,7 +1786,7 @@ function ResultsPanel({
                             返回分类
                         </Button>
                     ) : null}
-                    <div className="flex shrink-0 rounded-lg border border-stone-200 bg-stone-50 p-1 dark:border-stone-800 dark:bg-stone-900">
+                    <div className="flex shrink-0 rounded-lg border border-border bg-muted p-1">
                         <Button
                             size="small"
                             type={resultViewMode === "all" ? "primary" : "text"}
@@ -1909,9 +1861,9 @@ function ResultsPanel({
                     ))}
                 </div>
             ) : (
-                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-stone-300 text-center dark:border-stone-700 lg:min-h-[560px]">
-                    <ImagePlus className="mb-4 size-11 text-stone-400" />
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="还没有生成图片" />
+                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border text-center lg:min-h-[560px]">
+                    <ImagePlus className="mb-4 size-11 text-muted-foreground" />
+                    <EmptyState title="还没有生成图片" description="输入提示词并开始生成，结果会出现在这里。" />
                 </div>
             )}
             <Modal title="新建分类" open={creatingCategory} onCancel={() => setCreatingCategory(false)} onOk={() => void createCategory()} okText="创建" cancelText="取消" destroyOnHidden>
@@ -1950,7 +1902,7 @@ function CategoryCard({
     };
 
     return (
-        <div className="group relative min-h-[360px] overflow-hidden rounded-lg border border-stone-200 bg-stone-100/60 dark:border-stone-800 dark:bg-stone-900/60 sm:min-h-[420px]">
+        <div className="group relative min-h-[360px] overflow-hidden rounded-lg border border-border bg-muted/60 sm:min-h-[420px]">
             <button type="button" className="absolute inset-0 z-0 text-left" onClick={onOpen} aria-label={`打开分类 ${category.name}`} />
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
                 {images.length ? (
@@ -1960,7 +1912,7 @@ function CategoryCard({
                                 key={`${image.id}-${index}`}
                                 src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl}
                                 alt=""
-                                className={`${images.length === 1 ? "inset-0 size-full rounded-none border-0" : "h-[92%] w-[86%] rounded-lg border border-white/80 dark:border-stone-900"} absolute object-cover shadow-xl transition-transform duration-200 group-hover:scale-[1.02]`}
+                                className={`${images.length === 1 ? "inset-0 size-full rounded-none border-0" : "h-[92%] w-[86%] rounded-lg border border-border"} absolute object-cover shadow-xl transition-transform duration-200 group-hover:scale-[1.02]`}
                                 style={{
                                     left: images.length === 1 ? 0 : `${3 + index * 4}%`,
                                     top: images.length === 1 ? 0 : `${4 + index * 3}%`,
@@ -1971,7 +1923,7 @@ function CategoryCard({
                         ))}
                     </>
                 ) : (
-                    <div className="flex size-full items-center justify-center text-sm text-stone-500">暂无图片</div>
+                    <div className="flex size-full items-center justify-center text-sm text-muted-foreground">暂无图片</div>
                 )}
             </div>
             <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-3 pt-10 text-white">
@@ -1982,8 +1934,8 @@ function CategoryCard({
                 <Tag className="m-0 text-[10px]">{images.length} 图</Tag>
             </div>
             <div className="absolute bottom-2 right-2 z-20 flex gap-1">
-                <Button title="改名" size="small" icon={<PenLine className="size-3.5" />} onClick={() => setEditing(true)} />
-                <Button title="删除" size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => onDelete(category)} />
+                <Button title="改名" aria-label="重命名分类" size="small" icon={<PenLine className="size-3.5" />} onClick={() => setEditing(true)} />
+                <Button title="删除" aria-label="删除分类" size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => onDelete(category)} />
             </div>
         </div>
     );
@@ -1994,11 +1946,11 @@ function GenerationSettings({ config, model, updateConfig, openConfigDialog }: {
 
     return (
         <div className="space-y-3">
-            <section className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
+            <section className="overflow-hidden rounded-lg border border-border bg-background">
                 <div className="px-3 py-2">
                     <span className="font-medium text-sm">模型</span>
                 </div>
-                <div className="border-t border-stone-200 p-3 dark:border-stone-800 space-y-2">
+                <div className="border-t border-border p-3 space-y-2">
                     <ModelPicker config={config} value={model} capability="image" channelId={config.imageChannelId} workflowRef={config.imageWorkflowRef} onWorkflowChange={(value) => updateConfig("imageWorkflowRef", value)} onChange={(value, channelId) => { updateConfig("imageModel", value); if (channelId) updateConfig("imageChannelId", channelId); }} fullWidth onMissingConfig={() => openConfigDialog(false)} />
                     <div className="flex items-center justify-between gap-3 pt-1">
                         <div className="text-xs opacity-75">接口模式</div>
@@ -2043,8 +1995,8 @@ function ResultImageCard({
     onSync: (image: GeneratedImage) => void;
 }) {
     return (
-        <div className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
-            <div className="relative aspect-[4/3] bg-stone-100 dark:bg-stone-900">
+        <div className="overflow-hidden rounded-lg border border-border bg-background">
+            <div className="relative aspect-[4/3] bg-muted">
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     {!image.storageKey?.startsWith("server:") ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
                     <Tag className="m-0 text-[10px]" color="blue">新生成</Tag>
@@ -2053,8 +2005,8 @@ function ResultImageCard({
                 <Image src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
             </div>
             <TaskInfo result={result} onCopyPrompt={onCopyPrompt} />
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-stone-200 px-2.5 py-2 dark:border-stone-800">
-                <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-[10px] text-stone-500 dark:text-stone-400">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border px-2.5 py-2">
+                <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-[10px] text-muted-foreground">
                     <span>
                         {image.width}x{image.height}
                     </span>
@@ -2062,10 +2014,10 @@ function ResultImageCard({
                     <span>{formatDuration(image.durationMs)}</span>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                    <Button size="small" title="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
-                    <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
-                    <Button size="small" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
-                    <Button size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
+                    <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
+                    <Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
+                    <Button size="small" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
+                    <Button size="small" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
                 </div>
             </div>
         </div>
@@ -2074,7 +2026,7 @@ function ResultImageCard({
 
 function PendingImageCard({ result, now, onCopyPrompt }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void> }) {
     return (
-        <div className="overflow-hidden rounded-lg border border-dashed border-stone-300 bg-stone-50 dark:border-stone-700 dark:bg-stone-900">
+        <div className="overflow-hidden rounded-lg border border-dashed border-border bg-muted/50">
             <div className="relative aspect-[4/3]">
                 <div
                     className="absolute inset-0 opacity-60"
@@ -2083,10 +2035,10 @@ function PendingImageCard({ result, now, onCopyPrompt }: { result: GenerationRes
                         backgroundSize: "16px 16px",
                     }}
                 />
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
                     <LoaderCircle className="size-6 animate-spin" />
                     <span>生成中</span>
-                    <span className="rounded-full bg-white/80 px-2 py-1 text-xs text-stone-600 shadow-sm dark:bg-stone-950/70 dark:text-stone-300">{formatDuration(Math.max(0, now - result.createdAt))}</span>
+                    <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, now - result.createdAt))}</span>
                 </div>
             </div>
             <TaskInfo result={{ ...result, durationMs: Math.max(0, now - result.createdAt) }} onCopyPrompt={onCopyPrompt} />
@@ -2117,7 +2069,7 @@ function FailedImageCard({ result, error, onCopyPrompt, onRetry }: { result: Gen
                 </Button>
             </div>
             <Modal title="失败详情" open={detailOpen} width={760} onCancel={() => setDetailOpen(false)} footer={null}>
-                <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-stone-950 p-3 text-xs text-stone-100">{detail}</pre>
+                <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs text-foreground">{detail}</pre>
             </Modal>
         </div>
     );
@@ -2127,9 +2079,9 @@ function TaskInfo({ result, error, onCopyPrompt }: { result: GenerationResult; e
     const [expanded, setExpanded] = useState(false);
 
     return (
-        <div className="space-y-2 border-t border-stone-200 px-3 py-2.5 text-xs text-stone-500 dark:border-stone-800 dark:text-stone-400">
-            <div className="rounded-md bg-stone-50 p-2 dark:bg-stone-900">
-                <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-stone-700 dark:text-stone-200`}>{result.prompt}</div>
+        <div className="space-y-2 border-t border-border px-3 py-2.5 text-xs text-muted-foreground">
+            <div className="rounded-md bg-muted p-2">
+                <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-foreground/80`}>{result.prompt}</div>
                 <div className="mt-2 flex justify-end gap-1">
                     <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => void onCopyPrompt(result.prompt)}>
                         复制
@@ -2229,9 +2181,9 @@ function HistoryLogCard({
     }, [categoryOpen]);
 
     return (
-        <div className={`overflow-hidden rounded-lg border bg-background dark:bg-stone-950 ${active ? "border-stone-900 dark:border-stone-100" : "border-stone-200 dark:border-stone-800"}`}>
-            <div className="relative aspect-[4/3] bg-stone-100 dark:bg-stone-900">
-                <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-white/85 px-1.5 py-1 shadow-sm dark:bg-stone-950/80">
+        <div className={`overflow-hidden rounded-lg border bg-background ${active ? "border-foreground" : "border-border"}`}>
+            <div className="relative aspect-[4/3] bg-muted">
+                <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm">
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />
                     {selected ? <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
                 </div>
@@ -2253,14 +2205,14 @@ function HistoryLogCard({
                 {displayImages.length > 1 ? (
                     <div className="absolute bottom-1.5 left-1.5 right-1.5 flex gap-1 overflow-hidden">
                         {displayImages.slice(0, 4).map((image) => (
-                            <img key={image.id} src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl} alt="" className="size-8 shrink-0 rounded border border-white/80 object-cover shadow-sm dark:border-stone-900/80" />
+                            <img key={image.id} src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl} alt="" className="size-8 shrink-0 rounded border border-border object-cover shadow-sm" />
                         ))}
                     </div>
                 ) : null}
                 <ReferenceThumbnailOverlay references={log.references} className="bottom-1.5 right-1.5" />
             </div>
-            <div className="space-y-2 border-t border-stone-200 p-2.5 text-xs dark:border-stone-800">
-                <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-stone-700 dark:text-stone-200`}>{log.prompt}</div>
+            <div className="space-y-2 border-t border-border p-2.5 text-xs">
+                <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-foreground/80`}>{log.prompt}</div>
                 <div className="flex items-center justify-end gap-1">
                     <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => closeThen(() => void onCopyPrompt(log.prompt))}>
                         复制
@@ -2301,7 +2253,7 @@ function HistoryLogCard({
                     </div>
                 ) : null}
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-stone-200 px-2.5 py-2 dark:border-stone-800">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border px-2.5 py-2">
                 <div ref={categoryMenuRef} className="relative flex flex-wrap gap-1 2xl:w-full 2xl:flex-nowrap 2xl:[&>.ant-btn]:!gap-1 2xl:[&>.ant-btn]:!px-1">
                     <Button size="small" onClick={() => closeThen(onPreview)}>
                         载入
@@ -2316,17 +2268,17 @@ function HistoryLogCard({
                         分类
                     </Button>
                     {categoryOpen ? (
-                        <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-lg border border-stone-200 bg-background p-2 shadow-xl dark:border-stone-800 dark:bg-stone-950">
+                        <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-lg border border-border bg-popover p-2 shadow-xl">
                             <div className="max-h-44 space-y-1 overflow-y-auto">
                                 {categories.map((category) => (
-                                    <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-stone-100 dark:hover:bg-stone-900">
+                                    <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent">
                                         <Checkbox checked={log.categoryIds.includes(category.id)} onChange={() => closeThen(() => onToggleCategory(category.id))} />
                                         <span className="truncate">{category.name}</span>
                                     </label>
                                 ))}
-                                {!categories.length ? <div className="px-2 py-3 text-center text-xs text-stone-500">暂无分类</div> : null}
+                                {!categories.length ? <div className="px-2 py-3 text-center text-xs text-muted-foreground">暂无分类</div> : null}
                             </div>
-                            <div className="mt-2 flex gap-1 border-t border-stone-200 pt-2 dark:border-stone-800">
+                            <div className="mt-2 flex gap-1 border-t border-border pt-2">
                                 <Input size="small" value={categoryName} placeholder="新分类" onChange={(event) => setCategoryName(event.target.value)} onPressEnter={() => void createCategory()} />
                                 <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => void createCategory()} />
                             </div>
@@ -2338,7 +2290,7 @@ function HistoryLogCard({
                 </div>
                 {firstImage ? (
                     <div className="flex shrink-0 gap-1">
-                        <Button size="small" title="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={firstImage.storageKey?.startsWith("server:")} onClick={() => closeThen(() => onSync(firstImage))} />
+                        <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={firstImage.storageKey?.startsWith("server:")} onClick={() => closeThen(() => onSync(firstImage))} />
                         <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => closeThen(() => void onSaveAsset(firstImage, index))} />
                         <Button size="small" icon={<PenLine className="size-3.5" />} onClick={() => closeThen(() => void onEdit(firstImage, index))} />
                         <Button size="small" icon={<Download className="size-3.5" />} onClick={() => closeThen(() => onDownload(firstImage, index))} />
@@ -2346,7 +2298,7 @@ function HistoryLogCard({
                 ) : null}
             </div>
             <Modal title="失败详情" open={detailOpen} width={760} onCancel={() => setDetailOpen(false)} footer={null}>
-                <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-stone-950 p-3 text-xs text-stone-100">{log.errorDetails?.[0] || log.errors[0] || "没有详情"}</pre>
+                <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs text-foreground">{log.errorDetails?.[0] || log.errors[0] || "没有详情"}</pre>
             </Modal>
         </div>
     );

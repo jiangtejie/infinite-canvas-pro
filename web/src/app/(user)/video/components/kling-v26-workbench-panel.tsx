@@ -1,14 +1,14 @@
-import { ArrowLeft, ArrowRight, Plus, BookOpen, ClipboardPaste, FolderPlus, Music2, PanelBottom, PanelLeft, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, BookOpen, ClipboardPaste, FolderPlus, Music2, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
 import { App, Button, Input, Switch, Tag } from "antd";
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { ModelPicker } from "@/components/model-picker";
+import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-header";
 import { boolConfig } from "@/lib/seedance-video";
 import type { AiConfig, VideoElementItem, VideoElementReference, VideoMultiPromptItem } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
-type WorkbenchLayout = "side" | "bottom";
 type AssetPickerTarget = "general" | "image" | "video" | "audio" | "firstFrame" | "lastFrame";
 
 const TEXT = {
@@ -236,14 +236,14 @@ export function KlingV26WorkbenchPanel({
     };
 
     return (
-        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-stone-200 bg-card shadow-sm dark:border-stone-800 lg:min-h-0">
+        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:min-h-0">
             <div className="shrink-0 p-4 pb-3">
-                <KlingHeader currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
+                <WorkbenchHeader title={TEXT.title} currentLayout={currentLayout} onLayoutChange={onLayoutChange} sideLabel={TEXT.side} bottomLabel={TEXT.bottom} />
             </div>
             <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-3">
                 {isKlingV3 && supportsMultiShot ? (
                     <KlingSection title={TEXT.multiShotTitle}>
-                        <div className="grid gap-2 rounded-xl border border-stone-200 p-2.5 dark:border-stone-800">
+                        <div className="grid gap-2 rounded-xl border border-border p-2.5">
                             <div className="flex h-8 items-center justify-between gap-3">
                                 <span className="text-sm">{TEXT.multiShotHint}</span>
                                 <Switch size="small" checked={multiShot} onChange={setMultiShot} />
@@ -343,19 +343,19 @@ export function KlingV26WorkbenchPanel({
                     )}
                 </KlingSection>
                 <KlingSection title={TEXT.audioTitle}>
-                    <div className="grid gap-2 rounded-xl border border-stone-200 p-2.5 dark:border-stone-800">
+                    <div className="grid gap-2 rounded-xl border border-border p-2.5">
                         <div className="flex h-8 items-center justify-between gap-3">
                             <span className="text-sm">{TEXT.audioSwitchLabel}</span>
                             <Switch size="small" checked={generateAudio && !audioDisabled} disabled={audioDisabled} onChange={setAudio} />
                         </div>
-                        {!isKlingV3 ? <p className="text-xs text-stone-500 dark:text-stone-400">{TEXT.audioHint}</p> : null}
+                        {!isKlingV3 ? <p className="text-xs text-muted-foreground">{TEXT.audioHint}</p> : null}
                     </div>
                 </KlingSection>
                 <KlingSection title={TEXT.taskCount}>
                     <KlingTaskCount value={taskCount} onChange={onTaskCountChange} />
                 </KlingSection>
             </div>
-            <div className="shrink-0 border-t border-stone-200 p-4 dark:border-stone-800">
+            <div className="shrink-0 border-t border-border p-4">
                 <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} loading={running} disabled={!canGenerate} onClick={onGenerate}>
                     {pendingCount ? TEXT.runningPrefix + pendingCount + TEXT.runningSuffix : TEXT.start}
                 </Button>
@@ -364,21 +364,9 @@ export function KlingV26WorkbenchPanel({
     );
 }
 
-function KlingHeader({ currentLayout, onLayoutChange }: { currentLayout: WorkbenchLayout; onLayoutChange: (layout: WorkbenchLayout) => void }) {
-    return (
-        <div className="flex items-center justify-between gap-3">
-            <h1 className="text-2xl font-semibold text-stone-950 dark:text-stone-100">{TEXT.title}</h1>
-            <div className="flex shrink-0 rounded-lg border border-stone-200 bg-stone-50 p-1 dark:border-stone-800 dark:bg-stone-900">
-                <Button size="small" type={currentLayout === "side" ? "primary" : "text"} icon={<PanelLeft className="size-3.5" />} onClick={() => onLayoutChange("side")}>{TEXT.side}</Button>
-                <Button size="small" type={currentLayout === "bottom" ? "primary" : "text"} icon={<PanelBottom className="size-3.5" />} onClick={() => onLayoutChange("bottom")}>{TEXT.bottom}</Button>
-            </div>
-        </div>
-    );
-}
-
 function KlingSection({ title, count, extra, children }: { title: string; count?: number; extra?: ReactNode; children: ReactNode }) {
     return (
-        <section className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
+        <section className="overflow-hidden rounded-lg border border-border bg-background">
             <div className="flex items-center justify-between gap-2 px-3 py-2">
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{title}</span>
@@ -386,7 +374,7 @@ function KlingSection({ title, count, extra, children }: { title: string; count?
                 </div>
                 {extra}
             </div>
-            <div className="space-y-2 border-t border-stone-200 p-3 dark:border-stone-800">{children}</div>
+            <div className="space-y-2 border-t border-border p-3">{children}</div>
         </section>
     );
 }
@@ -406,7 +394,7 @@ function OptionGrid({ options, value, onChange, columns = 2 }: { options: { valu
 function optionClass(active: boolean) {
     return [
         "h-9 rounded-full border bg-transparent px-2 text-sm font-medium transition hover:opacity-80",
-        active ? "border-stone-950 text-stone-950 dark:border-stone-100 dark:text-stone-100" : "border-stone-200 text-stone-700 dark:border-stone-800 dark:text-stone-200",
+        active ? "border-foreground text-foreground" : "border-border text-muted-foreground",
     ].join(" ");
 }
 
@@ -415,8 +403,8 @@ function KlingElementListSection({ items, onAddElement, onRemoveElement, onUpdat
         <KlingSection title={TEXT.elementList}>
             <div className="space-y-3">
                 {items.map((item, index) => (
-                    <div key={index} className="overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
-                        <div className="flex items-center justify-between gap-2 border-b border-stone-200 px-3 py-2 dark:border-stone-800">
+                    <div key={index} className="overflow-hidden rounded-lg border border-border bg-background">
+                        <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium">{TEXT.elementList}{index + 1}</span>
                                 <Tag className="m-0 text-xs">{item.references.length}</Tag>
@@ -449,10 +437,10 @@ function KlingElementListSection({ items, onAddElement, onRemoveElement, onUpdat
 
 function KlingElementReferenceStrip({ references, onRemoveReference, onMoveReference }: { references: VideoElementReference[]; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className="hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden min-h-24 rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain dark:border-stone-700">
+        <div className="hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden min-h-24 rounded-lg border border-dashed border-border p-2 pb-3 overscroll-x-contain">
             {references.map((item, index) => (
-                <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-stone-50 dark:border-stone-800 dark:bg-stone-900">
-                    {item.kind === "image" ? <img src={item.dataUrl || item.url} alt={item.name} className="size-full object-cover" /> : item.kind === "video" ? <video src={item.url} className="size-full object-cover" muted preload="metadata" /> : <div className="flex size-full flex-col items-center justify-center gap-1 px-1 text-center text-xs text-stone-500"><Music2 className="size-5" /><span className="line-clamp-2">{item.name}</span></div>}
+                <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
+                    {item.kind === "image" ? <img src={item.dataUrl || item.url} alt={item.name} className="size-full object-cover" /> : item.kind === "video" ? <video src={item.url} className="size-full object-cover" muted preload="metadata" /> : <div className="flex size-full flex-col items-center justify-center gap-1 px-1 text-center text-xs text-muted-foreground"><Music2 className="size-5" /><span className="line-clamp-2">{item.name}</span></div>}
                     {item.kind === "video" ? <VideoIcon className="absolute bottom-1 left-1 size-3.5 text-white drop-shadow" /> : null}
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{index + 1}</span>
                     <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
@@ -461,16 +449,16 @@ function KlingElementReferenceStrip({ references, onRemoveReference, onMoveRefer
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center whitespace-pre-line text-center text-sm text-stone-500">{TEXT.elementEmpty}</div> : null}
+            {!references.length ? <div className="flex min-w-full items-center justify-center whitespace-pre-line text-center text-sm text-muted-foreground">{TEXT.elementEmpty}</div> : null}
         </div>
     );
 }
 
 function KlingReferenceImageStrip({ references, emptyText = TEXT.emptyImages, onRemoveReference, onMoveReference }: { references: ReferenceImage[]; emptyText?: string; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className="hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden min-h-24 rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain dark:border-stone-700">
+        <div className="hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden min-h-24 rounded-lg border border-dashed border-border p-2 pb-3 overscroll-x-contain">
             {references.map((item, index) => (
-                <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
+                <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-border">
                     <img src={item.dataUrl} alt={item.name} className="size-full object-cover" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{TEXT.image}{index + 1}</span>
                     <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
@@ -479,7 +467,7 @@ function KlingReferenceImageStrip({ references, emptyText = TEXT.emptyImages, on
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-stone-500">{emptyText}</div> : null}
+            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">{emptyText}</div> : null}
         </div>
     );
 }
@@ -495,7 +483,7 @@ function KlingReferenceOrderButtons({ index, total, onMove }: { index: number; t
 }
 
 function KlingNumberInput({ value, min, max, onChange }: { value: string; min: number; max: number; onChange: (value: string) => void }) {
-    return <input type="number" min={min} max={max} className="h-9 rounded-full border border-stone-200 bg-transparent px-3 text-center text-sm outline-none [appearance:textfield] dark:border-stone-800 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" value={value} onChange={(event) => onChange(event.target.value)} onBlur={(event) => onChange(clampNumberInputValue(event.target.value, min, max))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />;
+    return <input type="number" min={min} max={max} className="h-9 rounded-full border border-border bg-transparent px-3 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" value={value} onChange={(event) => onChange(event.target.value)} onBlur={(event) => onChange(clampNumberInputValue(event.target.value, min, max))} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />;
 }
 
 function clampNumberInputValue(value: string, min: number, max: number) {
@@ -506,9 +494,9 @@ function clampNumberInputValue(value: string, min: number, max: number) {
 
 function KlingTaskCount({ value, onChange }: { value: number; onChange: (value: number) => void }) {
     return (
-        <label className="flex h-11 items-center gap-2 rounded-xl border border-stone-200 bg-background px-3 text-xs text-stone-500 dark:border-stone-800 dark:text-stone-400">
+        <label className="flex h-11 items-center gap-2 rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground">
             <span className="shrink-0">{TEXT.task}</span>
-            <input className="h-7 w-16 rounded-lg border border-stone-200 bg-background px-2 text-sm text-stone-900 outline-none dark:border-stone-800 dark:text-stone-100" type="number" min={1} max={6} value={value} onChange={(event) => onChange(normalizeVideoCount(event.target.value))} />
+            <input className="h-7 w-16 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none" type="number" min={1} max={6} value={value} onChange={(event) => onChange(normalizeVideoCount(event.target.value))} />
         </label>
     );
 }

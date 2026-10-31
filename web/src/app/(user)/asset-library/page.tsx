@@ -3,10 +3,11 @@
 import { Copy, FolderPlus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { App, Button, Card, Drawer, Empty, Image, Input, Pagination, Spin, Tag, Typography } from "antd";
+import { App, Button, Card, Drawer, Image, Input, Pagination, Tag, Typography } from "antd";
+import { FilterTagGroup } from "@/components/ui/filter-tag-group";
+import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { getProxyUrl } from "@/services/image-storage";
-import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
 
@@ -105,27 +106,21 @@ export default function AssetLibraryPage() {
         }
     };
 
-    if (!isReady) {
-        return (
-            <div className="flex h-full items-center justify-center">
-                <Spin />
-            </div>
-        );
-    }
+    if (!isReady) return <LoadingState className="h-full" label="正在加载素材库..." />;
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-stone-800 dark:text-stone-100">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.16)_1px,transparent_1px)]">
+        <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+            <main className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-8">
                 <div className="pb-8">
                     <div className="mx-auto max-w-5xl text-center">
-                        <h1 className="text-4xl font-semibold tracking-tight text-stone-950 dark:text-stone-100">素材库</h1>
-                        <p className="mt-3 text-sm text-stone-500 dark:text-stone-400">挑选团队素材，加入我的素材后继续编辑和使用。</p>
+                        <h1 className="text-4xl font-semibold tracking-tight text-foreground">素材库</h1>
+                        <p className="mt-3 text-sm text-muted-foreground">挑选团队素材，加入我的素材后继续编辑和使用。</p>
                     </div>
                     <div className="mx-auto mt-8 w-full max-w-2xl">
                         <Input
                             size="large"
                             className="w-full"
-                            prefix={<Search className="size-4 text-stone-400" />}
+                            prefix={<Search className="size-4 text-muted-foreground" />}
                             value={keyword}
                             placeholder="搜索标题、内容、分类或标签"
                             onChange={(event) => {
@@ -135,82 +130,51 @@ export default function AssetLibraryPage() {
                         />
                     </div>
                     <div className="mx-auto mt-6 max-w-6xl space-y-3">
-                        <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">类型</div>
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { label: "全部", value: "" },
-                                    { label: "文本", value: "text" },
-                                    { label: "图片", value: "image" },
-                                    { label: "视频", value: "video" },
-                                    { label: "音频", value: "audio" },
-                                ].map((item) => (
-                                    <Tag.CheckableTag
-                                        key={item.value || "all"}
-                                        checked={selectedType === item.value}
-                                        className={cn("prompt-filter-tag", selectedType === item.value && "is-active")}
-                                        onChange={() => {
-                                            setPage(1);
-                                            setSelectedType(item.value);
-                                        }}
-                                    >
-                                        {item.label}
-                                    </Tag.CheckableTag>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">分类</div>
-                            <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
-                                {["", ...categories].map((item) => (
-                                    <Tag.CheckableTag key={item || "all"} checked={selectedCategory === item} className={cn("prompt-filter-tag", selectedCategory === item && "is-active")} onChange={() => {
-                                        setPage(1);
-                                        setSelectedCategory(item);
-                                    }}>
-                                        {item || "全部"}
-                                    </Tag.CheckableTag>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                            <div className="text-xs font-medium text-stone-500 dark:text-stone-400">标签</div>
-                            <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
-                                <Tag.CheckableTag
-                                    checked={selectedTags.length === 0}
-                                    className={cn("prompt-filter-tag", selectedTags.length === 0 && "is-active")}
-                                    onChange={() => {
-                                        setPage(1);
-                                        setSelectedTags([]);
-                                    }}
-                                >
-                                    全部
-                                </Tag.CheckableTag>
-                                {availableTags.map((tag) => (
-                                    <Tag.CheckableTag
-                                        key={tag}
-                                        checked={selectedTags.includes(tag)}
-                                        className={cn("prompt-filter-tag", selectedTags.includes(tag) && "is-active")}
-                                        onChange={() => {
-                                            setPage(1);
-                                            toggleTag(tag);
-                                        }}
-                                    >
-                                        {tag}
-                                    </Tag.CheckableTag>
-                                ))}
-                            </div>
-                        </div>
+                        <FilterTagGroup
+                            label="类型"
+                            options={[
+                                { label: "全部", value: "" },
+                                { label: "文本", value: "text" },
+                                { label: "图片", value: "image" },
+                                { label: "视频", value: "video" },
+                                { label: "音频", value: "audio" },
+                            ]}
+                            isSelected={(value) => selectedType === value}
+                            onSelect={(value) => {
+                                setPage(1);
+                                setSelectedType(value);
+                            }}
+                        />
+                        <FilterTagGroup
+                            label="分类"
+                            options={[{ value: "", label: "全部" }, ...categories.map((item) => ({ value: item, label: item }))]}
+                            isSelected={(value) => selectedCategory === value}
+                            onSelect={(value) => {
+                                setPage(1);
+                                setSelectedCategory(value);
+                            }}
+                        />
+                        <FilterTagGroup
+                            label="标签"
+                            options={[{ value: "", label: "全部" }, ...availableTags.map((tag) => ({ value: tag, label: tag }))]}
+                            isSelected={(value) => value ? selectedTags.includes(value) : selectedTags.length === 0}
+                            onSelect={(value) => {
+                                setPage(1);
+                                if (value) toggleTag(value);
+                                else setSelectedTags([]);
+                            }}
+                        />
                     </div>
                 </div>
 
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {items.map((asset) => (
                             <LibraryCard key={asset.id} asset={asset} onOpen={() => setSelectedAsset(asset)} onAdd={() => void saveToMyAssets(asset)} />
                         ))}
                     </div>
 
-                    {!items.length ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到素材" className="py-20" /> : null}
+                    {!items.length ? <EmptyState title="没有找到素材" description="调整类型、分类、标签或搜索关键词后再试。" /> : null}
 
                     <div className="flex justify-center">
                         <Pagination current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={(nextPage) => setPage(nextPage)} />
@@ -224,7 +188,7 @@ export default function AssetLibraryPage() {
                         {selectedAsset.coverUrl ? (
                             <Image src={selectedAsset.coverUrl} alt={selectedAsset.title} className="rounded-lg" />
                         ) : (
-                            <div className="rounded-lg border border-stone-200 bg-stone-50 p-5 text-sm leading-6 text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-300">{selectedAsset.content || "暂无封面"}</div>
+                            <div className="rounded-lg border border-border bg-muted p-5 text-sm leading-6 text-muted-foreground">{selectedAsset.content || "暂无封面"}</div>
                         )}
                         <div>
                             <Typography.Title level={4} className="!mb-2">
@@ -237,7 +201,7 @@ export default function AssetLibraryPage() {
                                 ))}
                             </div>
                         </div>
-                        <div className="rounded-lg border border-stone-200 p-4 dark:border-stone-800">
+                        <div className="rounded-lg border border-border p-4">
                             <Typography.Text type="secondary" className="block text-xs">
                                 内容
                             </Typography.Text>
@@ -278,7 +242,7 @@ function LibraryCard({ asset, onOpen, onAdd }: { asset: AssetLibraryItem; onOpen
                     {cover ? (
                         <img src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover" />
                     ) : (
-                        <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-5 text-center text-sm leading-6 text-stone-600 dark:bg-stone-900 dark:text-stone-300">{asset.content || "暂无封面"}</div>
+                        <div className="flex aspect-[4/3] items-center justify-center bg-muted p-5 text-center text-sm leading-6 text-muted-foreground">{asset.content || "暂无封面"}</div>
                     )}
                 </button>
             }
@@ -286,7 +250,7 @@ function LibraryCard({ asset, onOpen, onAdd }: { asset: AssetLibraryItem; onOpen
             <button type="button" className="block w-full text-left" onClick={onOpen}>
                 <div className="p-4">
                     <div className="flex items-start justify-between gap-3">
-                        <h2 className="line-clamp-1 text-sm font-semibold text-stone-950 dark:text-stone-100">{asset.title}</h2>
+                        <h2 className="line-clamp-1 text-sm font-semibold text-foreground">{asset.title}</h2>
                         <Tag className="m-0 shrink-0 text-[11px]">{assetTypeLabel(asset.type)}</Tag>
                     </div>
                     <Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }} className="!mb-0 !mt-2 !text-xs !leading-5">

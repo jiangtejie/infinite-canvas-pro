@@ -5,11 +5,11 @@ description: 画布本地存储、节点结构、媒体文件与清理机制
 
 # 画布数据结构
 
-本文档说明当前画布在前端本地保存的数据结构、图片文件的存储和清理方式，以及后续接入后端存储时建议保持的兼容边界。
+本文档说明画布数据的结构、图片文件的存储和清理方式。未登录时画布数据保存在浏览器本地，登录且账号同步可用时同一份数据会同步到后端；各类型完整字段以 `web/src/app/(user)/canvas/types.ts`、`web/src/app/(user)/canvas/stores/use-canvas-store.ts` 的类型定义为准。
 
 ## 当前存储位置
 
-当前画布项目主要保存在浏览器本地：
+画布项目以浏览器本地为主存储，登录后再同步一份到后端：
 
 - 画布项目 JSON：`localForage`，数据库名 `infinite-canvas`，storeName `app_state`，key 为 `infinite-canvas:canvas_store`。
 - 我的素材 JSON：`localForage`，数据库名 `infinite-canvas`，storeName `app_state`，key 为 `infinite-canvas:asset_store`。
@@ -17,6 +17,8 @@ description: 画布本地存储、节点结构、媒体文件与清理机制
 - 视频等媒体 Blob：单独存到 `localForage` 实例，数据库名 `infinite-canvas`，storeName `media_files`。
 
 画布 JSON 不直接长期保存大体积 base64 图片或视频。图片节点、视频节点、助手图片和素材媒体只保存展示 URL、`storageKey` 和元信息，真实 Blob 通过 `storageKey` 读取。
+
+登录且账号同步可用时，同一份画布 JSON 会同步到后端 `canvas_projects` 表：本地改动按短去抖写入，打开画布库时再按 `updatedAt` 与远端双向合并；未登录时只写本地。
 
 ## 画布项目结构
 
@@ -56,7 +58,7 @@ type CanvasProject = {
 ```ts
 type CanvasNodeData = {
   id: string;
-  type: "image" | "text" | "config" | "video";
+  type: "image" | "panorama" | "text" | "config" | "video" | "audio" | "director" | "group";
   title: string;
   position: { x: number; y: number };
   width: number;
@@ -68,7 +70,7 @@ type CanvasNodeData = {
 通用字段：
 
 - `id`：节点 ID。
-- `type`：节点类型，当前有图片、文本、生成配置、视频四类。
+- `type`：节点类型，当前有图片、全景图、文本、生成配置、视频、音频、导演台、组八类。
 - `title`：节点标题。
 - `position`：画布世界坐标，不是屏幕坐标。
 - `width` / `height`：画布世界坐标下的节点尺寸。
@@ -79,11 +81,12 @@ type CanvasNodeData = {
 ```ts
 type CanvasNodeMetadata = {
   content?: string;
+  groupId?: string;
   prompt?: string;
-  status?: "idle" | "success" | "loading" | "error";
+  status?: "idle" | "success" | "loading" | "stopping" | "stopped" | "error";
   errorDetails?: string;
   fontSize?: number;
-  generationMode?: "text" | "image" | "video";
+  generationMode?: "text" | "image" | "video" | "audio";
   model?: string;
   size?: string;
   count?: number;
@@ -99,15 +102,20 @@ type CanvasNodeMetadata = {
   storageKey?: string;
   mimeType?: string;
   bytes?: number;
+  durationMs?: number;
 };
 ```
 
 不同节点的使用方式：
 
 - 图片节点：`content` 是当前可展示的图片 URL，通常是 `blob:` URL；`storageKey` 指向本地图片 Blob；`naturalWidth/naturalHeight/bytes/mimeType` 保存原图信息。
+- 全景图节点：沿用图片节点的字段，`panoramaProjection: "equirectangular"` 标记严格 2:1 全景图；未标记的按普通图片显示，可连接导演台作为环境背景。
 - 视频节点：`content` 是当前可播放的视频 URL，通常是 `blob:` URL；`storageKey` 指向本地视频 Blob；`bytes/mimeType` 保存文件信息。
+- 音频节点：`content` 是当前可播放的音频 URL，通常是 `blob:` URL；`storageKey` 指向本地音频 Blob；`bytes/mimeType/durationMs` 保存文件信息。
 - 文本节点：`content` 保存文本内容；`fontSize` 保存字体大小；`prompt/status/errorDetails` 保存生成状态。
-- 生成配置节点：`generationMode/model/size/count/inputOrder` 保存生成配置；`generationMode` 可选择文本、图片或视频；上游输入通过 `connections` 计算。
+- 生成配置节点：`generationMode/model/size/count/inputOrder` 保存生成配置；`generationMode` 可选择文本、图片、视频或音频；上游输入通过 `connections` 计算。
+- 导演台节点：`directorProject` 保存该节点独立的 3D 场景数据；机位截图列表只保存在当前浏览器，不随画布同步。
+- 组节点：作为容器节点使用，成员节点通过 `metadata.groupId` 指向组节点 ID。
 - 图片组节点：根节点用 `isBatchRoot/batchChildIds/primaryImageId/imageBatchExpanded` 记录批量生成结果；子图节点用 `batchRootId` 指回根节点。
 
 ## 连线结构
@@ -146,9 +154,9 @@ type CanvasAssistantSession = {
 type CanvasAssistantMessage = {
   id: string;
   role: "user" | "assistant";
-  mode: "ask" | "image";
   text: string;
-  isLoading?: boolean;
+  status?: "thinking" | "running" | "waiting" | "success" | "error";
+  activity?: string;
   references?: CanvasAssistantReference[];
   images?: CanvasAssistantImage[];
 };

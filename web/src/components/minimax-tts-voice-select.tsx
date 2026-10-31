@@ -51,7 +51,7 @@ export function MiniMaxTtsVoiceSelect({ config, model, value, onChange, enabled 
             loading={loading}
             showSearch
             styles={{ popup: { root: { zIndex: 1300 } } }}
-            getPopupContainer={(trigger) => trigger.closest<HTMLElement>(".canvas-image-settings-popover") || document.body}
+            getPopupContainer={(trigger) => trigger.closest(".canvas-image-settings-popover") as HTMLElement | null || document.body}
             optionFilterProp="label"
             notFoundContent={loading ? "正在读取音色…" : error || "暂无可用音色"}
             onOpenChange={(open) => {

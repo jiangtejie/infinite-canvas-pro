@@ -189,7 +189,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                                 )}
                             />
                             <span
-                                className="relative isolate block size-full overflow-hidden rounded-2xl bg-stone-100 dark:bg-stone-900"
+                                className="relative isolate block size-full overflow-hidden rounded-2xl bg-muted"
                             >
                                 <AnimatedBannerImage src={banner.imageUrl} alt={banner.alt} />
                                 {active && banner.videoUrl ? (
@@ -208,7 +208,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
             </div>
             <div className="mt-1 flex items-center justify-center gap-2" aria-label="Banner 切换">
                 {banners.map((banner, index) => (
-                    <button key={banner.imageUrl} type="button" className={cn("h-1.5 rounded-full transition-all", index === activeIndex ? "w-6 bg-stone-700 dark:bg-stone-200" : "w-2 bg-stone-300 dark:bg-stone-700")} onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张"} />
+                    <button key={banner.imageUrl} type="button" className={cn("h-1.5 rounded-full transition-all", index === activeIndex ? "w-6 bg-foreground" : "w-2 bg-muted-foreground/40")} onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张"} />
                 ))}
             </div>
             <Modal open={Boolean(activeVideoUrl)} footer={null} centered width={960} destroyOnHidden onCancel={() => setActiveVideoUrl("")}>

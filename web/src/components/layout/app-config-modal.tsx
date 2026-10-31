@@ -428,7 +428,7 @@ export function AppConfigModal() {
             title={
                 <div>
                     <div className="text-lg font-semibold">配置与用户偏好</div>
-                    <div className="mt-1 text-xs font-normal text-stone-500">模型、渠道和画布默认行为</div>
+                    <div className="mt-1 text-xs font-normal text-muted-foreground">模型、渠道和画布默认行为</div>
                 </div>
             }
             open={isConfigOpen}
@@ -460,18 +460,18 @@ export function AppConfigModal() {
                     ) : null}
                     {effectiveMode === "local" ? (
                         <>
-                            <div className="mb-5 space-y-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                            <div className="mb-5 space-y-3 rounded-lg border border-border p-3">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <div className="text-sm font-medium">本地模型渠道</div>
-                                        <div className="mt-1 text-xs text-stone-500">可为生图、视频、文本、音频分别选择不同渠道的模型。</div>
+                                        <div className="mt-1 text-xs text-muted-foreground">可为生图、视频、文本、音频分别选择不同渠道的模型。</div>
                                     </div>
                                     <Button size="small" onClick={addLocalChannel}>
                                         新增渠道
                                     </Button>
                                 </div>
                                 {normalizeLocalChannels(config).map((channel, index) => (
-                                    <div key={channel.id} className="space-y-2 rounded-md bg-stone-50 p-2 dark:bg-stone-900">
+                                    <div key={channel.id} className="space-y-2 rounded-md bg-muted p-2">
                                         <div className="grid gap-2 md:grid-cols-[130px_150px_minmax(0,1fr)_minmax(0,1fr)_auto]">
                                             <Input value={channel.name} placeholder="渠道名称" onChange={(event) => patchLocalChannel(channel.id, { name: event.target.value })} />
                                             <Select
@@ -503,14 +503,14 @@ export function AppConfigModal() {
                                                 ) : null}
                                             </div>
                                         </div>
-                                        <div className="text-xs text-stone-500">{isWorkflowProtocol(channel.protocol) ? `已保存 ${channel.workflowSummaries?.length || 0} 条工作流` : `已保存 ${channel.models.length} 个模型`}</div>
+                                        <div className="text-xs text-muted-foreground">{isWorkflowProtocol(channel.protocol) ? `已保存 ${channel.workflowSummaries?.length || 0} 条工作流` : `已保存 ${channel.models.length} 个模型`}</div>
                                     </div>
                                 ))}
                             </div>
-                            <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2 dark:border-stone-800">
+                            <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
                                 <div className="min-w-0">
                                     <div className="text-sm font-medium">模型列表</div>
-                                    <div className="mt-1 text-xs text-stone-500">当前已保存 {config.models.length} 个模型</div>
+                                    <div className="mt-1 text-xs text-muted-foreground">当前已保存 {config.models.length} 个模型</div>
                                 </div>
                                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                                     <Button size="small" loading={loadingModels} onClick={() => void refreshModels()}>
@@ -520,8 +520,8 @@ export function AppConfigModal() {
                             </div>
                         </>
                     ) : (
-                        <div className="mb-5 rounded-lg border border-stone-200 p-3 text-sm text-stone-500 dark:border-stone-800">
-                            <div className="font-medium text-stone-900 dark:text-stone-100">云端渠道</div>
+                        <div className="mb-5 rounded-lg border border-border p-3 text-sm text-muted-foreground">
+                            <div className="font-medium text-foreground">云端渠道</div>
                             <div className="mt-1">由系统后台渠道转发请求，当前可用 {modelChannel?.availableModels.length || 0} 个模型。</div>
                         </div>
                     )}
@@ -604,11 +604,11 @@ export function AppConfigModal() {
                     </div>
                     {canUseUserStorageProvider ? (
                         <>
-                            <section className="mb-5 mt-4 rounded-xl border border-stone-200 bg-stone-50/70 p-3 dark:border-stone-800 dark:bg-stone-900/50">
+                            <section className="mb-5 mt-4 rounded-xl border border-border bg-muted/50 p-3/50">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <div className="text-sm font-medium">用户 S3/R2 存储</div>
-                                        <div className="mt-1 text-xs text-stone-500">
+                                        <div className="mt-1 text-xs text-muted-foreground">
                                             开启后，新生成图片和媒体文件会优先保存到你的 S3 兼容对象存储。
                                             {storageUsageText ? <>当前容量：{storageUsageText}</> : null}
                                         </div>
@@ -617,7 +617,7 @@ export function AppConfigModal() {
                                         <Button size="small" loading={measuringStorageType === "s3"} onClick={() => void measureStorage(userStorage)}>
                                             统计容量
                                         </Button>
-                                        <span className="text-xs text-stone-500">自动同步</span>
+                                        <span className="text-xs text-muted-foreground">自动同步</span>
                                         <Switch size="small" checked={config.syncStorageConfig} onChange={(checked) => updateConfig("syncStorageConfig", checked)} />
                                         <Switch checked={userStorage.enabled} disabled={userWebDAVStorage.enabled} onChange={(enabled) => setUserStorage((value) => ({ ...value, enabled }))} />
                                     </div>
@@ -635,11 +635,11 @@ export function AppConfigModal() {
                                     </div>
                                 ) : null}
                             </section>
-                            <section className="mb-5 mt-4 rounded-xl border border-stone-200 bg-stone-50/70 p-3 dark:border-stone-800 dark:bg-stone-900/50">
+                            <section className="mb-5 mt-4 rounded-xl border border-border bg-muted/50 p-3/50">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <div className="text-sm font-medium">WebDAV 存储</div>
-                                        <div className="mt-1 text-xs text-stone-500">
+                                        <div className="mt-1 text-xs text-muted-foreground">
                                             开启后，新生成图片和媒体文件会优先保存到你的 WebDAV。
                                             {webDAVStorageUsageText ? <>当前容量：{webDAVStorageUsageText}</> : null}
                                         </div>
@@ -648,7 +648,7 @@ export function AppConfigModal() {
                                         <Button size="small" loading={measuringStorageType === "webdav"} onClick={() => void measureStorage(userWebDAVStorage)}>
                                             统计容量
                                         </Button>
-                                        <span className="text-xs text-stone-500">自动同步</span>
+                                        <span className="text-xs text-muted-foreground">自动同步</span>
                                         <Switch size="small" checked={config.syncWebDAVStorageConfig} onChange={(checked) => updateConfig("syncWebDAVStorageConfig", checked)} />
                                         <Switch checked={userWebDAVStorage.enabled} disabled={userStorage.enabled} onChange={(enabled) => setUserWebDAVStorage((value) => ({ ...value, enabled }))} />
                                     </div>
@@ -702,12 +702,12 @@ export function AppConfigModal() {
 
 function FeatureSwitch({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) {
     return (
-        <div className="rounded-lg border border-stone-200 px-3 py-2 dark:border-stone-800">
+        <div className="rounded-lg border border-border px-3 py-2">
             <div className="flex items-center justify-between gap-3">
                 <div className="text-sm font-medium">{title}</div>
                 <Switch checked={checked} onChange={onChange} />
             </div>
-            <div className="mt-1 text-xs leading-5 text-stone-500">{description}</div>
+            <div className="mt-1 text-xs leading-5 text-muted-foreground">{description}</div>
         </div>
     );
 }

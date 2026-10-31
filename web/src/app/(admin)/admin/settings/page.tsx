@@ -555,11 +555,11 @@ export default function AdminSettingsPage() {
                                                             <Select
                                                                 className="!w-32"
                                                                 placeholder="选择分辨率"
-                                                                value={item.resolution || undefined}
-                                                                options={videoResolutionOptions.map((option) => ({ ...option, disabled: option.value !== item.resolution && modelCosts.some((cost) => cost.model === item.model && cost.resolution === option.value) }))}
-                                                                onChange={(resolution) => setModelCost(form, setModelCosts, item.model, item.credits, resolution, item.resolution)}
+                                                                value={(item as { resolution?: string }).resolution || undefined}
+                                                                options={videoResolutionOptions.map((option) => ({ ...option, disabled: option.value !== (item as { resolution?: string }).resolution && modelCosts.some((cost) => cost.model === item.model && cost.resolution === option.value) }))}
+                                                                onChange={(resolution) => setModelCost(form, setModelCosts, item.model, item.credits, resolution, (item as { resolution?: string }).resolution)}
                                                             />
-                                                            <Button danger type="text" icon={<DeleteOutlined />} onClick={() => removeModelCost(form, setModelCosts, item.model, item.resolution)} />
+                                                            <Button danger type="text" icon={<DeleteOutlined />} onClick={() => removeModelCost(form, setModelCosts, item.model, (item as { resolution?: string }).resolution || "")} />
                                                         </div>
                                                     ) : item.kind === "add" ? (
                                                         <div className="flex items-center gap-2">
@@ -584,7 +584,7 @@ export default function AdminSettingsPage() {
                                                     render: (_, item) => (
                                                         item.kind === "add" ? null : (
                                                             <Space.Compact className="!w-full">
-                                                                <InputNumber min={0} step={0.01} precision={2} className="!w-full" value={item.credits} onChange={(value) => setModelCost(form, setModelCosts, item.model, Number(value) || 0, item.resolution || "", item.resolution || "")} />
+                                                                <InputNumber min={0} step={0.01} precision={2} className="!w-full" value={(item as { credits: number }).credits} onChange={(value) => setModelCost(form, setModelCosts, item.model, Number(value) || 0, (item as { resolution?: string }).resolution || "", (item as { resolution?: string }).resolution || "")} />
                                                                 <span className="flex h-8 items-center rounded-r-md border border-l-0 border-stone-200 bg-stone-50 px-3 text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
                                                                     点
                                                                 </span>

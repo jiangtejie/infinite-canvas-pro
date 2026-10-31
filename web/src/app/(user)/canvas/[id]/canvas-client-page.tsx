@@ -396,6 +396,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [nodeCreatePosition, setNodeCreatePosition] = useState<Position | null>(null);
     const [runningNodeId, setRunningNodeId] = useState<string | null>(null);
     const [isMiniMapOpen, setIsMiniMapOpen] = useState(false);
+    const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
     const [showImageInfo, setShowImageInfo] = useState(false);
     const [sidePanel, setSidePanel] = useState(() => DEFAULT_CANVAS_SIDE_PANEL);
@@ -677,6 +678,13 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         };
         void restore();
     }, [hydrated, openProject, projectId, router]);
+
+    useEffect(() => {
+        if (!projectLoaded) return;
+        if (window.matchMedia("(max-width: 767px)").matches) {
+            setSidePanel((current) => current.open ? { ...current, open: false } : current);
+        }
+    }, [projectLoaded, projectId]);
 
     useEffect(() => {
         if (!projectLoaded) return;
@@ -2940,35 +2948,36 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             }
 
             if (target?.nodeId) {
+                const targetNodeId = target.nodeId;
                 const hideLoading = message.loading(isAudioFile(file) ? "正在上传音频..." : file.type.startsWith("video/") ? "正在上传视频..." : "正在上传图片...", 0);
                 try {
                     const audio = isAudioFile(file) ? await uploadMediaFile(file, "audio") : null;
                     const video = !audio && file.type.startsWith("video/") ? await uploadMediaFile(file, "video") : null;
                     const image = !audio && !video ? await uploadImage(file) : null;
-                    const canApplyUpload = (nodeTaskRunsRef.current.get(target.nodeId)?.preparing || nodeTaskRunsRef.current.get(target.nodeId)?.generation || nodeTaskRunsRef.current.get(target.nodeId)?.controller) === targetToken && nodesRef.current.some((node) => node.id === target.nodeId);
+                    const canApplyUpload = (nodeTaskRunsRef.current.get(targetNodeId)?.preparing || nodeTaskRunsRef.current.get(targetNodeId)?.generation || nodeTaskRunsRef.current.get(targetNodeId)?.controller) === targetToken && nodesRef.current.some((node) => node.id === targetNodeId);
                     if (canApplyUpload) {
                         if (targetRun && targetRun.preparing === targetToken) delete targetRun.preparing;
-                        if (targetRun) nodeTaskRunsRef.current.set(target.nodeId, { id: "", controller: targetRun.controller, generation: typeof targetToken === "symbol" ? targetToken : undefined });
-                        pollingImageNodeIdsRef.current.get(target.nodeId)?.abort();
-                        pollingVideoNodeIdsRef.current.get(target.nodeId)?.abort();
-                        pollingAudioNodeIdsRef.current.get(target.nodeId)?.abort();
+                        if (targetRun) nodeTaskRunsRef.current.set(targetNodeId, { id: "", controller: targetRun.controller, generation: typeof targetToken === "symbol" ? targetToken : undefined });
+                        pollingImageNodeIdsRef.current.get(targetNodeId)?.abort();
+                        pollingVideoNodeIdsRef.current.get(targetNodeId)?.abort();
+                        pollingAudioNodeIdsRef.current.get(targetNodeId)?.abort();
                     }
                     if (audio && canApplyUpload) {
                         const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Audio];
-                        setNodes((prev) => (nodeTaskRunsRef.current.get(target.nodeId)?.preparing || nodeTaskRunsRef.current.get(target.nodeId)?.generation || nodeTaskRunsRef.current.get(target.nodeId)?.controller) === targetToken && prev.some((node) => node.id === target.nodeId) ? prev.map((node) => (node.id === target.nodeId ? { ...node, type: CanvasNodeType.Audio, title: file.name, position: { x: node.position.x + node.width / 2 - spec.width / 2, y: node.position.y + node.height / 2 - spec.height / 2 }, width: spec.width, height: spec.height, metadata: { ...node.metadata, ...audioMetadata(audio), clientTaskId: undefined, taskBackend: undefined, errorDetails: undefined } } : node)) : prev);
-                        setSelectedNodeIds(new Set([target.nodeId]));
+                        setNodes((prev) => (nodeTaskRunsRef.current.get(targetNodeId)?.preparing || nodeTaskRunsRef.current.get(targetNodeId)?.generation || nodeTaskRunsRef.current.get(targetNodeId)?.controller) === targetToken && prev.some((node) => node.id === targetNodeId) ? prev.map((node) => (node.id === targetNodeId ? { ...node, type: CanvasNodeType.Audio, title: file.name, position: { x: node.position.x + node.width / 2 - spec.width / 2, y: node.position.y + node.height / 2 - spec.height / 2 }, width: spec.width, height: spec.height, metadata: { ...node.metadata, ...audioMetadata(audio), clientTaskId: undefined, taskBackend: undefined, errorDetails: undefined } } : node)) : prev);
+                        setSelectedNodeIds(new Set([targetNodeId]));
                         setSelectedConnectionId(null);
                     } else if (video && canApplyUpload) {
                         const nextSize = fitNodeSize(video.width || 1280, video.height || 720, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
-                        setNodes((prev) => (nodeTaskRunsRef.current.get(target.nodeId)?.preparing || nodeTaskRunsRef.current.get(target.nodeId)?.generation || nodeTaskRunsRef.current.get(target.nodeId)?.controller) === targetToken && prev.some((node) => node.id === target.nodeId) ? prev.map((node) => (node.id === target.nodeId ? { ...node, type: CanvasNodeType.Video, title: file.name, position: { x: node.position.x + node.width / 2 - nextSize.width / 2, y: node.position.y + node.height / 2 - nextSize.height / 2 }, width: nextSize.width, height: nextSize.height, metadata: { ...node.metadata, ...videoMetadata(video), clientTaskId: undefined, taskBackend: undefined, errorDetails: undefined } } : node)) : prev);
-                        setSelectedNodeIds(new Set([target.nodeId]));
+                        setNodes((prev) => (nodeTaskRunsRef.current.get(targetNodeId)?.preparing || nodeTaskRunsRef.current.get(targetNodeId)?.generation || nodeTaskRunsRef.current.get(targetNodeId)?.controller) === targetToken && prev.some((node) => node.id === targetNodeId) ? prev.map((node) => (node.id === targetNodeId ? { ...node, type: CanvasNodeType.Video, title: file.name, position: { x: node.position.x + node.width / 2 - nextSize.width / 2, y: node.position.y + node.height / 2 - nextSize.height / 2 }, width: nextSize.width, height: nextSize.height, metadata: { ...node.metadata, ...videoMetadata(video), clientTaskId: undefined, taskBackend: undefined, errorDetails: undefined } } : node)) : prev);
+                        setSelectedNodeIds(new Set([targetNodeId]));
                         setSelectedConnectionId(null);
-                        setDialogNodeId(target.nodeId);
+                        setDialogNodeId(targetNodeId);
                     } else if (image && canApplyUpload) {
                         const size = fitNodeSize(image.width, image.height);
-                        setNodes((prev) => (nodeTaskRunsRef.current.get(target.nodeId)?.preparing || nodeTaskRunsRef.current.get(target.nodeId)?.generation || nodeTaskRunsRef.current.get(target.nodeId)?.controller) === targetToken && prev.some((node) => node.id === target.nodeId) ?
+                        setNodes((prev) => (nodeTaskRunsRef.current.get(targetNodeId)?.preparing || nodeTaskRunsRef.current.get(targetNodeId)?.generation || nodeTaskRunsRef.current.get(targetNodeId)?.controller) === targetToken && prev.some((node) => node.id === targetNodeId) ?
                             prev.map((node) => {
-                                if (node.id !== target.nodeId) return node;
+                                if (node.id !== targetNodeId) return node;
                                 const isPanorama = isPanoramaNodeType(node.type);
                                 const nextSize = isPanorama ? PANORAMA_NODE_SIZE : size;
                                 return {
@@ -3006,9 +3015,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                                 };
                             }) : prev,
                         );
-                        setSelectedNodeIds(new Set([target.nodeId]));
+                        setSelectedNodeIds(new Set([targetNodeId]));
                         setSelectedConnectionId(null);
-                        setDialogNodeId(target.nodeId);
+                        setDialogNodeId(targetNodeId);
                     }
                 } catch (error) {
                     console.error("Upload node file failed:", error);
@@ -4477,12 +4486,20 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     }, 0);
                 }}
                 onInsertAsset={handleAssetInsert}
+                onClose={() => setSidePanel((current) => ({ ...current, open: false }))}
             />
             <section className="relative min-w-0 flex-1 overflow-hidden">
                 <CanvasTopBar
                     title={currentProject?.title || "未命名画布"}
                     sidePanelOpen={sidePanel.open}
-                    onToggleSidePanel={() => setSidePanel((current) => ({ ...current, open: !current.open }))}
+                    onToggleSidePanel={() => {
+                        const nextOpen = !sidePanel.open;
+                        setSidePanel((current) => ({ ...current, open: nextOpen }));
+                        if (nextOpen && typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+                            setAssistantMounted(false);
+                            setAgentPanel((current) => ({ ...current, open: false }));
+                        }
+                    }}
                     titleDraft={titleDraft}
                     isTitleEditing={titleEditing}
                     onTitleDraftChange={setTitleDraft}
@@ -4500,6 +4517,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onRedo={redoCanvas}
                     assistantCollapsed={!agentPanel.open}
                     onExpandAssistant={() => {
+                        if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+                            setSidePanel((current) => ({ ...current, open: false }));
+                        }
                         setAssistantMounted(true);
                         setAgentPanel((current) => ({ ...current, open: true }));
                     }}
@@ -4780,11 +4800,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         setAssetPickerTab("my-assets");
                         setAssetPickerOpen(true);
                     }}
+                    sidePanelWidth={sidePanel.open ? sidePanel.width : 0}
                 />
 
                 {isMiniMapOpen ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
 
-                <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onReset={resetViewport} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} />
+                <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onReset={resetViewport} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} onOpenShortcuts={() => setShortcutsOpen(true)} />
 
                 {contextMenu ? (
                     <CanvasNodeContextMenu

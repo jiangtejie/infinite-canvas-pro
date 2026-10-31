@@ -123,7 +123,7 @@ function AudioSpeechSettings({ config, model, glm, grok, miniMax, onConfigChange
                     officialMiniMax ? (
                         <MiniMaxTtsVoiceSelect config={config} model={model} value={voice} onChange={(value) => onConfigChange("miniMaxTtsVoice", value)} />
                     ) : (
-                        <Select className="w-full" value={voice} options={miniMaxTtsVoiceOptions} showSearch optionFilterProp="label" styles={{ popup: { root: { zIndex: 1300 } } }} getPopupContainer={(trigger) => trigger.closest<HTMLElement>(".canvas-image-settings-popover") || document.body} onChange={(value) => onConfigChange("miniMaxTtsVoice", value)} />
+                        <Select className="w-full" value={voice} options={miniMaxTtsVoiceOptions} showSearch optionFilterProp="label" styles={{ popup: { root: { zIndex: 1300 } } }} getPopupContainer={(trigger) => trigger.closest(".canvas-image-settings-popover") as HTMLElement | null || document.body} onChange={(value) => onConfigChange("miniMaxTtsVoice", value)} />
                     )
                 ) : (
                     <div className="grid grid-cols-3 gap-2.5">

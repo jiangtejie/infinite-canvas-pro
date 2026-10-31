@@ -2,10 +2,11 @@
 
 import { Check, Search } from "lucide-react";
 import { type UIEvent, useEffect, useState } from "react";
-import { App, Empty, Input, Modal, Spin, Tag } from "antd";
+import { App, Input, Modal, Spin } from "antd";
 
 import { ALL_PROMPTS_OPTION } from "@/services/api/prompts";
-import { cn } from "@/lib/utils";
+import { FilterTagGroup } from "@/components/ui/filter-tag-group";
+import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { PromptCard } from "./prompt-card";
 import { usePromptList } from "./use-prompt-list";
 
@@ -37,45 +38,20 @@ export function PromptSelectDialog({ open, onOpenChange, onSelect }: { open: boo
         <Modal title="提示词库" open={open} onCancel={() => onOpenChange(false)} footer={null} width={1040} centered>
             <div data-canvas-no-zoom onWheelCapture={(event) => event.stopPropagation()}>
                 <div className="mx-auto max-w-2xl">
-                    <Input size="large" prefix={<Search className="size-4 text-stone-400" />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="按标题查询" />
+                    <Input size="large" prefix={<Search className="size-4 text-muted-foreground" />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="按标题查询" />
                 </div>
                 <div className="mt-5 grid gap-3">
-                    <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-start">
-                        <div className="pt-2 text-xs font-medium text-stone-500 dark:text-stone-400">分类</div>
-                        <div className="flex flex-wrap gap-2">
-                            {promptCategories.map((category) => (
-                                <Tag.CheckableTag key={category} checked={selectedCategory === category} className={cn("prompt-filter-tag", selectedCategory === category && "is-active")} onChange={() => setSelectedCategory(category)}>
-                                    {category}
-                                </Tag.CheckableTag>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-start">
-                        <div className="pt-2 text-xs font-medium text-stone-500 dark:text-stone-400">标签</div>
-                        <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
-                            {promptTags.map((tag) => {
-                                const active = tag === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(tag);
-                                return (
-                                    <Tag.CheckableTag key={tag} checked={active} className={cn("prompt-filter-tag", active && "is-active")} onChange={() => toggleTag(tag)}>
-                                        {tag}
-                                    </Tag.CheckableTag>
-                                );
-                            })}
-                        </div>
-                    </div>
+                    <FilterTagGroup label="分类" options={promptCategories} isSelected={(value) => selectedCategory === value} onSelect={setSelectedCategory} />
+                    <FilterTagGroup label="标签" options={promptTags} isSelected={(value) => value === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(value)} onSelect={toggleTag} />
                 </div>
                 <div className="thin-scrollbar mt-6 max-h-[520px] overflow-y-auto pr-2" data-canvas-no-zoom onScroll={handleListScroll} onWheelCapture={(event) => event.stopPropagation()}>
-                    {query.isLoading ? (
-                        <div className="flex h-40 items-center justify-center">
-                            <Spin />
-                        </div>
-                    ) : null}
+                    {query.isLoading ? <LoadingState className="h-40" label="正在加载提示词..." /> : null}
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                         {items.map((item) => (
                             <PromptCard key={item.id} item={item} onOpen={() => selectPrompt(item.prompt)} onCopy={() => selectPrompt(item.prompt)} actionLabel="使用此提示词" actionIcon={<Check className="size-3.5" />} actionType="primary" />
                         ))}
                     </div>
-                    {!query.isLoading && items.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到匹配的提示词" className="py-8" /> : null}
+                    {!query.isLoading && items.length === 0 ? <EmptyState className="py-8" title="没有找到匹配的提示词" description="调整分类或标签后再试。" /> : null}
                     {query.isFetchingNextPage ? (
                         <div className="py-4 text-center">
                             <Spin size="small" />

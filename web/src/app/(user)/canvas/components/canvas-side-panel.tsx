@@ -43,6 +43,7 @@ type Props = {
     onAssetDragStart: (payload: InsertAssetPayload) => void;
     onAssetDragEnd: () => void;
     onInsertAsset: (payload: InsertAssetPayload) => void;
+    onClose: () => void;
 };
 
 const NODE_TYPE_ICON = {
@@ -93,7 +94,7 @@ const STATUS_COLOR: Record<string, string> = {
     error: "#ef4444",
 };
 
-export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthChange, onFocusNode, onAssetDragStart, onAssetDragEnd, onInsertAsset }: Props) {
+export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthChange, onFocusNode, onAssetDragStart, onAssetDragEnd, onInsertAsset, onClose }: Props) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [tab, setTab] = useState<PanelTab>("canvas");
     const [mounted, setMounted] = useState(open);
@@ -132,21 +133,23 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
     if (!mounted) return null;
 
     return (
-        <motion.div
-            className="relative z-[60] flex h-full shrink-0"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: open ? width + 1 : 0, opacity: open ? 1 : 0 }}
-            transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
-            style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
-        >
-            <motion.aside
-                className="relative flex h-full shrink-0 flex-col overflow-hidden border-r"
-                initial={{ x: -48 }}
-                animate={{ x: closing ? -28 : 0 }}
+        <>
+            {open ? <div className="fixed inset-0 z-[65] bg-black/35 md:hidden" onClick={onClose} aria-hidden /> : null}
+            <motion.div
+                className="relative z-[60] flex h-full shrink-0 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-[70]"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: open ? width + 1 : 0, opacity: open ? 1 : 0 }}
                 transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
-                style={{ width, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
-                data-canvas-no-zoom
+                style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
             >
+                <motion.aside
+                    className="relative flex h-full shrink-0 flex-col overflow-hidden border-r max-md:!max-w-[85vw] max-md:shadow-2xl"
+                    initial={{ x: -48 }}
+                    animate={{ x: closing ? -28 : 0 }}
+                    transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
+                    style={{ width, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                    data-canvas-no-zoom
+                >
                 <div className="flex items-center gap-5 px-4 pt-3.5">
                     <PanelTabButton label="画布" active={tab === "canvas"} theme={theme} onClick={() => setTab("canvas")} />
                     <PanelTabButton label="资产" active={tab === "assets"} theme={theme} onClick={() => setTab("assets")} />
@@ -161,9 +164,10 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
                         <CanvasPromptsTab theme={theme} onInsert={onInsertAsset} />
                     )}
                 </div>
-                <button type="button" className="absolute inset-y-0 right-0 z-40 w-4 translate-x-1/2 cursor-col-resize" onPointerDown={startResize} aria-label="调整左侧面板宽度" />
+                <button type="button" className="absolute inset-y-0 right-0 z-40 hidden w-4 translate-x-1/2 cursor-col-resize md:block" onPointerDown={startResize} aria-label="调整左侧面板宽度" />
             </motion.aside>
-        </motion.div>
+            </motion.div>
+        </>
     );
 }
 
@@ -221,7 +225,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                 <Select size="small" variant="borderless" className="w-auto" popupMatchSelectWidth={false} value={typeFilter} onChange={setTypeFilter} options={NODE_FILTER_OPTIONS} />
             </div>
             <div className="px-3 pb-2.5">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索节点" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder="搜索节点" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 {treeRows.length ? (
@@ -343,7 +347,7 @@ function MyAssetsTab({ theme, onAdd, onAssetDragStart, onAssetDragEnd }: { theme
                 </div>
             </div>
             <div className="flex items-center gap-2 px-3 pb-2">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder="搜索素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
                 <button type="button" onClick={onAdd} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }}>
                     <Plus className="size-3.5" />
                     添加
@@ -387,7 +391,7 @@ function LibraryAssetsTab({ theme, onAssetDragStart, onAssetDragEnd }: { theme: 
                 </div>
             </div>
             <div className="flex items-center gap-2 px-3 pb-2">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder="搜索素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
                 <Select size="small" variant="borderless" className="w-16" value={type} onChange={setType} options={ASSET_TYPE_OPTIONS} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
@@ -454,7 +458,7 @@ const CanvasPromptsTab = memo(function CanvasPromptsTab({ theme, onInsert }: { t
     return (
         <div className="flex h-full flex-col">
             <div className="px-3 pb-2.5 pt-1">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索提示词" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder="搜索提示词" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
                 {categoryQuery.isLoading ? <div className="flex justify-center pt-16"><Spin size="small" /></div> : (

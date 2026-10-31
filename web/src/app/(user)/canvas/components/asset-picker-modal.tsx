@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { App, Button, Empty, Input, Modal, Pagination, Spin, Tabs, Tag } from "antd";
+import { App, Button, Input, Modal, Pagination, Spin, Tabs, Tag } from "antd";
 import { ImagePlus, Plus, Search } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { FilterTagGroup } from "@/components/ui/filter-tag-group";
+import { EmptyState } from "@/components/ui/state-panel";
 import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
 import { uploadAssetMediaFile } from "@/services/file-storage";
@@ -57,34 +58,18 @@ const kindOptions = [
 function AssetFilters({ categories, tags, category, selectedTags, onCategoryChange, onTagsChange }: { categories: string[]; tags: string[]; category: string; selectedTags: string[]; onCategoryChange: (value: string) => void; onTagsChange: (values: string[]) => void }) {
     return (
         <div className="grid gap-3">
-            <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                <div className="text-xs font-medium text-stone-500 dark:text-stone-400">分类</div>
-                <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
-                    {["", ...categories].map((value) => (
-                        <Tag.CheckableTag key={value || "all"} checked={category === value} className={cn("prompt-filter-tag", category === value && "is-active")} onChange={() => onCategoryChange(value)}>
-                            {value || "全部"}
-                        </Tag.CheckableTag>
-                    ))}
-                </div>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center">
-                <div className="text-xs font-medium text-stone-500 dark:text-stone-400">标签</div>
-                <div className="thin-scrollbar flex max-h-[112px] flex-wrap gap-2 overflow-y-auto pr-1">
-                    <Tag.CheckableTag checked={selectedTags.length === 0} className={cn("prompt-filter-tag", selectedTags.length === 0 && "is-active")} onChange={() => onTagsChange([])}>
-                        全部
-                    </Tag.CheckableTag>
-                    {tags.map((tag) => (
-                        <Tag.CheckableTag
-                            key={tag}
-                            checked={selectedTags.includes(tag)}
-                            className={cn("prompt-filter-tag", selectedTags.includes(tag) && "is-active")}
-                            onChange={() => onTagsChange(selectedTags.includes(tag) ? selectedTags.filter((value) => value !== tag) : [...selectedTags, tag])}
-                        >
-                            {tag}
-                        </Tag.CheckableTag>
-                    ))}
-                </div>
-            </div>
+            <FilterTagGroup
+                label="分类"
+                options={[{ value: "", label: "全部" }, ...categories.map((value) => ({ value, label: value }))]}
+                isSelected={(value) => category === value}
+                onSelect={onCategoryChange}
+            />
+            <FilterTagGroup
+                label="标签"
+                options={[{ value: "", label: "全部" }, ...tags.map((tag) => ({ value: tag, label: tag }))]}
+                isSelected={(value) => value ? selectedTags.includes(value) : selectedTags.length === 0}
+                onSelect={(value) => onTagsChange(value ? (selectedTags.includes(value) ? selectedTags.filter((tag) => tag !== value) : [...selectedTags, value]) : [])}
+            />
         </div>
     );
 }
@@ -134,7 +119,7 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
                 <Input
                     className="w-56"
                     size="small"
-                    prefix={<Search className="size-3.5 text-stone-400" />}
+                    prefix={<Search className="size-3.5 text-muted-foreground" />}
                     placeholder="搜索素材"
                     value={keyword}
                     allowClear
@@ -143,27 +128,22 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
                         setKeyword(e.target.value);
                     }}
                 />
-                <div className="flex min-h-6 items-center gap-1.5">
-                    {[
+                <FilterTagGroup
+                    inline
+                    className="min-h-6 items-center"
+                    options={[
                         { label: "全部", value: "" },
                         { label: "文本", value: "text" },
                         { label: "图片", value: "image" },
                         { label: "视频", value: "video" },
                         { label: "音频", value: "audio" },
-                    ].map((opt) => (
-                        <Tag.CheckableTag
-                            key={opt.value || "all"}
-                            checked={kindFilter === opt.value}
-                            className={cn("prompt-filter-tag", kindFilter === opt.value && "is-active")}
-                            onChange={() => {
-                                setPage(1);
-                                setKindFilter(opt.value);
-                            }}
-                        >
-                            {opt.label}
-                        </Tag.CheckableTag>
-                    ))}
-                </div>
+                    ]}
+                    isSelected={(value) => kindFilter === value}
+                    onSelect={(value) => {
+                        setPage(1);
+                        setKindFilter(value);
+                    }}
+                />
             </div>
             <AssetFilters categories={categories} tags={tags} category={category} selectedTags={selectedTags} onCategoryChange={(value) => { setPage(1); setCategory(value); }} onTagsChange={(values) => { setPage(1); setSelectedTags(values); }} />
 
@@ -178,7 +158,7 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
                     ))}
                 </div>
             ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有素材" className="py-12" />
+                <EmptyState className="py-12" title="没有素材" description="调整筛选条件或先新增素材。" />
             )}
 
             {total > PAGE_SIZE && (
@@ -194,27 +174,27 @@ function PickerCard({ title, kind, cover, loading, onClick }: { title: string; k
     return (
         <button
             type="button"
-            className="group relative cursor-pointer overflow-hidden rounded-lg border border-stone-200 bg-white text-left transition hover:border-stone-400 hover:shadow-md dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-500"
+            className="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left transition hover:border-foreground/40 hover:shadow-md"
             onClick={onClick}
             disabled={loading}
         >
             {cover ? (
                 <img src={cover} alt={title} className="aspect-[4/3] w-full object-cover" />
             ) : (
-                <div className="flex aspect-[4/3] items-center justify-center bg-stone-100 p-3 text-center text-xs leading-5 text-stone-500 dark:bg-stone-800 dark:text-stone-400">{title}</div>
+                <div className="flex aspect-[4/3] items-center justify-center bg-muted p-3 text-center text-xs leading-5 text-muted-foreground">{title}</div>
             )}
             <div className="p-2.5">
                 <div className="flex items-center justify-between gap-2">
-                    <span className="line-clamp-1 text-xs font-medium text-stone-800 dark:text-stone-200">{title}</span>
+                    <span className="line-clamp-1 text-xs font-medium text-foreground">{title}</span>
                     <Tag className="m-0 shrink-0 text-[10px]">{kind === "image" ? "图片" : kind === "video" ? "视频" : kind === "audio" ? "音频" : "文本"}</Tag>
                 </div>
             </div>
             {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-stone-900/60">
+                <div className="absolute inset-0 flex items-center justify-center bg-background/60">
                     <Spin size="small" />
                 </div>
             )}
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-stone-950/0 text-sm font-medium text-white opacity-0 transition group-hover:bg-stone-950/55 group-hover:opacity-100">插入</div>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-sm font-medium text-white opacity-0 transition group-hover:bg-black/55 group-hover:opacity-100">插入</div>
         </button>
     );
 }
@@ -355,7 +335,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                 <Input
                     className="w-56"
                     size="small"
-                    prefix={<Search className="size-3.5 text-stone-400" />}
+                    prefix={<Search className="size-3.5 text-muted-foreground" />}
                     placeholder="搜索素材"
                     value={keyword}
                     allowClear
@@ -364,21 +344,15 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                         setKeyword(e.target.value);
                     }}
                 />
-                <div className="flex gap-1.5">
-                    {kindOptions.map((opt) => (
-                        <Tag.CheckableTag
-                            key={opt.value}
-                            checked={kindFilter === opt.value}
-                            className={cn("prompt-filter-tag", kindFilter === opt.value && "is-active")}
-                            onChange={() => {
-                                setPage(1);
-                                setKindFilter(opt.value);
-                            }}
-                        >
-                            {opt.label}
-                        </Tag.CheckableTag>
-                    ))}
-                </div>
+                <FilterTagGroup
+                    inline
+                    options={kindOptions}
+                    isSelected={(value) => kindFilter === value}
+                    onSelect={(value) => {
+                        setPage(1);
+                        setKindFilter(value);
+                    }}
+                />
                 <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => setCreateOpen(true)}>
                     新增素材
                 </Button>
@@ -392,7 +366,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                     ))}
                 </div>
             ) : (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有素材" className="py-12" />
+                <EmptyState className="py-12" title="没有素材" description="调整筛选条件或先新增素材。" />
             )}
 
             {filtered.length > PAGE_SIZE && (
@@ -413,18 +387,17 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                 destroyOnHidden
             >
                 <div className="space-y-3 pt-2">
-                    <div className="flex gap-2">
-                        {[
-                            { value: "image" as const, label: "图片" },
-                            { value: "text" as const, label: "文本" },
-                            { value: "video" as const, label: "视频" },
-                            { value: "audio" as const, label: "音频" },
-                        ].map((item) => (
-                            <Tag.CheckableTag key={item.value} checked={createKind === item.value} className={cn("prompt-filter-tag", createKind === item.value && "is-active")} onChange={() => setCreateKind(item.value)}>
-                                {item.label}
-                            </Tag.CheckableTag>
-                        ))}
-                    </div>
+                    <FilterTagGroup
+                        inline
+                        options={[
+                            { value: "image", label: "图片" },
+                            { value: "text", label: "文本" },
+                            { value: "video", label: "视频" },
+                            { value: "audio", label: "音频" },
+                        ]}
+                        isSelected={(value) => createKind === value}
+                        onSelect={(value) => setCreateKind(value as typeof createKind)}
+                    />
                     <Input value={createTitle} placeholder="素材名称" onChange={(event) => setCreateTitle(event.target.value)} />
                     {createKind === "text" ? (
                         <Input.TextArea value={createText} autoSize={{ minRows: 5, maxRows: 10 }} placeholder="文本内容" onChange={(event) => setCreateText(event.target.value)} />
