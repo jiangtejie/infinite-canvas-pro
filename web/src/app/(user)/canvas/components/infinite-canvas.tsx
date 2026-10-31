@@ -34,6 +34,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         startedOnBackground: false,
     });
     const scaleRef = useRef(viewport.k);
+    const viewportRef = useRef(viewport);
     const frameRef = useRef<number | null>(null);
     const nextViewportRef = useRef<ViewportTransform | null>(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -41,7 +42,8 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
 
     useEffect(() => {
         scaleRef.current = viewport.k;
-    }, [viewport.k]);
+        viewportRef.current = viewport;
+    }, [viewport]);
 
     useEffect(
         () => () => {
@@ -114,11 +116,12 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         const target = event.target instanceof Element ? event.target : null;
         const temporaryTool = isSpacePressed;
         const activeTool = temporaryTool ? (tool === "select" ? "pan" : "select") : tool;
-        const shouldPan = event.button === 1 || (event.button === 0 && activeTool === "pan");
         if (activeTool === "pan" && (!target || !event.currentTarget.contains(target))) return;
         if (target?.closest("[data-canvas-no-zoom]") && activeTool !== "pan") return;
         if (target?.closest("[data-connection-create-menu]")) return;
         const isBackgroundClick = !target?.closest("[data-node-id],[data-connection-id]");
+        const touchPan = event.pointerType === "touch" && activeTool === "select" && isBackgroundClick;
+        const shouldPan = event.button === 1 || (event.button === 0 && (activeTool === "pan" || touchPan));
         if (event.button === 0 && isBackgroundClick && document.activeElement instanceof HTMLElement && (document.activeElement.isContentEditable || document.activeElement instanceof HTMLMediaElement)) document.activeElement.blur();
 
         if (shouldPan) {
@@ -218,6 +221,64 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         };
     }, [containerRef, handleWheel]);
 
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const pointers = new Map<number, { x: number; y: number }>();
+        let start: { distance: number; scale: number; midX: number; midY: number; x: number; y: number } | null = null;
+
+        const handleTouchDown = (event: PointerEvent) => {
+            if (event.pointerType !== "touch") return;
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            if (pointers.size !== 2) return;
+            const [a, b] = Array.from(pointers.values());
+            const current = viewportRef.current;
+            start = {
+                distance: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+                scale: current.k,
+                midX: (a.x + b.x) / 2,
+                midY: (a.y + b.y) / 2,
+                x: current.x,
+                y: current.y,
+            };
+            panState.current.isPanning = false;
+            setIsPanning(false);
+        };
+
+        const handleTouchMove = (event: PointerEvent) => {
+            if (!pointers.has(event.pointerId)) return;
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            if (!start || pointers.size < 2) return;
+            const [a, b] = Array.from(pointers.values());
+            const rect = container.getBoundingClientRect();
+            const distance = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+            const scale = Math.min(5, Math.max(0.05, start.scale * (distance / start.distance)));
+            const midX = (a.x + b.x) / 2;
+            const midY = (a.y + b.y) / 2;
+            const originX = start.midX - rect.left;
+            const originY = start.midY - rect.top;
+            const worldX = (originX - start.x) / start.scale;
+            const worldY = (originY - start.y) / start.scale;
+            onViewportChange({ x: originX + (midX - start.midX) - worldX * scale, y: originY + (midY - start.midY) - worldY * scale, k: scale });
+        };
+
+        const handleTouchUp = (event: PointerEvent) => {
+            pointers.delete(event.pointerId);
+            if (pointers.size < 2) start = null;
+        };
+
+        container.addEventListener("pointerdown", handleTouchDown, { capture: true });
+        window.addEventListener("pointermove", handleTouchMove, { passive: true });
+        window.addEventListener("pointerup", handleTouchUp);
+        window.addEventListener("pointercancel", handleTouchUp);
+        return () => {
+            container.removeEventListener("pointerdown", handleTouchDown, true);
+            window.removeEventListener("pointermove", handleTouchMove);
+            window.removeEventListener("pointerup", handleTouchUp);
+            window.removeEventListener("pointercancel", handleTouchUp);
+        };
+    }, [containerRef, onViewportChange]);
+
     const temporaryTool = isSpacePressed;
     const activeTool = temporaryTool ? (tool === "select" ? "pan" : "select") : tool;
     const cursor = isPanning ? "grabbing" : activeTool === "pan" ? "grab" : undefined;
@@ -226,7 +287,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         <div
             ref={containerRef}
             className={`relative h-full w-full select-none overflow-hidden ${activeTool === "pan" || isPanning ? "[&_*]:!cursor-[inherit]" : ""}`}
-            style={{ background: theme.canvas.background, cursor }}
+            style={{ background: theme.canvas.background, cursor, touchAction: "none" }}
             onPointerDown={activeTool === "pan" ? undefined : handlePointerDown}
             onPointerDownCapture={activeTool === "pan" ? handlePointerDown : undefined}
             onDoubleClick={handleDoubleClick}

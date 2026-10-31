@@ -13,10 +13,10 @@ export type HomeBanner = {
     alt: string;
 };
 
-const BANNER_WIDTH = "min(calc(100vw - 2rem), clamp(420px, 34vw, 520px))";
-const SIDE_BANNER_WIDTH = "min(calc(94vw - 1.88rem), clamp(394.8px, 31.96vw, 488.8px))";
+const BANNER_WIDTH = "min(calc(100vw - 2rem), clamp(360px, 30vw, 460px))";
+const SIDE_BANNER_WIDTH = "min(calc(94vw - 1.88rem), clamp(338.4px, 28.2vw, 432.4px))";
 
-const getBannerAngle = (offset: number) => offset === 0 ? 0 : offset < 0 ? 12 : -12;
+const getBannerAngle = (offset: number) => offset === 0 ? 0 : offset < 0 ? 8 : -8;
 const getBannerTransform = (offset: number) => `perspective(900px) rotateY(${getBannerAngle(offset)}deg)`;
 
 const AnimatedBannerImage = memo(function AnimatedBannerImage({ src, alt }: { src: string; alt: string }) {
@@ -69,7 +69,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
         carouselRef.current?.querySelectorAll<HTMLElement>("[data-banner-offset]").forEach((card) => {
             const offset = Number(card.dataset.bannerOffset);
             const baseAngle = getBannerAngle(offset);
-            card.style.transform = "perspective(900px) rotateY(" + (baseAngle - progress * 12) + "deg)";
+            card.style.transform = "perspective(900px) rotateY(" + (baseAngle - progress * 8) + "deg)";
         });
     };
 
@@ -151,7 +151,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                     }
                 }
             `}</style>
-            <div ref={carouselRef} className="relative h-[calc((100vw-2rem)*.5625+56px)] w-screen overflow-hidden sm:h-[350px] sm:overflow-visible">
+            <div ref={carouselRef} role="region" aria-roledescription="轮播" aria-label="创作工具与案例" className="relative h-[calc((100vw-2rem)*.5625+24px)] w-screen overflow-hidden sm:h-[clamp(240px,20vw,290px)] sm:overflow-visible">
                 {visibleBanners.map(({ banner, index, offset, position }) => {
                     const active = offset === 0;
                     return (
@@ -161,7 +161,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                             data-banner-card
                             data-banner-offset={offset}
                             className={cn(
-                                "home-banner-carousel-card absolute top-1/2 aspect-video rounded-2xl outline-none transition-[left,width,transform] duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/35",
+                                "home-banner-carousel-card absolute top-1/2 aspect-video rounded-2xl outline-none transition-[left,width,transform] duration-300 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background motion-reduce:!transition-none",
                                 (banner.linkUrl || banner.videoUrl) && "cursor-pointer",
                             )}
                             style={{
@@ -185,7 +185,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                                 aria-hidden
                                 className={cn(
                                     "pointer-events-none absolute inset-0 rounded-2xl",
-                                    active ? "shadow-[0_18px_44px_rgba(0,0,0,0.5)]" : "shadow-[0_8px_20px_rgba(0,0,0,0.2)]",
+                                    active ? "shadow-[0_10px_28px_rgba(0,0,0,0.16)]" : "shadow-[0_4px_14px_rgba(0,0,0,0.08)]",
                                 )}
                             />
                             <span
@@ -206,9 +206,11 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                 <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ left: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronLeft className="size-5" />} onClick={() => changeBanner(-1)} aria-label="上一张" />
                 <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ right: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronRight className="size-5" />} onClick={() => changeBanner(1)} aria-label="下一张" />
             </div>
-            <div className="mt-1 flex items-center justify-center gap-2" aria-label="Banner 切换">
+            <div className="mt-1 flex items-center justify-center" role="group" aria-label="Banner 切换">
                 {banners.map((banner, index) => (
-                    <button key={banner.imageUrl} type="button" className={cn("h-1.5 rounded-full transition-all", index === activeIndex ? "w-6 bg-foreground" : "w-2 bg-muted-foreground/40")} onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张"} />
+                    <button key={banner.imageUrl} type="button" className="grid size-8 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张：" + banner.alt} aria-pressed={index === activeIndex}>
+                        <span aria-hidden="true" className={cn("h-1.5 rounded-full transition-[width,background-color] motion-reduce:transition-none", index === activeIndex ? "w-5 bg-foreground" : "w-1.5 bg-muted-foreground/40")} />
+                    </button>
                 ))}
             </div>
             <Modal open={Boolean(activeVideoUrl)} footer={null} centered width={960} destroyOnHidden onCancel={() => setActiveVideoUrl("")}>

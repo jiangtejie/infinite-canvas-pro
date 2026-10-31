@@ -52,14 +52,24 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, frameOption
             if (autodl && document.activeElement instanceof HTMLElement && panelRef.current?.contains(document.activeElement)) document.activeElement.blur();
             setOpen(false);
         };
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            if (document.querySelector(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")) return;
+            event.preventDefault();
+            setOpen(false);
+            buttonRef.current?.querySelector("button")?.focus({ preventScroll: true });
+        };
+
         syncPosition();
         window.addEventListener("resize", syncPosition);
         window.addEventListener("scroll", syncPosition, true);
         window.addEventListener("pointerdown", closeOnOutsidePointer, true);
+        window.addEventListener("keydown", closeOnEscape);
         return () => {
             window.removeEventListener("resize", syncPosition);
             window.removeEventListener("scroll", syncPosition, true);
             window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+            window.removeEventListener("keydown", closeOnEscape);
         };
     }, [open, autodl]);
 

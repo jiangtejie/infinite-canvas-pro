@@ -1,7 +1,7 @@
 "use client";
 
 import { App, Button, Checkbox, Image, Input, Modal, Select, Space, Switch, Tag, Typography } from "antd";
-import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edit3, FilePlus2, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, Sparkles, Trash2, WandSparkles } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edit3, FilePlus2, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, RotateCcw, Sparkles, Trash2, WandSparkles } from "lucide-react";
 import localforage from "localforage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
@@ -10,6 +10,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { EmptyState } from "@/components/ui/state-panel";
+import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
+import { FailureDetailModal, TaskErrorLine } from "@/components/workbench/task-result";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
@@ -217,6 +219,7 @@ export function CreativeWorkflowWorkspace({
     onWorkflowTaskSuccess?: (task: WorkflowExternalTaskSuccess) => void;
     onWorkflowTaskFailure?: (task: WorkflowExternalTaskFailure) => void;
 } = {}) {
+    useScreenLoadTiming(embedded ? "工作流（嵌入）" : "工作流");
     const { message, modal } = App.useApp();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const effectiveConfig = useEffectiveConfig();
@@ -723,6 +726,16 @@ export function CreativeWorkflowWorkspace({
         return executeWorkflowTask({ taskId, workflow, prompt: promptSnapshot, inputSnapshot, references: referencesSnapshot, runConfig, taskConfig, model, count, startedAt, performanceStartedAt, seriesDraftId, seriesTitle, seriesIndex });
     };
 
+    const retryWorkflowTask = (task: WorkflowTask) => {
+        const workflow = workflows.find((item) => item.id === task.workflowId);
+        if (!workflow) {
+            message.warning("工作流已删除，无法重试");
+            return;
+        }
+        setWorkflowTasks((value) => value.filter((item) => item.id !== task.id));
+        void startWorkflowImageTask(workflow, task.prompt, { ...task.inputs }, task.references, task.count, undefined, task.seriesTitle, task.seriesIndex);
+    };
+
     const saveWorkflowTaskLog = async (log: ImageHistoryLog) => {
         await imageLogStore.setItem(log.id, serializeHistoryLog(log));
         if (token) await saveImageGenerationLogs(token, [serializeHistoryLog(log)]).catch(() => undefined);
@@ -999,7 +1012,7 @@ export function CreativeWorkflowWorkspace({
                         </div>
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                             {workflowTasks.map((task) => (
-                                <WorkflowTaskCard key={task.id} task={task} now={now} onCopyPrompt={() => void navigator.clipboard.writeText(task.prompt)} onDownload={(image, index) => saveAs(image.imageUrl, `workflow-task-${index + 1}.png`)} />
+                                <WorkflowTaskCard key={task.id} task={task} now={now} onCopyPrompt={() => void navigator.clipboard.writeText(task.prompt)} onRetry={() => retryWorkflowTask(task)} onDownload={(image, index) => saveAs(image.imageUrl, `workflow-task-${index + 1}.png`)} />
                             ))}
                         </div>
                     </section>
@@ -1354,7 +1367,8 @@ function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow:
     );
 }
 
-function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: WorkflowTask; now: number; onCopyPrompt: () => void; onDownload: (image: WorkflowRunResult, index: number) => void }) {
+function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload, onRetry }: { task: WorkflowTask; now: number; onCopyPrompt: () => void; onDownload: (image: WorkflowRunResult, index: number) => void; onRetry: () => void }) {
+    const [detailOpen, setDetailOpen] = useState(false);
     const elapsedMs = task.status === "running" ? now - task.startedAt : task.durationMs || (task.endedAt || task.startedAt) - task.startedAt;
     const statusView = {
         running: { label: "运行中", color: "processing", icon: <LoaderCircle className="size-4 animate-spin" /> },
@@ -1378,9 +1392,16 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
                         <Tag className="m-0">{formatDate(task.startedAt)}</Tag>
                     </div>
                 </div>
-                <Button size="small" icon={<Copy className="size-3.5" />} onClick={onCopyPrompt}>
-                    复制提示词
-                </Button>
+                <div className="flex shrink-0 gap-1">
+                    {task.status === "failed" ? (
+                        <Button size="small" danger icon={<RotateCcw className="size-3.5" />} onClick={onRetry}>
+                            重试
+                        </Button>
+                    ) : null}
+                    <Button size="small" icon={<Copy className="size-3.5" />} onClick={onCopyPrompt}>
+                        复制提示词
+                    </Button>
+                </div>
             </div>
             <div className="space-y-3 p-3">
                 <div className="line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{task.prompt}</div>
@@ -1404,7 +1425,7 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
                             ))}
                     </div>
                 ) : null}
-                {task.error ? <div className="rounded-md bg-red-100 px-2.5 py-2 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-300">{task.error}</div> : null}
+                {task.error ? <TaskErrorLine error={task.error} onDetail={() => setDetailOpen(true)} /> : null}
                 {task.images.length ? (
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                         {task.images.map((image, index) => (
@@ -1423,6 +1444,7 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload }: { task: Workf
                     <div className="flex h-28 items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">生成中 {formatDuration(elapsedMs)}</div>
                 ) : null}
             </div>
+            <FailureDetailModal open={detailOpen} detail={task.error || ""} onClose={() => setDetailOpen(false)} />
         </article>
     );
 }

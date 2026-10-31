@@ -19,6 +19,7 @@
 - [系统配置数据结构](backend/system-settings.md)
 - [后端数据库说明](backend/backend-database.md)
 - [画布数据结构](backend/canvas-data-structure.md)
+- [错误提示与失败详情规范](frontend/error-display.md)
 
 ## 商务合作
 

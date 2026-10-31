@@ -2,9 +2,11 @@
 
 import dynamic from "next/dynamic";
 
+import { LoadingState } from "@/components/ui/state-panel";
+
 const CreativeWorkflowWorkspace = dynamic(
     () => import("@/components/workflows/creative-workflow-workspace").then((module) => module.CreativeWorkflowWorkspace),
-    { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-sm text-muted-foreground">正在加载工作流...</div> },
+    { ssr: false, loading: () => <LoadingState className="h-full" label="正在加载工作流..." /> },
 );
 
 export default function WorkflowsPage() {

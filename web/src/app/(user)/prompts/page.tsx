@@ -1,14 +1,14 @@
 "use client";
 
 import { FolderPlus, Search } from "lucide-react";
-import { type UIEvent, useEffect, useState } from "react";
+import { type UIEvent, useState } from "react";
 import { App, Button, Input } from "antd";
 
 import { PromptCard } from "@/components/prompts/prompt-card";
 import { PromptDetailDialog } from "@/components/prompts/prompt-detail-dialog";
 import { usePromptList } from "@/components/prompts/use-prompt-list";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
-import { EmptyState, LoadingState } from "@/components/ui/state-panel";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { ALL_PROMPTS_OPTION, type Prompt } from "@/services/api/prompts";
@@ -23,12 +23,6 @@ export default function PromptsPage() {
     const addAsset = useAssetStore((state) => state.addAsset);
     const copyText = useCopyText();
     const { query, items: promptItems, tags: promptTags, categories: promptCategoryOptions, total: totalPrompts } = usePromptList({ keyword: titleKeyword, tags: selectedTags, category: selectedCategory });
-
-    useEffect(() => {
-        if (query.isError) {
-            message.error(query.error instanceof Error ? query.error.message : "获取提示词失败");
-        }
-    }, [message, query.error, query.isError]);
 
     const toggleTag = (tag: string) => {
         if (tag === ALL_PROMPTS_OPTION) return setSelectedTags([]);
@@ -76,7 +70,16 @@ export default function PromptsPage() {
                     ) : null}
                 </div>
 
-                {!query.isLoading ? (
+                {!query.isLoading && query.isError ? (
+                    <ErrorState
+                        className="py-16"
+                        description={query.error instanceof Error ? query.error.message : "获取提示词失败，请检查网络后重试。"}
+                        detail={query.error instanceof Error ? query.error.stack : undefined}
+                        onRetry={() => void query.refetch()}
+                    />
+                ) : null}
+
+                {!query.isLoading && !query.isError ? (
                     <div>
                         <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             {promptItems.map((item) => (

@@ -1,10 +1,10 @@
 "use client";
 import axios from "axios";
 
-import { AlertCircle, ArrowLeft, ArrowRight, BookOpen, CheckSquare, ChevronDown, ChevronUp, ClipboardPaste, CloudUpload, Copy, Download, FolderPlus, History, LoaderCircle, Music2, PanelLeft, Plus, RotateCcw, SlidersHorizontal, Sparkles, Square, Trash2, Upload, VideoIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AlertCircle, ArrowLeft, ArrowRight, ClipboardPaste, CloudUpload, Download, FolderPlus, LoaderCircle, Music2, RotateCcw, Sparkles, Square, Trash2, Upload, VideoIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { App, Button, Checkbox, Input, Modal, Switch, Tag, Typography } from "antd";
+import { App, Button, Checkbox, Input, Modal, Switch, Tag } from "antd";
 import localforage from "localforage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
@@ -13,8 +13,13 @@ import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/c
 import { ModelPicker } from "@/components/model-picker";
 import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-header";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
-import { EmptyState } from "@/components/ui/state-panel";
+import { EmptyState, LoadingState } from "@/components/ui/state-panel";
+import { FailedResultCard, FailureDetailModal, ReferenceThumbnailOverlay, ResultMediaMeta, TaskErrorLine, TaskPromptBlock, TaskResultInfo, formatTaskTime } from "@/components/workbench/task-result";
+import { ReferenceStripShell } from "@/components/workbench/reference-strip";
+import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
+import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
+import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { getAutoDLCapabilities, isAutoDLConfig, normalizeAutoDLDuration } from "@/lib/autodl";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { VideoSettingsPanel, isKIEKlingV3Config, kieKlingOmniVariant, normalizeVideoResolutionValue, normalizeVideoSizeValue, videoResolutionOptions, videoSizeForResolution, videoSizeOptions } from "@/components/video-settings-panel";
@@ -113,10 +118,11 @@ type VideoTaskRun = { id: string; controller: AbortController; backend?: Generat
 const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const KlingV26WorkbenchPanel = dynamic(
     () => import("./components/kling-v26-workbench-panel").then((module) => module.KlingV26WorkbenchPanel),
-    { ssr: false, loading: () => <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-border bg-card text-sm text-muted-foreground">正在加载 Kling 工作台...</div> },
+    { ssr: false, loading: () => <LoadingState className="min-h-[420px] rounded-lg border border-border bg-card" label="正在加载 Kling 工作台..." /> },
 );
 const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
 export default function VideoPage() {
+    useScreenLoadTiming("视频创作台");
     const { message } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const elementFileInputRef = useRef<HTMLInputElement>(null);
@@ -1575,31 +1581,20 @@ function WorkbenchPanel({
 
     if (layout === "bottom") {
         return (
-            <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-5 sm:bottom-7 sm:px-10 lg:px-16">
-                <div className="pointer-events-auto w-full max-w-5xl rounded-xl border border-border bg-background/95 p-4 shadow-2xl backdrop-blur-xl dark:bg-card/95">
-                    <div className="flex flex-col gap-3">
-                        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                            <Input.TextArea
-                                value={prompt}
-                                onChange={(event) => onPromptChange(event.target.value)}
-                                placeholder="描述镜头运动、主体动作、场景氛围和画面风格"
-                                autoSize={{ minRows: 2, maxRows: 4 }}
-                                className="rounded-lg"
-                                onPressEnter={(event) => {
-                                    if (!event.shiftKey && canGenerate) onGenerate();
-                                }}
-                            />
-                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                                <Button title="清空输入" aria-label="清空输入" icon={<Trash2 className="size-4" />} onClick={onClearPrompt} />
-                                <Button title="提示词库" aria-label="提示词库" icon={<BookOpen className="size-4" />} onClick={onOpenPromptLibrary} />
-                                <Button title="我的素材" aria-label="我的素材" icon={<FolderPlus className="size-4" />} onClick={() => onOpenAssetPicker()} />
-                                <Button title="参数配置" aria-label="参数配置" className={`lg:hidden ${!bottomSettingsCollapsed ? "!border-sky-500/30 !bg-sky-500/10 !text-sky-500" : ""}`} icon={<SlidersHorizontal className="size-4" />} onClick={() => setBottomSettingsCollapsed?.(!bottomSettingsCollapsed)} />
-                                <Button title="切换到侧边工作台" aria-label="切换到侧边工作台" icon={<PanelLeft className="size-4" />} onClick={() => onLayoutChange("side")} />
-                                <Button type="primary" className="h-9 rounded-xl px-4 font-medium lg:!hidden" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
-                                    {pendingCount ? `${pendingCount} 生成中` : "开始创作"}
-                                </Button>
-                            </div>
-                        </div>
+            <BottomPromptComposer
+                prompt={prompt}
+                placeholder="描述镜头运动、主体动作、场景氛围和画面风格"
+                onPromptChange={onPromptChange}
+                canGenerate={canGenerate}
+                pendingCount={pendingCount}
+                settingsOpen={!bottomSettingsCollapsed}
+                onToggleSettings={() => setBottomSettingsCollapsed?.(!bottomSettingsCollapsed)}
+                onClearPrompt={onClearPrompt}
+                onOpenPromptLibrary={onOpenPromptLibrary}
+                onOpenAssetPicker={() => onOpenAssetPicker()}
+                onSwitchToSide={() => onLayoutChange("side")}
+                onGenerate={onGenerate}
+            >
                         {klingBottom && klingBottomProvider !== "kie" ? (
                             <Input.TextArea
                                 value={negativePrompt}
@@ -1639,9 +1634,7 @@ function WorkbenchPanel({
                                 {audioReferences.length ? <ReferenceAudioStrip references={audioReferences} compact onRemoveReference={onRemoveAudioReference} onMoveReference={onMoveAudioReference} /> : null}
                             </div>
                         ) : null}
-                    </div>
-                </div>
-            </div>
+            </BottomPromptComposer>
         );
     }
 
@@ -1651,17 +1644,7 @@ function WorkbenchPanel({
                 <WorkbenchHeader title="视频创作台" currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
             </div>
             <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-3">
-                <WorkbenchSection title="提示词">
-                    <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1">
-                            <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPastePrompt}>读取剪贴板</Button>
-                            <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={onClearPrompt}>清空</Button>
-                            <Button size="small" icon={<BookOpen className="size-3.5" />} onClick={onOpenPromptLibrary}>提示词库</Button>
-                            <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onOpenAssetPicker()}>我的素材</Button>
-                        </div>
-                        <Input.TextArea value={prompt} onChange={(event) => onPromptChange(event.target.value)} rows={6} placeholder="描述镜头运动、主体动作、场景氛围和画面风格" />
-                    </div>
-                </WorkbenchSection>
+                <WorkbenchPromptSection prompt={prompt} placeholder="描述镜头运动、主体动作、场景氛围和画面风格" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={() => onOpenAssetPicker()} />
                 {frameReferencesEnabled ? (
                     <WorkbenchSection title="首尾帧" count={[firstFrame, lastFrame].filter(Boolean).length}>
                         <FrameReferenceStrip firstFrame={firstFrame} lastFrame={lastFrame} onPasteFrame={onPasteFrame} onUploadFrame={onUploadFrame} onOpenAssetPicker={onOpenAssetPicker} onRemoveFrame={onRemoveFrame} />
@@ -1709,18 +1692,6 @@ function WorkbenchPanel({
                 </Button>
             </div>
         </div>
-    );
-}
-
-function WorkbenchSection({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
-    return (
-        <section className="overflow-hidden rounded-lg border border-border bg-background">
-            <div className="flex items-center gap-2 px-3 py-2">
-                <span className="text-sm font-medium">{title}</span>
-                {typeof count === "number" ? <Tag className="m-0 text-xs">{count}</Tag> : null}
-            </div>
-            <div className="space-y-2 border-t border-border p-3">{children}</div>
-        </section>
     );
 }
 
@@ -1781,7 +1752,7 @@ function FrameReferenceSlot({ label, reference, compact, onUpload, onRemove }: {
 
 function ReferenceImageStrip({ references, compact = false, maxCount = SEEDANCE_REFERENCE_LIMITS.images, onRemoveReference, onMoveReference }: { references: ReferenceImage[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-border p-2 overscroll-x-contain ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+        <ReferenceStripShell compact={compact}>
             {references.map((item, index) => (
                 <div key={item.id} className={`${compact ? "size-12" : "size-20"} group relative shrink-0 overflow-hidden rounded-md border border-border`}>
                     <img src={item.dataUrl} alt={item.name} className="size-full object-cover" />
@@ -1793,13 +1764,13 @@ function ReferenceImageStrip({ references, compact = false, maxCount = SEEDANCE_
                 </div>
             ))}
             {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">暂无参考图，最多 {maxCount} 张</div> : null}
-        </div>
+        </ReferenceStripShell>
     );
 }
 
 function ReferenceVideoStrip({ references, compact = false, maxCount = SEEDANCE_REFERENCE_LIMITS.videos, onRemoveReference, onMoveReference }: { references: ReferenceVideo[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-border p-2 overscroll-x-contain ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+        <ReferenceStripShell compact={compact}>
             {references.map((item, index) => (
                 <div key={item.id} className={`${compact ? "h-12 w-20" : "h-20 w-32"} group relative shrink-0 overflow-hidden rounded-md border border-border bg-black`}>
                     <video src={item.url} className="size-full object-cover" muted preload="metadata" />
@@ -1811,13 +1782,13 @@ function ReferenceVideoStrip({ references, compact = false, maxCount = SEEDANCE_
                 </div>
             ))}
             {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">暂无参考视频，最多 {maxCount} 个</div> : null}
-        </div>
+        </ReferenceStripShell>
     );
 }
 
 function ReferenceAudioStrip({ references, compact = false, maxCount = SEEDANCE_REFERENCE_LIMITS.audios, onRemoveReference, onMoveReference }: { references: ReferenceAudio[]; compact?: boolean; maxCount?: number; onRemoveReference: (id: string) => void; onMoveReference: (index: number, offset: number) => void }) {
     return (
-        <div className={`hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-border p-2 overscroll-x-contain ${compact ? "min-h-14" : "min-h-24 pb-3"}`}>
+        <ReferenceStripShell compact={compact}>
             {references.map((item, index) => (
                 <div key={item.id} className={`${compact ? "h-12 w-40" : "h-20 w-48"} group relative flex shrink-0 flex-col justify-center gap-2 rounded-md border border-border bg-muted px-2`}>
                     <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
@@ -1833,7 +1804,7 @@ function ReferenceAudioStrip({ references, compact = false, maxCount = SEEDANCE_
                 </div>
             ))}
             {!references.length ? <div className="flex min-w-full items-center justify-center text-center text-sm text-muted-foreground">暂无参考音频，最多 {maxCount} 个，mp3/wav，单个 15MB 内</div> : null}
-        </div>
+        </ReferenceStripShell>
     );
 }
 
@@ -1973,21 +1944,30 @@ function ResultsPanel({
     const toggleVisibleLogs = () => onSelectedLogIdsChange(allSelected ? selectedLogIds.filter((id) => !visibleLogs.some((log) => log.id === id)) : Array.from(new Set([...selectedLogIds, ...visibleLogs.map((log) => log.id)])));
 
     return (
-        <section className={`thin-scrollbar rounded-lg border border-border bg-card p-4 shadow-sm lg:min-h-0 lg:overflow-y-auto lg:p-5 ${className}`}>
-            <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                    <HistoryIcon />
-                    <h2 className="truncate text-xl font-semibold">全部成果</h2>
-                    <Tag className="m-0">{totalCount}</Tag>
-                    {pendingCount ? <Tag className="m-0 px-2 py-1">{pendingCount} 个生成中</Tag> : null}
+        <ResultsPanelShell
+            className={className}
+            title="全部成果"
+            count={totalCount}
+            pendingCount={pendingCount}
+            actions={
+                <ResultsToolbarActions
+                    onNew={onCreateSession}
+                    onToggleSelectAll={toggleVisibleLogs}
+                    selectAllLabel={allSelected ? "取消" : "全选"}
+                    selectAllDisabled={!visibleLogs.length}
+                    onDownload={() => selectedVideos.forEach(onDownload)}
+                    downloadDisabled={!selectedVideos.length}
+                    onDelete={onDeleteSelected}
+                    deleteDisabled={!selectedLogIds.length}
+                />
+            }
+            empty={
+                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border text-center lg:min-h-[560px]">
+                    <VideoIcon className="mb-4 size-11 text-muted-foreground" />
+                    <EmptyState title="还没有生成视频" description="填写提示词并开始创作，生成的视频会出现在这里。" />
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                    <Button size="small" icon={<Plus className="size-3.5" />} onClick={onCreateSession}>新建</Button>
-                    <Button size="small" icon={<CheckSquare className="size-3.5" />} disabled={!visibleLogs.length} onClick={toggleVisibleLogs}>{allSelected ? "取消" : "全选"}</Button>
-                    <Button size="small" icon={<Download className="size-3.5" />} disabled={!selectedVideos.length} onClick={() => selectedVideos.forEach(onDownload)}>下载</Button>
-                    <Button size="small" danger icon={<Trash2 className="size-3.5" />} disabled={!selectedLogIds.length} onClick={onDeleteSelected}>删除</Button>
-                </div>
-            </div>
+            }
+        >
             {totalCount ? (
                 <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
                     {visibleResults.map((result, index) => (result.status === "success" && result.video ? <ResultVideoCard key={result.id} result={result} video={result.video} index={index} syncing={syncingVideoIds.includes(result.video.id)} onCopyPrompt={onCopyPrompt} onDownload={onDownload} onSync={(video) => onSyncResult(result.id, video, index)} onSaveAsset={onSaveAsset} /> : result.status === "failed" ? <FailedVideoCard key={result.id} result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onPreview={() => onPreviewResult(result)} onRetry={() => onRetryResult(result)} /> : <PendingVideoCard key={result.id} result={result} now={now} onCopyPrompt={onCopyPrompt} onStop={() => onStopResult(result)} onRetry={() => onRetryResult(result)} onDelete={() => { const log = logs.find((item) => item.id === (result.taskLogId || result.id)); if (log) onDeleteLog(log); }} />))}
@@ -1995,18 +1975,9 @@ function ResultsPanel({
                         <HistoryLogCard key={log.id} log={log} index={index} selected={selectedLogIds.includes(log.id)} active={activeLogId === log.id} syncing={Boolean(log.video && syncingVideoIds.includes(log.video.id))} onSelectedChange={(checked) => onSelectedLogIdsChange(checked ? [...selectedLogIds, log.id] : selectedLogIds.filter((id) => id !== log.id))} onDelete={() => onDeleteLog(log)} onPreview={() => onPreviewLog(log)} onRetry={() => onRetryLog(log)} onCopyPrompt={onCopyPrompt} onDownload={onDownload} onSync={(video) => onSyncLog(log, video, index)} onSaveAsset={onSaveAsset} />
                     ))}
                 </div>
-            ) : (
-                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border text-center lg:min-h-[560px]">
-                    <VideoIcon className="mb-4 size-11 text-muted-foreground" />
-                    <EmptyState title="还没有生成视频" description="填写提示词并开始创作，生成的视频会出现在这里。" />
-                </div>
-            )}
-        </section>
+            ) : null}
+        </ResultsPanelShell>
     );
-}
-
-function HistoryIcon() {
-    return <History className="size-4 shrink-0 text-muted-foreground" />;
 }
 
 function ResultVideoCard({ result, video, index, syncing, onCopyPrompt, onDownload, onSync, onSaveAsset }: { result: GenerationResult; video: GeneratedVideo; index: number; syncing: boolean; onCopyPrompt: (text: string) => void | Promise<void>; onDownload: (video: GeneratedVideo) => void; onSync: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
@@ -2020,8 +1991,25 @@ function ResultVideoCard({ result, video, index, syncing, onCopyPrompt, onDownlo
                 <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
                 <video src={video.url} controls className="size-full object-contain" />
             </div>
-            <TaskInfo item={result} onCopyPrompt={onCopyPrompt} />
-            <VideoMetaBar video={video} index={index} syncing={syncing} onDownload={onDownload} onSync={onSync} onSaveAsset={onSaveAsset} />
+            <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} onCopyPrompt={onCopyPrompt} />
+            <ResultMediaMeta
+                meta={
+                    <>
+                        <span>
+                            {video.width}x{video.height}
+                        </span>
+                        {video.bytes ? <span>{formatBytes(video.bytes)}</span> : <span>远端地址</span>}
+                        <span>{formatDuration(video.durationMs)}</span>
+                    </>
+                }
+                actions={
+                    <>
+                        <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(video)} onClick={() => onSync(video)} />
+                        <Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(video)} />
+                        <Button size="small" aria-label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(video)} />
+                    </>
+                }
+            />
         </div>
     );
 }
@@ -2057,41 +2045,26 @@ function PendingVideoCard({ result, now, onCopyPrompt, onStop, onRetry, onDelete
                 ) : null}
                 {stopped || stopping && result.error ? <Button size="small" type="text" danger title="删除" aria-label="删除结果" className="!absolute right-1.5 top-1.5 z-10 !h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
             </div>
-            <TaskInfo item={{ ...result, durationMs }} onCopyPrompt={onCopyPrompt} />
+            <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={{ ...result, durationMs }} />} onCopyPrompt={onCopyPrompt} />
         </div>
     );
 }
 
 function FailedVideoCard({ result, error, onCopyPrompt, onPreview, onRetry }: { result: GenerationResult; error: string; onCopyPrompt: (text: string) => void | Promise<void>; onPreview: () => void; onRetry: () => void }) {
-    const [detailOpen, setDetailOpen] = useState(false);
-    const detail = result.errorDetail || error;
     return (
-        <div className="overflow-hidden rounded-lg border border-red-200 bg-red-50 dark:border-red-950 dark:bg-red-950/20">
-            <div className="relative flex aspect-video flex-col items-center justify-center gap-3 p-5 text-center">
-                <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
-                <AlertCircle className="size-7 text-red-500" />
-                <div className="text-sm font-medium text-red-600 dark:text-red-300">生成失败</div>
-                <Typography.Paragraph ellipsis={{ rows: 4 }} className="!mb-0 !text-xs !text-red-500 dark:!text-red-300">
-                    {error}
-                </Typography.Paragraph>
-            </div>
-            <TaskInfo item={result} error={error} onCopyPrompt={onCopyPrompt} />
-            <div className="flex justify-between gap-2 border-t border-red-200 p-3 dark:border-red-950">
-                <Button size="small" onClick={onPreview}>载入</Button>
-                <div className="flex gap-2">
-                    <Button size="small" onClick={() => setDetailOpen(true)}>详情</Button>
-                    <Button size="small" danger onClick={onRetry}>重试</Button>
-                </div>
-            </div>
-            <Modal title="失败详情" open={detailOpen} width={760} onCancel={() => setDetailOpen(false)} footer={null}>
-                <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs text-foreground">{detail}</pre>
-            </Modal>
-        </div>
+        <FailedResultCard
+            mediaClassName="aspect-video"
+            references={result.references}
+            error={error}
+            detail={result.errorDetail || error}
+            info={<TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} error={error} onCopyPrompt={onCopyPrompt} />}
+            extraActions={<Button size="small" onClick={onPreview}>载入</Button>}
+            onRetry={onRetry}
+        />
     );
 }
 
 function HistoryLogCard({ log, index, selected, active, syncing, onSelectedChange, onDelete, onPreview, onRetry, onCopyPrompt, onDownload, onSync, onSaveAsset }: { log: GenerationLog; index: number; selected: boolean; active: boolean; syncing: boolean; onSelectedChange: (checked: boolean) => void; onDelete: () => void; onPreview: () => void; onRetry: () => void; onCopyPrompt: (text: string) => void | Promise<void>; onDownload: (video: GeneratedVideo) => void; onSync: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
-    const [expanded, setExpanded] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     return (
         <div className={`overflow-hidden rounded-lg border bg-background ${active ? "border-foreground" : "border-border"}`}>
@@ -2108,13 +2081,9 @@ function HistoryLogCard({ log, index, selected, active, syncing, onSelectedChang
                 <ReferenceThumbnailOverlay references={log.references} className="bottom-1.5 right-1.5" />
             </div>
             <div className="space-y-2 border-t border-border p-2.5 text-xs">
-                <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-foreground/80`}>{log.prompt}</div>
-                <div className="flex items-center justify-end gap-1">
-                    <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => void onCopyPrompt(log.prompt)}>复制</Button>
-                    <Button size="small" type="text" icon={expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />} onClick={() => setExpanded((value) => !value)}>{expanded ? "收起" : "展开"}</Button>
-                </div>
+                <TaskPromptBlock prompt={log.prompt} onCopyPrompt={onCopyPrompt} />
                 <div className="flex flex-wrap gap-1">
-                    <Tag className="m-0 text-[10px]">{formatLogTime(log.createdAt)}</Tag>
+                    <Tag className="m-0 text-[10px]">{formatTaskTime(log.createdAt)}</Tag>
                     <Tag className="m-0 text-[10px]">{log.model}</Tag>
                     <Tag className="m-0 text-[10px]">{log.size}</Tag>
                     <Tag className="m-0 text-[10px]">{log.resolution}p</Tag>
@@ -2122,7 +2091,7 @@ function HistoryLogCard({ log, index, selected, active, syncing, onSelectedChang
                     <Tag className="m-0 text-[10px]">数量 {log.taskCount || 1}</Tag>
                     <Tag className="m-0 text-[10px]">{formatDuration(log.durationMs)}</Tag>
                 </div>
-                {log.error ? <div className="flex items-start justify-between gap-2 rounded-md bg-red-100 px-2 py-1 text-red-600 dark:bg-red-950/40 dark:text-red-300"><span className="line-clamp-2 min-w-0">{log.error}</span><Button size="small" type="text" className="!h-auto !p-0 text-xs" onClick={() => setDetailOpen(true)}>详情</Button></div> : null}
+                {log.error ? <TaskErrorLine error={log.error} onDetail={() => setDetailOpen(true)} /> : null}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border px-2.5 py-2">
                 <div className="flex flex-wrap gap-1">
@@ -2131,26 +2100,7 @@ function HistoryLogCard({ log, index, selected, active, syncing, onSelectedChang
                 </div>
                 {log.video ? <div className="flex shrink-0 gap-1"><Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(log.video)} onClick={() => onSync(log.video!)} /><Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(log.video!)} /><Button size="small" aria-label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(log.video!)} /></div> : null}
             </div>
-            <Modal title="失败详情" open={detailOpen} width={760} onCancel={() => setDetailOpen(false)} footer={null}>
-                <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs text-foreground">{log.errorDetail || log.error || "没有详情"}</pre>
-            </Modal>
-        </div>
-    );
-}
-
-function VideoMetaBar({ video, syncing, onDownload, onSync, onSaveAsset }: { video: GeneratedVideo; index: number; syncing: boolean; onDownload: (video: GeneratedVideo) => void; onSync: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
-    return (
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border px-2.5 py-2">
-            <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-[10px] text-muted-foreground">
-                <span>{video.width}x{video.height}</span>
-                {video.bytes ? <span>{formatBytes(video.bytes)}</span> : <span>远端地址</span>}
-                <span>{formatDuration(video.durationMs)}</span>
-            </div>
-            <div className="flex shrink-0 gap-1">
-                <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(video)} onClick={() => onSync(video)} />
-                <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(video)} />
-                <Button size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(video)} />
-            </div>
+            <FailureDetailModal open={detailOpen} detail={log.errorDetail || log.error || ""} onClose={() => setDetailOpen(false)} />
         </div>
     );
 }
@@ -2159,41 +2109,17 @@ function VideoSourceTag({ video }: { video: GeneratedVideo }) {
     return <Tag className="m-0 text-[10px]" color={video.storageKey ? "default" : "gold"}>{video.storageKey ? "本地缓存" : "AI 临时URL"}</Tag>;
 }
 
-function TaskInfo({ item, error, onCopyPrompt }: { item: GenerationResult; error?: string; onCopyPrompt: (text: string) => void | Promise<void> }) {
-    const [expanded, setExpanded] = useState(false);
+function TaskTags({ item }: { item: GenerationResult }) {
     return (
-        <div className="space-y-2 border-t border-border px-3 py-2.5 text-xs text-muted-foreground">
-            <div className="rounded-md bg-muted p-2">
-                <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-foreground/80`}>{item.prompt}</div>
-                <div className="mt-2 flex justify-end gap-1">
-                    <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => void onCopyPrompt(item.prompt)}>复制</Button>
-                    <Button size="small" type="text" icon={expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />} onClick={() => setExpanded((value) => !value)}>{expanded ? "收起" : "展开"}</Button>
-                </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-                <Tag className="m-0">{formatLogTime(item.createdAt)}</Tag>
-                <Tag className="m-0">{item.model}</Tag>
-                <Tag className="m-0">{item.config.size || "auto"}</Tag>
-                <Tag className="m-0">{item.config.vquality || "720"}p</Tag>
-                <Tag className="m-0">{item.config.videoSeconds || "6"}s</Tag>
-                <Tag className="m-0">数量 {item.taskCount || 1}</Tag>
-                {item.durationMs ? <Tag className="m-0">{formatDuration(item.durationMs)}</Tag> : null}
-            </div>
-            {error ? <div className="rounded-md bg-red-100 px-2 py-1.5 text-red-600 dark:bg-red-950/40 dark:text-red-300">{error}</div> : null}
-        </div>
-    );
-}
-
-function ReferenceThumbnailOverlay({ references, className = "" }: { references?: ReferenceImage[]; className?: string }) {
-    const visibleReferences = (references || []).filter((item) => Boolean(item.dataUrl)).slice(0, 3);
-    if (!visibleReferences.length) return null;
-    return (
-        <div className={`absolute z-10 flex items-center gap-1 rounded-md bg-black/55 p-1 shadow-sm backdrop-blur ${className}`}>
-            {visibleReferences.map((item) => (
-                <img key={item.id} src={item.dataUrl} alt={item.name} className="size-7 rounded border border-white/60 object-cover" />
-            ))}
-            {(references || []).length > visibleReferences.length ? <span className="px-1 text-[10px] text-white">+{(references || []).length - visibleReferences.length}</span> : null}
-        </div>
+        <>
+            <Tag className="m-0">{formatTaskTime(item.createdAt)}</Tag>
+            <Tag className="m-0">{item.model}</Tag>
+            <Tag className="m-0">{item.config.size || "auto"}</Tag>
+            <Tag className="m-0">{item.config.vquality || "720"}p</Tag>
+            <Tag className="m-0">{item.config.videoSeconds || "6"}s</Tag>
+            <Tag className="m-0">数量 {item.taskCount || 1}</Tag>
+            {item.durationMs ? <Tag className="m-0">{formatDuration(item.durationMs)}</Tag> : null}
+        </>
     );
 }
 
@@ -2268,9 +2194,7 @@ async function copyPrompt(text: string, success: (content: string) => void) {
     success("提示词已复制");
 }
 
-function formatLogTime(value: number) {
-    return new Date(value).toLocaleString("zh-CN", { hour12: false });
-}
+
 
 async function replaceStoredVideoHistory(logs: GenerationLog[]) {
     if (typeof window === "undefined") return;

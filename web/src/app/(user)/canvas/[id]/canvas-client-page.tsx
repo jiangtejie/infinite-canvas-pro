@@ -4418,6 +4418,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             assetInsertPositionRef.current = null;
             void insertAssetAtRef.current(payload, position);
             setAssetPickerOpen(false);
+            if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+                setSidePanel((current) => ({ ...current, open: false }));
+            }
         },
         [],
     );
