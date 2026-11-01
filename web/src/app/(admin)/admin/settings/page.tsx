@@ -73,6 +73,7 @@ export default function AdminSettingsPage() {
     const [channelForm] = Form.useForm<AdminModelChannel>();
     const [editingChannelIndex, setEditingChannelIndex] = useState<number | null>(null);
     const [isChannelDrawerOpen, setIsChannelDrawerOpen] = useState(false);
+    const [channelDraftToApply, setChannelDraftToApply] = useState<AdminModelChannel | null>(null);
     const [workflowChannelDraft, setWorkflowChannelDraft] = useState<AdminModelChannel>(emptyChannel);
     const [testChannelIndex, setTestChannelIndex] = useState<number | null>(null);
     const [testKeyword, setTestKeyword] = useState("");
@@ -149,7 +150,7 @@ export default function AdminSettingsPage() {
             const channel = normalizeChannel({ ...result.draft, apiKey: result.key });
             setActiveTab("private");
             setEditingChannelIndex(typeof result.editingChannelIndex === "number" ? result.editingChannelIndex : null);
-            channelForm.setFieldsValue(channel);
+            setChannelDraftToApply(channel);
             setWorkflowChannelDraft(channel);
             setIsChannelDrawerOpen(true);
             rememberModels(channel.models);
@@ -233,10 +234,15 @@ export default function AdminSettingsPage() {
         setEditingChannelIndex(index);
         setIsChannelDrawerOpen(true);
         const channel = index === null ? emptyChannel : normalizeChannel(channels[index]);
-        channelForm.setFieldsValue(channel);
+        setChannelDraftToApply(channel);
         setWorkflowChannelDraft(channel);
         rememberModels(channel.models);
     };
+
+    useEffect(() => {
+        if (!isChannelDrawerOpen || !channelDraftToApply) return;
+        channelForm.setFieldsValue(channelDraftToApply);
+    }, [channelDraftToApply, channelForm, isChannelDrawerOpen]);
 
     const closeChannelDrawer = () => {
         setIsChannelDrawerOpen(false);
