@@ -666,3 +666,20 @@
     color: var(--foreground);
     font-weight: 500;
 }
+
+/* 主操作胶囊：用暖色霓虹作为填充，避免纯白块在深色主题里过于刺眼 */
+.neon-primary {
+    border: 1px solid color-mix(in oklch, var(--neon-line) 62%, var(--border));
+    background: color-mix(in oklch, var(--neon-line) 16%, transparent);
+    color: var(--foreground);
+    transition:
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.neon-primary:hover {
+    background: color-mix(in oklch, var(--neon-line) 26%, transparent);
+    border-color: color-mix(in oklch, var(--neon-line) 82%, var(--border));
+    box-shadow: 0 0 22px -10px var(--neon-line);
+}

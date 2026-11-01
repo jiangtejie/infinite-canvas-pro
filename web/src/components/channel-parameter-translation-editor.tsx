@@ -23,7 +23,7 @@ const editorExtensions = [javascriptLanguage, editorTheme];
 function StepHeading({ index, title }: { index: number; title: string }) {
     return (
         <div className="mb-2 flex items-center gap-2">
-            <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-foreground text-[11px] font-medium text-background">{index}</span>
+            <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-foreground/12 text-[11px] font-medium text-foreground">{index}</span>
             <span className="text-sm font-medium text-foreground">{title}</span>
         </div>
     );

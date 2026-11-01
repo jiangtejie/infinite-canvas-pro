@@ -188,7 +188,7 @@ export default function AssetsPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    className="inline-flex h-8 items-center rounded-full border border-border/70 bg-foreground/90 px-3 text-xs font-medium text-background transition-colors hover:bg-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                    className="neon-primary inline-flex h-8 items-center rounded-full px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                     onClick={openCreate}
                                 >
                                     新增素材
