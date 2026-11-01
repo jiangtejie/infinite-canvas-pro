@@ -1466,7 +1466,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         };
     }, []);
 
-    const pasteCopiedNodes = useCallback(() => {
+    const pasteCopiedNodes = useCallback((offsetFromSelection = false) => {
         const clipboard = clipboardRef.current;
         if (!clipboard?.nodes.length) return false;
 
@@ -1480,8 +1480,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             }),
             { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity },
         );
-        const dx = center.x - (bounds.left + bounds.right) / 2;
-        const dy = center.y - (bounds.top + bounds.bottom) / 2;
+        const dx = offsetFromSelection ? 36 : center.x - (bounds.left + bounds.right) / 2;
+        const dy = offsetFromSelection ? 36 : center.y - (bounds.top + bounds.bottom) / 2;
         const idMap = new Map<string, string>();
         const nextNodes = clipboard.nodes.map((node, index) => {
             const id = `${node.type}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
@@ -1534,6 +1534,17 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         setDialogNodeId(pastedNodes[0]?.type === CanvasNodeType.Group ? null : pastedNodes[0]?.id || null);
         return true;
     }, [getCanvasCenter]);
+
+    const duplicateSelectedNodes = useCallback(() => {
+        const selectedIds = Array.from(selectedNodeIdsRef.current);
+        if (!selectedIds.length) return;
+        if (selectedIds.length === 1) {
+            duplicateNode(selectedIds[0]);
+            return;
+        }
+        copySelectedNodes();
+        pasteCopiedNodes(true);
+    }, [copySelectedNodes, duplicateNode, pasteCopiedNodes]);
 
     const animateViewport = useCallback((target: ViewportTransform) => {
         if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
@@ -2162,10 +2173,20 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const target = event.target instanceof Element ? event.target : null;
             const targetNodeId = target?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId;
             const isSelectedVideo = event.target instanceof HTMLVideoElement && Boolean(targetNodeId && selectedNodeIdsRef.current.has(targetNodeId));
-            if (event.defaultPrevented || event.isComposing || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true'],.ant-modal,.ant-dropdown,.ant-select-dropdown") || (target?.closest("[data-canvas-no-zoom]") && !isSelectedVideo)) return;
+            if (event.defaultPrevented || event.isComposing || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[data-canvas-no-zoom]:not([data-canvas-toolbar]),.ant-modal,.ant-dropdown,.ant-select-dropdown")) return;
 
             const key = event.key.toLowerCase();
             const isModifierShortcut = event.metaKey || event.ctrlKey;
+            if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "v") {
+                event.preventDefault();
+                setCanvasTool("select");
+                return;
+            }
+            if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "h") {
+                event.preventDefault();
+                setCanvasTool("pan");
+                return;
+            }
             if (!isModifierShortcut && !event.altKey && event.shiftKey && ["Digit0", "Digit1", "Digit2"].includes(event.code)) {
                 event.preventDefault();
                 if (event.code === "Digit1") fitAllNodes();
@@ -2184,6 +2205,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             if (isModifierShortcut && !event.altKey && key === "y") {
                 event.preventDefault();
                 redoCanvas();
+                return;
+            }
+
+            if (isModifierShortcut && !event.altKey && key === "d") {
+                event.preventDefault();
+                duplicateSelectedNodes();
                 return;
             }
 
@@ -2244,7 +2271,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [copySelectedNodes, createGroupFromSelection, deleteConnection, deleteNodes, fitAllNodes, fitSelectedNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, setZoomScale, undoCanvas]);
+    }, [copySelectedNodes, createGroupFromSelection, deleteConnection, deleteNodes, duplicateSelectedNodes, fitAllNodes, fitSelectedNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, setZoomScale, undoCanvas]);
 
     const handleConnectStart = useCallback(
         (event: ReactMouseEvent, nodeId: string, handleType: "source" | "target") => {
@@ -4830,6 +4857,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
                     onUpload={() => handleUploadRequest()}
+                    onDuplicate={duplicateSelectedNodes}
                     onDelete={() => deleteNodes(new Set(selectedNodeIds))}
                     onCanvasToolChange={setCanvasTool}
                     onBackgroundModeChange={setBackgroundMode}
@@ -5482,6 +5510,9 @@ function CanvasTopBar({
                     <Shortcut keys={[modifierKey, "C / V"]} value="复制 / 粘贴节点，或粘贴剪切板文本/图片" />
                     <Shortcut keys={[modifierKey, "Z"]} value="撤销" />
                     <Shortcut keys={[modifierKey, "Shift", "Z"]} value="重做" />
+                    <Shortcut keys={[modifierKey, "D"]} value="复制选中节点" />
+                    <Shortcut keys={["V"]} value="选择工具" />
+                    <Shortcut keys={["H"]} value="移动画布工具" />
                     <Shortcut keys={["Delete / Backspace"]} value="删除选中" />
                     <Shortcut keys={["Esc"]} value="取消选择并关闭浮层" />
                     <Shortcut keys={["拖入图片/视频/音频"]} value="上传到画布" />
