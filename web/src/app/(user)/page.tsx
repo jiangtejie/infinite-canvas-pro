@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
+import { TypewriterText } from "@/components/ui/typewriter-text";
 import { cn } from "@/lib/utils";
 import { uploadAssetMediaFile } from "@/services/file-storage";
 import { uploadImage } from "@/services/image-storage";
@@ -26,6 +27,8 @@ import {
     type PendingAgentAsset,
 } from "./canvas/types";
 
+
+const HOME_HERO_TITLES = ["从一个想法开始创作", "从一张参考图开始创作", "从一段视频开始创作", "从一句提示词开始创作"];
 
 const HOME_BANNERS: HomeBanner[] = [
     { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.7/img/infinite-canvas/88.webp", videoUrl: "", linkUrl: "https://88api.ai/sign-up?aff=25ty", alt: "88API 创作服务" },
@@ -163,7 +166,9 @@ export default function IndexPage() {
                 <section className="relative flex flex-col items-center pb-8 pt-10 sm:pb-10 sm:pt-14 lg:pt-16" aria-labelledby="home-title">
                     <div className="mb-6 max-w-3xl text-center sm:mb-8">
                         <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground">AI 创作工作台</p>
-                        <h1 id="home-title" className="mt-3 text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-tight tracking-tight text-foreground">从一个想法开始创作</h1>
+                        <h1 id="home-title" aria-label="从一个想法开始创作" className="mt-3 text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-tight tracking-tight text-foreground">
+                            <TypewriterText text={HOME_HERO_TITLES} />
+                        </h1>
                         <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-muted-foreground sm:max-w-xl sm:text-base">描述目标、添加参考，让灵感在无限画布上成形。</p>
                     </div>
                     <div ref={composerRef} className="w-full max-w-[820px] rounded-3xl bg-muted/30 px-1 pb-1 pt-3 ring-1 ring-border/50 transition-colors focus-within:bg-muted/50 focus-within:ring-ring/40 motion-reduce:transition-none">
