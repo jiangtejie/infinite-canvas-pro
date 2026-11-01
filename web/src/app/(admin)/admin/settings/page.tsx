@@ -390,17 +390,18 @@ export default function AdminSettingsPage() {
     return (
         <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
-                <Card variant="borderless">
-                    <Flex justify="space-between" align="center" gap={16} wrap>
-                        <Tabs
-                            activeKey={activeTab}
-                            onChange={(key) => changeTab(key as SettingsTabKey)}
-                            items={[
-                                { key: "public", label: "公开配置（对外暴露）" },
-                                { key: "private", label: "私有配置（不会对外暴露）" },
-                            ]}
-                        />
-                        <Space>
+                <div className="sticky top-0 z-10 border-b border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-bg-layout)] pt-1">
+                    <Flex justify="space-between" align="flex-start" gap={16} wrap>
+                        <Typography.Text type="secondary">公开配置会暴露给前端读取，私有配置只在服务端生效。</Typography.Text>
+                        <Space wrap>
+                            <Segmented
+                                value={activeMode}
+                                onChange={(value) => toggleMode(activeTab, value as EditorMode)}
+                                options={[
+                                    { label: "可视化编辑", value: "visual" },
+                                    { label: "手动编辑 JSON", value: "json" },
+                                ]}
+                            />
                             <Button icon={<ReloadOutlined />} loading={isLoading} onClick={() => void loadSettings()}>
                                 刷新
                             </Button>
@@ -409,18 +410,21 @@ export default function AdminSettingsPage() {
                             </Button>
                         </Space>
                     </Flex>
-                </Card>
+                    <Tabs
+                        className="settings-tabs"
+                        activeKey={activeTab}
+                        onChange={(key) => changeTab(key as SettingsTabKey)}
+                        items={[
+                            { key: "public", label: "公开配置" },
+                            { key: "private", label: "私有配置" },
+                        ]}
+                        style={{ marginBottom: -16 }}
+                    />
+                </div>
 
                 <Card variant="borderless">
                     <Flex justify="space-between" align="center" gap={16} wrap style={{ marginBottom: 16 }}>
-                        <Segmented
-                            value={activeMode}
-                            onChange={(value) => toggleMode(activeTab, value as EditorMode)}
-                            options={[
-                                { label: "可视化编辑", value: "visual" },
-                                { label: "手动编辑 JSON", value: "json" },
-                            ]}
-                        />
+                        <Typography.Text type="secondary">{activeTab === "public" ? "这些配置会暴露给前端读取" : "这些配置只会在后台保存，不会返回给前端"}</Typography.Text>
                         {activeMode === "json" ? (
                             <Space>
                                 {jsonError ? (
@@ -434,9 +438,7 @@ export default function AdminSettingsPage() {
                                     格式化
                                 </Button>
                             </Space>
-                        ) : (
-                            <Typography.Text type="secondary">{activeTab === "public" ? "这些配置会暴露给前端读取" : "这些配置只会在后台保存"}</Typography.Text>
-                        )}
+                        ) : null}
                     </Flex>
 
                     {activeTab === "public" ? (

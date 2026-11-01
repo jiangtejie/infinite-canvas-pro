@@ -683,3 +683,41 @@
     border-color: color-mix(in oklch, var(--neon-line) 82%, var(--border));
     box-shadow: 0 0 22px -10px var(--neon-line);
 }
+
+/* 后台系统设置页签：胶囊样式，和前台筛选胶囊保持一致 */
+.settings-tabs.ant-tabs .ant-tabs-nav::before {
+    border-bottom: none !important;
+}
+
+.settings-tabs.ant-tabs .ant-tabs-ink-bar {
+    display: none !important;
+}
+
+.settings-tabs.ant-tabs .ant-tabs-nav-list {
+    gap: 6px;
+}
+
+.settings-tabs.ant-tabs .ant-tabs-tab {
+    margin: 0 !important;
+    padding: 6px 16px !important;
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--foreground) 6%, transparent) !important;
+    transition: background-color 0.2s ease;
+}
+
+.settings-tabs.ant-tabs .ant-tabs-tab:hover {
+    background: color-mix(in oklch, var(--foreground) 10%, transparent) !important;
+}
+
+.settings-tabs.ant-tabs .ant-tabs-tab-active {
+    background: color-mix(in oklch, var(--foreground) 14%, transparent) !important;
+}
+
+.settings-tabs.ant-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+    color: var(--muted-foreground) !important;
+}
+
+.settings-tabs.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: var(--foreground) !important;
+    font-weight: 500;
+}
