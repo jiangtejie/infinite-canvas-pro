@@ -109,8 +109,8 @@ export default function AssetLibraryPage() {
     if (!isReady) return <LoadingState className="h-full" label="正在加载素材库..." />;
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-8">
+        <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
+            <main className="min-h-0 flex-1 overflow-y-auto bg-transparent px-6 py-8">
                 <div className="pb-8">
                     <div className="mx-auto max-w-5xl text-center">
                         <h1 className="text-4xl font-semibold tracking-tight text-foreground">素材库</h1>

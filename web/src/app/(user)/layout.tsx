@@ -50,7 +50,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     }, [isReady, user]);
 
     return (
-        <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+        <div className="flex h-dvh flex-col overflow-hidden bg-transparent text-foreground">
             <AppTopNav />
             <div className="min-h-0 flex-1 overflow-hidden">{isProtectedPage && (!isReady || !user) ? null : children}</div>
         </div>

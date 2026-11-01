@@ -79,7 +79,7 @@ export function HistoryLogCard({
     }, [categoryOpen]);
 
     return (
-        <div className={`overflow-hidden rounded-lg border bg-background transition-[border-color,box-shadow] hover:shadow-sm ${active ? "border-foreground" : "border-border hover:border-border/70"}`}>
+        <div className={`overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] hover:shadow-sm ${active ? "border-foreground" : "border-border hover:border-border/70"}`}>
             <div className="relative aspect-[4/3] bg-muted">
                 <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm">
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />

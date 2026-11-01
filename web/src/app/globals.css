@@ -53,6 +53,15 @@
     --ambient-1: oklch(0.62 0.03 265 / 7%);
     --ambient-2: oklch(0.66 0.04 30 / 5%);
     --glass-highlight: oklch(1 0 0 / 55%);
+    /* 霓虹质感：首页专用，浅色下只保留一层淡色晕染 */
+    --neon-a: oklch(0.72 0.19 45 / 24%);
+    --neon-b: oklch(0.62 0.2 265 / 22%);
+    --neon-line: oklch(0.72 0.19 45 / 26%);
+    --neon-line-2: oklch(0.62 0.2 265 / 24%);
+    /* 背景纹理：细点阵，浅色下是浅灰点，深色下是极淡的亮点 */
+    --grid-dot: oklch(0.25 0 0 / 11%);
+    --grid-size: 16px;
+    --vignette: oklch(0 0 0 / 0%);
     --border: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
     --background: oklch(1 0 0);
@@ -90,6 +99,12 @@
     --ambient-1: oklch(0.72 0.04 265 / 9%);
     --ambient-2: oklch(0.6 0.05 30 / 7%);
     --glass-highlight: oklch(1 0 0 / 8%);
+    --neon-a: oklch(0.78 0.22 48 / 46%);
+    --neon-b: oklch(0.6 0.24 272 / 38%);
+    --neon-line: oklch(0.78 0.2 50 / 72%);
+    --neon-line-2: oklch(0.66 0.24 272 / 72%);
+    --grid-dot: oklch(1 0 0 / 12%);
+    --vignette: oklch(0 0 0 / 34%);
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --border: oklch(1 0 0 / 10%);
@@ -133,12 +148,23 @@
         overflow: hidden;
     }
     body {
-        @apply bg-background text-foreground;
+        @apply text-foreground;
+        background-color: var(--background);
+        /* 由上到下：颗粒噪点 → 细点阵 → 左上冷光 → 右下暖光 */
         background-image:
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
+            radial-gradient(circle, var(--grid-dot) 1px, transparent 1.1px),
             radial-gradient(ellipse 70% 55% at 18% 0%, var(--ambient-1), transparent 68%),
-            radial-gradient(ellipse 55% 50% at 92% 100%, var(--ambient-2), transparent 70%);
-        background-attachment: fixed;
-        background-repeat: no-repeat;
+            radial-gradient(ellipse 55% 50% at 92% 100%, var(--ambient-2), transparent 70%),
+            radial-gradient(ellipse 78% 62% at 50% 38%, transparent 42%, var(--vignette) 100%);
+        background-size:
+            160px 160px,
+            var(--grid-size) var(--grid-size),
+            auto,
+            auto,
+            auto;
+        background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat;
+        background-attachment: scroll, scroll, fixed, fixed, fixed;
     }
     textarea {
         resize: none;
@@ -170,6 +196,129 @@
 
 @layer utilities {
     /* 亚克力浮层：顶部内高光 + 深投影，配合 backdrop-blur 使用 */
+    /* 霓虹光晕：两团独立的小光源，分别落在输入框左右两侧，避免整屏发灰 */
+    .neon-bloom-a,
+    .neon-bloom-b {
+        position: absolute;
+        pointer-events: none;
+        filter: blur(38px);
+    }
+
+    .neon-bloom-a {
+        background: radial-gradient(closest-side, var(--neon-a), transparent 72%);
+    }
+
+    .neon-bloom-b {
+        background: radial-gradient(closest-side, var(--neon-b), transparent 72%);
+    }
+
+    /* 渐变描边：1px 的暖→冷渐变环，不占用布局 */
+    .neon-ring {
+        position: relative;
+    }
+
+    .neon-ring::before {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(
+            115deg,
+            color-mix(in oklch, var(--neon-line) 78%, white) 0%,
+            var(--neon-line) 7%,
+            transparent 32%,
+            transparent 68%,
+            var(--neon-line-2) 93%,
+            color-mix(in oklch, var(--neon-line-2) 74%, white) 100%
+        );
+        -webkit-mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+        mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+    }
+
+    /* 面板背光：贴在输入框后方的一层强光晕，模拟灯条从边缘透出来 */
+    .neon-glow {
+        position: absolute;
+        inset: -10px;
+        border-radius: 32px;
+        pointer-events: none;
+        background:
+            radial-gradient(58% 70% at 16% 74%, var(--neon-a), transparent 68%),
+            radial-gradient(54% 68% at 84% 26%, var(--neon-b), transparent 70%);
+        filter: blur(20px);
+        opacity: 0.42;
+    }
+
+    .dark .neon-glow {
+        opacity: 0.78;
+    }
+
+    /* 面板内部：顶部 1px 高光 + 上浅下深的玻璃渐变 */
+    .neon-panel {
+        background-image: linear-gradient(180deg, color-mix(in oklch, white 5%, transparent), transparent 46%);
+        box-shadow:
+            inset 0 1px 0 color-mix(in oklch, white 10%, transparent),
+            inset 0 0 0 1px color-mix(in oklch, white 7%, transparent),
+            0 0 0 1px color-mix(in oklch, var(--neon-line) 26%, transparent);
+    }
+
+    /* 表格统一：表头弱化、行悬停用语义底色、外框圆角 */
+    .ant-table-wrapper .ant-table-container,
+    .ant-table-wrapper .ant-table {
+        border-radius: 12px;
+    }
+
+    .ant-table-wrapper .ant-table-thead > tr > th {
+        background: var(--muted);
+        color: var(--muted-foreground);
+        font-weight: 500;
+    }
+
+    .ant-table-wrapper .ant-table-tbody > tr > td {
+        border-color: var(--border);
+    }
+
+    .ant-table-wrapper .ant-table-tbody > tr:hover > td {
+        background: color-mix(in oklch, var(--foreground) 4%, transparent);
+    }
+
+    /* 悬停时边框透出暖色霓虹，给卡片复用 */
+    .neon-hover-border {
+        transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .neon-hover-border:hover {
+        border-color: color-mix(in oklch, var(--neon-line) 55%, var(--border));
+        box-shadow: 0 0 24px -12px var(--neon-line);
+    }
+
+    /* 首页示例胶囊：暗底细边，悬停时透出霓虹描边 */
+    .neon-pill {
+        border: 1px solid color-mix(in oklch, var(--neon-line) 32%, var(--border));
+        background: color-mix(in oklch, var(--foreground) 4%, transparent);
+        transition:
+            color 0.2s ease,
+            border-color 0.2s ease,
+            background-color 0.2s ease,
+            box-shadow 0.2s ease;
+    }
+
+    .neon-pill:hover:not(:disabled) {
+        border-color: color-mix(in oklch, var(--neon-line) 70%, transparent);
+        box-shadow: 0 0 20px -8px var(--neon-line);
+    }
+
+    .dark .neon-title {
+        text-shadow: 0 0 30px color-mix(in oklch, var(--neon-a) 45%, transparent);
+    }
+
     /* 列表错峰入场：配合 style={{ "--enter-index": index }} 使用 */
     @keyframes enter-up {
         from {

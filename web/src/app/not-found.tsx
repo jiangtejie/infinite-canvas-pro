@@ -6,7 +6,7 @@ export default function NotFound() {
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
             <AnnouncementBanner />
-            <main className="flex h-full min-h-0 items-center justify-center overflow-y-auto bg-background px-6 py-10 text-foreground">
+            <main className="flex h-full min-h-0 items-center justify-center overflow-y-auto bg-transparent px-6 py-10 text-foreground">
                 <section className="glass-panel w-full max-w-md rounded-2xl border border-border/70 bg-card/70 px-8 py-10 text-center backdrop-blur-xl">
                     <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-xl border border-border bg-muted/60">
                         <span className="bg-[linear-gradient(135deg,var(--foreground),color-mix(in_srgb,var(--foreground)_45%,transparent))] bg-clip-text text-2xl font-semibold text-transparent">404</span>

@@ -30,7 +30,7 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
     };
 
     return (
-        <article className="group flex min-h-44 cursor-pointer flex-col justify-between rounded-xl border border-border bg-card p-5 text-card-foreground transition-[transform,border-color,box-shadow,background-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-accent/60 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/30" onClick={() => !editing && open()}>
+        <article className="neon-hover-border group flex min-h-44 cursor-pointer flex-col justify-between rounded-xl border border-border bg-card p-5 text-card-foreground transition-[transform,border-color,box-shadow,background-color] duration-300 hover:-translate-y-0.5 hover:bg-accent/60 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/30" onClick={() => !editing && open()}>
             {previews.length ? (
                 <div className="mb-4 flex gap-1.5 overflow-hidden rounded-lg">
                     {previews.map((node) => (

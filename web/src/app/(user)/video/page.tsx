@@ -1157,7 +1157,7 @@ export default function VideoPage() {
     };
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
+        <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:overflow-hidden`}>
                 {workbenchLayout === "side" ? (
                     <>
@@ -1569,7 +1569,7 @@ function WorkbenchPanel({
     }
 
     return (
-        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:min-h-0">
+        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:min-h-0">
             <div className="shrink-0 p-4 pb-3">
                 <WorkbenchHeader title="视频创作台" currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
             </div>
@@ -1911,7 +1911,7 @@ function ResultsPanel({
 
 function ResultVideoCard({ result, video, index, syncing, onCopyPrompt, onDownload, onSync, onSaveAsset }: { result: GenerationResult; video: GeneratedVideo; index: number; syncing: boolean; onCopyPrompt: (text: string) => void | Promise<void>; onDownload: (video: GeneratedVideo) => void; onSync: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
     return (
-        <div className="overflow-hidden rounded-lg border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
             <div className="relative aspect-video bg-black">
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     <VideoSourceTag video={video} />
@@ -1949,7 +1949,7 @@ function PendingVideoCard({ result, now, onCopyPrompt, onStop, onRetry, onDelete
     const stopped = result.status === "stopped";
     const durationMs = stopping || stopped ? result.durationMs || 0 : Math.max(0, now - result.createdAt);
     return (
-        <div className="overflow-hidden rounded-lg border border-dashed border-border bg-muted/50">
+        <div className="overflow-hidden rounded-xl border border-dashed border-border bg-muted/50">
             <div className="relative aspect-video">
                 <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "radial-gradient(circle, rgba(120,113,108,0.35) 1.4px, transparent 1.6px)", backgroundSize: "16px 16px" }} />
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
@@ -1996,7 +1996,7 @@ function FailedVideoCard({ result, error, onCopyPrompt, onPreview, onRetry }: { 
 function HistoryLogCard({ log, index, selected, active, syncing, onSelectedChange, onDelete, onPreview, onRetry, onCopyPrompt, onDownload, onSync, onSaveAsset }: { log: GenerationLog; index: number; selected: boolean; active: boolean; syncing: boolean; onSelectedChange: (checked: boolean) => void; onDelete: () => void; onPreview: () => void; onRetry: () => void; onCopyPrompt: (text: string) => void | Promise<void>; onDownload: (video: GeneratedVideo) => void; onSync: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
     const [detailOpen, setDetailOpen] = useState(false);
     return (
-        <div className={`overflow-hidden rounded-lg border bg-background transition-[border-color,box-shadow] hover:shadow-sm ${active ? "border-foreground" : "border-border hover:border-border/70"}`}>
+        <div className={`overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] hover:shadow-sm ${active ? "border-foreground" : "border-border hover:border-border/70"}`}>
             <div className="relative aspect-video bg-muted">
                 <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm">
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />

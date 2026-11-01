@@ -209,7 +209,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
             <div className="mt-1 flex items-center justify-center" role="group" aria-label="Banner 切换">
                 {banners.map((banner, index) => (
                     <button key={banner.imageUrl} type="button" className="grid size-8 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张：" + banner.alt} aria-pressed={index === activeIndex}>
-                        <span aria-hidden="true" className={cn("h-1.5 rounded-full transition-[width,background-color] motion-reduce:transition-none", index === activeIndex ? "w-5 bg-foreground" : "w-1.5 bg-muted-foreground/40")} />
+                        <span aria-hidden="true" className={cn("h-1.5 rounded-full transition-[width,background-color] motion-reduce:transition-none", index === activeIndex ? "w-5 bg-foreground shadow-[0_0_12px_-2px_color-mix(in_oklch,var(--foreground)_55%,transparent)]" : "w-1.5 bg-muted-foreground/40")} />
                     </button>
                 ))}
             </div>

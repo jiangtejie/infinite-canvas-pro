@@ -178,7 +178,7 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
 });
 
 function MentionHighlightText({ value, labels, placeholder }: { value: string; labels: string[]; placeholder: boolean }) {
-    if (placeholder) return <span className="opacity-45">{value}</span>;
+    if (placeholder) return <span className="opacity-60">{value}</span>;
     if (!labels.length) return <>{value}</>;
     const pattern = new RegExp(`(${labels.map(escapeRegExp).join("|")})`, "g");
     return (

@@ -70,7 +70,7 @@ export function TypewriterText({ text, speed = 70, deleteSpeed = 34, hold = 1600
             </span>
             <span className="absolute inset-0 whitespace-pre-wrap" aria-hidden>
                 {visible}
-                {finished ? null : <span className={cn("ml-0.5 inline-block h-[0.85em] w-[2px] translate-y-[0.08em] bg-current", !reduced && "motion-safe:animate-pulse")} />}
+                {finished ? null : <span className={cn("ml-0.5 inline-block h-[0.85em] w-[2px] translate-y-[0.08em] bg-foreground", !reduced && "motion-safe:animate-pulse")} />}
             </span>
         </span>
     );

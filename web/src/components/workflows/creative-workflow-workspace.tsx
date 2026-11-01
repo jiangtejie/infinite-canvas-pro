@@ -1027,7 +1027,7 @@ export function CreativeWorkflowWorkspace({
                         </div>
                         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
                             {runResults.map((result, index) => (
-                                <div key={result.id} className="overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
+                                <div key={result.id} className="overflow-hidden rounded-xl border border-border bg-card transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
                                     <Image src={result.imageUrl} alt={result.workflowName} className="aspect-[4/3] object-cover" />
                                     <div className="space-y-1 p-2 text-xs">
                                         <div className="line-clamp-1 font-medium">{result.workflowName}</div>
@@ -1329,7 +1329,7 @@ export function CreativeWorkflowWorkspace({
 function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow: CreativeWorkflow; onRun: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
     const editable = workflow.editable !== false;
     return (
-        <article className="group flex min-h-[220px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm transition hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-lg">
+        <article className="group flex min-h-[220px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-lg">
             <div className="h-1 bg-gradient-to-r from-foreground via-muted-foreground to-border opacity-80" />
             <div className="flex flex-1 flex-col p-3.5">
             <div className="flex items-start justify-between gap-3">
@@ -1377,7 +1377,7 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload, onRetry }: { ta
     }[task.status];
 
     return (
-        <article className="overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
+        <article className="overflow-hidden rounded-xl border border-border bg-card transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
             <div className="flex items-start justify-between gap-3 border-b border-border p-3">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">

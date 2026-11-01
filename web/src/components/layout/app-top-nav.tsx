@@ -23,7 +23,7 @@ export function AppTopNav() {
         <>
             {!hideHeader && <AnnouncementBanner />}
             {!hideHeader ? (
-                <header className="sticky top-0 z-20 h-16 shrink-0 border-b border-border bg-background/90 backdrop-blur-xl">
+                <header className="sticky top-0 z-20 h-16 shrink-0 border-b border-border bg-background/70 backdrop-blur-xl">
                     <div className="mx-auto flex h-full max-w-7xl items-stretch justify-between gap-5 px-6">
                         <div className="flex min-w-0 items-center">
                             <Link href="/" className="flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight text-foreground transition hover:text-muted-foreground">

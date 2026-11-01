@@ -161,17 +161,21 @@ export default function IndexPage() {
     };
 
     return (
-        <main className="relative h-full overflow-x-hidden overflow-y-auto bg-background text-foreground">
+        <main className="relative h-full overflow-x-hidden overflow-y-auto bg-transparent text-foreground">
             <section className="relative mx-auto min-h-full max-w-7xl px-4 sm:px-6">
                 <section className="relative flex flex-col items-center pb-8 pt-10 sm:pb-10 sm:pt-14 lg:pt-16" aria-labelledby="home-title">
-                    <div className="mb-6 max-w-3xl text-center sm:mb-8">
-                        <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground">AI 创作工作台</p>
-                        <h1 id="home-title" aria-label="从一个想法开始创作" className="mt-3 text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-tight tracking-tight text-foreground">
+                    <div aria-hidden className="neon-bloom-a left-[4%] top-28 h-[240px] w-[36%] max-w-[460px] opacity-70" />
+                    <div aria-hidden className="neon-bloom-b right-[4%] top-16 h-[220px] w-[32%] max-w-[420px] opacity-65" />
+                    <div className="relative mb-6 max-w-3xl text-center sm:mb-8">
+                        <p className="text-xs font-medium tracking-[0.2em] text-foreground/50">AI 创作工作台</p>
+                        <h1 id="home-title" aria-label="从一个想法开始创作" className="neon-title mt-3 text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-tight tracking-tight text-foreground">
                             <TypewriterText text={HOME_HERO_TITLES} />
                         </h1>
-                        <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-muted-foreground sm:max-w-xl sm:text-base">描述目标、添加参考，让灵感在无限画布上成形。</p>
+                        <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-foreground/65 sm:max-w-xl sm:text-base">描述目标、添加参考，让灵感在无限画布上成形。</p>
                     </div>
-                    <div ref={composerRef} className="w-full max-w-[820px] rounded-3xl bg-muted/30 px-1 pb-1 pt-3 ring-1 ring-border/50 transition-colors focus-within:bg-muted/50 focus-within:ring-ring/40 motion-reduce:transition-none">
+                    <div className="relative w-full max-w-[820px]">
+                        <div aria-hidden className="neon-glow" />
+                        <div ref={composerRef} className="neon-ring neon-panel relative rounded-3xl bg-muted/30 px-1 pb-1 pt-3 transition-colors focus-within:bg-muted/50 motion-reduce:transition-none dark:bg-card/60">
                         <CanvasAssistantComposer
                             prompt={prompt}
                             isRunning={false}
@@ -188,16 +192,19 @@ export default function IndexPage() {
                             onOpenAssets={() => setAssetPickerOpen(true)}
                             onPasteImage={(file) => void uploadFile(file)}
                         />
+                        </div>
                     </div>
                     <div className="mt-4 flex w-full max-w-[820px] flex-wrap items-center justify-center gap-2" role="group" aria-label="创作示例，点击填入输入框">
                         {HOME_STARTERS.map(({ label, icon: Icon, prompt: starterPrompt }) => (
-                            <button key={label} type="button" disabled={submitting} onClick={() => applyStarter(starterPrompt)} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border/70 px-3 text-xs text-muted-foreground transition-colors hover:border-foreground/20 hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none sm:px-4 sm:text-sm">
-                                <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                            <button key={label} type="button" disabled={submitting} onClick={() => applyStarter(starterPrompt)} className="neon-pill inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:text-sm">
+                                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-foreground/6 text-foreground/70" aria-hidden="true">
+                                    <Icon className="size-3" />
+                                </span>
                                 {label}
                             </button>
                         ))}
                     </div>
-                    <div className="mt-6 w-screen shrink-0 sm:mt-8">
+                    <div className="mt-10 w-screen shrink-0 sm:mt-12">
                         <HomeBannerCarousel banners={HOME_BANNERS} />
                     </div>
                     <input ref={uploadInputRef} hidden type="file" accept="image/*,video/*,audio/*" onChange={onUploadInputChange} />
