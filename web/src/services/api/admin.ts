@@ -374,3 +374,21 @@ export type StorageCapacityResult = {
 export async function measureAdminStorageProvider(token: string, payload: { index: number; provider: AdminStorageProvider }) {
     return apiPost<StorageCapacityResult>("/api/admin/storage/measure", payload, token);
 }
+
+export type AdminRechargePackage = {
+    id: string;
+    name: string;
+    amountFen: number;
+    credits: number;
+    bonus: number;
+    sort: number;
+    enabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export const fetchAdminRechargePackages = (token: string) => apiGet<AdminRechargePackage[]>("/api/admin/recharge-packages", undefined, token);
+
+export const saveAdminRechargePackage = (payload: Partial<AdminRechargePackage>, token: string) => apiPost<AdminRechargePackage>("/api/admin/recharge-packages", payload, token);
+
+export const deleteAdminRechargePackage = (id: string, token: string) => apiDelete<boolean>(`/api/admin/recharge-packages/${id}`, token);

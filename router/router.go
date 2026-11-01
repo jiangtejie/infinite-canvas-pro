@@ -186,6 +186,11 @@ func New() *gin.Engine {
 	admin.DELETE("/agent-skills/:id", func(c *gin.Context) {
 		handler.AdminDeleteAgentSkill(c.Writer, c.Request, c.Param("id"))
 	})
+	admin.GET("/recharge-packages", gin.WrapF(handler.AdminRechargePackages))
+	admin.POST("/recharge-packages", gin.WrapF(handler.AdminSaveRechargePackage))
+	admin.DELETE("/recharge-packages/:id", func(c *gin.Context) {
+		handler.AdminDeleteRechargePackage(c.Writer, c.Request, c.Param("id"))
+	})
 	admin.GET("/assets", gin.WrapF(handler.AdminAssets))
 	admin.POST("/assets", gin.WrapF(handler.AdminSaveAsset))
 	admin.DELETE("/assets/:id", func(c *gin.Context) {

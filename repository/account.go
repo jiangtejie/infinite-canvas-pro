@@ -32,6 +32,46 @@ func GetRechargePackage(id string) (model.RechargePackage, bool, error) {
 	return item, err == nil, err
 }
 
+func ListAllRechargePackages() ([]model.RechargePackage, error) {
+	db, err := DB()
+	if err != nil {
+		return nil, err
+	}
+	var items []model.RechargePackage
+	err = db.Order("sort asc, amount_fen asc").Find(&items).Error
+	return items, err
+}
+
+func GetAnyRechargePackage(id string) (model.RechargePackage, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.RechargePackage{}, false, err
+	}
+	var item model.RechargePackage
+	err = db.Where("id = ?", id).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return model.RechargePackage{}, false, nil
+	}
+	return item, err == nil, err
+}
+
+func SaveRechargePackage(item *model.RechargePackage) error {
+	db, err := DB()
+	if err != nil {
+		return err
+	}
+	return db.Save(item).Error
+}
+
+func DeleteRechargePackage(id string) (bool, error) {
+	db, err := DB()
+	if err != nil {
+		return false, err
+	}
+	result := db.Delete(&model.RechargePackage{}, "id = ?", id)
+	return result.RowsAffected == 1, result.Error
+}
+
 func SeedRechargePackages(items []model.RechargePackage) error {
 	db, err := DB()
 	if err != nil {

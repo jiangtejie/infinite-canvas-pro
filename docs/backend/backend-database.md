@@ -388,7 +388,7 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 
 ## 账户充值相关表
 
-- `recharge_packages`：服务端维护的充值套餐，价格使用 `amount_fen`（人民币分），到账算力为 `credits + bonus`，只有 `enabled=true` 的套餐可被购买。
+- `recharge_packages`：后台「充值套餐」页维护的充值套餐，价格使用 `amount_fen`（人民币分），到账算力为 `credits + bonus`，只有 `enabled=true` 的套餐可被购买。
 - `recharge_orders`：用户充值订单，保存商户订单号、套餐快照、金额、二维码链接、15 分钟有效期、支付状态和微信交易号。创建请求结果不确定时订单保持待核验；用户列表查询始终按 JWT 当前用户过滤。
 - `invoice_requests`：已支付订单的开票申请及抬头、税号、接收邮箱；`user_id + order_no` 唯一，防止同一用户重复开票。
 - 订单结算会在事务内再次校验 `expires_at`，过期订单不得入账。
