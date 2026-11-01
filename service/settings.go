@@ -52,7 +52,6 @@ func SaveSettings(settings model.Settings) (model.Settings, error) {
 	}
 	settings = normalizeSettings(settings)
 	keepPrivateAPIKeys(&settings, normalizeSettings(saved))
-	keepPrivateAuthSecrets(&settings, normalizeSettings(saved))
 	keepPrivateStorageSecrets(&settings, normalizeSettings(saved))
 	for _, channel := range settings.Private.Channels {
 		if _, err := ParameterTranslationModels(channel.ParameterTranslation); err != nil {
@@ -296,7 +295,6 @@ func hidePrivateAPIKeys(settings model.Settings) model.Settings {
 		settings.Private.Storage.Providers[i].SecretAccessKey = ""
 		settings.Private.Storage.Providers[i].Password = ""
 	}
-	settings.Private.Auth.LinuxDo.ClientSecret = ""
 	return settings
 }
 
@@ -323,12 +321,6 @@ func keepPrivateAPIKeys(settings *model.Settings, saved model.Settings) {
 			}
 			break
 		}
-	}
-}
-
-func keepPrivateAuthSecrets(settings *model.Settings, saved model.Settings) {
-	if strings.TrimSpace(settings.Private.Auth.LinuxDo.ClientSecret) == "" {
-		settings.Private.Auth.LinuxDo.ClientSecret = saved.Private.Auth.LinuxDo.ClientSecret
 	}
 }
 

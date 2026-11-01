@@ -151,12 +151,7 @@ type PublicStorageConfig struct {
 }
 
 type PublicAuthSetting struct {
-	AllowRegister *bool                    `json:"allowRegister"`
-	LinuxDo       PublicLinuxDoAuthSetting `json:"linuxDo"`
-}
-
-type PublicLinuxDoAuthSetting struct {
-	Enabled bool `json:"enabled"`
+	AllowRegister *bool `json:"allowRegister"`
 }
 
 // PrivateSetting 私有配置。
@@ -164,7 +159,6 @@ type PrivateSetting struct {
 	Channels   []ModelChannel        `json:"channels"`
 	PromptSync PromptSyncSetting     `json:"promptSync"`
 	AILog      AILogSetting          `json:"aiLog"`
-	Auth       PrivateAuthSetting    `json:"auth"`
 	Storage    PrivateStorageSetting `json:"storage"`
 }
 
@@ -221,15 +215,6 @@ type StorageCapacityCheckSetting struct {
 type PromptSyncSetting struct {
 	Enabled *bool  `json:"enabled"`
 	Cron    string `json:"cron"`
-}
-
-type PrivateAuthSetting struct {
-	LinuxDo PrivateLinuxDoAuthSetting `json:"linuxDo"`
-}
-
-type PrivateLinuxDoAuthSetting struct {
-	ClientID     string `json:"clientId"`
-	ClientSecret string `json:"clientSecret"`
 }
 
 // Setting 系统配置。

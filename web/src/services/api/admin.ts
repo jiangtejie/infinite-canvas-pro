@@ -25,7 +25,6 @@ export type AdminUser = {
     affCode: string;
     affCount: number;
     inviterId: string;
-    linuxDoId: string;
     status: "active" | "ban";
     lastLoginAt: string;
     createdAt: string;
@@ -247,9 +246,6 @@ export type AdminPublicSettings = {
     modelChannel: AdminPublicModelChannelSettings;
     auth: {
         allowRegister: boolean;
-        linuxDo: {
-            enabled: boolean;
-        };
     };
     storage: {
         mode: string;
@@ -291,12 +287,6 @@ export type AdminPrivateSettings = {
             enabled: boolean;
             retentionDays: number;
             cron: string;
-        };
-    };
-    auth: {
-        linuxDo: {
-            clientId: string;
-            clientSecret: string;
         };
     };
     storage: {

@@ -5,7 +5,6 @@ import { App, Button, Form, Input, Segmented } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
-import { fetchCurrentUser } from "@/services/api/auth";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -39,24 +38,10 @@ function LoginContent() {
     const searchParams = useSearchParams();
     const login = useUserStore((state) => state.login);
     const register = useUserStore((state) => state.register);
-    const setSession = useUserStore((state) => state.setSession);
     const isLoading = useUserStore((state) => state.isLoading);
     const allowRegister = useConfigStore((state) => state.publicSettings?.auth?.allowRegister !== false);
     const [mode, setMode] = useState<"login" | "register">("login");
     const redirect = safeRedirect(searchParams.get("redirect"));
-
-    useEffect(() => {
-        const token = searchParams.get("token");
-        const error = searchParams.get("error");
-        if (error) message.error(error);
-        if (!token) return;
-        void fetchCurrentUser(token).then((user) => {
-            setSession(token, user);
-            message.success("登录成功");
-            router.replace(redirect);
-            router.refresh();
-        });
-    }, [message, redirect, router, searchParams, setSession]);
 
     useEffect(() => {
         if (!allowRegister && mode === "register") setMode("login");

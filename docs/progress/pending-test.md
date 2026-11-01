@@ -7,7 +7,11 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 ## 登录页精简
 
-- 登录页去掉“支持账号密码和 Linux.do 登录”说明文字，并移除 Linux.do 登录按钮，仅保留账号密码登录与注册；需验证登录、注册、切换标签、错误提示，以及历史 Linux.do 回跳链接的行为。
+- 登录页去掉“支持账号密码和 Linux.do 登录”说明文字、Linux.do 登录按钮和 OAuth 回跳处理，仅保留账号密码登录与注册；需验证登录、注册、切换标签和错误提示。
+- 后台设置移除“Linux.do 登录”配置卡片（开关、Client ID / Secret、OAuth App 链接）和对应默认值；后台用户列表移除 Linux.do 列，搜索不再匹配 Linux.do ID；需验证设置页其它配置保存后不变、JSON 模式下不再写出 linuxDo 字段。
+- 后端删除 Linux.do OAuth 接口（`/api/auth/linux-do/*`）、鉴权逻辑、用户字段、配置项和对应测试；需验证账号密码登录、注册、JWT 续期正常。
+- 本地开发库已物理删除 `users.linux_do_id` 列及其索引；其他环境的旧库需先 `DROP INDEX idx_users_linux_do_id`，再 `ALTER TABLE users DROP COLUMN linux_do_id`。
+- 清理前端遗留的死代码：图片页的日志键与分类合并辅助函数、视频页未使用的快照构建函数、Kling 工作台的秒数归一化函数，以及三处失效的图片标签导入；需验证图片/视频工作台生成、历史、Kling 工作台参数均正常。
 
 ## 移除 GitHub 入口
 

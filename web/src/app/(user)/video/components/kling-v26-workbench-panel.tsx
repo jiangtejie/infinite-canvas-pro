@@ -501,11 +501,6 @@ function KlingTaskCount({ value, onChange }: { value: number; onChange: (value: 
     );
 }
 
-function normalizeKlingV3Seconds(value: string) {
-    const seconds = Math.floor(Number(value) || 3);
-    return String(Math.max(3, Math.min(15, seconds)));
-}
-
 
 function defaultMultiPrompts(): VideoMultiPromptItem[] {
     return [{ prompt: "", duration: "1" }];

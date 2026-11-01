@@ -23,7 +23,7 @@ import { App, Button, Checkbox, Drawer, Image, Input, Modal, Segmented, Tag } fr
 import localforage from "localforage";
 import { saveAs } from "file-saver";
 
-import { ImageSettingsPanel, imageFormatLabel, imageQualityLabel, imageSizeLabel, imageSizeOptions } from "@/components/image-settings-panel";
+import { ImageSettingsPanel, imageSizeOptions } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-header";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
@@ -122,7 +122,6 @@ type ResultViewMode = "all" | "category";
 type WorkflowPollContext = { token: string; signal: AbortSignal };
 
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
-const LOG_STORE_KEY = "infinite-canvas:image_generation_logs";
 const CATEGORY_STORE_KEY = "infinite-canvas:image_generation_categories";
 const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const RESULT_VIEW_MODE_KEY = "infinite-canvas:image-result-view-mode";
@@ -1609,16 +1608,6 @@ function ReferenceQuickActions({ references, onUploadReferences }: { references:
     );
 }
 
-function settingsSummary(config: AiConfig, model: string) {
-    return [
-        model,
-        imageSizeLabel(config.size || "auto"),
-        imageQualityLabel(config.quality || "auto"),
-        `${config.count || "1"} 张`,
-        config.apiMode !== "chat" && config.streamImages ? `流式 ${config.streamPartialImages || "1"}` : "非流式",
-    ].join(" · ");
-}
-
 function ResultsPanel({
     className = "",
     results,
@@ -2610,10 +2599,6 @@ function withWorkflowLogCategories(logs: GenerationLog[], categories: Generation
     return { logs: logsChanged ? nextLogs : logs, categories: categoriesChanged ? nextCategories : categories };
 }
 
-function hasInlineImageData(log: Partial<GenerationLog>) {
-    return [...(log.images || []), ...(log.references || [])].some((item) => item.dataUrl?.startsWith("data:image/"));
-}
-
 function isClientImageTaskId(value?: string) {
     return typeof value === "string" && value.startsWith("client_image_task_");
 }
@@ -2622,10 +2607,6 @@ function isLocalOnlyImageLog(log: GenerationLog) {
     if (isClientImageTaskId(log.task?.id) && !log.task?.source && !log.task?.source_id) return true;
     if (log.config.channelMode === "remote" || log.task) return false;
     return log.status !== "成功" || log.images.length > 0;
-}
-
-function shouldSyncImageLog(log: GenerationLog) {
-    return !isLocalOnlyImageLog(log);
 }
 
 function shouldPreserveLocalImageLogDuringRemoteMerge(log: GenerationLog, remoteKeys: Set<string>) {
@@ -2640,14 +2621,6 @@ async function mergeGenerationLogs(remoteLogs: GenerationLog[], localLogs: Gener
     const remoteKeys = new Set(normalizedRemote.flatMap(imageLogIdentityKeys));
     const preservedLocal = normalizedLocal.filter((log) => shouldPreserveLocalImageLogDuringRemoteMerge(log, remoteKeys));
     return dedupeGenerationLogs([...normalizedRemote, ...preservedLocal]);
-}
-
-function mergeGenerationCategories(remoteCategories: GenerationCategory[], localCategories: GenerationCategory[]) {
-    const byId = new Map<string, GenerationCategory>();
-    [...remoteCategories, ...localCategories].forEach((category) => {
-        if (category.id && category.name) byId.set(category.id, category);
-    });
-    return [...byId.values()].sort((a, b) => a.createdAt - b.createdAt);
 }
 
 async function normalizeLog(log: Partial<GenerationLog>): Promise<GenerationLog> {

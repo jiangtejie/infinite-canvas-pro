@@ -2123,24 +2123,6 @@ function TaskTags({ item }: { item: GenerationResult }) {
     );
 }
 
-function createResultFromSnapshot(id: string, snapshot: { text: string; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount?: number }, model: string, status: GenerationResult["status"], extra: Partial<GenerationResult> = {}): GenerationResult {
-    return {
-        id,
-        status,
-        createdAt: Date.now(),
-        prompt: snapshot.text,
-        model,
-        config: buildDisplayConfig(snapshot.config, model),
-        references: snapshot.references,
-        firstFrame: snapshot.firstFrame || null,
-        lastFrame: snapshot.lastFrame || null,
-        videoReferences: snapshot.videoReferences,
-        audioReferences: snapshot.audioReferences,
-        taskCount: snapshot.taskCount,
-        ...extra,
-    };
-}
-
 function createResultFromLog(log: GenerationLog, status: GenerationResult["status"]): GenerationResult {
     return {
         id: log.video?.id || log.id,
@@ -2167,27 +2149,7 @@ function createResultFromLog(log: GenerationLog, status: GenerationResult["statu
     };
 }
 
-function buildDisplayConfig(config: AiConfig, model: string): GenerationLogConfig {
-    return {
-        channelMode: config.channelMode,
-        activeChannelId: config.activeChannelId,
-        videoChannelId: config.videoChannelId,
-        model: config.model,
-        videoModel: config.videoModel || model,
-        size: config.size,
-        vquality: normalizeResolution(config.vquality),
-        videoSeconds: config.videoSeconds,
-        videoMode: config.videoMode,
-        videoNegativePrompt: config.videoNegativePrompt,
-        videoMultiShot: config.videoMultiShot,
-        videoShotType: config.videoShotType,
-        videoMultiPrompt: normalizeKlingMultiPrompts(config.videoMultiPrompt),
-        videoElementList: normalizeKlingElementList(config.videoElementList),
-        videoGenerateAudio: config.videoGenerateAudio,
-        videoWatermark: config.videoWatermark,
-        videoCharacterOrientation: normalizeCharacterOrientation(config.videoCharacterOrientation),
-    };
-}
+
 
 async function copyPrompt(text: string, success: (content: string) => void) {
     await navigator.clipboard.writeText(text);
