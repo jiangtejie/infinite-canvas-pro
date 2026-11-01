@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jiangtejie/infinite-canvas-pro/config"
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"github.com/jiangtejie/infinite-canvas-pro/repository"
 )
@@ -45,8 +44,11 @@ type payResult struct {
 }
 
 func RechargePackages() ([]model.RechargePackage, error) { return repository.ListRechargePackages() }
+
+// paymentCfg 读取当前生效的支付配置（数据库优先，环境变量兜底）。
+func paymentCfg() model.PrivatePaymentSetting { return PaymentSetting() }
 func CreateNativeRecharge(userID, packageID string) (model.RechargeOrder, error) {
-	if config.Cfg.LXPayServerURL == "" || config.Cfg.LXPayAppID == "" || config.Cfg.LXPayAppSecret == "" || config.Cfg.LXPayNotifyURL == "" {
+	if paymentCfg().LXPayServerURL == "" || paymentCfg().LXPayAppID == "" || paymentCfg().LXPayAppSecret == "" || paymentCfg().LXPayNotifyURL == "" {
 		return model.RechargeOrder{}, safeMessageError{message: "微信支付尚未配置"}
 	}
 	pkg, ok, err := repository.GetRechargePackage(packageID)
@@ -57,11 +59,11 @@ func CreateNativeRecharge(userID, packageID string) (model.RechargeOrder, error)
 		return model.RechargeOrder{}, safeMessageError{message: "充值套餐不存在"}
 	}
 	nowTime := time.Now()
-	order := model.RechargeOrder{ID: newID("recharge"), OrderNo: strings.ReplaceAll(newID("wx"), "-", ""), UserID: userID, PackageID: pkg.ID, PackageName: pkg.Name, AmountFen: pkg.AmountFen, Credits: pkg.Credits + pkg.Bonus, Status: model.RechargeOrderPending, ExpiresAt: nowTime.Add(time.Duration(config.Cfg.RechargeOrderMinutes) * time.Minute).Format(time.RFC3339), CreatedAt: nowTime.Format(time.RFC3339), UpdatedAt: nowTime.Format(time.RFC3339)}
+	order := model.RechargeOrder{ID: newID("recharge"), OrderNo: strings.ReplaceAll(newID("wx"), "-", ""), UserID: userID, PackageID: pkg.ID, PackageName: pkg.Name, AmountFen: pkg.AmountFen, Credits: pkg.Credits + pkg.Bonus, Status: model.RechargeOrderPending, ExpiresAt: nowTime.Add(time.Duration(paymentCfg().OrderMinutes) * time.Minute).Format(time.RFC3339), CreatedAt: nowTime.Format(time.RFC3339), UpdatedAt: nowTime.Format(time.RFC3339)}
 	if err := repository.CreateRechargeOrder(&order); err != nil {
 		return order, err
 	}
-	result, err := lxPayRequest("POST", "/api/payment/create", payRequest{order.OrderNo, "NATIVE", order.AmountFen, "算力点充值 - " + pkg.Name, config.Cfg.LXPayNotifyURL, config.Cfg.RechargeOrderMinutes})
+	result, err := lxPayRequest("POST", "/api/payment/create", payRequest{order.OrderNo, "NATIVE", order.AmountFen, "算力点充值 - " + pkg.Name, paymentCfg().LXPayNotifyURL, paymentCfg().OrderMinutes})
 	if err != nil {
 		return order, err
 	}
@@ -93,7 +95,7 @@ func QueryNativeRecharge(userID, id string) (model.RechargeOrder, error) {
 			order.Status = model.RechargeOrderExpired
 		}
 	}
-	if order.Status == model.RechargeOrderPending && config.Cfg.LXPayServerURL != "" {
+	if order.Status == model.RechargeOrderPending && paymentCfg().LXPayServerURL != "" {
 		result, e := lxPayRequest("GET", "/api/payment/query/"+order.OrderNo, nil)
 		if e == nil && strings.EqualFold(result.Status, "SUCCESS") && result.Amount > 0 {
 			_, err = repository.MarkRechargeOrderPaid(order.OrderNo, result.TransactionID, time.Now().Format(time.RFC3339), result.Amount)
@@ -115,20 +117,20 @@ func lxPayRequest(method, path string, input any) (payResult, error) {
 			return result, err
 		}
 	}
-	req, err := http.NewRequest(method, strings.TrimRight(config.Cfg.LXPayServerURL, "/")+path, bytes.NewReader(body))
+	req, err := http.NewRequest(method, strings.TrimRight(paymentCfg().LXPayServerURL, "/")+path, bytes.NewReader(body))
 	if err != nil {
 		return result, err
 	}
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	nonce := strings.ReplaceAll(newID(""), "-", "")
-	mac := hmac.New(sha256.New, []byte(config.Cfg.LXPayAppSecret))
-	mac.Write([]byte(config.Cfg.LXPayAppID + timestamp + nonce + string(body)))
+	mac := hmac.New(sha256.New, []byte(paymentCfg().LXPayAppSecret))
+	mac.Write([]byte(paymentCfg().LXPayAppID + timestamp + nonce + string(body)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-App-Id", config.Cfg.LXPayAppID)
+	req.Header.Set("X-App-Id", paymentCfg().LXPayAppID)
 	req.Header.Set("X-Timestamp", timestamp)
 	req.Header.Set("X-Nonce", nonce)
 	req.Header.Set("X-Signature", hex.EncodeToString(mac.Sum(nil)))
-	timeout := config.Cfg.LXPayTimeoutMS
+	timeout := paymentCfg().LXPayTimeoutMS
 	if timeout < 1000 {
 		timeout = 10000
 	}
@@ -188,7 +190,7 @@ func ProcessPaymentNotify(raw []byte, headers http.Header) error {
 		return err
 	}
 	ts := strings.Trim(string(n.Timestamp), `"`)
-	if n.AppID != config.Cfg.LXPayAppID || n.Signature == "" || n.Amount <= 0 {
+	if n.AppID != paymentCfg().LXPayAppID || n.Signature == "" || n.Amount <= 0 {
 		return errors.New("invalid payment notification")
 	}
 	timestamp, err := strconv.ParseInt(ts, 10, 64)
@@ -200,7 +202,7 @@ func ProcessPaymentNotify(raw []byte, headers http.Header) error {
 	if err != nil {
 		return err
 	}
-	mac := hmac.New(sha256.New, []byte(config.Cfg.LXPayAppSecret))
+	mac := hmac.New(sha256.New, []byte(paymentCfg().LXPayAppSecret))
 	mac.Write([]byte(n.AppID + ts + n.Nonce + string(unsigned)))
 	expected, err := hex.DecodeString(n.Signature)
 	if err != nil || subtle.ConstantTimeCompare(mac.Sum(nil), expected) != 1 {
@@ -224,7 +226,7 @@ func verifyWechatSignature(raw []byte, headers http.Header) error {
 	if err != nil || time.Since(time.Unix(timestamp, 0)) > 5*time.Minute || time.Since(time.Unix(timestamp, 0)) < -5*time.Minute {
 		return errors.New("WeChat notification expired")
 	}
-	certPEM, err := os.ReadFile(config.Cfg.LXPayPlatformCertPath)
+	certPEM, err := os.ReadFile(paymentCfg().LXPayPlatformCertPath)
 	if err != nil {
 		return err
 	}
@@ -259,7 +261,7 @@ func processV3Notify(body map[string]any) error {
 	cipherText, _ := res["ciphertext"].(string)
 	nonce, _ := res["nonce"].(string)
 	aad, _ := res["associated_data"].(string)
-	key := config.Cfg.LXPayAPIV3Key
+	key := paymentCfg().LXPayAPIV3Key
 	if len(key) != 32 {
 		return errors.New("invalid API v3 key")
 	}
@@ -291,7 +293,7 @@ func processV3Notify(body map[string]any) error {
 	if err := json.Unmarshal(plain, &trade); err != nil {
 		return err
 	}
-	if trade.AppID != "" && trade.AppID != config.Cfg.LXPayAppID {
+	if trade.AppID != "" && trade.AppID != paymentCfg().LXPayAppID {
 		return errors.New("payment app id mismatch")
 	}
 	if trade.State != "SUCCESS" || trade.Amount.Total <= 0 {

@@ -53,7 +53,7 @@ const emptySettings: AdminSettings = {
         auth: { allowRegister: true },
         storage: { mode: "local_indexeddb", allowUserProvider: false },
     },
-    private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, autoSyncAllAssets: false, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
+    private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, payment: { lxPayServerUrl: "", lxPayAppId: "", lxPayAppSecret: "", lxPayNotifyUrl: "", lxPayApiV3Key: "", lxPayPlatformCertPath: "", lxPayTimeoutMs: 10000, lxPayMaxRetries: 3, orderMinutes: 15 }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, autoSyncAllAssets: false, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
 };
 const emptyChannel: AdminModelChannel = { id: "", protocol: "openai", name: "", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [], weight: 1, timeout: 600, enabled: true, remark: "" };
 const emptyS3StorageProvider: AdminStorageProvider = { id: "", name: "", type: "s3", endpoint: "", region: "auto", bucket: "", accessKeyId: "", secretAccessKey: "", publicBaseUrl: "", pathPrefix: "canvas", username: "", password: "", weight: 1, enabled: true, ownerUserId: "", capacityBytes: 0, capacityCheckedAt: "", capacityExceeded: false };
@@ -656,6 +656,55 @@ export default function AdminSettingsPage() {
                                         </Col>
                                     </Row>
                                 </Card>
+                                <Card size="small" title="微信支付">
+                                    <Row gutter={16}>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={["private", "payment", "lxPayServerUrl"]} label="支付网关地址" extra="留空表示未开启在线充值；环境变量 LX_PAY_SERVER_URL 可作为默认值。">
+                                                <Input placeholder="https://pay.example.com" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={["private", "payment", "lxPayNotifyUrl"]} label="回调地址" extra="微信支付成功后的服务端回调，需要公网可达。">
+                                                <Input placeholder="https://your-domain.com/api/payment/notify" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={["private", "payment", "lxPayAppId"]} label="应用 ID">
+                                                <Input placeholder="微信支付 AppID" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={["private", "payment", "lxPayAppSecret"]} label="应用密钥" extra="留空表示保持已保存的密钥不变。">
+                                                <Input.Password placeholder="已配置时留空" autoComplete="new-password" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={["private", "payment", "lxPayApiV3Key"]} label="APIv3 密钥" extra="用于解密微信 V3 回调，长度必须 32 位；留空表示保持不变。">
+                                                <Input.Password placeholder="32 位 APIv3 密钥" autoComplete="new-password" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={12}>
+                                            <Form.Item name={["private", "payment", "lxPayPlatformCertPath"]} label="平台证书路径" extra="服务器上微信支付平台证书 PEM 文件路径。">
+                                                <Input placeholder="/etc/wxpay/apiclient_cert.pem" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={8}>
+                                            <Form.Item name={["private", "payment", "lxPayTimeoutMs"]} label="请求超时(毫秒)">
+                                                <InputNumber min={1000} step={1000} className="!w-full" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={8}>
+                                            <Form.Item name={["private", "payment", "lxPayMaxRetries"]} label="失败重试次数">
+                                                <InputNumber min={0} max={10} precision={0} className="!w-full" />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} md={8}>
+                                            <Form.Item name={["private", "payment", "orderMinutes"]} label="订单有效期(分钟)">
+                                                <InputNumber min={1} max={120} precision={0} className="!w-full" />
+                                            </Form.Item>
+                                        </Col>
+                                    </Row>
+                                </Card>
                                 <Card size="small" title="数据存储">
                                     <Row gutter={16}>
                                         <Col xs={24} md={6}>
@@ -1171,6 +1220,17 @@ function normalizePrivateSetting(setting: Partial<AdminSettings["private"]> = {}
                 retentionDays: Number(setting.aiLog?.cleanup?.retentionDays) || 14,
                 cron: setting.aiLog?.cleanup?.cron || "0 3 * * *",
             },
+        },
+        payment: {
+            lxPayServerUrl: setting.payment?.lxPayServerUrl || "",
+            lxPayAppId: setting.payment?.lxPayAppId || "",
+            lxPayAppSecret: setting.payment?.lxPayAppSecret || "",
+            lxPayNotifyUrl: setting.payment?.lxPayNotifyUrl || "",
+            lxPayApiV3Key: setting.payment?.lxPayApiV3Key || "",
+            lxPayPlatformCertPath: setting.payment?.lxPayPlatformCertPath || "",
+            lxPayTimeoutMs: Number(setting.payment?.lxPayTimeoutMs) || 10000,
+            lxPayMaxRetries: Number(setting.payment?.lxPayMaxRetries) || 3,
+            orderMinutes: Number(setting.payment?.orderMinutes) || 15,
         },
         storage: {
             mode: setting.storage?.mode || "local_indexeddb",

@@ -302,6 +302,17 @@ export type AdminPrivateSettings = {
         };
         capacityLimitBytes: number;
     };
+    payment: {
+        lxPayServerUrl: string;
+        lxPayAppId: string;
+        lxPayAppSecret: string;
+        lxPayNotifyUrl: string;
+        lxPayApiV3Key: string;
+        lxPayPlatformCertPath: string;
+        lxPayTimeoutMs: number;
+        lxPayMaxRetries: number;
+        orderMinutes: number;
+    };
 };
 
 export type AdminAICallLog = {

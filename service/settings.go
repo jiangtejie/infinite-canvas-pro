@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jiangtejie/infinite-canvas-pro/config"
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"github.com/jiangtejie/infinite-canvas-pro/repository"
 )
@@ -53,6 +54,7 @@ func SaveSettings(settings model.Settings) (model.Settings, error) {
 	settings = normalizeSettings(settings)
 	keepPrivateAPIKeys(&settings, normalizeSettings(saved))
 	keepPrivateStorageSecrets(&settings, normalizeSettings(saved))
+	keepPrivatePaymentSecrets(&settings, normalizeSettings(saved))
 	for _, channel := range settings.Private.Channels {
 		if _, err := ParameterTranslationModels(channel.ParameterTranslation); err != nil {
 			return model.Settings{}, fmt.Errorf("渠道 %s：%w", channel.Name, err)
@@ -266,6 +268,7 @@ func normalizePrivateSetting(setting model.PrivateSetting) model.PrivateSetting 
 	setting.PromptSync = normalizePromptSyncSetting(setting.PromptSync)
 	setting.AILog = normalizeAILogSetting(setting.AILog)
 	setting.Storage = normalizePrivateStorageSetting(setting.Storage)
+	setting.Payment = normalizePaymentSetting(setting.Payment)
 	for i := range setting.Channels {
 		if setting.Channels[i].Protocol == "" {
 			setting.Channels[i].Protocol = "openai"
@@ -286,6 +289,47 @@ func normalizePrivateSetting(setting model.PrivateSetting) model.PrivateSetting 
 	return setting
 }
 
+// normalizePaymentSetting 支付配置优先取数据库，未配置时回落到环境变量默认值。
+func normalizePaymentSetting(setting model.PrivatePaymentSetting) model.PrivatePaymentSetting {
+	if strings.TrimSpace(setting.LXPayServerURL) == "" {
+		setting.LXPayServerURL = config.Cfg.LXPayServerURL
+	}
+	if strings.TrimSpace(setting.LXPayAppID) == "" {
+		setting.LXPayAppID = config.Cfg.LXPayAppID
+	}
+	if strings.TrimSpace(setting.LXPayAppSecret) == "" {
+		setting.LXPayAppSecret = config.Cfg.LXPayAppSecret
+	}
+	if strings.TrimSpace(setting.LXPayNotifyURL) == "" {
+		setting.LXPayNotifyURL = config.Cfg.LXPayNotifyURL
+	}
+	if strings.TrimSpace(setting.LXPayAPIV3Key) == "" {
+		setting.LXPayAPIV3Key = config.Cfg.LXPayAPIV3Key
+	}
+	if strings.TrimSpace(setting.LXPayPlatformCertPath) == "" {
+		setting.LXPayPlatformCertPath = config.Cfg.LXPayPlatformCertPath
+	}
+	if setting.LXPayTimeoutMS <= 0 {
+		setting.LXPayTimeoutMS = config.Cfg.LXPayTimeoutMS
+	}
+	if setting.LXPayMaxRetries <= 0 {
+		setting.LXPayMaxRetries = config.Cfg.LXPayMaxRetries
+	}
+	if setting.OrderMinutes <= 0 {
+		setting.OrderMinutes = config.Cfg.RechargeOrderMinutes
+	}
+	return setting
+}
+
+// PaymentSetting 返回实际生效的支付配置。
+func PaymentSetting() model.PrivatePaymentSetting {
+	settings, err := repository.GetSettings()
+	if err != nil {
+		return normalizePaymentSetting(model.PrivatePaymentSetting{})
+	}
+	return normalizePaymentSetting(settings.Private.Payment)
+}
+
 func hidePrivateAPIKeys(settings model.Settings) model.Settings {
 	for i := range settings.Private.Channels {
 		settings.Private.Channels[i].APIKey = ""
@@ -295,6 +339,8 @@ func hidePrivateAPIKeys(settings model.Settings) model.Settings {
 		settings.Private.Storage.Providers[i].SecretAccessKey = ""
 		settings.Private.Storage.Providers[i].Password = ""
 	}
+	settings.Private.Payment.LXPayAppSecret = ""
+	settings.Private.Payment.LXPayAPIV3Key = ""
 	return settings
 }
 
@@ -987,6 +1033,15 @@ func (err safeMessageError) Error() string {
 
 func (err safeMessageError) SafeMessage() string {
 	return err.message
+}
+
+func keepPrivatePaymentSecrets(settings *model.Settings, saved model.Settings) {
+	if strings.TrimSpace(settings.Private.Payment.LXPayAppSecret) == "" {
+		settings.Private.Payment.LXPayAppSecret = saved.Private.Payment.LXPayAppSecret
+	}
+	if strings.TrimSpace(settings.Private.Payment.LXPayAPIV3Key) == "" {
+		settings.Private.Payment.LXPayAPIV3Key = saved.Private.Payment.LXPayAPIV3Key
+	}
 }
 
 func keepPrivateStorageSecrets(settings *model.Settings, saved model.Settings) {

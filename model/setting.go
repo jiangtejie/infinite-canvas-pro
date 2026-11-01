@@ -160,6 +160,20 @@ type PrivateSetting struct {
 	PromptSync PromptSyncSetting     `json:"promptSync"`
 	AILog      AILogSetting          `json:"aiLog"`
 	Storage    PrivateStorageSetting `json:"storage"`
+	Payment    PrivatePaymentSetting `json:"payment"`
+}
+
+// PrivatePaymentSetting 微信支付（lx-pay）配置。
+type PrivatePaymentSetting struct {
+	LXPayServerURL        string `json:"lxPayServerUrl"`
+	LXPayAppID            string `json:"lxPayAppId"`
+	LXPayAppSecret        string `json:"lxPayAppSecret"`
+	LXPayNotifyURL        string `json:"lxPayNotifyUrl"`
+	LXPayAPIV3Key         string `json:"lxPayApiV3Key"`
+	LXPayPlatformCertPath string `json:"lxPayPlatformCertPath"`
+	LXPayTimeoutMS        int    `json:"lxPayTimeoutMs"`
+	LXPayMaxRetries       int    `json:"lxPayMaxRetries"`
+	OrderMinutes          int    `json:"orderMinutes"`
 }
 
 type AILogSetting struct {
