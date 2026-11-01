@@ -48,19 +48,27 @@ export default function PromptsPage() {
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main
-                className="min-h-0 flex-1 overflow-y-auto bg-background px-6 py-8"
+                className="min-h-0 flex-1 overflow-y-auto bg-transparent px-6 py-10"
                 onScroll={handleListScroll}
             >
                 <div className="pb-8">
-                    <div className="mx-auto max-w-5xl text-center">
-                        <h1 className="text-4xl font-semibold tracking-tight text-foreground">提示词库</h1>
-                        <p className="mt-3 text-sm text-muted-foreground">共 {totalPrompts} 条提示词，按标题、标签与分类快速查找灵感。</p>
+                    <div className="relative mx-auto max-w-5xl text-center">
+                        <div aria-hidden className="neon-bloom-a pointer-events-none absolute left-1/2 top-[-40px] h-[220px] w-[440px] -translate-x-1/2 opacity-45" />
+                        <p className="relative text-xs font-medium tracking-[0.2em] text-foreground/50">AI 灵感库</p>
+                        <h1 className="neon-title relative mt-3 text-4xl font-semibold tracking-tight text-foreground">提示词库</h1>
+                        <div className="relative mt-3 flex flex-wrap items-center justify-center gap-2 text-sm text-foreground/60">
+                            <span className="rounded-full border border-border/70 bg-foreground/4 px-2.5 py-0.5 text-xs font-medium tabular-nums text-foreground/80">共 {totalPrompts} 条</span>
+                            <span>按标题、标签与分类快速查找灵感</span>
+                        </div>
                     </div>
                     {query.isLoading ? <LoadingState className="h-60" label="正在加载提示词..." /> : null}
                     {!query.isLoading ? (
                         <>
                             <div className="mx-auto mt-8 w-full max-w-2xl">
-                                <Input size="large" className="w-full" prefix={<Search className="size-4 text-muted-foreground" />} value={titleInput} placeholder="按标题查询，按 Enter 搜索" onChange={(event) => setTitleInput(event.target.value)} onPressEnter={searchByTitleInput} />
+                                <div className="neon-ring flex items-center gap-2 rounded-2xl border border-border/60 bg-card/60 px-4 py-0.5 backdrop-blur-xl transition-colors focus-within:border-foreground/25">
+                                    <Search className="size-4 shrink-0 text-muted-foreground" />
+                                    <Input variant="borderless" size="large" className="!bg-transparent" value={titleInput} placeholder="按标题查询，按 Enter 搜索" onChange={(event) => setTitleInput(event.target.value)} onPressEnter={searchByTitleInput} />
+                                </div>
                             </div>
                             <div className="mx-auto mt-6 grid max-w-6xl gap-3 text-left">
                                 <FilterTagGroup label="分类" options={promptCategoryOptions} isSelected={(value) => selectedCategory === value} onSelect={setSelectedCategory} />

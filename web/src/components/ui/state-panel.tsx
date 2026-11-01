@@ -1,21 +1,24 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Empty, Spin } from "antd";
-import { AlertCircle, RotateCcw } from "lucide-react";
+import { Spin } from "antd";
+import { AlertCircle, Inbox, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export function EmptyState({ title, description, action, className }: {
+export function EmptyState({ title, description, action, icon, className }: {
     title: string;
     description?: string;
     action?: ReactNode;
+    icon?: ReactNode;
     className?: string;
 }) {
     return (
         <div className={cn("flex flex-col items-center justify-center px-6 py-16 text-center", className)}>
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={false} />
-            <p className="mt-1 text-sm font-medium text-foreground">{title}</p>
+            <div className="mb-4 grid size-14 place-items-center rounded-2xl border border-dashed border-border/80 bg-muted/40 text-foreground/45 shadow-[0_0_40px_-20px_var(--neon-line)]">
+                {icon ?? <Inbox className="size-6" />}
+            </div>
+            <p className="text-sm font-medium text-foreground">{title}</p>
             {description ? <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">{description}</p> : null}
             {action ? <div className="mt-4">{action}</div> : null}
         </div>
