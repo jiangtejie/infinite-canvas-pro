@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/jiangtejie/infinite-canvas-pro/service"
 )
 
 func UserConfig(w http.ResponseWriter, r *http.Request) {

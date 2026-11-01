@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/jiangtejie/infinite-canvas-pro/service"
 )
 
 func prepareArkSeedanceRequest(input aiProtocolRequest) (aiProtocolRequest, bool, error) {

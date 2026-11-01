@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tigerowo/infinite-canvas/model"
-	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
+	"github.com/jiangtejie/infinite-canvas-pro/service"
 )
 
 const kieFileStreamUploadURL = "https://kieai.redpandaai.co/api/file-stream-upload"

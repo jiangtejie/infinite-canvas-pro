@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 )
 
 const autoDLAPIPath = "/api/v1/comfyui"

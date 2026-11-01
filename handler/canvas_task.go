@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tigerowo/infinite-canvas/model"
-	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
+	"github.com/jiangtejie/infinite-canvas-pro/service"
 )
 
 func StopCanvasTask(w http.ResponseWriter, r *http.Request) {

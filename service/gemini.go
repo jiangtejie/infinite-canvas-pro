@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 )
 
 const ModelChannelProtocolGemini = "gemini"

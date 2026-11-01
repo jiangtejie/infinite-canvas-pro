@@ -11,8 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/goccy/go-yaml"
-	"github.com/tigerowo/infinite-canvas/model"
-	"github.com/tigerowo/infinite-canvas/repository"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
+	"github.com/jiangtejie/infinite-canvas-pro/repository"
 )
 
 //go:embed skills

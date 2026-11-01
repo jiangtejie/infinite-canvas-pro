@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 )
 
 type RunningHubInspectInput struct {

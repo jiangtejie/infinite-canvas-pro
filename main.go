@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 
-	"github.com/tigerowo/infinite-canvas/config"
-	"github.com/tigerowo/infinite-canvas/handler"
-	"github.com/tigerowo/infinite-canvas/router"
-	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/jiangtejie/infinite-canvas-pro/config"
+	"github.com/jiangtejie/infinite-canvas-pro/handler"
+	"github.com/jiangtejie/infinite-canvas-pro/router"
+	"github.com/jiangtejie/infinite-canvas-pro/service"
 )
 
 func main() {

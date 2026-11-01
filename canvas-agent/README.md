@@ -19,7 +19,7 @@ Codex 尚未登录时执行 `npx -y @openai/codex@0.159.2 login` 并完成登录
 在 Codex 所在电脑执行：
 
 ```sh
-codex plugin marketplace add https://github.com/tigerowo/infinite-canvas.git
+codex plugin marketplace add https://github.com/jiangtejie/infinite-canvas-pro.git
 codex plugin add canvas-agent@infinite-canvas
 ```
 

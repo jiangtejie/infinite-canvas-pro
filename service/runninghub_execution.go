@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 )
 
 var errRunningHubTaskTerminal = errors.New("RunningHub 任务已终止")

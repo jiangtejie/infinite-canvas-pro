@@ -3,7 +3,7 @@ package repository
 import (
 	"time"
 
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

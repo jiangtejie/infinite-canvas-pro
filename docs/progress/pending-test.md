@@ -5,6 +5,11 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 # 待测试
 
+## 仓库地址迁移
+
+- Go module、全部 import、README 徽章与克隆命令、文档、Docker 镜像名、版本检查地址、Codex 插件命令统一改为 `jiangtejie/infinite-canvas-pro`；需验证 `go build ./...`、后端启动、版本更新弹窗和 Codex 连接指引。
+- 仍保留上游地址的三处：npm 包名 `@tigerowo/canvas-agent`（未发布自有包，改名会导致 npx 安装失败）、首页与 README 的图片 CDN `tigerowo/cdn-tdeh`（指向自有地址会 404）、内置提示词源 `tigerowo/awesome-gpt-image-2-prompts`（改指向会导致提示词同步失败）。
+
 ## 画布工具条弹层重做
 
 - 底部工具条的「添加 / 素材 / 更多 / 外观」弹层改为工具条内部的自绘面板：固定浮在工具条上方 12px，不再与工具条重叠，使用圆角、模糊背景、分组标题和悬停高亮；需验证四个入口的展开/收起、点击外部关闭、Esc 关闭并回到触发按钮、方向键切换和窄屏下左右不溢出。

@@ -3,7 +3,7 @@ package service
 import (
 	"strings"
 
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 )
 
 const ModelChannelProtocolMiniMax = "minimax"

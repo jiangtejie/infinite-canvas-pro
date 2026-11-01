@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/tigerowo/infinite-canvas/service"
+	"github.com/jiangtejie/infinite-canvas-pro/service"
 )
 
 func Prompts(w http.ResponseWriter, r *http.Request) {

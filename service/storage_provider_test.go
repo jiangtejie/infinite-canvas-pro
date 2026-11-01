@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/jiangtejie/infinite-canvas-pro/model"
 )
 
 func TestValidateEnabledStorageProviderTypes(t *testing.T) {
