@@ -1,7 +1,7 @@
 "use client";
 
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
-import { App, Button, Form, Input, Segmented, Space } from "antd";
+import { App, Button, Form, Input, Segmented } from "antd";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -41,7 +41,6 @@ function LoginContent() {
     const register = useUserStore((state) => state.register);
     const setSession = useUserStore((state) => state.setSession);
     const isLoading = useUserStore((state) => state.isLoading);
-    const linuxDoEnabled = useConfigStore((state) => state.publicSettings?.auth?.linuxDo?.enabled === true);
     const allowRegister = useConfigStore((state) => state.publicSettings?.auth?.allowRegister !== false);
     const [mode, setMode] = useState<"login" | "register">("login");
     const redirect = safeRedirect(searchParams.get("redirect"));
@@ -97,7 +96,6 @@ function LoginContent() {
                         aria-label="无限画布"
                     />
                     <h1 className="text-3xl font-semibold tracking-normal text-foreground">账号登录</h1>
-                    <p className="mt-3 text-base leading-7 text-muted-foreground">支持账号密码和 Linux.do 登录。</p>
                 </div>
 
                 <Form<LoginFormValues> layout="vertical" size="large" requiredMark={false} onFinish={submit}>
@@ -120,16 +118,9 @@ function LoginContent() {
                             <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
                         </Form.Item>
                     ) : null}
-                    <Space orientation="vertical" size={12} style={{ width: "100%" }}>
-                        <Button block type="primary" htmlType="submit" loading={isLoading}>
-                            {mode === "register" ? "注册" : "登录"}
-                        </Button>
-                        {linuxDoEnabled ? (
-                            <Button block href={`/api/auth/linux-do/authorize?redirect=${encodeURIComponent(redirect)}`} icon={<img src="/icons/linuxdo.svg" alt="" width={18} height={18} />}>
-                                使用 Linux.do 登录
-                            </Button>
-                        ) : null}
-                    </Space>
+                    <Button block type="primary" htmlType="submit" loading={isLoading}>
+                        {mode === "register" ? "注册" : "登录"}
+                    </Button>
                 </Form>
             </section>
         </main>
