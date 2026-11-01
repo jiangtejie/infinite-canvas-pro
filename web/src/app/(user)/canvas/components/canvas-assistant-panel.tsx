@@ -24,7 +24,7 @@ import {
     Video,
     X,
 } from "lucide-react";
-import { App, AutoComplete, Button, Dropdown, Modal, Segmented, Switch, Tooltip } from "antd";
+import { App, AutoComplete, Button, Modal, Segmented, Switch, Tooltip } from "antd";
 import { motion } from "motion/react";
 import { nanoid } from "nanoid";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -394,12 +394,26 @@ export function CanvasAssistantPanel({
     const [effortMenuOpen, setEffortMenuOpen] = useState(false);
     const codexControls = mode === "codex" ? (
         <>
-            <Dropdown trigger={[]} open={modelMenuOpen} onOpenChange={setModelMenuOpen} placement="topLeft" disabled={isRunning || !codex.models.length} menu={{ selectable: true, selectedKeys: codexModel ? [codexModel.model] : [], items: codex.models.map((item) => ({ key: item.model, label: item.displayName })), onClick: ({ key }) => onAgentConfigChange({ codexModel: key, codexEffort: undefined }) }}>
-                <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text }} icon={<Cpu className="size-4" />} aria-label="选择 Codex 模型" aria-haspopup="menu" aria-expanded={modelMenuOpen} onClick={() => setModelMenuOpen((value) => !value)}><span className="hidden max-w-28 truncate @[660px]:inline">{codexModel?.displayName || "选择模型"}</span></Button>
-            </Dropdown>
-            <Dropdown trigger={[]} open={effortMenuOpen} onOpenChange={setEffortMenuOpen} placement="topLeft" disabled={isRunning || !codexModel?.supportedReasoningEfforts.length} menu={{ selectable: true, selectedKeys: codexEffort ? [codexEffort] : [], items: codexModel?.supportedReasoningEfforts.map((item) => ({ key: item.reasoningEffort, label: effortLabels[item.reasoningEffort] || item.reasoningEffort })), onClick: ({ key }) => onAgentConfigChange({ codexEffort: key }) }}>
-                <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text }} icon={<Gauge className="size-4" />} aria-label="选择 Codex 推理强度" aria-haspopup="menu" aria-expanded={effortMenuOpen} onClick={() => setEffortMenuOpen((value) => !value)}><span className="hidden @[660px]:inline">{effortLabels[codexEffort || ""] || codexEffort}</span></Button>
-            </Dropdown>
+            <div className="relative">
+                <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text, background: modelMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Cpu className="size-4" />} aria-label="选择 Codex 模型" aria-haspopup="menu" aria-expanded={modelMenuOpen} disabled={isRunning || !codex.models.length} onClick={() => setModelMenuOpen((value) => !value)}><span className="hidden max-w-28 truncate @[660px]:inline">{codexModel?.displayName || "选择模型"}</span></Button>
+                {modelMenuOpen ? (
+                    <div role="menu" className="absolute bottom-full left-0 z-50 mb-2 max-h-64 w-44 overflow-y-auto rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
+                        {codex.models.map((item) => (
+                            <button key={item.model} type="button" role="menuitem" className="w-full truncate rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5" style={{ color: theme.node.text, background: codexModel?.model === item.model ? theme.toolbar.activeBg : undefined }} onClick={() => { setModelMenuOpen(false); onAgentConfigChange({ codexModel: item.model, codexEffort: undefined }); }}>{item.displayName}</button>
+                        ))}
+                    </div>
+                ) : null}
+            </div>
+            <div className="relative">
+                <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text, background: effortMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Gauge className="size-4" />} aria-label="选择 Codex 推理强度" aria-haspopup="menu" aria-expanded={effortMenuOpen} disabled={isRunning || !codexModel?.supportedReasoningEfforts.length} onClick={() => setEffortMenuOpen((value) => !value)}><span className="hidden @[660px]:inline">{effortLabels[codexEffort || ""] || codexEffort}</span></Button>
+                {effortMenuOpen ? (
+                    <div role="menu" className="absolute bottom-full left-0 z-50 mb-2 max-h-64 w-36 overflow-y-auto rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
+                        {codexModel?.supportedReasoningEfforts.map((item) => (
+                            <button key={item.reasoningEffort} type="button" role="menuitem" className="w-full truncate rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5" style={{ color: theme.node.text, background: codexEffort === item.reasoningEffort ? theme.toolbar.activeBg : undefined }} onClick={() => { setEffortMenuOpen(false); onAgentConfigChange({ codexEffort: item.reasoningEffort }); }}>{effortLabels[item.reasoningEffort] || item.reasoningEffort}</button>
+                        ))}
+                    </div>
+                ) : null}
+            </div>
         </>
     ) : undefined;
 
