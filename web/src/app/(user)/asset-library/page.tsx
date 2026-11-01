@@ -112,22 +112,30 @@ export default function AssetLibraryPage() {
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent px-6 py-8">
                 <div className="pb-8">
-                    <div className="mx-auto max-w-5xl text-center">
-                        <h1 className="text-4xl font-semibold tracking-tight text-foreground">素材库</h1>
-                        <p className="mt-3 text-sm text-muted-foreground">挑选团队素材，加入我的素材后继续编辑和使用。</p>
+                    <div className="relative mx-auto max-w-5xl text-center">
+                        <div aria-hidden className="neon-bloom-a pointer-events-none absolute left-1/2 top-[-40px] h-[220px] w-[440px] -translate-x-1/2 opacity-45" />
+                        <p className="relative text-xs font-medium tracking-[0.2em] text-foreground/50">AI 素材库</p>
+                        <h1 className="neon-title relative mt-3 text-4xl font-semibold tracking-tight text-foreground">素材库</h1>
+                        <div className="relative mt-3 flex flex-wrap items-center justify-center gap-2 text-sm text-foreground/60">
+                            <span className="rounded-full border border-border/70 bg-foreground/4 px-2.5 py-0.5 text-xs font-medium tabular-nums text-foreground/80">共 {total} 条</span>
+                            <span>挑选团队素材，加入我的素材后继续编辑和使用</span>
+                        </div>
                     </div>
                     <div className="mx-auto mt-8 w-full max-w-2xl">
-                        <Input
-                            size="large"
-                            className="w-full"
-                            prefix={<Search className="size-4 text-muted-foreground" />}
-                            value={keyword}
-                            placeholder="搜索标题、内容、分类或标签"
-                            onChange={(event) => {
-                                setPage(1);
-                                setKeyword(event.target.value);
-                            }}
-                        />
+                        <div className="neon-ring flex items-center gap-2 rounded-2xl border border-border/60 bg-card/60 px-4 py-0.5 backdrop-blur-xl transition-colors focus-within:border-foreground/25">
+                            <Search className="size-4 shrink-0 text-muted-foreground" />
+                            <Input
+                                variant="borderless"
+                                size="large"
+                                className="!bg-transparent"
+                                value={keyword}
+                                placeholder="搜索标题、内容、分类或标签"
+                                onChange={(event) => {
+                                    setPage(1);
+                                    setKeyword(event.target.value);
+                                }}
+                            />
+                        </div>
                     </div>
                     <div className="mx-auto mt-6 max-w-6xl space-y-3">
                         <FilterTagGroup
@@ -176,7 +184,26 @@ export default function AssetLibraryPage() {
                         ))}
                     </div>
 
-                    {!items.length ? <EmptyState title="没有找到素材" description="调整类型、分类、标签或搜索关键词后再试。" /> : null}
+                    {!items.length ? (
+                                <EmptyState
+                                    className="py-10"
+                                    title="没有找到素材"
+                                    description="调整类型、分类、标签或搜索关键词后再试。"
+                                    action={
+                                        <Button
+                                            onClick={() => {
+                                                setPage(1);
+                                                setKeyword("");
+                                                setSelectedType("");
+                                                setSelectedCategory("");
+                                                setSelectedTags([]);
+                                            }}
+                                        >
+                                            清空筛选
+                                        </Button>
+                                    }
+                                />
+                            ) : null}
 
                     <div className="flex justify-center">
                         <Pagination current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={(nextPage) => setPage(nextPage)} />

@@ -64,6 +64,14 @@ export default function AssetsPage() {
         setPage((value) => Math.min(value, maxPage));
     }, [filteredAssets.length, pageSize]);
 
+    const clearFilters = () => {
+        setPage(1);
+        setKeyword("");
+        setKindFilter("all");
+        setCategoryFilter("");
+        setTagFilters([]);
+    };
+
     const openCreate = () => {
         setEditingAsset(null);
         setIsAssetOpen(true);
@@ -123,28 +131,32 @@ export default function AssetsPage() {
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent px-6 py-8">
                 <div className="pb-8">
-                    <div className="mx-auto max-w-5xl text-center">
-                        <h1 className="text-4xl font-semibold tracking-tight text-foreground">我的素材</h1>
-                        <p className="mt-3 text-sm text-muted-foreground">收藏和管理常用素材，按类型、标题、分类和标签快速查找。</p>
+                    <div className="relative mx-auto max-w-5xl text-center">
+                        <div aria-hidden className="neon-bloom-a pointer-events-none absolute left-1/2 top-[-40px] h-[220px] w-[440px] -translate-x-1/2 opacity-45" />
+                        <p className="relative text-xs font-medium tracking-[0.2em] text-foreground/50">AI 素材库</p>
+                        <h1 className="neon-title relative mt-3 text-4xl font-semibold tracking-tight text-foreground">我的素材</h1>
+                        <div className="relative mt-3 flex flex-wrap items-center justify-center gap-2 text-sm text-foreground/60">
+                            <span className="rounded-full border border-border/70 bg-foreground/4 px-2.5 py-0.5 text-xs font-medium tabular-nums text-foreground/80">共 {filteredAssets.length} 条</span>
+                            <span>收藏和管理常用素材，按类型、标题、分类和标签快速查找</span>
+                        </div>
                     </div>
 
                     <div className="mx-auto mt-8 w-full max-w-2xl">
-                        <Input.Search
-                            className="w-full"
-                            size="large"
-                            allowClear
-                            prefix={<Search className="size-4 text-muted-foreground" />}
-                            value={keyword}
-                            placeholder="搜索标题、内容、分类、标签或来源"
-                            onChange={(event) => {
-                                setPage(1);
-                                setKeyword(event.target.value);
-                            }}
-                            onSearch={(value) => {
-                                setPage(1);
-                                setKeyword(value);
-                            }}
-                        />
+                        <div className="neon-ring flex items-center gap-2 rounded-2xl border border-border/60 bg-card/60 px-4 py-0.5 backdrop-blur-xl transition-colors focus-within:border-foreground/25">
+                            <Search className="size-4 shrink-0 text-muted-foreground" />
+                            <Input
+                                variant="borderless"
+                                size="large"
+                                className="!bg-transparent"
+                                allowClear
+                                value={keyword}
+                                placeholder="搜索标题、内容、分类、标签或来源"
+                                onChange={(event) => {
+                                    setPage(1);
+                                    setKeyword(event.target.value);
+                                }}
+                            />
+                        </div>
                     </div>
 
                     <div className="mx-auto mt-6 grid max-w-6xl gap-3 text-left">
@@ -159,29 +171,29 @@ export default function AssetsPage() {
                                     setKindFilter(value as AssetKind | "all");
                                 }}
                             />
-                            <div className="flex flex-wrap gap-4 sm:pt-2">
+                            <div className="flex flex-wrap items-center gap-2 sm:pt-2">
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:underline"
+                                    className="inline-flex h-8 items-center rounded-full border border-border/70 px-3 text-xs text-foreground/75 transition-colors hover:border-foreground/25 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                     onClick={() => void exportAllAssets()}
                                 >
                                     导出素材
                                 </button>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:underline"
+                                    className="inline-flex h-8 items-center rounded-full border border-border/70 px-3 text-xs text-foreground/75 transition-colors hover:border-foreground/25 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                     onClick={() => assetInputRef.current?.click()}
                                 >
                                     导入素材
                                 </button>
                                 <button
                                     type="button"
-                                    className="cursor-pointer text-sm font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:underline"
+                                    className="inline-flex h-8 items-center rounded-full border border-border/70 bg-foreground/90 px-3 text-xs font-medium text-background transition-colors hover:bg-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                     onClick={openCreate}
                                 >
                                     新增素材
                                 </button>
-                                <Link href="/asset-library" className="text-sm font-medium text-foreground/80 underline-offset-4 hover:text-foreground hover:underline">
+                                <Link href="/asset-library" className="inline-flex h-8 items-center rounded-full border border-border/70 px-3 text-xs text-foreground/75 transition-colors hover:border-foreground/25 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
                                     素材库
                                 </Link>
                             </div>
@@ -216,7 +228,7 @@ export default function AssetsPage() {
                         ))}
                     </div>
 
-                    {!visibleAssets.length ? <EmptyState title="没有找到素材" description="调整类型、分类、标签或搜索关键词后再试。" /> : null}
+                    {!visibleAssets.length ? <EmptyState className="py-10" title="没有找到素材" description="调整类型、分类、标签或搜索关键词后再试。" action={<Button onClick={clearFilters}>清空筛选</Button>} /> : null}
 
                     <div className="flex justify-center">
                         <Pagination
