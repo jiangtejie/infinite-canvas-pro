@@ -291,7 +291,7 @@ export default function AdminSkillsPage() {
                 />
             </Flex>
 
-            <Modal title={editingSkill?.id ? "编辑 Skill" : "新增 Skill"} open={Boolean(editingSkill)} width={1120} footer={null} onCancel={() => setEditingSkill(null)} destroyOnHidden>
+            <Modal forceRender title={editingSkill?.id ? "编辑 Skill" : "新增 Skill"} open={Boolean(editingSkill)} width={1120} footer={null} onCancel={() => setEditingSkill(null)}>
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="coverUrl" hidden><Input /></Form.Item>
                     <Form.Item name="coverStorageKey" hidden><Input /></Form.Item>

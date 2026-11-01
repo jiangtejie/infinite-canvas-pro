@@ -214,7 +214,7 @@ export default function AdminPromptsPage() {
                 />
             </Flex>
 
-            <Modal title={editingPrompt?.id ? "编辑提示词" : "新增提示词"} open={Boolean(editingPrompt)} width={720} onCancel={() => setEditingPrompt(null)} onOk={() => void savePrompt()} okText="保存" cancelText="取消" destroyOnHidden>
+            <Modal forceRender title={editingPrompt?.id ? "编辑提示词" : "新增提示词"} open={Boolean(editingPrompt)} width={720} onCancel={() => setEditingPrompt(null)} onOk={() => void savePrompt()} okText="保存" cancelText="取消">
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
                         <Input />

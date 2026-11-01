@@ -163,7 +163,7 @@ export default function AdminCreditLogsPage() {
                 />
             </Space>
 
-            <Modal title={editingLog?.id ? "编辑日志" : "新增日志"} open={Boolean(editingLog)} width={680} onCancel={() => setEditingLog(null)} onOk={() => void saveLog()} okText="保存" cancelText="取消" destroyOnHidden>
+            <Modal forceRender title={editingLog?.id ? "编辑日志" : "新增日志"} open={Boolean(editingLog)} width={680} onCancel={() => setEditingLog(null)} onOk={() => void saveLog()} okText="保存" cancelText="取消">
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Row gutter={14}>
                         <Col span={12}>

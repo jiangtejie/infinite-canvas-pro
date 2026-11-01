@@ -217,7 +217,7 @@ export default function AdminRechargePackagesPage() {
                 onOk={() => void save()}
                 okText="保存"
                 cancelText="取消"
-                destroyOnHidden
+                forceRender
             >
                 <Form form={form} layout="vertical" requiredMark={false} initialValues={DEFAULT_VALUES} style={{ marginTop: 16 }}>
                     <Row gutter={14}>

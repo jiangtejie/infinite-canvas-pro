@@ -200,7 +200,7 @@ export default function AdminAssetsPage() {
                 />
             </Flex>
 
-            <Modal title={editingAsset?.id ? "编辑素材" : "新增素材"} open={Boolean(editingAsset)} width={760} onCancel={() => setEditingAsset(null)} onOk={() => void saveAsset()} okText="保存" cancelText="取消" destroyOnHidden>
+            <Modal forceRender title={editingAsset?.id ? "编辑素材" : "新增素材"} open={Boolean(editingAsset)} width={760} onCancel={() => setEditingAsset(null)} onOk={() => void saveAsset()} okText="保存" cancelText="取消">
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="type" label="类型" rules={[{ required: true, message: "请选择类型" }]}>
                         <Select options={editTypeOptions} />
