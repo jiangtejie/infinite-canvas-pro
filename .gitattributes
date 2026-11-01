@@ -1,1 +1,27 @@
+# 统一使用 LF：仓库内存储 LF，检出也用 LF，避免 gofmt 等工具把 CRLF 误判成未格式化。
 *.sh text eol=lf
+* text=auto eol=lf
+
+# Windows 脚本保持 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件不做行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+*.7z binary
+*.exe binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
