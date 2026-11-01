@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robfig/cron/v3"
 	"github.com/jiangtejie/infinite-canvas-pro/repository"
+	"github.com/robfig/cron/v3"
 )
 
 const canvasProjectCleanupCron = "0 3 * * *"

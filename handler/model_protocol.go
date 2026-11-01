@@ -90,7 +90,7 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			return path, true
 		},
-		prepare: prepareAutoDLRequest,
+		prepare:      prepareAutoDLRequest,
 		copyResponse: copyAutoDLResponse,
 		videoResponse: func(payload []byte, _ *http.Request, channel model.ModelChannel, _ string, _ bool) ([]byte, bool) {
 			if !service.IsAutoDLChannel(channel) {

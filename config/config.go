@@ -12,23 +12,23 @@ import (
 )
 
 type Config struct {
-	Port                string `env:"PORT" envDefault:"8080"`
-	AdminUsername       string `env:"ADMIN_USERNAME" envDefault:"admin"`
-	AdminPassword       string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
-	JWTSecret           string `env:"JWT_SECRET" envDefault:"infinite-canvas"`
-	JWTExpireHours      int    `env:"JWT_EXPIRE_HOURS" envDefault:"168"`
-	StorageDriver       string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
-	DatabaseDSN         string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
-	AILogDir            string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
-	LXPayServerURL       string `env:"LX_PAY_SERVER_URL"`
-	LXPayAppID           string `env:"LX_PAY_APP_ID"`
-	LXPayAppSecret       string `env:"LX_PAY_APP_SECRET"`
-	LXPayNotifyURL       string `env:"LX_PAY_NOTIFY_URL"`
-	LXPayAPIV3Key        string `env:"LX_PAY_API_V3_KEY"`
+	Port                  string `env:"PORT" envDefault:"8080"`
+	AdminUsername         string `env:"ADMIN_USERNAME" envDefault:"admin"`
+	AdminPassword         string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
+	JWTSecret             string `env:"JWT_SECRET" envDefault:"infinite-canvas"`
+	JWTExpireHours        int    `env:"JWT_EXPIRE_HOURS" envDefault:"168"`
+	StorageDriver         string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
+	DatabaseDSN           string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
+	AILogDir              string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
+	LXPayServerURL        string `env:"LX_PAY_SERVER_URL"`
+	LXPayAppID            string `env:"LX_PAY_APP_ID"`
+	LXPayAppSecret        string `env:"LX_PAY_APP_SECRET"`
+	LXPayNotifyURL        string `env:"LX_PAY_NOTIFY_URL"`
+	LXPayAPIV3Key         string `env:"LX_PAY_API_V3_KEY"`
 	LXPayPlatformCertPath string `env:"LX_PAY_PLATFORM_CERT_PATH"`
-	LXPayTimeoutMS       int    `env:"LX_PAY_TIMEOUT_MS" envDefault:"10000"`
-	LXPayMaxRetries      int    `env:"LX_PAY_MAX_RETRIES" envDefault:"3"`
-	RechargeOrderMinutes int    `env:"RECHARGE_ORDER_MINUTES" envDefault:"15"`
+	LXPayTimeoutMS        int    `env:"LX_PAY_TIMEOUT_MS" envDefault:"10000"`
+	LXPayMaxRetries       int    `env:"LX_PAY_MAX_RETRIES" envDefault:"3"`
+	RechargeOrderMinutes  int    `env:"RECHARGE_ORDER_MINUTES" envDefault:"15"`
 }
 
 var Cfg Config

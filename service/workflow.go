@@ -6,9 +6,9 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"github.com/jiangtejie/infinite-canvas-pro/repository"
-	"github.com/google/uuid"
 )
 
 type CreativeWorkflowPayload struct {
