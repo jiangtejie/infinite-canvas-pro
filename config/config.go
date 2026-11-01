@@ -21,8 +21,8 @@ type Config struct {
 	DatabaseDSN           string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
 	AILogDir              string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
 	LXPayServerURL        string `env:"LX_PAY_SERVER_URL"`
-	LXPayAppID            string `env:"LX_PAY_APP_ID"`
-	LXPayAppSecret        string `env:"LX_PAY_APP_SECRET"`
+	LXPayAppID            string `env:"LX_PAY_APP_ID" envDefault:"app_a0479b08373c4ba3"`
+	LXPayAppSecret        string `env:"LX_PAY_APP_SECRET" envDefault:"ae50619db16c419299de1c469f09e4b4dd8d52b77ab64807b4895f7148c86218"`
 	LXPayNotifyURL        string `env:"LX_PAY_NOTIFY_URL"`
 	LXPayAPIV3Key         string `env:"LX_PAY_API_V3_KEY"`
 	LXPayPlatformCertPath string `env:"LX_PAY_PLATFORM_CERT_PATH"`
