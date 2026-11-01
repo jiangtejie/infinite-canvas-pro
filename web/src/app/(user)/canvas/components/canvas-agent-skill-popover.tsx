@@ -32,6 +32,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const [form] = Form.useForm<Pick<AgentSkill, "name" | "description" | "coverUrl" | "coverStorageKey" | "content">>();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
+    const [panelBox, setPanelBox] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -51,6 +52,33 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
         return () => {
             document.removeEventListener("pointerdown", closeOnPointerDown, true);
             document.removeEventListener("keydown", closeOnEscape);
+        };
+    }, [open]);
+
+    useEffect(() => {
+        if (!open) {
+            setPanelBox(null);
+            return;
+        }
+        const update = () => {
+            const rect = wrapperRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const width = Math.min(440, window.innerWidth - 24);
+            const left = Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - width - 12));
+            const navClearance = 80;
+            const spaceAbove = Math.max(0, rect.top - navClearance - 8);
+            const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 16);
+            const openDown = spaceBelow > spaceAbove;
+            const maxHeight = Math.max(180, Math.min(520, openDown ? spaceBelow : spaceAbove));
+            const top = openDown ? rect.bottom + 8 : Math.max(navClearance, rect.top - maxHeight - 8);
+            setPanelBox({ left, top, width, maxHeight });
+        };
+        update();
+        window.addEventListener("resize", update);
+        window.addEventListener("scroll", update, true);
+        return () => {
+            window.removeEventListener("resize", update);
+            window.removeEventListener("scroll", update, true);
         };
     }, [open]);
     const [tab, setTab] = useState<"system" | "user">("system");
@@ -111,7 +139,8 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     };
 
     const content = (
-        <div className="w-[420px] max-w-[calc(100vw-24px)]" onPointerDown={(event) => event.stopPropagation()}>
+        <div className="w-full" onPointerDown={(event) => event.stopPropagation()}>
+            <div className="sticky -top-3.5 z-10 -mx-3.5 -mt-3.5 mb-3 border-b px-3.5 pb-2.5 pt-3.5" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke }}>
             <div className="relative mb-3">
                 <div className="text-sm font-semibold">Skill</div>
                 {tab === "user" ? (
@@ -125,7 +154,8 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
                 </div>
                 <Input allowClear size="small" prefix={<Search className="size-3.5 opacity-55" />} placeholder="搜索 Skill" value={query} onChange={(event) => setQuery(event.target.value)} />
             </div>
-            <div className="thin-scrollbar h-[260px] overflow-y-auto">
+            </div>
+            <div className="thin-scrollbar h-[260px] overflow-x-hidden overflow-y-auto pb-1">
                 <Spin spinning={isLoading}>
                     {skills.length ? skills.map((skill) => (
                         <div
@@ -176,13 +206,15 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
         <>
             <div ref={wrapperRef} className="relative">
                 <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: open ? theme.toolbar.activeBg : undefined }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} />
-                {open ? (
+                {open && panelBox ? (
                     <div
                         data-canvas-skill-panel
-                        className="absolute bottom-full left-0 z-50 mb-2 max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border p-3.5"
-                        style={{ background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke, boxShadow: "0 18px 44px rgba(0,0,0,0.28)" }}
+                        role="dialog"
+                        aria-label="选择 Skill"
+                        className="fixed z-[80] overflow-hidden rounded-2xl border p-3.5 shadow-2xl"
+                        style={{ left: panelBox.left, top: panelBox.top, width: panelBox.width, maxHeight: panelBox.maxHeight, background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke, backdropFilter: "blur(18px) saturate(1.15)", WebkitBackdropFilter: "blur(18px) saturate(1.15)" }}
                     >
-                        <div className="thin-scrollbar max-h-[min(70vh,520px)] overflow-y-auto">
+                        <div className="thin-scrollbar h-full overflow-x-hidden overflow-y-auto overscroll-contain">
                             {content}
                         </div>
                     </div>
