@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FileUp, Pencil, Search, Trash2, Wrench } from "lucide-react";
-import { App, Button, Empty, Form, Input, Modal, Popover, Spin } from "antd";
+import { App, Button, Empty, Form, Input, Modal, Spin } from "antd";
 
 import { AgentSkillCover, AgentSkillCoverEditor } from "@/components/agent-skill-cover";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -32,6 +32,27 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const [form] = Form.useForm<Pick<AgentSkill, "name" | "description" | "coverUrl" | "coverStorageKey" | "content">>();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        const closeOnPointerDown = (event: PointerEvent) => {
+            const target = event.target;
+            if (target instanceof Node && wrapperRef.current?.contains(target)) return;
+            setOpen(false);
+        };
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            setOpen(false);
+        };
+        document.addEventListener("pointerdown", closeOnPointerDown, true);
+        document.addEventListener("keydown", closeOnEscape);
+        return () => {
+            document.removeEventListener("pointerdown", closeOnPointerDown, true);
+            document.removeEventListener("keydown", closeOnEscape);
+        };
+    }, [open]);
     const [tab, setTab] = useState<"system" | "user">("system");
     const [query, setQuery] = useState("");
     const [editingSkill, setEditingSkill] = useState<AgentSkill | null>(null);
@@ -153,16 +174,20 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
 
     return (
         <>
-            <Popover
-                trigger="click"
-                placement="topLeft"
-                open={open}
-                onOpenChange={setOpen}
-                content={content}
-                styles={{ container: { padding: 14, background: theme.toolbar.panel, color: theme.node.text, border: `1px solid ${theme.node.stroke}`, borderRadius: 16 } }}
-            >
-                <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" />
-            </Popover>
+            <div ref={wrapperRef} className="relative">
+                <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: open ? theme.toolbar.activeBg : undefined }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} />
+                {open ? (
+                    <div
+                        data-canvas-skill-panel
+                        className="absolute bottom-full left-0 z-50 mb-2 max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border p-3.5"
+                        style={{ background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke, boxShadow: "0 18px 44px rgba(0,0,0,0.28)" }}
+                    >
+                        <div className="thin-scrollbar max-h-[min(70vh,520px)] overflow-y-auto">
+                            {content}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
             <Modal title="编辑 Skill" open={Boolean(editingSkill)} width={920} footer={null} destroyOnHidden onCancel={() => setEditingSkill(null)}>
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item name="coverUrl" hidden><Input /></Form.Item>
