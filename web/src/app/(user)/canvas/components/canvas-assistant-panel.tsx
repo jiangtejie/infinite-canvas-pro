@@ -835,13 +835,13 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
                     <span className="my-1 flex w-full min-w-0 items-center rounded-lg transition-opacity hover:opacity-80" style={{ background: theme.toolbar.itemHover }}>
                         <button type="button" onClick={() => onFocusNode(canvasNode.id)} className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left outline-none" title={`定位到画布节点：${canvasNode.title || typeLabel}`}>
                             <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md">
-                                {hasImage ? <img src={canvasNode.metadata?.content} alt={canvasNode.title || typeLabel} className="size-full object-cover" /> : <Icon className="size-5 opacity-60" />}
+                                {hasImage ? <img loading="lazy" decoding="async" src={canvasNode.metadata?.content} alt={canvasNode.title || typeLabel} className="size-full object-cover" /> : <Icon className="size-5 opacity-60" />}
                             </span>
                             <span className="min-w-0 flex-1 space-y-0.5">
                                 <span className="block truncate text-sm font-medium leading-snug">{canvasNode.title || `${typeLabel}节点`}</span>
                                 <span className="block truncate text-xs leading-snug opacity-50">{canvasNode.type === CanvasNodeType.Text ? canvasNode.metadata?.content || canvasNode.metadata?.prompt || "" : typeLabel}</span>
                             </span>
-                            {canvasNode.metadata?.status && canvasNode.metadata.status !== "idle" ? <span className="size-1.5 shrink-0 rounded-full" style={{ background: ASSISTANT_NODE_STATUS_COLOR[canvasNode.metadata.status] || "transparent" }} /> : null}
+                            {canvasNode.metadata?.status && canvasNode.metadata.status !== "idle" ? <span className="size-1.5 shrink-0 rounded-full" style={{ background: ASSISTANT_NODE_STATUS_COLOR[canvasNode.metadata.status] || "transparent", boxShadow: `0 0 0 2px color-mix(in srgb, ${ASSISTANT_NODE_STATUS_COLOR[canvasNode.metadata.status] || "transparent"} 22%, transparent), 0 0 8px ${ASSISTANT_NODE_STATUS_COLOR[canvasNode.metadata.status] || "transparent"}` }} /> : null}
                         </button>
                     </span>
                 );

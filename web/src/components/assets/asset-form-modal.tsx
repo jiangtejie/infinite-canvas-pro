@@ -221,7 +221,7 @@ export function AssetFormModal({ open, asset = null, onClose }: AssetFormModalPr
                         <Typography.Text strong>预览</Typography.Text>
                         <div className="mt-3 overflow-hidden rounded-lg border border-border bg-background">
                             {coverUrl || imageDraft?.dataUrl ? (
-                                <img src={coverUrl || imageDraft?.dataUrl} alt="" className="aspect-[4/3] w-full object-cover" />
+                                <img loading="lazy" decoding="async" src={coverUrl || imageDraft?.dataUrl} alt="" className="aspect-[4/3] w-full object-cover" />
                             ) : formKind === "video" && (mediaDraft?.url || content) ? (
                                 <video src={mediaDraft?.url || content} className="aspect-[4/3] w-full bg-black object-contain" controls />
                             ) : formKind === "audio" && (mediaDraft?.url || content) ? (

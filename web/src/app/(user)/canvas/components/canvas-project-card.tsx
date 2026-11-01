@@ -4,6 +4,7 @@ import { Check, Download, Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button, Input } from "antd";
 
+import { CanvasNodeType } from "../types";
 import { useCanvasStore, type CanvasProject } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "../utils/canvas-export";
@@ -21,6 +22,7 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const editing = editingId === project.id;
     const selected = selectedIds.includes(project.id);
+    const previews = project.nodes.filter((node) => node.type === CanvasNodeType.Image && node.metadata?.content).slice(0, 3);
     const open = () => router.push(`/canvas/${project.id}`);
     const saveTitle = () => {
         renameProject(project.id, editingTitle);
@@ -28,7 +30,14 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
     };
 
     return (
-        <article className="group flex min-h-44 cursor-pointer flex-col justify-between rounded-lg border border-border bg-card p-5 text-card-foreground transition hover:border-foreground/30 hover:bg-accent" onClick={() => !editing && open()}>
+        <article className="group flex min-h-44 cursor-pointer flex-col justify-between rounded-xl border border-border bg-card p-5 text-card-foreground transition-[transform,border-color,box-shadow,background-color] duration-300 hover:-translate-y-0.5 hover:border-foreground/25 hover:bg-accent/60 hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/30" onClick={() => !editing && open()}>
+            {previews.length ? (
+                <div className="mb-4 flex gap-1.5 overflow-hidden rounded-lg">
+                    {previews.map((node) => (
+                        <img key={node.id} src={node.metadata?.content} alt="" loading="lazy" decoding="async" className="h-16 w-full min-w-0 flex-1 rounded-md border border-border object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
+                    ))}
+                </div>
+            ) : null}
             <div className="flex items-start gap-3">
                 <input
                     type="checkbox"

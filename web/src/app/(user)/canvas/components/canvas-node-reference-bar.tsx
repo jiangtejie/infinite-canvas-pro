@@ -38,7 +38,7 @@ function ReferenceItem({ reference, onRemove }: { reference: CanvasResourceRefer
         <Popover placement="topLeft" mouseEnterDelay={0.15} content={<ReferencePreview reference={reference} previewUrl={previewUrl} />} arrow={!isMedia} destroyOnHidden={reference.kind === "video"} styles={isMedia ? { container: { padding: 0, background: "transparent", boxShadow: "none" } } : undefined}>
             <div className="group relative grid size-12 shrink-0 place-items-center rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.toolbar.border }}>
                 <span className="grid size-full place-items-center overflow-hidden rounded-[inherit]">
-                    {reference.kind === "image" && previewUrl ? <img src={previewUrl} alt="" className="size-full object-cover" /> : reference.kind === "video" && previewUrl ? <video src={previewUrl} className="size-full object-cover" muted /> : <Icon className="size-4 opacity-65" />}
+                    {reference.kind === "image" && previewUrl ? <img decoding="async" src={previewUrl} alt="" className="size-full object-cover" /> : reference.kind === "video" && previewUrl ? <video src={previewUrl} className="size-full object-cover" muted /> : <Icon className="size-4 opacity-65" />}
                 </span>
                 <button type="button" className="absolute right-0 top-0 grid size-5 place-items-center rounded-full border opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} aria-label="断开参考连接" title="断开参考连接" onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onRemove(); }}><X className="size-3" /></button>
             </div>
@@ -47,7 +47,7 @@ function ReferenceItem({ reference, onRemove }: { reference: CanvasResourceRefer
 }
 
 function ReferencePreview({ reference, previewUrl }: { reference: CanvasResourceReference; previewUrl?: string }) {
-    if (reference.kind === "image" && previewUrl) return <img src={previewUrl} alt={reference.title} className="block max-h-52 max-w-72 rounded-lg object-contain" />;
+    if (reference.kind === "image" && previewUrl) return <img decoding="async" src={previewUrl} alt={reference.title} className="block max-h-52 max-w-72 rounded-lg object-contain" />;
     if (reference.kind === "video" && previewUrl) return <video src={previewUrl} className="block max-h-52 max-w-72 rounded-lg" autoPlay muted playsInline preload="metadata" />;
     if (reference.kind === "audio" && previewUrl) return <audio src={previewUrl} className="w-72" controls />;
     return <div className="max-h-52 w-72 overflow-auto whitespace-pre-wrap text-sm">{reference.text || reference.title || "暂无内容"}</div>;

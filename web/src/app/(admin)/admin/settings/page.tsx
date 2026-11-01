@@ -585,7 +585,7 @@ export default function AdminSettingsPage() {
                                                         item.kind === "add" ? null : (
                                                             <Space.Compact className="!w-full">
                                                                 <InputNumber min={0} step={0.01} precision={2} className="!w-full" value={(item as { credits: number }).credits} onChange={(value) => setModelCost(form, setModelCosts, item.model, Number(value) || 0, (item as { resolution?: string }).resolution || "", (item as { resolution?: string }).resolution || "")} />
-                                                                <span className="flex h-8 items-center rounded-r-md border border-l-0 border-stone-200 bg-stone-50 px-3 text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300">
+                                                                <span className="flex h-8 items-center rounded-r-md border border-l-0 border-border bg-muted px-3 text-sm text-muted-foreground">
                                                                     点
                                                                 </span>
                                                             </Space.Compact>

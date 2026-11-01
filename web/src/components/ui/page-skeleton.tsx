@@ -20,3 +20,18 @@ export function WorkbenchSkeleton({ label = "正在加载工作台...", classNam
         </div>
     );
 }
+
+export function GridSkeleton({ label = "正在加载...", cards = 8, className }: { label?: string; cards?: number; className?: string }) {
+    return (
+        <div aria-busy className={cn("mx-auto w-full max-w-7xl px-4 py-8 sm:px-6", className)}>
+            <div className="mb-2 h-8 w-44 rounded-md bg-muted motion-safe:animate-pulse" />
+            <div className="mb-8 h-4 w-64 rounded-md bg-muted motion-safe:animate-pulse" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from({ length: cards }).map((_, index) => (
+                    <div key={index} className="h-64 rounded-xl bg-muted motion-safe:animate-pulse" />
+                ))}
+            </div>
+            <span className="sr-only" aria-live="polite">{label}</span>
+        </div>
+    );
+}

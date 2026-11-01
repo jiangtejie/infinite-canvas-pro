@@ -49,6 +49,10 @@
 
 :root {
     --radius: 0.625rem;
+    /* 页面环境光与玻璃高光：参考 neural-creator-dashboard 的光感层 */
+    --ambient-1: oklch(0.62 0.03 265 / 7%);
+    --ambient-2: oklch(0.66 0.04 30 / 5%);
+    --glass-highlight: oklch(1 0 0 / 55%);
     --border: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
     --background: oklch(1 0 0);
@@ -83,6 +87,9 @@
 }
 
 .dark {
+    --ambient-1: oklch(0.72 0.04 265 / 9%);
+    --ambient-2: oklch(0.6 0.05 30 / 7%);
+    --glass-highlight: oklch(1 0 0 / 8%);
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --border: oklch(1 0 0 / 10%);
@@ -127,6 +134,11 @@
     }
     body {
         @apply bg-background text-foreground;
+        background-image:
+            radial-gradient(ellipse 70% 55% at 18% 0%, var(--ambient-1), transparent 68%),
+            radial-gradient(ellipse 55% 50% at 92% 100%, var(--ambient-2), transparent 70%);
+        background-attachment: fixed;
+        background-repeat: no-repeat;
     }
     textarea {
         resize: none;
@@ -157,6 +169,26 @@
 }
 
 @layer utilities {
+    /* 亚克力浮层：顶部内高光 + 深投影，配合 backdrop-blur 使用 */
+    /* 列表错峰入场：配合 style={{ "--enter-index": index }} 使用 */
+    @keyframes enter-up {
+        from {
+            opacity: 0;
+            transform: translateY(6px);
+        }
+    }
+
+    .enter-up {
+        animation: enter-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+        animation-delay: calc(var(--enter-index, 0) * 40ms);
+    }
+
+    .glass-panel {
+        box-shadow:
+            inset 0 1px 0 var(--glass-highlight),
+            0 18px 48px rgb(0 0 0 / 22%);
+    }
+
     .ai-title-aurora {
         background: linear-gradient(90deg, #111827 0%, #111827 36%, #6b7280 54%, #111827 72%, #111827 100%);
         background-size: 220% 100%;
@@ -425,6 +457,19 @@
     .canvas-image-settings-popover .ant-popover-inner-content {
         max-height: calc(100vh - 96px);
         overflow-y: auto;
+    }
+
+    /* 分段控件选中态改用内阴影描边，切换时没有 1px 抖动 */
+    .ant-segmented-item-selected {
+        box-shadow:
+            inset 0 0 0 1px oklch(0.2 0 0 / 16%),
+            0 1px 2px oklch(0.2 0 0 / 8%);
+    }
+
+    .dark .ant-segmented-item-selected {
+        box-shadow:
+            inset 0 0 0 1px oklch(1 0 0 / 22%),
+            0 1px 2px oklch(0 0 0 / 30%);
     }
 
     .canvas-image-settings-popover .ant-segmented {

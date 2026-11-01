@@ -70,10 +70,10 @@ function LoginContent() {
 
     return (
         <main className="flex h-full min-h-0 items-center justify-center overflow-y-auto bg-background px-6 py-10">
-            <section className="w-full max-w-[420px]">
+            <section className="glass-panel w-full max-w-[420px] rounded-2xl border border-border/70 bg-card/70 p-6 backdrop-blur-xl sm:p-8">
                 <div className="mb-7 text-center">
                     <span
-                        className="mx-auto mb-4 block size-12 bg-foreground"
+                        className="mx-auto mb-4 block size-12 bg-foreground [filter:drop-shadow(0_0_18px_color-mix(in_srgb,var(--foreground)_35%,transparent))]"
                         style={{
                             mask: "url(/logo.svg) center / contain no-repeat",
                             WebkitMask: "url(/logo.svg) center / contain no-repeat",

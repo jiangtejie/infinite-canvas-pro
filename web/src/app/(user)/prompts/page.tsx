@@ -82,7 +82,8 @@ export default function PromptsPage() {
                 {!query.isLoading && !query.isError ? (
                     <div>
                         <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {promptItems.map((item) => (
+                            {promptItems.map((item, index) => (
+                                <div key={item.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
                                 <PromptCard
                                     key={item.id}
                                     item={item}
@@ -94,6 +95,7 @@ export default function PromptsPage() {
                                         </Button>
                                     }
                                 />
+                                </div>
                             ))}
                         </div>
                         {promptItems.length === 0 ? <EmptyState title="没有找到匹配的提示词" description="调整标题、分类或标签后再试。" /> : null}

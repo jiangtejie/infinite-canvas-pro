@@ -137,7 +137,7 @@ export default function AdminAICallLogsPage() {
                             <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(""); setPage(1); void loadLogs(); }}>
                                 重置
                             </Button>
-                            <div className="flex h-8 items-center gap-2 rounded-md border border-stone-200 px-3 dark:border-stone-800">
+                            <div className="flex h-8 items-center gap-2 rounded-md border border-border bg-background px-3">
                                 <Typography.Text className="whitespace-nowrap text-sm">本地直连日志</Typography.Text>
                                 <Switch size="small" checked={localDirectReportEnabled} loading={savingLocalDirectReport} onChange={(checked) => void updateLocalDirectReport(checked)} />
                             </div>
@@ -182,7 +182,7 @@ export default function AdminAICallLogsPage() {
 
 function LogBlock({ value }: { value: string }) {
     return (
-        <pre className="max-h-[72vh] whitespace-pre-wrap break-words overflow-auto rounded-lg border border-stone-200 bg-stone-50 p-3 text-xs leading-5 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-200">{value || "-"}</pre>
+        <pre className="max-h-[72vh] whitespace-pre-wrap break-words overflow-auto rounded-lg border border-border bg-muted p-3 text-xs leading-5 text-foreground">{value || "-"}</pre>
     );
 }
 

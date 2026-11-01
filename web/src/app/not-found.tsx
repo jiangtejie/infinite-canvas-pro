@@ -7,8 +7,10 @@ export default function NotFound() {
         <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
             <AnnouncementBanner />
             <main className="flex h-full min-h-0 items-center justify-center overflow-y-auto bg-background px-6 py-10 text-foreground">
-                <section className="w-full max-w-md text-center">
-                    <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-lg border border-border bg-card text-2xl font-semibold shadow-sm">404</div>
+                <section className="glass-panel w-full max-w-md rounded-2xl border border-border/70 bg-card/70 px-8 py-10 text-center backdrop-blur-xl">
+                    <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-xl border border-border bg-muted/60">
+                        <span className="bg-[linear-gradient(135deg,var(--foreground),color-mix(in_srgb,var(--foreground)_45%,transparent))] bg-clip-text text-2xl font-semibold text-transparent">404</span>
+                    </div>
                     <h1 className="text-3xl font-semibold tracking-normal">页面不存在</h1>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">这个地址没有对应的页面，可能已经移动或被合并到其他入口。</p>
                     <div className="mt-8 flex flex-wrap justify-center gap-3">

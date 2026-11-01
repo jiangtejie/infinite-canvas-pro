@@ -169,8 +169,10 @@ export default function AssetLibraryPage() {
 
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {items.map((asset) => (
-                            <LibraryCard key={asset.id} asset={asset} onOpen={() => setSelectedAsset(asset)} onAdd={() => void saveToMyAssets(asset)} />
+                        {items.map((asset, index) => (
+                            <div key={asset.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
+                                <LibraryCard asset={asset} onOpen={() => setSelectedAsset(asset)} onAdd={() => void saveToMyAssets(asset)} />
+                            </div>
                         ))}
                     </div>
 
@@ -235,12 +237,12 @@ function LibraryCard({ asset, onOpen, onAdd }: { asset: AssetLibraryItem; onOpen
     return (
         <Card
             hoverable
-            className="overflow-hidden"
+            className="group overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5"
             styles={{ body: { padding: 0 } }}
             cover={
-                <button type="button" className="block w-full text-left" onClick={onOpen}>
+                <button type="button" className="block w-full overflow-hidden text-left" onClick={onOpen}>
                     {cover ? (
-                        <img src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover" />
+                        <img loading="lazy" decoding="async" src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                     ) : (
                         <div className="flex aspect-[4/3] items-center justify-center bg-muted p-5 text-center text-sm leading-6 text-muted-foreground">{asset.content || "暂无封面"}</div>
                     )}

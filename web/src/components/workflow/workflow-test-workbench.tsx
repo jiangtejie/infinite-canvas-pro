@@ -350,7 +350,7 @@ function MediaPicker({ kind, limit, files, maskIndex, onChange }: { kind: MediaK
                 <div className="workflow-test-file-list">
                     {files.map((item, index) => (
                         <span key={item.id} title={item.file.name}>
-                            {kind === "image" ? <img src={item.url} alt="" /> : mediaIcon(kind)}
+                            {kind === "image" ? <img loading="lazy" decoding="async" src={item.url} alt="" /> : mediaIcon(kind)}
                             <b>{maskIndex === index ? "蒙版" : index + 1}</b>
                             <em>{item.file.name}</em>
                         </span>
@@ -409,7 +409,7 @@ function ResultPreview({ capability, urls }: { capability: WorkflowCapability; u
     return (
         <div className="workflow-test-image-results">
             {urls.map((url) => (
-                <img key={url} src={url} alt="工作流测试输出" />
+                <img loading="lazy" decoding="async" key={url} src={url} alt="工作流测试输出" />
             ))}
         </div>
     );

@@ -8,6 +8,7 @@
         "build": "bun run build:bridge && next build",
         "build:bridge": "bun ../canvas-agent/scripts/build-comfy-bridge.ts",
         "start": "next start",
+        "test": "bun test",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
     },

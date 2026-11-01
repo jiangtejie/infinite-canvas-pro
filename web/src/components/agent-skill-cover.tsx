@@ -41,7 +41,7 @@ export function AgentSkillCover({ name, coverUrl = "", coverStorageKey = "", siz
     return (
         <span className="relative grid shrink-0 place-items-center overflow-hidden rounded-lg border" style={{ width: size, height: size, borderColor, background }}>
             {src
-                ? <img src={src} alt={name} draggable={false} className="size-full object-contain" onError={() => setSrc("")} />
+                ? <img loading="lazy" decoding="async" src={src} alt={name} draggable={false} className="size-full object-contain" onError={() => setSrc("")} />
                 : <Wrench aria-hidden style={{ width: iconSize, height: iconSize }} />}
         </span>
     );

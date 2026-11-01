@@ -150,7 +150,7 @@ function ModelLabel({ model, label, channelName }: { model: string; label?: stri
 
 function ModelIcon({ model }: { model: string }) {
     const icon = resolveModelIcon(model);
-    return icon ? <img src={icon} alt="" className="size-4 shrink-0 dark:invert" /> : <Cpu className="size-4 shrink-0 opacity-70" />;
+    return icon ? <img decoding="async" src={icon} alt="" className="size-4 shrink-0 dark:invert" /> : <Cpu className="size-4 shrink-0 opacity-70" />;
 }
 
 function resolveModelIcon(model: string) {

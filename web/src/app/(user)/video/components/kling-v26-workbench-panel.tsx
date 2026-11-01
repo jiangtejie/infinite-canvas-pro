@@ -440,7 +440,7 @@ function KlingElementReferenceStrip({ references, onRemoveReference, onMoveRefer
         <div className="hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden min-h-24 rounded-lg border border-dashed border-border p-2 pb-3 overscroll-x-contain">
             {references.map((item, index) => (
                 <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
-                    {item.kind === "image" ? <img src={item.dataUrl || item.url} alt={item.name} className="size-full object-cover" /> : item.kind === "video" ? <video src={item.url} className="size-full object-cover" muted preload="metadata" /> : <div className="flex size-full flex-col items-center justify-center gap-1 px-1 text-center text-xs text-muted-foreground"><Music2 className="size-5" /><span className="line-clamp-2">{item.name}</span></div>}
+                    {item.kind === "image" ? <img loading="lazy" decoding="async" src={item.dataUrl || item.url} alt={item.name} className="size-full object-cover" /> : item.kind === "video" ? <video src={item.url} className="size-full object-cover" muted preload="metadata" /> : <div className="flex size-full flex-col items-center justify-center gap-1 px-1 text-center text-xs text-muted-foreground"><Music2 className="size-5" /><span className="line-clamp-2">{item.name}</span></div>}
                     {item.kind === "video" ? <VideoIcon className="absolute bottom-1 left-1 size-3.5 text-white drop-shadow" /> : null}
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{index + 1}</span>
                     <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
@@ -459,7 +459,7 @@ function KlingReferenceImageStrip({ references, emptyText = TEXT.emptyImages, on
         <div className="hover-scrollbar hover-scrollbar-hint flex w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden min-h-24 rounded-lg border border-dashed border-border p-2 pb-3 overscroll-x-contain">
             {references.map((item, index) => (
                 <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-border">
-                    <img src={item.dataUrl} alt={item.name} className="size-full object-cover" />
+                    <img loading="lazy" decoding="async" src={item.dataUrl} alt={item.name} className="size-full object-cover" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{TEXT.image}{index + 1}</span>
                     <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
                     <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label={TEXT.removeImage}>

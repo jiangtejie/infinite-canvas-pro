@@ -5203,7 +5203,7 @@ function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGeneratedPanora
                         disabled={!hasPrev}
                         onClick={(e) => { e.stopPropagation(); onPrev?.(); }}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className="absolute left-4 top-1/2 z-[2010] -translate-y-1/2 flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-all hover:bg-white/10 hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
+                        className="absolute left-4 top-1/2 z-[2010] -translate-y-1/2 flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-[background-color,transform,opacity] hover:bg-white/10 hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
                     >
                         <ChevronLeft className="size-6" />
                     </button>
@@ -5212,7 +5212,7 @@ function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGeneratedPanora
                         disabled={!hasNext}
                         onClick={(e) => { e.stopPropagation(); onNext?.(); }}
                         onPointerDown={(e) => e.stopPropagation()}
-                        className="absolute right-4 top-1/2 z-[2010] -translate-y-1/2 flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-all hover:bg-white/10 hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
+                        className="absolute right-4 top-1/2 z-[2010] -translate-y-1/2 flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-[background-color,transform,opacity] hover:bg-white/10 hover:scale-105 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed"
                     >
                         <ChevronRight className="size-6" />
                     </button>

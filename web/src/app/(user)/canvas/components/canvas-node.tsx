@@ -519,7 +519,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
                             <span>{progress}%</span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
-                            <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
+                            <div className="h-full rounded-full transition-[width]" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
                         </div>
                     </div>
                 ) : null}
@@ -536,7 +536,7 @@ function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "no
             </span>
             {progress > 0 ? (
                 <div className="h-1.5 w-28 overflow-hidden rounded-full" style={{ background: theme.node.stroke }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
+                    <div className="h-full rounded-full transition-[width]" style={{ width: `${progress}%`, background: theme.node.activeStroke }} />
                 </div>
             ) : null}
         </div>
@@ -935,7 +935,7 @@ function BatchFrame({ batchCount, batchExpanded, batchOpening, batchRecovering, 
                     {Array.from({ length: Math.min(batchCount - 1, 5) }).map((_, index) => (
                         <div
                             key={index}
-                            className="absolute rounded-[inherit] border shadow-[0_14px_34px_rgba(68,64,60,.16)] transition-all duration-300 group-hover/batch:translate-x-2"
+                            className="absolute rounded-[inherit] border shadow-[0_14px_34px_rgba(68,64,60,.16)] transition-[transform,box-shadow] duration-300 group-hover/batch:translate-x-2"
                             style={{
                                 inset: 0,
                                 background: `linear-gradient(135deg, ${theme.node.panel}, ${theme.node.fill})`,
@@ -973,7 +973,7 @@ function ConnectionHandleDot({ side, visible, onMouseDown }: { side: "left" | "r
                 } ${visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
             onMouseDown={onMouseDown}
         >
-            <div className="size-3 rounded-full border-2 transition-all hover:scale-125" style={{ background: theme.node.panel, borderColor: theme.node.muted }} />
+            <div className="size-3 rounded-full border-2 transition-[transform,background-color,border-color] hover:scale-125" style={{ background: theme.node.panel, borderColor: theme.node.muted }} />
         </div>
     );
 }

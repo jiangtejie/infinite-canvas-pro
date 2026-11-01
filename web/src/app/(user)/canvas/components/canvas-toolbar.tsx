@@ -77,7 +77,7 @@ export function CanvasToolbar({
     const dockRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLElement | null>(null);
-    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)" };
+    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: `inset 0 1px 0 ${colorTheme === "dark" ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.55)"}, ${colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)"}` };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
     const addItems: DockMenuItem[] = [
         { key: "text", label: "文本", icon: <Type className="size-4" />, onClick: onAddText },

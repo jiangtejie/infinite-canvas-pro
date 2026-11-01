@@ -26,11 +26,11 @@ export function PromptCard({
     return (
         <Card
             hoverable
-            className="overflow-hidden"
+            className="group overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5"
             styles={{ body: { padding: 0 } }}
             cover={
-                <button type="button" className="block w-full text-left" onClick={onOpen}>
-                    <img src={item.coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover" />
+                <button type="button" className="block w-full overflow-hidden text-left" onClick={onOpen}>
+                    <img loading="lazy" decoding="async" src={item.coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                 </button>
             }
         >

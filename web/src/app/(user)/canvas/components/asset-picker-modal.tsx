@@ -179,7 +179,7 @@ function PickerCard({ title, kind, cover, loading, onClick }: { title: string; k
             disabled={loading}
         >
             {cover ? (
-                <img src={cover} alt={title} className="aspect-[4/3] w-full object-cover" />
+                <img loading="lazy" decoding="async" src={cover} alt={title} className="aspect-[4/3] w-full object-cover" />
             ) : (
                 <div className="flex aspect-[4/3] items-center justify-center bg-muted p-3 text-center text-xs leading-5 text-muted-foreground">{title}</div>
             )}

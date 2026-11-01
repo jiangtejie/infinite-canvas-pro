@@ -74,7 +74,7 @@ export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canG
 }) {
     return (
         <div className="pointer-events-none fixed inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-5 sm:bottom-[calc(1.75rem+env(safe-area-inset-bottom))] sm:px-10 lg:px-16">
-            <div className="pointer-events-auto w-full max-w-5xl rounded-xl border border-border bg-background/95 p-4 shadow-2xl backdrop-blur-xl dark:bg-card/95">
+            <div className="glass-panel pointer-events-auto w-full max-w-5xl rounded-xl border border-border bg-background/95 p-4 backdrop-blur-xl dark:bg-card/95">
                 <div className="flex flex-col gap-3">
                     <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                         <Input.TextArea
