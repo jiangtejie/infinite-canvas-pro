@@ -177,7 +177,7 @@ export default function AdminRechargePackagesPage() {
 
     return (
         <main style={{ padding: 24 }}>
-            <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <Space orientation="vertical" size={16} style={{ width: "100%" }}>
                 <Card variant="borderless">
                     <Typography.Text type="secondary">
                         这里的调整会立即影响用户中心「微信充值」里展示的套餐；下架的套餐不再出现在用户端，已创建的订单不受影响。
