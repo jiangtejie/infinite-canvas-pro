@@ -127,7 +127,10 @@ function ImageSettingsPortal({
     const alignRight = placement?.endsWith("Right");
     const alignCenter = placement === "top" || placement === "bottom";
     const left = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
-    const topPlacement = placement?.startsWith("top");
+    const spaceAbove = buttonRect.top - gap - margin;
+    const spaceBelow = window.innerHeight - buttonRect.bottom - gap - margin;
+    const preferTop = placement?.startsWith("top");
+    const topPlacement = preferTop ? !(spaceAbove < 260 && spaceBelow > spaceAbove) : spaceBelow < 260 && spaceAbove > spaceBelow;
     const style = {
         position: "fixed",
         zIndex: 1200,

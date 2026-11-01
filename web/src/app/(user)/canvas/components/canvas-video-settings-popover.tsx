@@ -97,7 +97,10 @@ function VideoSettingsPortal({ buttonRect, panelRef, placement, theme, config, o
     const alignRight = placement?.endsWith("Right");
     const alignCenter = placement === "top" || placement === "bottom";
     const left = alignCenter ? buttonRect.left + buttonRect.width / 2 - width / 2 : alignRight ? buttonRect.right - width : buttonRect.left;
-    const topPlacement = placement?.startsWith("top");
+    const spaceAbove = buttonRect.top - gap - margin;
+    const spaceBelow = window.innerHeight - buttonRect.bottom - gap - margin;
+    const preferTop = placement?.startsWith("top");
+    const topPlacement = preferTop ? !(spaceAbove < 260 && spaceBelow > spaceAbove) : spaceBelow < 260 && spaceAbove > spaceBelow;
     const style = { position: "fixed", zIndex: 1200, width, left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)), ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(260, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(260, window.innerHeight - buttonRect.bottom - margin * 2) }), background: theme.toolbar.panel, borderRadius: 18, boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)", padding: 18, overflowY: "auto", color: theme.node.text } as const;
     const model = config.model || config.videoModel || "";
     const isAPIMartKlingV3 = isAPIMartKlingV3Config(config, model);

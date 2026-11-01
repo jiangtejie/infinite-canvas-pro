@@ -58,6 +58,19 @@ export function CanvasAssistantComposer({
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [assetMenuOpen, setAssetMenuOpen] = useState(false);
     const assetMenuRef = useRef<HTMLDivElement>(null);
+    const toolbarRef = useRef<HTMLDivElement>(null);
+    const [openDown, setOpenDown] = useState(false);
+
+    useEffect(() => {
+        const update = () => {
+            const rect = toolbarRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            setOpenDown(window.innerHeight - rect.bottom > 280);
+        };
+        update();
+        window.addEventListener("resize", update);
+        return () => window.removeEventListener("resize", update);
+    }, []);
 
     useEffect(() => {
         if (!assetMenuOpen) return;
@@ -110,12 +123,16 @@ export function CanvasAssistantComposer({
                     placeholder="描述创作目标，或让我继续操作画布"
                     placeholderClassName="!left-1 !top-0"
                 />
-                <div className="@container mt-2 flex items-center justify-between gap-2">
+                <div ref={toolbarRef} className="@container mt-2 flex items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-1">
                         <div ref={assetMenuRef} className="relative">
-                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: assetMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Menu className="size-4" />} aria-label="添加素材" aria-haspopup="menu" aria-expanded={assetMenuOpen} onClick={() => setAssetMenuOpen((value) => !value)} />
+                            <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: assetMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Menu className="size-4" />} aria-label="添加素材" aria-haspopup="menu" aria-expanded={assetMenuOpen} onClick={() => {
+                                const rect = toolbarRef.current?.getBoundingClientRect();
+                                setOpenDown(rect ? window.innerHeight - rect.bottom > 200 : false);
+                                setAssetMenuOpen((value) => !value);
+                            }} />
                             {assetMenuOpen ? (
-                                <div role="menu" className="absolute bottom-full left-0 z-50 mb-2 w-40 overflow-hidden rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
+                                <div role="menu" className={`absolute left-0 z-50 w-40 overflow-hidden rounded-xl border p-1 ${openDown ? "top-full mt-2" : "bottom-full mb-2"}`} style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
                                     <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenUpload(); }}>
                                         <Upload className="size-4 shrink-0 opacity-70" />
                                         上传文件
@@ -131,7 +148,7 @@ export function CanvasAssistantComposer({
                         {codexControls}
                         <CanvasImageSettingsPopover
                             config={imageConfig}
-                            placement="topLeft"
+                            placement="bottomLeft"
                             showCount={false}
                             buttonIcon={<ImageIcon className="size-3.5" />}
                             buttonClassName="!h-8 !max-w-[116px] !justify-start !rounded-full !px-2.5"
@@ -142,7 +159,7 @@ export function CanvasAssistantComposer({
                         />
                         <CanvasVideoSettingsPopover
                             config={videoConfig}
-                            placement="topLeft"
+                            placement="bottomLeft"
                             visualOnly
                             buttonIcon={<Video className="size-3.5" />}
                             buttonClassName="!h-8 !max-w-[124px] !justify-start !rounded-full !px-2.5"
