@@ -36,6 +36,9 @@ description: 当前后端主要数据表与字段说明
 - `canvas_projects`
 - `user_configs`
 - `storage_objects`
+- `recharge_packages`
+- `recharge_orders`
+- `invoice_requests`
 
 后续新增表时再同步补充本文档，未实际使用的规划表不提前写入。
 
@@ -382,6 +385,16 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 `private.value.storage.autoSyncAllAssets` 为“全部素材云端同步”开关，默认 `false`，控制前端新增媒体和生成结果的自动转存；使用现有配置 JSON 保存，不增加数据表。
 
 当前系统设置接口会按后端结构体序列化和反序列化已知字段；数据库 JSON 中额外存在的旧字段会被忽略。
+
+## 账户充值相关表
+
+- `recharge_packages`：服务端维护的充值套餐，价格使用 `amount_fen`（人民币分），到账算力为 `credits + bonus`，只有 `enabled=true` 的套餐可被购买。
+- `recharge_orders`：用户充值订单，保存商户订单号、套餐快照、金额、二维码链接、15 分钟有效期、支付状态和微信交易号。创建请求结果不确定时订单保持待核验；用户列表查询始终按 JWT 当前用户过滤。
+- `invoice_requests`：已支付订单的开票申请及抬头、税号、接收邮箱；`user_id + order_no` 唯一，防止同一用户重复开票。
+- 订单结算会在事务内再次校验 `expires_at`，过期订单不得入账。
+- `credit_logs`：充值成功时在同一数据库事务中写入一条 `recharge` 流水，并与用户余额更新保持原子性。订单从 `pending` 到 `paid` 使用条件更新；重复回调不会重复增加余额。
+
+支付金额与算力由服务端根据 `packageId` 查询套餐得到，客户端不得提交金额、算力或用户 ID 作为可信依据。
 
 `public.value` 当前字段：
 

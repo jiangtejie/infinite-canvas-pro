@@ -20,6 +20,15 @@ type Config struct {
 	StorageDriver       string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
 	DatabaseDSN         string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
 	AILogDir            string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
+	LXPayServerURL       string `env:"LX_PAY_SERVER_URL"`
+	LXPayAppID           string `env:"LX_PAY_APP_ID"`
+	LXPayAppSecret       string `env:"LX_PAY_APP_SECRET"`
+	LXPayNotifyURL       string `env:"LX_PAY_NOTIFY_URL"`
+	LXPayAPIV3Key        string `env:"LX_PAY_API_V3_KEY"`
+	LXPayPlatformCertPath string `env:"LX_PAY_PLATFORM_CERT_PATH"`
+	LXPayTimeoutMS       int    `env:"LX_PAY_TIMEOUT_MS" envDefault:"10000"`
+	LXPayMaxRetries      int    `env:"LX_PAY_MAX_RETRIES" envDefault:"3"`
+	RechargeOrderMinutes int    `env:"RECHARGE_ORDER_MINUTES" envDefault:"15"`
 }
 
 var Cfg Config

@@ -27,6 +27,9 @@ description: 业务接口统一响应结构与前端处理约定
 
 - `POST /api/ai/autodl/workflows` 使用上述业务响应结构。请求为 `{ baseUrl, workflowId? }`，不传上游 API Key；不带工作流 ID 返回列表，带 ID 返回详情。元数据包含 `uuid`、`name`、`kind` 和详情的 `input_rules`，不返回上游内部节点映射。
 - AutoDL 视频继续使用现有 `/api/v1/videos` 创建、查询及任务响应结构。
+- 用户中心使用 `/api/v1/account/*`：资料更新、密码修改、充值套餐、Native 扫码订单、算力流水和开票申请均要求 JWT；支付回调 `/api/payment/notify` 为公开入口，仅接受 lx-pay HMAC 或微信 V3 验签后的成功通知。
+- Native 充值订单默认有效 15 分钟，可由 `RECHARGE_ORDER_MINUTES` 调整。订单金额和到账算力由服务端套餐决定；支付通知必须匹配订单号和精确分金额，重复通知按幂等处理。
+- lx-pay 创建、查询和关闭由配置的支付网关适配；SDK 文档保证的外部契约是 `createOrder`、`queryOrder`、`closeOrder` 及其参数/返回值，具体 HTTP 路径以当前网关部署路由为准。
 - `/api/v1/audio/speech` 是 AI 协议代理入口。AutoDL 成功时返回 `{ provider: "autodl", audio_url, mime_type }`；MiniMax 和 TokenDance MiniMax 成功时解码上游 hex，并返回所选格式的音频二进制；失败仍使用现有 `Fail` 业务结构。其他语音协议的响应保持原样。
 - 现有 `/api/v1/canvas/audio-tasks` 消费 AutoDL 的上游音频 URL，返回既有任务结构，不新增结果下载或转存。
 
