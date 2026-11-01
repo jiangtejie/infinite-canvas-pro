@@ -98,7 +98,8 @@ func DB() (*gorm.DB, error) {
 			&model.ComfyBridgeRequest{},
 			&model.RechargePackage{},
 			&model.RechargeOrder{},
-			&model.InvoiceRequest{},		)
+			&model.InvoiceRequest{},
+		)
 	})
 	return db, dbErr
 }
