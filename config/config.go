@@ -20,7 +20,7 @@ type Config struct {
 	StorageDriver         string `env:"STORAGE_DRIVER" envDefault:"sqlite"`
 	DatabaseDSN           string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
 	AILogDir              string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
-	LXPayServerURL        string `env:"LX_PAY_SERVER_URL"`
+	LXPayServerURL        string `env:"LX_PAY_SERVER_URL" envDefault:"http://127.0.0.1:8989"`
 	LXPayAppID            string `env:"LX_PAY_APP_ID" envDefault:"app_a0479b08373c4ba3"`
 	LXPayAppSecret        string `env:"LX_PAY_APP_SECRET" envDefault:"ae50619db16c419299de1c469f09e4b4dd8d52b77ab64807b4895f7148c86218"`
 	LXPayNotifyURL        string `env:"LX_PAY_NOTIFY_URL" envDefault:"https://jl.lx.cq.cn/api/payment/notify"`

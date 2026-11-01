@@ -659,7 +659,7 @@ export default function AdminSettingsPage() {
                                 <Card size="small" title="微信支付">
                                     <Row gutter={16}>
                                         <Col xs={24} md={12}>
-                                            <Form.Item name={["private", "payment", "lxPayServerUrl"]} label="支付网关地址" extra="留空表示未开启在线充值；环境变量 LX_PAY_SERVER_URL 可作为默认值。">
+                                            <Form.Item name={["private", "payment", "lxPayServerUrl"]} label="支付网关地址" extra="默认指向同机部署的 lx-pay 服务（http://127.0.0.1:8989）；如网关部署在其他机器，改成对应地址。">
                                                 <Input placeholder="https://pay.example.com" />
                                             </Form.Item>
                                         </Col>
