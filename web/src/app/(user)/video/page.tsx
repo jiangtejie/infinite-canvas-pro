@@ -14,11 +14,12 @@ import { PunkAura } from "@/components/ui/punk-aura";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
 import { LoadingState } from "@/components/ui/state-panel";
 import type { GeneratedVideo, GenerationResult, GenerationLog, UpdateAiConfig, AssetPickerTarget, WorkflowPollContext } from "./history";
-import { logStore, createResultFromLog, copyPrompt, replaceStoredVideoHistory, persistStoredVideoLogs, mergeVideoLogs, shouldSyncVideoLog, dedupeVideoLogs, mergeBackendVideoTasks, isClientVideoTaskId, videoTaskIdentityKeys, isLocalClientVideoTask, isLocalClientVideoLog, videoLogIdentityKeys, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, updateResultByLogId, mergePendingLogResults, sortVideoResults, sortVideoLogs, isRecoverableBackendVideoTask, isCloudVideo, errorMessage, errorDetail, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, resolveKlingWorkbenchConfig, videoChannelProtocol, characterOrientationOptions, normalizeCharacterOrientation, klingBottomSizeValue, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeKlingV26Seconds, normalizeVideoSeconds, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
+import { logStore, createResultFromLog, copyPrompt, shouldSyncVideoLog, dedupeVideoLogs, isClientVideoTaskId, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, updateResultByLogId, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, errorMessage, errorDetail, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, resolveKlingWorkbenchConfig, videoChannelProtocol, characterOrientationOptions, normalizeCharacterOrientation, klingBottomSizeValue, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeKlingV26Seconds, normalizeVideoSeconds, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
 import { FrameReferenceStrip, GenerationSettings, ReferenceQuickActions } from "./components/workbench-controls";
 import { ReferenceAudioStrip, ReferenceImageStrip, ReferenceVideoStrip } from "./components/reference-strips";
 import { ResultsPanel } from "./components/results-panel";
 import { useVideoTaskPolling } from "./hooks/use-video-task-polling";
+import { useVideoHistorySync } from "./hooks/use-video-history-sync";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
@@ -30,8 +31,8 @@ import { ARK_SEEDANCE_REFERENCE_LIMITS, boolConfig, isSeedanceVideoConfig, seeda
 import { COGVIDEOX3_DURATIONS, isAgnesVideoV25Model, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration, supportsVideoFrameReferences } from "@/lib/video-model-capabilities";
 import { deleteStoredMedia, downloadRemoteMedia, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { deleteStoredImages, uploadImage } from "@/services/image-storage";
-import { deleteVideoGenerationLogs, fetchVideoGenerationLogs, saveVideoGenerationLogs } from "@/services/api/generation-logs";
-import { createVideoGenerationTask, deleteVideoGenerationTask, listVideoGenerationTasks, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
+import { deleteVideoGenerationLogs, saveVideoGenerationLogs } from "@/services/api/generation-logs";
+import { createVideoGenerationTask, deleteVideoGenerationTask, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
 import { stopCanvasTask } from "@/services/api/canvas-tasks";
 import { submitWorkflowTask, workflowMediaSource } from "@/services/api/workflow-generation";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -1005,40 +1006,7 @@ export default function VideoPage() {
         return nextLogs;
     };
 
-    const syncBackendVideoTasks = async (baseLogs?: GenerationLog[]) => {
-        const config = effectiveConfigRef.current;
-        if (!token || !usesBackendVideoTasks(config)) return baseLogs || logsRef.current;
-        try {
-            const tasks = await listVideoGenerationTasks(config);
-            const recoverableTasks = tasks.filter(isRecoverableBackendVideoTask);
-            if (!recoverableTasks.length) return baseLogs || logsRef.current;
-            const currentLogs = baseLogs || (await readStoredLogs());
-            const mergedLogs = mergeBackendVideoTasks(currentLogs, recoverableTasks, config);
-            const taskKeys = new Set(recoverableTasks.flatMap(videoTaskIdentityKeys));
-            const recoveredLogs = mergedLogs.filter((log) => videoLogIdentityKeys(log).some((key) => taskKeys.has(key)));
-            await persistStoredVideoLogs(recoveredLogs);
-            setLogs((value) => dedupeVideoLogs([...mergedLogs, ...value.filter((log) => log.status === "停止中" || log.status === "已停止")]));
-            setResults((value) => mergePendingLogResults(value, mergedLogs.filter((log) => log.status === "生成中" && log.task && !log.video)));
-            return mergedLogs;
-        } catch {
-            return baseLogs || logsRef.current;
-        }
-    };
-
-    const loadAccountVideoHistory = async () => {
-        try {
-            const localLogs = await readStoredLogs();
-            const remoteLogs = await fetchVideoGenerationLogs<GenerationLog>(token);
-            const mergedLogs = await mergeVideoLogs(remoteLogs, localLogs);
-            await replaceStoredVideoHistory(mergedLogs);
-            setLogs((value) => dedupeVideoLogs([...mergedLogs, ...value.filter((log) => log.status === "停止中" || log.status === "已停止")]));
-            return mergedLogs;
-        } catch {
-            // Keep local video history available when account sync fails.
-            return undefined;
-        }
-    };
-
+    const { loadAccountVideoHistory, syncBackendVideoTasks } = useVideoHistorySync({ token, effectiveConfigRef, logsRef, setLogs, setResults, usesBackendVideoTasks });
     loadAccountVideoHistoryRef.current = loadAccountVideoHistory;
     syncBackendVideoTasksRef.current = syncBackendVideoTasks;
 
