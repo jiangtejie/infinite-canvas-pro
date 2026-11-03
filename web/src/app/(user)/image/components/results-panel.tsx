@@ -84,6 +84,7 @@ export function ResultsPanel({
     const { message } = App.useApp();
     const [creatingCategory, setCreatingCategory] = useState(false);
     const [categoryName, setCategoryName] = useState("");
+    const [visibleLogCount, setVisibleLogCount] = useState(48);
     useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision, getImagePreviewRevision);
     const liveImageIds = new Set(results.map((result) => result.image?.id).filter((id): id is string => Boolean(id)));
     const liveLogIds = new Set(results.flatMap(imageResultIdentityKeys));
@@ -91,6 +92,7 @@ export function ResultsPanel({
     const categoryGroups = categories.map((category) => ({ category, logs: baseVisibleLogs.filter((log) => log.categoryIds.includes(category.id)) }));
     const activeCategory = activeCategoryId ? categories.find((category) => category.id === activeCategoryId) : null;
     const visibleLogs = resultViewMode === "category" ? (activeCategoryId ? baseVisibleLogs.filter((log) => log.categoryIds.includes(activeCategoryId)) : baseVisibleLogs.filter((log) => !log.categoryIds.length)) : baseVisibleLogs;
+    const displayedLogs = visibleLogs.slice(0, visibleLogCount);
     const totalCount = results.length + (resultViewMode === "category" ? (activeCategoryId ? visibleLogs.length : categories.length + visibleLogs.length) : visibleLogs.length);
     const shouldShowGrid = totalCount > 0;
     const allVisibleLogsSelected = Boolean(visibleLogs.length) && visibleLogs.every((log) => selectedLogIds.includes(log.id));
@@ -107,6 +109,10 @@ export function ResultsPanel({
         setCategoryName("");
         setCreatingCategory(false);
     };
+
+    useEffect(() => {
+        setVisibleLogCount(48);
+    }, [activeCategoryId, resultViewMode]);
 
     useEffect(() => {
         if (activeCategoryId && !categories.some((category) => category.id === activeCategoryId)) onActiveCategoryChange(null);
@@ -195,7 +201,7 @@ export function ResultsPanel({
                                 : null}
                         </>
                     ) : null}
-                    {visibleLogs.map((log, index) => (
+                    {displayedLogs.map((log, index) => (
                         <div key={log.id} className="enter-up" style={{ "--enter-index": Math.min(index + results.length, 8) } as CSSProperties}>
                             <HistoryLogCard
                                 log={log}
@@ -220,6 +226,11 @@ export function ResultsPanel({
                             />
                         </div>
                     ))}
+                </div>
+            ) : null}
+            {visibleLogs.length > displayedLogs.length ? (
+                <div className="mt-4 flex justify-center">
+                    <Button onClick={() => setVisibleLogCount((value) => value + 48)}>加载更多（剩余 {visibleLogs.length - displayedLogs.length}）</Button>
                 </div>
             ) : null}
             <Modal title="新建分类" open={creatingCategory} onCancel={() => setCreatingCategory(false)} onOk={() => void createCategory()} okText="创建" cancelText="取消" destroyOnHidden>

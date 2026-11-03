@@ -1,6 +1,7 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
+import { Button } from "antd";
 import { VideoIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/state-panel";
@@ -61,6 +62,8 @@ export function ResultsPanel({
     const liveResultKeys = new Set(visibleResults.flatMap(videoResultIdentityKeys));
     const liveLogIds = new Set(visibleResults.flatMap((result) => [result.taskLogId, result.id]).filter((id): id is string => Boolean(id)));
     const visibleLogs = logs.filter((log) => !liveLogIds.has(log.id) && !videoLogIdentityKeys(log).some((key) => liveResultKeys.has(key)));
+    const [visibleLogCount, setVisibleLogCount] = useState(48);
+    const displayedLogs = visibleLogs.slice(0, visibleLogCount);
     const totalCount = visibleResults.length + visibleLogs.length;
     const allSelected = Boolean(visibleLogs.length) && visibleLogs.every((log) => selectedLogIds.includes(log.id));
     const selectedVideos = visibleLogs.flatMap((log) => (selectedLogIds.includes(log.id) && log.video ? [log.video] : []));
@@ -122,7 +125,7 @@ export function ResultsPanel({
                             )}
                         </div>
                     ))}
-                    {visibleLogs.map((log, index) => (
+                    {displayedLogs.map((log, index) => (
                         <div key={log.id} className="enter-up" style={{ "--enter-index": Math.min(index + visibleResults.length, 8) } as CSSProperties}>
                             <HistoryLogCard
                                 log={log}
@@ -141,6 +144,11 @@ export function ResultsPanel({
                             />
                         </div>
                     ))}
+                </div>
+            ) : null}
+            {visibleLogs.length > displayedLogs.length ? (
+                <div className="mt-4 flex justify-center">
+                    <Button onClick={() => setVisibleLogCount((value) => value + 48)}>加载更多（剩余 {visibleLogs.length - displayedLogs.length}）</Button>
                 </div>
             ) : null}
         </ResultsPanelShell>

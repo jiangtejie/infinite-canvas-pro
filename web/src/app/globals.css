@@ -214,17 +214,23 @@
         outline: 2px solid var(--ring);
         outline-offset: 2px;
     }
+    /*
+     * 不要用 * { animation-duration: .01ms } 统一压缩 antd 动效：
+     * rc-trigger 依赖动画结束回调计算弹层坐标，压缩后会停在 -1000vw / -1000vh。
+     * 这里只关闭站点自己的装饰动画，保留 antd 弹层的定位生命周期。
+     */
     @media (prefers-reduced-motion: reduce) {
+        html {
+            scroll-behavior: auto;
+        }
         .punk-signal {
             animation: none;
         }
-        *,
-        *::before,
-        *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-            scroll-behavior: auto !important;
+        .enter-up,
+        .hazard-tape,
+        .neon-bloom-a,
+        .neon-bloom-b {
+            animation: none !important;
         }
     }
 }

@@ -20,9 +20,10 @@ description: 当前项目后续值得处理的事项
 
 ### P0 / 立即处理（1–2 人日）
 
-- [ ] 验证 `af2811d` 的 GitHub Actions 与本地生产构建（`bun run build`）；若 CI 未触发或失败，先修锁文件 / 构建。
-- [ ] 长历史首屏与内存：image / video logs 先做 50–100 条窗口 + 可视区域预览订阅，避免一次渲染全部记录。
-- [ ] Antd Select / AutoComplete / Tooltip 在减少动态效果下的弹层定位逐页回归；失效则自绘或给 ConfigProvider 加定位兜底。
+- [x] 验证本地生产构建：`bun run build` 通过（33.5s 编译 + 23 个静态页）；GitHub Actions 仍无可见运行记录，待确认仓库 Actions 是否启用。
+- [x] 长历史首屏窗口：image / video 历史卡默认 48 条，底部「加载更多」每次 +48。
+- [ ] 预览订阅与内存继续收敛：只订阅可视卡片的预览版本，避免全量预览刷新。
+- [x] Antd 弹层减少动态效果定位：根因是全局 `* { animation-duration: .01ms }` 让 rc-trigger 停在 `-1000vw / -1000vh`；已改为只关闭站点装饰动画，Select 实测回到 75 / 81 正常坐标。Tooltip / AutoComplete 共用同一机制。
 - [ ] 无障碍收口：画布菜单 / 浮层 Esc / Tab / 焦点返回，图片补 width / height / alt，减少 CLS。
 
 验收：生产构建可启动，1000 条历史打开不卡顿，键盘可完成建节点 / 连线 / 删除。
