@@ -380,7 +380,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 图片结果 / 历史 / 分类卡补内在宽高；历史主图与分类预览改为 `loading="lazy"`，减少首次加载压力。
 - 首页轮播仅当前卡片 eager 加载，两侧卡片 lazy，降低首屏图片请求。
 - 根布局为 jsDelivr 增加 preconnect / dns-prefetch，缩短案例与提示词封面首包。
-- 图片任务轮询抽到 `image/hooks/use-image-task-polling.ts`（97 行）；单图生成任务抽到 `image/hooks/use-image-generation.ts`（33 行），页面只保留提交/轮询入口；图片页总行数 1497 → 1437 → 1424。
+- 图片任务轮询抽到 `image/hooks/use-image-task-polling.ts`（97 行）；单图生成任务抽到 `image/hooks/use-image-generation.ts`（33 行），页面只保留提交/轮询入口；图片页总行数 1497 → 1437 → 1423。
 - 画布缩放视图菜单打开聚焦首项，Esc 关闭后焦点回到缩放按钮；实测焦点与 aria-label 对齐。
 - Agent 的 Codex 模型 / 推理强度菜单补首项聚焦、方向键 / Home / End 与 Esc 返回触发按钮。
 - 提示词分类 / 标签筛选补 `role="button"`、`aria-pressed` 与 Enter / Space 选择；实测 system 分类从 false 切到 true。
