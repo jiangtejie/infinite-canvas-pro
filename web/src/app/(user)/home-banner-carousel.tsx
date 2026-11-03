@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 export type HomeBanner = {
     imageUrl: string;
+    imageSrcSet?: string;
     videoUrl?: string;
     linkUrl?: string;
     alt: string;
@@ -19,8 +20,8 @@ const SIDE_BANNER_WIDTH = "min(calc(94vw - 1.88rem), clamp(338.4px, 28.2vw, 432.
 const getBannerAngle = (offset: number) => offset === 0 ? 0 : offset < 0 ? 8 : -8;
 const getBannerTransform = (offset: number) => `perspective(900px) rotateY(${getBannerAngle(offset)}deg)`;
 
-const AnimatedBannerImage = memo(function AnimatedBannerImage({ src, alt, eager }: { src: string; alt: string; eager: boolean }) {
-    return <img src={src} alt={alt} loading={eager ? "eager" : "lazy"} fetchPriority={eager ? "high" : "low"} draggable={false} decoding="async" className="block h-full w-full select-none rounded-[inherit] object-cover" />;
+const AnimatedBannerImage = memo(function AnimatedBannerImage({ src, srcSet, alt, eager }: { src: string; srcSet?: string; alt: string; eager: boolean }) {
+    return <img src={src} srcSet={srcSet} sizes="(max-width: 639px) calc(100vw - 2rem), 460px" alt={alt} loading={eager ? "eager" : "lazy"} fetchPriority={eager ? "high" : "low"} draggable={false} decoding="async" className="block h-full w-full select-none rounded-[inherit] object-cover" />;
 });
 
 export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: { banners: HomeBanner[] }) {
@@ -191,7 +192,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                             <span
                                 className="relative isolate block size-full overflow-hidden rounded-2xl bg-muted"
                             >
-                                <AnimatedBannerImage src={banner.imageUrl} alt={banner.alt} eager={active} />
+                                <AnimatedBannerImage src={banner.imageUrl} srcSet={banner.imageSrcSet} alt={banner.alt} eager={active} />
                                 {active && banner.videoUrl ? (
                                     <span className="absolute inset-0 grid place-items-center bg-black/10">
                                         <span className="grid size-12 place-items-center rounded-full bg-black/55 text-white backdrop-blur">

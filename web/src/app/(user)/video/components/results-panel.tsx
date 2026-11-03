@@ -11,6 +11,12 @@ import type { GeneratedVideo, GenerationLog, GenerationResult } from "../history
 import { videoLogIdentityKeys, videoResultIdentityKeys } from "../history";
 import { FailedVideoCard, HistoryLogCard, PendingVideoCard, ResultVideoCard } from "./result-cards";
 
+const EMPTY_PROMPTS = [
+    "镜头缓慢推近，一只红色纸飞机穿过白色展厅",
+    "黄昏海边，镜头环绕人物，风吹动外套",
+    "微距镜头下，墨水在清水中扩散，慢动作",
+];
+
 export function ResultsPanel({
     className = "",
     results,
@@ -34,6 +40,7 @@ export function ResultsPanel({
     onSyncLog,
     onSaveAsset,
     syncingVideoIds,
+    onUseExample,
 }: {
     className?: string;
     results: GenerationResult[];
@@ -57,6 +64,7 @@ export function ResultsPanel({
     onSyncLog: (log: GenerationLog, video: GeneratedVideo, index: number) => void;
     onSaveAsset: (video: GeneratedVideo) => void;
     syncingVideoIds: string[];
+    onUseExample: (prompt: string) => void;
 }) {
     const visibleResults = results.filter((result) => result.status !== "failed" || pendingCount > 0);
     const liveResultKeys = new Set(visibleResults.flatMap(videoResultIdentityKeys));
@@ -89,7 +97,20 @@ export function ResultsPanel({
             }
             empty={
                 <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-border lg:min-h-[520px]">
-                    <EmptyState icon={<VideoIcon className="size-6" />} title="还没有生成视频" description="填写提示词并开始创作，生成的视频会出现在这里。" />
+                    <EmptyState
+                icon={<VideoIcon className="size-6" />}
+                title="还没有生成视频"
+                description="填写提示词并开始创作，或者先试试这些方向。"
+                action={
+                    <div className="flex max-w-lg flex-wrap justify-center gap-2">
+                        {EMPTY_PROMPTS.map((prompt) => (
+                            <Button key={prompt} size="small" className="!h-auto !whitespace-normal !px-3 !py-1.5 !text-left !text-[11px]" onClick={() => onUseExample(prompt)}>
+                                {prompt}
+                            </Button>
+                        ))}
+                    </div>
+                }
+            />
                 </div>
             }
         >

@@ -138,7 +138,7 @@ function LoginContent() {
                                 <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder="请再次输入密码" />
                             </Form.Item>
                         ) : null}
-                        <Button block type="primary" htmlType="submit" loading={isLoading} className="!mt-2">
+                        <Button block type="primary" htmlType="submit" loading={isLoading} className="!mt-2 !border-[#d4ff00] !bg-[#d4ff00] !text-[#0b0b09] hover:!border-[#c4ef00] hover:!bg-[#c4ef00] hover:!text-[#0b0b09]">
                             {mode === "register" ? "注册并进入" : "登录"}
                         </Button>
                     </Form>

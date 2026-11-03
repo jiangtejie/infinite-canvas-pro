@@ -35,12 +35,12 @@ import {
 const HOME_HERO_TITLES = ["从一个想法开始创作", "从一张参考图开始创作", "从一段视频开始创作", "从一句提示词开始创作"];
 
 const HOME_BANNERS: HomeBanner[] = [
-    { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.7/img/infinite-canvas/88.webp", videoUrl: "", linkUrl: "https://88api.ai/sign-up?aff=25ty", alt: "88API 创作服务" },
-    { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.6/img/infinite-canvas/metaso.webp", videoUrl: "", linkUrl: "https://metaso.cn/minimax-h3/?s=tt", alt: "秘塔搜索创作服务" },
-    { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.5/img/infinite-canvas/3ddirectortl.webp", videoUrl: "", linkUrl: "", alt: "三维导演工具展示" },
-    { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webp", videoUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webm", linkUrl: "", alt: "Agent 工作流演示" },
-    { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/panorama.webp", videoUrl: "", linkUrl: "", alt: "全景创作展示" },
-    { imageUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/3ddirector.webp", videoUrl: "", linkUrl: "", alt: "三维导演案例" },
+    { imageUrl: "/banners/88-960.webp", imageSrcSet: "/banners/88-480.webp 480w, /banners/88-960.webp 960w", videoUrl: "", linkUrl: "https://88api.ai/sign-up?aff=25ty", alt: "88API 创作服务" },
+    { imageUrl: "/banners/metaso-960.webp", imageSrcSet: "/banners/metaso-480.webp 480w, /banners/metaso-960.webp 960w", videoUrl: "", linkUrl: "https://metaso.cn/minimax-h3/?s=tt", alt: "秘塔搜索创作服务" },
+    { imageUrl: "/banners/3ddirectortl-960.webp", imageSrcSet: "/banners/3ddirectortl-480.webp 480w, /banners/3ddirectortl-960.webp 960w", videoUrl: "", linkUrl: "", alt: "三维导演工具展示" },
+    { imageUrl: "/banners/agent-960.webp", imageSrcSet: "/banners/agent-480.webp 480w, /banners/agent-960.webp 960w", videoUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webm", linkUrl: "", alt: "Agent 工作流演示" },
+    { imageUrl: "/banners/panorama-960.webp", imageSrcSet: "/banners/panorama-480.webp 480w, /banners/panorama-960.webp 960w", videoUrl: "", linkUrl: "", alt: "全景创作展示" },
+    { imageUrl: "/banners/3ddirector-960.webp", imageSrcSet: "/banners/3ddirector-480.webp 480w, /banners/3ddirector-960.webp 960w", videoUrl: "", linkUrl: "", alt: "三维导演案例" },
 ];
 
 const HOME_STARTERS = [
@@ -175,7 +175,7 @@ export default function IndexPage() {
 
     return (
         <main className="relative h-full overflow-x-hidden overflow-y-auto bg-transparent text-foreground">
-            <link rel="preload" as="image" href={HOME_BANNERS[0].imageUrl} fetchPriority="high" />
+            <link rel="preload" as="image" href="/banners/88-960.webp" imageSrcSet="/banners/88-480.webp 480w, /banners/88-960.webp 960w" imageSizes="(max-width: 639px) calc(100vw - 2rem), 460px" fetchPriority="high" />
             <div className="page-shell relative">
                 <section className="relative isolate flex flex-col items-center pb-10 pt-12 sm:pt-16 lg:pt-20" aria-labelledby="home-title">
                     <div aria-hidden className="neon-bloom-a left-[2%] top-24 h-[260px] w-[38%] max-w-[480px] opacity-70" />

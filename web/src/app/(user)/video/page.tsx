@@ -1060,6 +1060,7 @@ export default function VideoPage() {
                             onSyncLog={syncLogVideo}
                             onSaveAsset={saveResultToAssets}
                             syncingVideoIds={syncingVideoIds}
+                            onUseExample={setPrompt}
                         />
                     </>
                 ) : (
@@ -1090,6 +1091,7 @@ export default function VideoPage() {
                             onSyncLog={syncLogVideo}
                             onSaveAsset={saveResultToAssets}
                             syncingVideoIds={syncingVideoIds}
+                            onUseExample={setPrompt}
                         />
                         <WorkbenchPanel
                             layout="bottom"
@@ -1296,6 +1298,15 @@ function WorkbenchPanel({
         if (String(config.videoSeconds || "").trim() === "6") updateConfig("videoSeconds", "3");
     }, [config.videoSeconds, klingBottomVariant, updateConfig]);
 
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    useEffect(() => {
+        const media = window.matchMedia("(min-width: 1024px)");
+        const sync = () => setSettingsOpen(media.matches);
+        sync();
+        media.addEventListener("change", sync);
+        return () => media.removeEventListener("change", sync);
+    }, []);
+
     if (layout === "bottom") {
         return (
             <BottomPromptComposer
@@ -1378,7 +1389,7 @@ function WorkbenchPanel({
                         <ReferenceImageStrip references={references} maxCount={referenceLimits.images} onRemoveReference={onRemoveReference} onMoveReference={onMoveReference} />
                     </div>
                 </WorkbenchSection>
-                <WorkbenchSection title="参考视频" count={videoReferences.length}>
+                <WorkbenchSection title="参考视频" count={videoReferences.length} collapsible defaultOpen={videoReferences.length > 0}>
                     <div className="space-y-2">
                         <div className="flex flex-wrap gap-1">
                             <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteVideoReferences}>剪贴板</Button>
@@ -1388,7 +1399,7 @@ function WorkbenchPanel({
                         <ReferenceVideoStrip references={videoReferences} maxCount={referenceLimits.videos} onRemoveReference={onRemoveVideoReference} onMoveReference={onMoveVideoReference} />
                     </div>
                 </WorkbenchSection>
-                <WorkbenchSection title="参考音频" count={audioReferences.length}>
+                <WorkbenchSection title="参考音频" count={audioReferences.length} collapsible defaultOpen={audioReferences.length > 0}>
                     <div className="space-y-2">
                         <div className="flex flex-wrap gap-1">
                             <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteAudioReferences}>剪贴板</Button>
@@ -1399,7 +1410,9 @@ function WorkbenchPanel({
                     </div>
                 </WorkbenchSection>
                 {motionControl ? <CharacterOrientationSetting value={config.videoCharacterOrientation} onChange={(value) => updateConfig("videoCharacterOrientation", value)} /> : null}
-                <GenerationSettings config={config} model={model} updateConfig={updateConfig} openConfigDialog={openConfigDialog} />
+                <WorkbenchSection title="视频参数" collapsible defaultOpen={settingsOpen} key={settingsOpen ? "settings-open" : "settings-closed"}>
+                    <GenerationSettings config={config} model={model} updateConfig={updateConfig} openConfigDialog={openConfigDialog} />
+                </WorkbenchSection>
                 <WorkbenchSection title="任务数量">
                     <TaskCountControl value={taskCount} onChange={onTaskCountChange} />
                 </WorkbenchSection>

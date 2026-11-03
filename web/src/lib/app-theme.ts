@@ -59,6 +59,7 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
             colorLinkHover: color.primaryHover,
             colorLinkActive: color.link,
             colorTextLightSolid: color.primaryText,
+            ...(dark ? { colorTextSecondary: "#9a9a9a", colorTextTertiary: "#8a8a8a", colorTextPlaceholder: "#8a8a8a" } : {}),
             fontFamily: appFontFamily,
             borderRadius: 8,
             borderRadiusLG: 12,

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { App, Button } from "antd";
+import { App, Button, Input, Pagination } from "antd";
 import { Download, FileUp, Plus, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -22,12 +22,25 @@ export default function CanvasPage() {
     const { message } = App.useApp();
     const router = useRouter();
     const inputRef = useRef<HTMLInputElement>(null);
+    const [query, setQuery] = useState("");
+    const [page, setPage] = useState(1);
+    const pageSize = 12;
     const hydrated = useCanvasStore((state) => state.hydrated);
     const projects = useCanvasStore((state) => state.projects);
     const createProject = useCanvasStore((state) => state.createProject);
     const importProject = useCanvasStore((state) => state.importProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
+    const filteredProjects = useMemo(() => {
+        const keyword = query.trim().toLowerCase();
+        return keyword ? projects.filter((project) => project.title.toLowerCase().includes(keyword)) : projects;
+    }, [projects, query]);
+    const maxPage = Math.max(1, Math.ceil(filteredProjects.length / pageSize));
+    const visibleProjects = filteredProjects.slice((page - 1) * pageSize, page * pageSize);
+
+    useEffect(() => {
+        setPage((current) => Math.min(current, maxPage));
+    }, [maxPage]);
 
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
@@ -87,6 +100,13 @@ export default function CanvasPage() {
                     }
                 />
 
+                {projects.length ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Input.Search allowClear placeholder="搜索画布名称" className="w-full max-w-sm" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{filteredProjects.length} / {projects.length}</span>
+                    </div>
+                ) : null}
+
                 {selectedIds.length ? (
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-acid/30 bg-acid/[0.06] px-4 py-2.5">
                         <div className="flex items-center gap-2 text-xs">
@@ -114,18 +134,21 @@ export default function CanvasPage() {
 
                 {!hydrated ? (
                     <LoadingState className="min-h-[360px] rounded-xl border border-dashed border-border" label="正在加载画布" />
-                ) : projects.length ? (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        {projects.map((project, index) => (
-                            <CanvasProjectCard key={project.id} project={project} index={index} />
-                        ))}
-                    </div>
+                ) : filteredProjects.length ? (
+                    <>
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            {visibleProjects.map((project, index) => (
+                                <CanvasProjectCard key={project.id} project={project} index={index} />
+                            ))}
+                        </div>
+                        {filteredProjects.length > pageSize ? <Pagination className="justify-center" current={page} pageSize={pageSize} total={filteredProjects.length} showSizeChanger={false} onChange={setPage} /> : null}
+                    </>
                 ) : (
                     <EmptyState
                         className="min-h-[360px] rounded-xl border border-dashed border-border bg-card/40"
-                        title="还没有画布"
-                        description="新建一个画布后，就可以独立保存节点、连线和画布外观。"
-                        action={<Button type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>新建画布</Button>}
+                        title={projects.length ? "没有匹配的画布" : "还没有画布"}
+                        description={projects.length ? "调整搜索关键词后再试。" : "新建一个画布后，就可以独立保存节点、连线和画布外观。"}
+                        action={projects.length ? <Button onClick={() => { setQuery(""); setPage(1); }}>清空搜索</Button> : <Button type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>新建画布</Button>}
                     />
                 )}
             </div>

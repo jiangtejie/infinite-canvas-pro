@@ -1,6 +1,6 @@
 "use client";
 
-import { App, Button, Checkbox, Image, Input, Modal, Select, Space, Switch, Tag, Typography } from "antd";
+import { App, Button, Checkbox, Image, Input, Modal, Pagination, Select, Space, Switch, Tag, Typography } from "antd";
 import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edit3, FilePlus2, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import localforage from "localforage";
 import { nanoid } from "nanoid";
@@ -243,6 +243,7 @@ export function CreativeWorkflowWorkspace({
     const [now, setNow] = useState(Date.now());
     const [query, setQuery] = useState("");
     const [workflowCategory, setWorkflowCategory] = useState("all");
+    const [workflowPage, setWorkflowPage] = useState(1);
     const [agentOpen, setAgentOpen] = useState(false);
     const [agentPrompt, setAgentPrompt] = useState("");
     const [agentScope, setAgentScope] = useState<"private" | "public">("private");
@@ -267,6 +268,17 @@ export function CreativeWorkflowWorkspace({
     }, [query, workflowCategory, workflows]);
 
     const workflowCategories = useMemo(() => Array.from(new Set(workflows.map((workflow) => workflow.category || "未分类"))).sort((a, b) => a.localeCompare(b, "zh-CN")), [workflows]);
+    const workflowPageSize = 12;
+    const workflowMaxPage = Math.max(1, Math.ceil(filteredWorkflows.length / workflowPageSize));
+    const visibleWorkflows = filteredWorkflows.slice((workflowPage - 1) * workflowPageSize, workflowPage * workflowPageSize);
+
+    useEffect(() => {
+        setWorkflowPage(1);
+    }, [query, workflowCategory]);
+
+    useEffect(() => {
+        setWorkflowPage((current) => Math.min(current, workflowMaxPage));
+    }, [workflowMaxPage]);
 
     const renderedPrompt = useMemo(() => (runningWorkflow ? renderWorkflowPrompt(runningWorkflow, inputValues) : ""), [inputValues, runningWorkflow]);
     const runningTaskCount = workflowTasks.filter((task) => task.status === "running").length;
@@ -1008,7 +1020,7 @@ export function CreativeWorkflowWorkspace({
                 </section>
 
                 <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {filteredWorkflows.map((workflow) => (
+                    {visibleWorkflows.map((workflow) => (
                         <WorkflowCard key={workflow.id} workflow={workflow} onRun={() => openRunner(workflow)} onEdit={() => setEditingWorkflow(workflow)} onCopy={() => void duplicateWorkflow(workflow)} onDelete={() => deleteWorkflow(workflow)} />
                     ))}
                     {!filteredWorkflows.length ? (
@@ -1017,6 +1029,7 @@ export function CreativeWorkflowWorkspace({
                         </div>
                     ) : null}
                 </section>
+                {filteredWorkflows.length > workflowPageSize ? <Pagination className="justify-center" current={workflowPage} pageSize={workflowPageSize} total={filteredWorkflows.length} showSizeChanger={false} onChange={setWorkflowPage} /> : null}
 
                 {!hideTaskList && workflowTasks.length ? (
                     <section className="space-y-3">

@@ -13,6 +13,12 @@ import { CategoryCard } from "./category-card";
 import { HistoryLogCard } from "./history-log-card";
 import { FailedImageCard, PendingImageCard, ResultImageCard } from "./result-cards";
 
+const EMPTY_PROMPTS = [
+    "酸性绿色背景的极简海报，中央黑色几何标志，无文字",
+    "雨夜霓虹街道上的复古跑车，电影感，低机位",
+    "白色背景上的透明玻璃花瓶，柔光静物",
+];
+
 export function ResultsPanel({
     className = "",
     results,
@@ -46,6 +52,7 @@ export function ResultsPanel({
     onSyncResult,
     onSyncLog,
     onRetry,
+    onUseExample,
 }: {
     className?: string;
     results: GenerationResult[];
@@ -79,6 +86,7 @@ export function ResultsPanel({
     onSyncResult: (resultId: string, image: GeneratedImage, index: number) => void;
     onSyncLog: (log: GenerationLog, image: GeneratedImage, index: number) => void;
     onRetry: (result: GenerationResult) => void;
+    onUseExample: (prompt: string) => void;
 }) {
     const { message } = App.useApp();
     const [creatingCategory, setCreatingCategory] = useState(false);
@@ -159,7 +167,20 @@ export function ResultsPanel({
             }
             empty={
                 <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-border lg:min-h-[520px]">
-                    <EmptyState icon={<ImagePlus className="size-6" />} title="还没有生成图片" description="输入提示词并开始生成，结果会出现在这里。" />
+                    <EmptyState
+                icon={<ImagePlus className="size-6" />}
+                title="还没有生成图片"
+                description="输入提示词并开始生成，或者先试试这些方向。"
+                action={
+                    <div className="flex max-w-lg flex-wrap justify-center gap-2">
+                        {EMPTY_PROMPTS.map((prompt) => (
+                            <Button key={prompt} size="small" className="!h-auto !whitespace-normal !px-3 !py-1.5 !text-left !text-[11px]" onClick={() => onUseExample(prompt)}>
+                                {prompt}
+                            </Button>
+                        ))}
+                    </div>
+                }
+            />
                 </div>
             }
         >

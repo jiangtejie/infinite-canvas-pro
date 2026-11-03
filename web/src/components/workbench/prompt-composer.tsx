@@ -1,17 +1,28 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Button, Input, Tag } from "antd";
-import { BookOpen, ClipboardPaste, FolderPlus, PanelLeft, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
+import { BookOpen, ChevronDown, ClipboardPaste, FolderPlus, PanelLeft, SlidersHorizontal, Sparkles, Trash2 } from "lucide-react";
 
-export function WorkbenchSection({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
+export function WorkbenchSection({ title, count, children, collapsible = false, defaultOpen = true }: { title: string; count?: number; children: ReactNode; collapsible?: boolean; defaultOpen?: boolean }) {
+    const [open, setOpen] = useState(defaultOpen);
     return (
         <section className="border-b border-border/60 pb-4 last:border-0 last:pb-0">
             <div className="flex items-center gap-2 pb-2.5">
-                <span className="font-mono text-[10px] font-medium tracking-[0.16em] text-muted-foreground/80 uppercase">{title}</span>
-                {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
+                {collapsible ? (
+                    <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+                        <span className="font-mono text-[10px] font-medium tracking-[0.16em] text-muted-foreground/80 uppercase">{title}</span>
+                        {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
+                        <ChevronDown className={`ml-auto size-3.5 text-muted-foreground/60 transition-transform ${open ? "" : "-rotate-90"}`} aria-hidden />
+                    </button>
+                ) : (
+                    <>
+                        <span className="font-mono text-[10px] font-medium tracking-[0.16em] text-muted-foreground/80 uppercase">{title}</span>
+                        {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
+                    </>
+                )}
             </div>
-            <div className="space-y-2">{children}</div>
+            {(!collapsible || open) ? <div className="space-y-2">{children}</div> : null}
         </section>
     );
 }

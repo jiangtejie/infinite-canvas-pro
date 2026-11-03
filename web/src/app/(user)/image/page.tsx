@@ -940,6 +940,7 @@ export default function ImagePage() {
                             onSyncResult={syncResultImage}
                             onSyncLog={syncLogImage}
                             onRetry={retryResult}
+                            onUseExample={setPrompt}
                         />
                     </>
                 ) : (
@@ -977,6 +978,7 @@ export default function ImagePage() {
                             onSyncResult={syncResultImage}
                             onSyncLog={syncLogImage}
                             onRetry={retryResult}
+                            onUseExample={setPrompt}
                         />
                         <WorkbenchPanel
                             layout="bottom"
