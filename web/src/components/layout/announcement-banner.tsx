@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Carousel, type GetRef } from "antd";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Megaphone, X } from "lucide-react";
 
 const ANNOUNCEMENTS = [
@@ -10,15 +9,14 @@ const ANNOUNCEMENTS = [
     <><Megaphone />微信交流群现已开放 <a href="https://qr.tdeh.uk/ai" target="_blank" rel="noopener" className="text-[#e9e9e2]! underline! underline-offset-2">扫码加入</a></>,
 ];
 const DISMISSED_KEY = "infinite-canvas:announcement-dismissed";
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export function AnnouncementBanner() {
-    const [visible, setVisible] = useState(false);
+    const [visible, setVisible] = useState(true);
     const [slide, setSlide] = useState({ index: 0, direction: "right" });
     const [paused, setPaused] = useState(false);
-    const carouselRef = useRef<GetRef<typeof Carousel>>(null);
-    const sectionRef = useRef<HTMLElement>(null);
 
-    useEffect(() => {
+    useIsomorphicLayoutEffect(() => {
         try {
             setVisible(localStorage.getItem(DISMISSED_KEY) !== "1");
         } catch {
@@ -27,22 +25,19 @@ export function AnnouncementBanner() {
     }, []);
 
     useEffect(() => {
-        const frame = window.requestAnimationFrame(() => {
-            sectionRef.current?.querySelectorAll<HTMLElement>(".slick-slide").forEach((element) => {
-                if (element.getAttribute("aria-hidden") === "true") element.setAttribute("inert", "");
-                else element.removeAttribute("inert");
-            });
-        });
-        return () => window.cancelAnimationFrame(frame);
-    }, [slide.index, visible]);
+        if (!visible || paused || ANNOUNCEMENTS.length < 2) return;
+        const timer = window.setInterval(() => {
+            setSlide((current) => ({ index: (current.index + 1) % ANNOUNCEMENTS.length, direction: "right" }));
+        }, 5000);
+        return () => window.clearInterval(timer);
+    }, [paused, visible]);
 
     if (!visible || !ANNOUNCEMENTS.length) return null;
 
     return (
         <section
-            ref={sectionRef}
             aria-label="站点公告"
-            className="relative min-h-10 w-full shrink-0 border-b border-border/70 bg-[#0b0b09] text-[#e9e9e2]"
+            className="relative min-h-14 w-full shrink-0 border-b border-border/70 bg-[#0b0b09] text-[#e9e9e2] sm:min-h-10"
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
             onFocus={() => setPaused(true)}
@@ -53,25 +48,14 @@ export function AnnouncementBanner() {
                 <span className="size-1.5 bg-acid" />
                 公告
             </span>
-            <Carousel
-                ref={carouselRef}
-                autoplay={ANNOUNCEMENTS.length > 1 && !paused}
-                autoplaySpeed={5000}
-                effect="fade"
-                speed={0}
-                beforeChange={(_, next) => setSlide((current) => current.index === next ? current : { index: next, direction: "right" })}
-                adaptiveHeight
-                dots={false}
-                rootClassName="isolate"
-            >
-                {ANNOUNCEMENTS.map((content, index) => (
-                    <div key={index}>
-                        <div className={`flex min-h-10 items-center justify-center gap-2 py-1 pr-14 pl-9 text-center text-[13px] text-[#e9e9e2] duration-300 in-[.slick-active]:animate-in in-[.slick-active]:fade-in sm:px-12 sm:text-sm ${slide.direction === "left" ? "in-[.slick-active]:slide-in-from-left-2" : "in-[.slick-active]:slide-in-from-right-2"}`}>
-                            <span className="min-w-0 font-medium leading-[1.7] break-words [&_a]:whitespace-nowrap [&_a]:text-inherit [&_a]:underline-offset-2 [&_svg]:mr-2 [&_svg]:inline-block [&_svg]:size-4 [&_svg]:-translate-y-[2px] [&_svg]:align-middle">{content}</span>
-                        </div>
-                    </div>
-                ))}
-            </Carousel>
+            <div className="flex min-h-14 items-center justify-center gap-2 py-1 pr-14 pl-9 text-center text-[13px] text-[#e9e9e2] sm:min-h-10 sm:px-12 sm:text-sm">
+                <div
+                    key={slide.index}
+                    className={`flex min-w-0 items-center justify-center gap-2 animate-in fade-in duration-300 ${slide.direction === "left" ? "slide-in-from-left-2" : "slide-in-from-right-2"}`}
+                >
+                    <span className="min-w-0 font-medium leading-[1.7] break-words [&_a]:whitespace-nowrap [&_a]:text-inherit [&_a]:underline-offset-2 [&_svg]:mr-2 [&_svg]:inline-block [&_svg]:size-4 [&_svg]:-translate-y-[2px] [&_svg]:align-middle">{ANNOUNCEMENTS[slide.index]}</span>
+                </div>
+            </div>
             {ANNOUNCEMENTS.length > 1 && (
                 <div aria-label="选择公告" className="group/indicators absolute bottom-0.5 left-1/2 flex max-w-40 -translate-x-1/2">
                     {ANNOUNCEMENTS.map((_, index) => (
@@ -81,11 +65,7 @@ export function AnnouncementBanner() {
                             aria-label={`显示第 ${index + 1} 条公告`}
                             aria-current={slide.index === index ? true : undefined}
                             className={`group/item flex h-2.5 shrink cursor-pointer items-end justify-center rounded-sm px-1 pb-0.5 transition-[width] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${slide.index === index ? "w-9" : "w-5"}`}
-                            onClick={() => {
-                                if (index === slide.index) return;
-                                setSlide({ index, direction: index < slide.index ? "left" : "right" });
-                                carouselRef.current?.goTo(index);
-                            }}
+                            onClick={() => setSlide((current) => current.index === index ? current : { index, direction: index < current.index ? "left" : "right" })}
                         >
                             <span className={`h-0.5 w-full rounded-full transition-[height,background-color] duration-150 group-hover/indicators:h-1.5 ${slide.index === index ? "bg-acid" : "bg-white/25 group-hover/item:bg-white/50"}`} />
                         </button>

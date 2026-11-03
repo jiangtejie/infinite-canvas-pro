@@ -20,7 +20,7 @@ const getBannerAngle = (offset: number) => offset === 0 ? 0 : offset < 0 ? 8 : -
 const getBannerTransform = (offset: number) => `perspective(900px) rotateY(${getBannerAngle(offset)}deg)`;
 
 const AnimatedBannerImage = memo(function AnimatedBannerImage({ src, alt, eager }: { src: string; alt: string; eager: boolean }) {
-    return <img src={src} alt={alt} loading={eager ? "eager" : "lazy"} draggable={false} decoding="async" className="block h-full w-full select-none rounded-[inherit] object-cover" />;
+    return <img src={src} alt={alt} loading={eager ? "eager" : "lazy"} fetchPriority={eager ? "high" : "low"} draggable={false} decoding="async" className="block h-full w-full select-none rounded-[inherit] object-cover" />;
 });
 
 export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: { banners: HomeBanner[] }) {

@@ -382,6 +382,8 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 根布局为 jsDelivr 增加 preconnect / dns-prefetch，缩短案例与提示词封面首包。
 - 图片任务轮询抽到 `image/hooks/use-image-task-polling.ts`（97 行）；单图生成任务抽到 `use-image-generation.ts`（33 行）；历史同步抽到 `use-image-history-sync.ts`；批量提交抽到 `use-image-batch-generation.ts`（179 行），图片页总行数 1497 → 1388 → 1226。
 - 图片 / 视频结果卡统一到 `MediaResultCard` / `PendingMediaCard` 基座，成功卡外壳、参考图浮层、元信息与操作区不再重复。
+- 公告条去掉 react-slick 轮播，改为单条渲染 + 5s 定时切换；移除隐藏 slide / inert 兜底，CLS 从 0.05–0.18 降到 0–0.008，axe 仍 0 violation。
+- 首页当前公告卡图片 `fetchPriority="high"`，侧卡 lazy / low。
 - 视频任务轮询抽到 `video/hooks/use-video-task-polling.ts`（85 行）；视频历史同步抽到 `use-video-history-sync.ts`（59 行）；单条视频提交抽到 `use-video-generation.ts`（92 行）；停止编排抽到 `use-video-task-stop.ts`（95 行），视频页总行数 1686 → 1535 → 1469。真实 seedance 视频生成 / 停止回归通过。
 - 画布缩放视图菜单打开聚焦首项，Esc 关闭后焦点回到缩放按钮；实测焦点与 aria-label 对齐。
 - Agent 的 Codex 模型 / 推理强度菜单补首项聚焦、方向键 / Home / End 与 Esc 返回触发按钮。
