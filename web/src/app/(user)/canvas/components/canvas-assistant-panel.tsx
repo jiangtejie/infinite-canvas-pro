@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     History,
     Bot,
@@ -111,6 +111,27 @@ type PendingDeleteConfirmation = {
 
 type PanelCardAction = { label: string; onClick: () => void | Promise<void>; danger?: boolean };
 type CodexConfirmation = { id: string; title: string; content: ReactNode; actions: PanelCardAction[] };
+
+function handleMenuNavigation(event: KeyboardEvent<HTMLDivElement>, onClose: () => void, trigger: HTMLElement | null) {
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[role='menuitem']")).filter((item) => !item.hasAttribute("disabled"));
+    if (!items.length) return;
+    if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        trigger?.focus();
+        return;
+    }
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const offset = event.key === "ArrowDown" ? 1 : -1;
+        items[(current + offset + items.length) % items.length]?.focus();
+    } else if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+    }
+}
 
 export function CanvasAssistantPanel({
     canvasId,
@@ -393,12 +414,24 @@ export function CanvasAssistantPanel({
     }, [messages, view, showCodexConnection]);
     const [modelMenuOpen, setModelMenuOpen] = useState(false);
     const [effortMenuOpen, setEffortMenuOpen] = useState(false);
+    const modelMenuRef = useRef<HTMLDivElement>(null);
+    const effortMenuRef = useRef<HTMLDivElement>(null);
+    const modelTriggerRef = useRef<HTMLButtonElement>(null);
+    const effortTriggerRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (modelMenuOpen) modelMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+    }, [modelMenuOpen]);
+
+    useEffect(() => {
+        if (effortMenuOpen) effortMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+    }, [effortMenuOpen]);
     const codexControls = mode === "codex" ? (
         <>
             <div className="relative">
-                <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text, background: modelMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Cpu className="size-4" />} aria-label="选择 Codex 模型" aria-haspopup="menu" aria-expanded={modelMenuOpen} disabled={isRunning || !codex.models.length} onClick={() => setModelMenuOpen((value) => !value)}><span className="hidden max-w-28 truncate @[660px]:inline">{codexModel?.displayName || "选择模型"}</span></Button>
+                <Button ref={modelTriggerRef} type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text, background: modelMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Cpu className="size-4" />} aria-label="选择 Codex 模型" aria-haspopup="menu" aria-expanded={modelMenuOpen} disabled={isRunning || !codex.models.length} onClick={() => setModelMenuOpen((value) => !value)}><span className="hidden max-w-28 truncate @[660px]:inline">{codexModel?.displayName || "选择模型"}</span></Button>
                 {modelMenuOpen ? (
-                    <div role="menu" className="absolute bottom-full left-0 z-50 mb-2 max-h-64 w-44 overflow-y-auto rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
+                    <div ref={modelMenuRef} role="menu" className="absolute bottom-full left-0 z-50 mb-2 max-h-64 w-44 overflow-y-auto rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }} onKeyDown={(event) => handleMenuNavigation(event, () => setModelMenuOpen(false), modelTriggerRef.current)}>
                         {codex.models.map((item) => (
                             <button key={item.model} type="button" role="menuitem" className="w-full truncate rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5" style={{ color: theme.node.text, background: codexModel?.model === item.model ? theme.toolbar.activeBg : undefined }} onClick={() => { setModelMenuOpen(false); onAgentConfigChange({ codexModel: item.model, codexEffort: undefined }); }}>{item.displayName}</button>
                         ))}
@@ -406,9 +439,9 @@ export function CanvasAssistantPanel({
                 ) : null}
             </div>
             <div className="relative">
-                <Button type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text, background: effortMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Gauge className="size-4" />} aria-label="选择 Codex 推理强度" aria-haspopup="menu" aria-expanded={effortMenuOpen} disabled={isRunning || !codexModel?.supportedReasoningEfforts.length} onClick={() => setEffortMenuOpen((value) => !value)}><span className="hidden @[660px]:inline">{effortLabels[codexEffort || ""] || codexEffort}</span></Button>
+                <Button ref={effortTriggerRef} type="text" className="!h-9 !min-w-8 !shrink-0 !px-2" style={{ color: theme.node.text, background: effortMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Gauge className="size-4" />} aria-label="选择 Codex 推理强度" aria-haspopup="menu" aria-expanded={effortMenuOpen} disabled={isRunning || !codexModel?.supportedReasoningEfforts.length} onClick={() => setEffortMenuOpen((value) => !value)}><span className="hidden @[660px]:inline">{effortLabels[codexEffort || ""] || codexEffort}</span></Button>
                 {effortMenuOpen ? (
-                    <div role="menu" className="absolute bottom-full left-0 z-50 mb-2 max-h-64 w-36 overflow-y-auto rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
+                    <div ref={effortMenuRef} role="menu" className="absolute bottom-full left-0 z-50 mb-2 max-h-64 w-36 overflow-y-auto rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }} onKeyDown={(event) => handleMenuNavigation(event, () => setEffortMenuOpen(false), effortTriggerRef.current)}>
                         {codexModel?.supportedReasoningEfforts.map((item) => (
                             <button key={item.reasoningEffort} type="button" role="menuitem" className="w-full truncate rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5" style={{ color: theme.node.text, background: codexEffort === item.reasoningEffort ? theme.toolbar.activeBg : undefined }} onClick={() => { setEffortMenuOpen(false); onAgentConfigChange({ codexEffort: item.reasoningEffort }); }}>{effortLabels[item.reasoningEffort] || item.reasoningEffort}</button>
                         ))}
