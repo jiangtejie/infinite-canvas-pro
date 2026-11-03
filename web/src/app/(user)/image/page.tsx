@@ -22,6 +22,7 @@ import type { GeneratedImage, GenerationResult, GenerationLog, GenerationLogConf
 import { GenerationSettings, ReferenceQuickActions, ReferenceStrip } from "./components/workbench-controls";
 import { ResultsPanel } from "./components/results-panel";
 import { useImageTaskPolling } from "./hooks/use-image-task-polling";
+import { useImageGeneration } from "./hooks/use-image-generation";
 import { CATEGORY_STORE_KEY, logStore, categoryStore, createPendingResult, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, updateResultByLogId, mergePendingLogResults, imageTaskIdentityKeys, imageLogIdentityKeys, dedupeGenerationLogs, imageLogTaskId, isRecoverableImageTask, mergeBackendImageTasks, errorMessage, errorDetail, readStoredLogs, readStoredCategories, replaceStoredImageHistory, withWorkflowLogCategories, mergeGenerationLogs, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition, buildLog } from "./history";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
@@ -31,8 +32,7 @@ import { IMAGE_MASK_EDIT_PROMPT_PREFIX } from "@/lib/image-reference-prompt";
 import type { WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess } from "@/components/workflows/creative-workflow-workspace";
 import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
-import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
-import { createCanvasImageTask, deleteCanvasImageTask, listCanvasImageTasks, requestEdit, requestGeneration, type CanvasImageTask } from "@/services/api/image";
+import { createCanvasImageTask, deleteCanvasImageTask, listCanvasImageTasks, type CanvasImageTask } from "@/services/api/image";
 import { submitWorkflowTask } from "@/services/api/workflow-generation";
 import type { WorkflowRef } from "@/lib/workflow-channel";
 import { deleteImageGenerationLogs, fetchImageGenerationLogs, saveImageGenerationLogs } from "@/services/api/generation-logs";
@@ -975,21 +975,7 @@ export default function ImagePage() {
         };
     };
 
-    const runGenerationTask = async (resultId: string, snapshot: RequestSnapshot) => {
-        const itemStartedAt = performance.now();
-        try {
-            const result = snapshot.references.length ? await requestEdit(snapshot.requestConfig, snapshot.text, snapshot.references) : await requestGeneration(snapshot.requestConfig, snapshot.text);
-            const image = result[0];
-            if (!image) throw new Error("接口没有返回图片");
-            const meta = image.width && image.height && image.mimeType ? { width: image.width, height: image.height, mimeType: image.mimeType } : await readImageMeta(image.dataUrl);
-            const nextImage: GeneratedImage = { ...image, durationMs: performance.now() - itemStartedAt, width: meta.width, height: meta.height, bytes: image.bytes || getDataUrlByteSize(image.dataUrl), mimeType: image.mimeType || meta.mimeType };
-            setResults((value) => updateResult(value, resultId, { status: "success", image: nextImage, durationMs: nextImage.durationMs }));
-            return nextImage;
-        } catch (error) {
-            setResults((value) => updateResult(value, resultId, { status: "failed", error: errorMessage(error), errorDetail: errorDetail(error), durationMs: performance.now() - itemStartedAt }));
-            throw error;
-        }
-    };
+    const { runGenerationTask } = useImageGeneration({ setResults });
 
     const retryResult = (result: GenerationResult) => {
         const retryChannelId = imageTaskChannelId(result.task);
