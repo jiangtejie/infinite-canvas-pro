@@ -7,6 +7,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@property --neon-beam-angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -226,6 +232,10 @@
         .punk-signal {
             animation: none;
         }
+        .neon-ring::after,
+        .neon-laser {
+            animation: none;
+        }
         .enter-up,
         .hazard-tape,
         .neon-bloom-a,
@@ -437,6 +447,82 @@
         pointer-events: none;
     }
 
+    /* 边框激光流束：两束光沿描边逆时针游走，颜色由所处区域决定（左绿右品红） */
+    .neon-ring::after,
+    .neon-laser {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        padding: 1px;
+        pointer-events: none;
+        --neon-beam-angle: 0deg;
+        background: conic-gradient(
+            from 0deg,
+            color-mix(in oklch, var(--hot) 45%, white) 0deg 92deg,
+            color-mix(in oklch, var(--hot) 32%, var(--acid)) 114deg,
+            color-mix(in oklch, var(--acid) 45%, white) 136deg 264deg,
+            color-mix(in oklch, var(--acid) 32%, var(--hot)) 286deg,
+            color-mix(in oklch, var(--hot) 45%, white) 316deg 360deg
+        );
+        -webkit-mask:
+            conic-gradient(
+                from var(--neon-beam-angle),
+                #000 0deg,
+                rgb(0 0 0 / 72%) 4deg,
+                rgb(0 0 0 / 28%) 9deg,
+                rgb(0 0 0 / 7%) 15deg,
+                transparent 20deg,
+                transparent 160deg,
+                #000 180deg,
+                rgb(0 0 0 / 72%) 184deg,
+                rgb(0 0 0 / 28%) 189deg,
+                rgb(0 0 0 / 7%) 195deg,
+                transparent 200deg,
+                transparent 360deg
+            ),
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+        -webkit-mask-composite: source-in, xor;
+        mask:
+            conic-gradient(
+                from var(--neon-beam-angle),
+                #000 0deg,
+                rgb(0 0 0 / 72%) 4deg,
+                rgb(0 0 0 / 28%) 9deg,
+                rgb(0 0 0 / 7%) 15deg,
+                transparent 20deg,
+                transparent 160deg,
+                #000 180deg,
+                rgb(0 0 0 / 72%) 184deg,
+                rgb(0 0 0 / 28%) 189deg,
+                rgb(0 0 0 / 7%) 195deg,
+                transparent 200deg,
+                transparent 360deg
+            ),
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+        mask-composite: intersect, exclude;
+        filter: blur(0.7px);
+        animation: neon-beam-spin 12s linear infinite;
+    }
+
+    /* 光束光晕：同一轨迹的模糊副本，给激光撑出可见的辉光 */
+    .neon-laser {
+        inset: -2px;
+        padding: 2px;
+        filter: blur(2.5px);
+        opacity: 0.78;
+    }
+
+    /* 不支持多层遮罩合成时不渲染光束，避免整块渐变盖住面板 */
+    @supports not (mask-composite: intersect) {
+        .neon-ring::after,
+        .neon-laser {
+            display: none;
+        }
+    }
+
     /* 面板背光：贴在输入框后方的一层强光晕，模拟灯条从边缘透出来 */
     .neon-glow {
         position: absolute;
@@ -488,6 +574,12 @@
         50% {
             opacity: 0.62;
             box-shadow: 0 0 0 5px transparent;
+        }
+    }
+
+    @keyframes neon-beam-spin {
+        to {
+            --neon-beam-angle: -360deg;
         }
     }
 

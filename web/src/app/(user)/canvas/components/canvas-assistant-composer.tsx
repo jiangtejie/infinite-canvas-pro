@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, Brain, FolderOpen, ImageIcon, Menu, Square, Upload, Video } from "lucide-react";
+import { Brain, FolderOpen, ImageIcon, Menu, Navigation, Square, Upload, Video } from "lucide-react";
 import { Button } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -60,6 +60,7 @@ export function CanvasAssistantComposer({
     const assetMenuRef = useRef<HTMLDivElement>(null);
     const toolbarRef = useRef<HTMLDivElement>(null);
     const [openDown, setOpenDown] = useState(false);
+    const canSend = isRunning || Boolean(prompt.trim());
 
     useEffect(() => {
         const update = () => {
@@ -171,27 +172,38 @@ export function CanvasAssistantComposer({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                         {!codexControls ? (
-                        <Button
-                            type="text"
-                            shape="circle"
-                            className="!h-8 !w-8 !min-w-8"
-                            style={{ color: theme.node.text, background: reasoningEnabled ? theme.toolbar.activeBg : undefined }}
-                            icon={<Brain className="size-4" />}
+                        <button
+                            type="button"
+                            className="grid size-8 shrink-0 place-items-center rounded-full border transition-colors hover:opacity-90 active:scale-95"
+                            style={{
+                                borderColor: reasoningEnabled ? "color-mix(in oklab, var(--acid) 45%, transparent)" : "color-mix(in oklab, var(--acid) 22%, transparent)",
+                                backgroundColor: reasoningEnabled ? "color-mix(in oklab, var(--acid) 12%, transparent)" : "transparent",
+                                color: reasoningEnabled ? "var(--acid)" : "color-mix(in oklab, var(--acid) 55%, transparent)",
+                                boxShadow: reasoningEnabled ? "0 0 16px -7px var(--acid)" : "none",
+                            }}
                             title={reasoningEnabled ? "推理已开启" : "推理已关闭"}
                             aria-label={reasoningEnabled ? "关闭推理" : "开启推理"}
                             aria-pressed={reasoningEnabled}
                             onClick={() => onAgentConfigChange({ textReasoningEnabled: !reasoningEnabled })}
-                        />
+                        >
+                            <Brain className="size-4" />
+                        </button>
                         ) : null}
-                        <Button
-                            type="primary"
-                            shape="circle"
-                            className="!size-10 !min-w-10"
-                            disabled={!isRunning && !prompt.trim()}
+                        <button
+                            type="button"
+                            className="grid size-10 shrink-0 place-items-center rounded-full border transition-colors hover:opacity-90 active:scale-95"
+                            style={{
+                                borderColor: canSend ? "transparent" : "color-mix(in oklab, var(--acid) 28%, transparent)",
+                                backgroundColor: canSend ? "var(--acid)" : "color-mix(in oklab, var(--acid) 7%, transparent)",
+                                color: canSend ? "#0b0b09" : "color-mix(in oklab, var(--acid) 55%, transparent)",
+                                boxShadow: canSend ? "0 0 22px -6px var(--acid)" : "none",
+                            }}
+                            disabled={!canSend}
                             onClick={() => (isRunning ? onStop?.() : void submit())}
                             aria-label={isRunning ? "停止" : "发送"}
-                            icon={isRunning ? <Square className="size-4 fill-current" /> : <ArrowUp className="size-4" />}
-                        />
+                        >
+                            {isRunning ? <Square className="size-3.5 fill-current" /> : <Navigation className="size-4 fill-current" />}
+                        </button>
                     </div>
                 </div>
             </div>

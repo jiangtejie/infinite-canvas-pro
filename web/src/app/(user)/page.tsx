@@ -195,6 +195,7 @@ export default function IndexPage() {
                     <div className="relative mt-9 w-full max-w-[860px]">
                         <div aria-hidden className="neon-glow" />
                         <div ref={composerRef} className="neon-ring neon-panel relative rounded-3xl bg-muted/25 px-1 pb-1 pt-3 transition-colors focus-within:bg-muted/40 motion-reduce:transition-none dark:bg-card/55">
+                            <span aria-hidden className="neon-laser" />
                             <CanvasAssistantComposer
                                 prompt={prompt}
                                 isRunning={false}
