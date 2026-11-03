@@ -14,10 +14,11 @@ import { PunkAura } from "@/components/ui/punk-aura";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
 import { LoadingState } from "@/components/ui/state-panel";
 import type { GeneratedVideo, GenerationResult, GenerationLog, UpdateAiConfig, AssetPickerTarget, WorkflowPollContext } from "./history";
-import { logStore, createResultFromLog, copyPrompt, replaceStoredVideoHistory, persistStoredVideoLogs, mergeVideoLogs, shouldSyncVideoLog, dedupeVideoLogs, mergeBackendVideoTasks, isClientVideoTaskId, videoTaskIdentityKeys, isLocalClientVideoTask, isLocalClientVideoLog, videoLogIdentityKeys, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, updateResultByLogId, mergePendingLogResults, sortVideoResults, sortVideoLogs, videoFromTaskResponse, isCompletedVideoTask, isFailedVideoTask, isTransientVideoPollError, isRecoverableBackendVideoTask, isCloudVideo, errorMessage, errorDetail, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, resolveKlingWorkbenchConfig, videoChannelProtocol, characterOrientationOptions, normalizeCharacterOrientation, klingBottomSizeValue, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeKlingV26Seconds, normalizeVideoSeconds, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
+import { logStore, createResultFromLog, copyPrompt, replaceStoredVideoHistory, persistStoredVideoLogs, mergeVideoLogs, shouldSyncVideoLog, dedupeVideoLogs, mergeBackendVideoTasks, isClientVideoTaskId, videoTaskIdentityKeys, isLocalClientVideoTask, isLocalClientVideoLog, videoLogIdentityKeys, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, updateResultByLogId, mergePendingLogResults, sortVideoResults, sortVideoLogs, isRecoverableBackendVideoTask, isCloudVideo, errorMessage, errorDetail, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, resolveKlingWorkbenchConfig, videoChannelProtocol, characterOrientationOptions, normalizeCharacterOrientation, klingBottomSizeValue, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeKlingV26Seconds, normalizeVideoSeconds, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
 import { FrameReferenceStrip, GenerationSettings, ReferenceQuickActions } from "./components/workbench-controls";
 import { ReferenceAudioStrip, ReferenceImageStrip, ReferenceVideoStrip } from "./components/reference-strips";
 import { ResultsPanel } from "./components/results-panel";
+import { useVideoTaskPolling } from "./hooks/use-video-task-polling";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
@@ -30,9 +31,9 @@ import { COGVIDEOX3_DURATIONS, isAgnesVideoV25Model, isCogVideoX3Model, modelKey
 import { deleteStoredMedia, downloadRemoteMedia, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { deleteStoredImages, uploadImage } from "@/services/image-storage";
 import { deleteVideoGenerationLogs, fetchVideoGenerationLogs, saveVideoGenerationLogs } from "@/services/api/generation-logs";
-import { createVideoGenerationTask, deleteVideoGenerationTask, listVideoGenerationTasks, pollVideoGenerationTaskStatus, VIDEO_POLL_INTERVAL_MS, VideoRequestError, type VideoResponse } from "@/services/api/video";
+import { createVideoGenerationTask, deleteVideoGenerationTask, listVideoGenerationTasks, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
 import { stopCanvasTask } from "@/services/api/canvas-tasks";
-import { comfyOutputStorageKey, getWorkflowTask, submitWorkflowTask, workflowMediaSource } from "@/services/api/workflow-generation";
+import { submitWorkflowTask, workflowMediaSource } from "@/services/api/workflow-generation";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { channelProtocolForConfig, useConfigStore, useEffectiveConfig, type AiConfig, type VideoElementItem, type VideoElementReference } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -1065,64 +1066,7 @@ export default function VideoPage() {
         await persistVideoLog(log);
     };
 
-    const pollPendingLogOnce = async (log: GenerationLog, resumeConfig: AiConfig, context: WorkflowPollContext) => {
-        const active = () => !context.signal.aborted && (!log.providerWorkflowRef || useUserStore.getState().token === context.token);
-        if (!active()) return;
-        pollingLogIdsRef.current.add(log.id);
-        const startedAt = log.createdAt || Date.now();
-        try {
-            const workflowTask = log.providerWorkflowRef ? await getWorkflowTask(context.token, videoLogTaskId(log), context.signal) : null;
-            if (!active()) return;
-            const workflowURL = workflowTask?.urls?.[0] || "";
-            const task = workflowTask ? { ...log.task!, status: workflowTask.status, progress: workflowTask.progress, video_url: workflowURL, url: workflowURL, storageKey: comfyOutputStorageKey(workflowURL) || undefined, error: workflowTask.error ? { message: workflowTask.error } : undefined } : await pollVideoGenerationTaskStatus(resumeConfig, log.task!, context.signal);
-            if (!active()) return;
-            const durationMs = Date.now() - startedAt;
-            const baseLog = { ...log, task, durationMs, lastPolledAt: Date.now() };
-            if (isFailedVideoTask(task)) {
-                const nextLog = { ...baseLog, status: "失败" as const, error: task.error?.message || "视频生成失败", errorDetail: errorDetail(new VideoRequestError(task.error?.message || "视频生成失败", task)) };
-                await finalizeGenerationLog(nextLog, active);
-                if (!active()) return;
-                setResults((value) => updateResultByLogId(value, log.id, { status: "failed", task, error: nextLog.error, errorDetail: nextLog.errorDetail, durationMs: nextLog.durationMs, lastPolledAt: nextLog.lastPolledAt }));
-                return;
-            }
-            if (isCompletedVideoTask(task)) {
-                if (!task.video_url && !task.url) {
-                    const nextLog = { ...baseLog, status: "失败" as const, error: "视频生成完成但没有返回视频地址", errorDetail: errorDetail(new VideoRequestError("视频生成完成但没有返回视频地址", task)) };
-                    await finalizeGenerationLog(nextLog, active);
-                    if (!active()) return;
-                    setResults((value) => updateResultByLogId(value, log.id, { status: "failed", task, error: nextLog.error, errorDetail: nextLog.errorDetail, durationMs: nextLog.durationMs, lastPolledAt: nextLog.lastPolledAt }));
-                    return;
-                }
-                const workflowVideo = workflowTask && !comfyOutputStorageKey(task.video_url || task.url || "") ? await downloadRemoteMedia(task.video_url || task.url || "") : null;
-                if (!active()) return;
-                const uploaded = workflowVideo ? await uploadMediaFile(workflowVideo, "workflow-video", undefined, context.token) : null;
-                if (!active()) return;
-                const video = uploaded ? { ...videoFromTaskResponse(task, durationMs), url: uploaded.url, storageKey: uploaded.storageKey, bytes: uploaded.bytes, mimeType: uploaded.mimeType, width: uploaded.width || 1280, height: uploaded.height || 720 } : videoFromTaskResponse(task, durationMs);
-                const nextLog = { ...baseLog, status: "成功" as const, video, error: undefined, errorDetail: undefined };
-                await finalizeGenerationLog(nextLog, active);
-                if (!active()) return;
-                setResults((value) => active() ? value.filter((item) => item.taskLogId !== log.id && item.id !== log.id) : value);
-                return;
-            }
-            await saveGenerationLog(baseLog, active);
-            if (!active()) return;
-            setResults((value) => updateResultByLogId(value, log.id, { task, progress: task.progress, durationMs, lastPolledAt: baseLog.lastPolledAt }));
-        } catch (error) {
-            if (!active() || error instanceof Error && error.name === "AbortError") return;
-            const nextLog = { ...log, durationMs: Date.now() - startedAt, lastPolledAt: Date.now(), error: errorMessage(error), errorDetail: errorDetail(error) };
-            if (isTransientVideoPollError(error)) {
-                await saveGenerationLog({ ...nextLog, status: "生成中" }, active);
-                if (!active()) return;
-                setResults((value) => updateResultByLogId(value, log.id, { error: nextLog.error, errorDetail: nextLog.errorDetail, durationMs: nextLog.durationMs, lastPolledAt: nextLog.lastPolledAt }));
-                return;
-            }
-            await finalizeGenerationLog({ ...nextLog, status: "失败" }, active);
-            if (!active()) return;
-            setResults((value) => updateResultByLogId(value, log.id, { status: "failed", error: nextLog.error, errorDetail: nextLog.errorDetail, durationMs: nextLog.durationMs, lastPolledAt: nextLog.lastPolledAt }));
-        } finally {
-            pollingLogIdsRef.current.delete(log.id);
-        }
-    };
+    const { pollPendingLogOnce } = useVideoTaskPolling({ pollingLogIdsRef, setResults, saveGenerationLog, finalizeGenerationLog });
 
     const previewGenerationLog = (log: GenerationLog) => {
         setPreviewLog(log);

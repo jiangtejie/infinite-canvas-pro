@@ -381,6 +381,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 首页轮播仅当前卡片 eager 加载，两侧卡片 lazy，降低首屏图片请求。
 - 根布局为 jsDelivr 增加 preconnect / dns-prefetch，缩短案例与提示词封面首包。
 - 图片任务轮询抽到 `image/hooks/use-image-task-polling.ts`（97 行）；单图生成任务抽到 `image/hooks/use-image-generation.ts`（33 行）；历史账号同步与后端任务恢复抽到 `use-image-history-sync.ts`；图片页总行数 1497 → 1423 → 1388。
+- 视频任务轮询抽到 `video/hooks/use-video-task-polling.ts`（85 行）；视频页总行数 1686 → 1630。真实 seedance 视频生成 1 条回归通过。
 - 画布缩放视图菜单打开聚焦首项，Esc 关闭后焦点回到缩放按钮；实测焦点与 aria-label 对齐。
 - Agent 的 Codex 模型 / 推理强度菜单补首项聚焦、方向键 / Home / End 与 Esc 返回触发按钮。
 - 提示词分类 / 标签筛选补 `role="button"`、`aria-pressed` 与 Enter / Space 选择；实测 system 分类从 false 切到 true。
