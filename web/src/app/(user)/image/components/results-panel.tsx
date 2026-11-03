@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { App, Button, Input, Modal } from "antd";
 import { ImagePlus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/state-panel";
 import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
-import { ensureImagePreview, getImagePreviewRevision, subscribeImagePreviews } from "@/services/image-storage";
 
 import type { GeneratedImage, GenerationCategory, GenerationLog, GenerationResult, ResultViewMode } from "../history";
 import { imageLogIdentityKeys, imageResultIdentityKeys } from "../history";
@@ -85,7 +84,6 @@ export function ResultsPanel({
     const [creatingCategory, setCreatingCategory] = useState(false);
     const [categoryName, setCategoryName] = useState("");
     const [visibleLogCount, setVisibleLogCount] = useState(48);
-    useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision, getImagePreviewRevision);
     const liveImageIds = new Set(results.map((result) => result.image?.id).filter((id): id is string => Boolean(id)));
     const liveLogIds = new Set(results.flatMap(imageResultIdentityKeys));
     const baseVisibleLogs = logs.filter((log) => !imageLogIdentityKeys(log).some((key) => liveLogIds.has(key)) && !log.images.some((image) => liveImageIds.has(image.id)));
@@ -117,10 +115,6 @@ export function ResultsPanel({
     useEffect(() => {
         if (activeCategoryId && !categories.some((category) => category.id === activeCategoryId)) onActiveCategoryChange(null);
     }, [activeCategoryId, categories, onActiveCategoryChange]);
-
-    useEffect(() => {
-        [...results.flatMap((result) => (result.image ? [result.image] : [])), ...logs.flatMap((log) => log.images)].forEach((image) => void ensureImagePreview(`image-result:${image.id}`, image.dataUrl, image.storageKey));
-    }, [logs, results]);
 
     return (
         <ResultsPanelShell

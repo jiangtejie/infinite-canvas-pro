@@ -4,8 +4,25 @@ import { useEffect, useState } from "react";
 import { Button, Input, Tag } from "antd";
 import { PenLine, Trash2 } from "lucide-react";
 
-import { previewUrlFor } from "@/services/image-storage";
+import { useImagePreviewUrl } from "./use-preview-url";
 import type { GenerationCategory, GenerationLog } from "../history";
+
+function CategoryPreviewImage({ image, index, count }: { image: GenerationLog["images"][number]; index: number; count: number }) {
+    const src = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
+    return (
+        <img
+            src={src}
+            alt=""
+            className={`${count === 1 ? "inset-0 size-full rounded-none border-0" : "h-[92%] w-[86%] rounded-lg border border-border"} absolute object-cover shadow-xl transition-transform duration-200 group-hover:scale-[1.02]`}
+            style={{
+                left: count === 1 ? 0 : `${3 + index * 4}%`,
+                top: count === 1 ? 0 : `${4 + index * 3}%`,
+                transform: count === 1 ? "none" : `rotate(${(index - 2) * 4}deg)`,
+                zIndex: index + 1,
+            }}
+        />
+    );
+}
 
 export function CategoryCard({
     category,
@@ -42,18 +59,7 @@ export function CategoryCard({
                 {images.length ? (
                     <>
                         {images.map((image, index) => (
-                            <img
-                                key={`${image.id}-${index}`}
-                                src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl}
-                                alt=""
-                                className={`${images.length === 1 ? "inset-0 size-full rounded-none border-0" : "h-[92%] w-[86%] rounded-lg border border-border"} absolute object-cover shadow-xl transition-transform duration-200 group-hover:scale-[1.02]`}
-                                style={{
-                                    left: images.length === 1 ? 0 : `${3 + index * 4}%`,
-                                    top: images.length === 1 ? 0 : `${4 + index * 3}%`,
-                                    transform: images.length === 1 ? "none" : `rotate(${(index - 2) * 4}deg)`,
-                                    zIndex: index + 1,
-                                }}
-                            />
+                            <CategoryPreviewImage key={`${image.id}-${index}`} image={image} index={index} count={images.length} />
                         ))}
                     </>
                 ) : (

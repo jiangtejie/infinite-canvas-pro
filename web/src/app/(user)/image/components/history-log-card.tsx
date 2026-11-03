@@ -6,8 +6,13 @@ import { AlertCircle, Brush, CloudUpload, Download, FolderPlus, PenLine, Plus, R
 
 import { FailureDetailModal, ReferenceThumbnailOverlay, TaskErrorLine, TaskPromptBlock, formatTaskTime } from "@/components/workbench/task-result";
 import { formatDuration } from "@/lib/image-utils";
-import { previewUrlFor } from "@/services/image-storage";
+import { useImagePreviewUrl } from "./use-preview-url";
 import type { GeneratedImage, GenerationCategory, GenerationLog } from "../history";
+
+function HistoryPreviewImage({ image, preview = false, alt, className }: { image: GeneratedImage; preview?: boolean; alt: string; className: string }) {
+    const src = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
+    return preview ? <Image src={src} preview={{ src: image.dataUrl }} alt={alt} className={className} /> : <img loading="lazy" decoding="async" src={src} alt={alt} className={className} />;
+}
 
 export function HistoryLogCard({
     log,
@@ -93,7 +98,7 @@ export function HistoryLogCard({
                     <Tag className="m-0 text-[10px]">{log.imageCount} 张</Tag>
                 </div>
                 {firstImage ? (
-                    <Image src={previewUrlFor(`image-result:${firstImage.id}`, firstImage.storageKey || firstImage.dataUrl) || firstImage.dataUrl} preview={{ src: firstImage.dataUrl }} alt={`历史结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
+                    <HistoryPreviewImage image={firstImage} preview alt={`历史结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
                 ) : (
                     <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center text-sm text-red-500">
                         <AlertCircle className="size-7" />
@@ -103,7 +108,7 @@ export function HistoryLogCard({
                 {displayImages.length > 1 ? (
                     <div className="absolute bottom-1.5 left-1.5 right-1.5 flex gap-1 overflow-hidden">
                         {displayImages.slice(0, 4).map((image) => (
-                            <img loading="lazy" decoding="async" key={image.id} src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl} alt="" className="size-8 shrink-0 rounded border border-border object-cover shadow-sm" />
+                            <HistoryPreviewImage key={image.id} image={image} alt="" className="size-8 shrink-0 rounded border border-border object-cover shadow-sm" />
                         ))}
                     </div>
                 ) : null}

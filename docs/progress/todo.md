@@ -22,7 +22,7 @@ description: 当前项目后续值得处理的事项
 
 - [x] 验证本地生产构建：`bun run build` 通过（33.5s 编译 + 23 个静态页）；GitHub Actions 仍无可见运行记录，待确认仓库 Actions 是否启用。
 - [x] 长历史首屏窗口：image / video 历史卡默认 48 条，底部「加载更多」每次 +48。
-- [ ] 预览订阅与内存继续收敛：只订阅可视卡片的预览版本，避免全量预览刷新。
+- [x] 预览订阅与内存：预览生成与版本订阅下沉到每张可见图片的 `useImagePreviewUrl`，历史卡未渲染时不再生成预览或刷新。
 - [x] Antd 弹层减少动态效果定位：根因是全局 `* { animation-duration: .01ms }` 让 rc-trigger 停在 `-1000vw / -1000vh`；已改为只关闭站点装饰动画，Select 实测回到 75 / 81 正常坐标。Tooltip / AutoComplete 共用同一机制。
 - [ ] 无障碍收口：画布菜单 / 浮层 Esc / Tab / 焦点返回，图片补 width / height / alt，减少 CLS。
 

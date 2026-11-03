@@ -5,7 +5,7 @@ import { CloudUpload, Download, FolderPlus, LoaderCircle, PenLine } from "lucide
 
 import { FailedResultCard, ReferenceThumbnailOverlay, ResultMediaMeta, TaskResultInfo, formatTaskTime } from "@/components/workbench/task-result";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
-import { previewUrlFor } from "@/services/image-storage";
+import { useImagePreviewUrl } from "./use-preview-url";
 
 import type { GeneratedImage, GenerationResult } from "../history";
 
@@ -30,6 +30,8 @@ export function ResultImageCard({
     syncing: boolean;
     onSync: (image: GeneratedImage) => void;
 }) {
+    const previewUrl = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
+
     return (
         <div className="overflow-hidden rounded-xl border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
             <div className="relative aspect-[4/3] bg-muted">
@@ -38,7 +40,7 @@ export function ResultImageCard({
                     <Tag className="m-0 text-[10px]" color="blue">新生成</Tag>
                 </div>
                 <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
-                <Image src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
+                <Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
             </div>
             <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} onCopyPrompt={onCopyPrompt} />
             <ResultMediaMeta
