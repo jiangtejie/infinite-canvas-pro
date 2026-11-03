@@ -21,6 +21,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
     const theme = canvasThemes[colorTheme];
     const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
     const zoomMenuRef = useRef<HTMLDivElement>(null);
+    const zoomTriggerRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         if (!zoomMenuOpen) return;
@@ -33,6 +34,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
             if (event.key !== "Escape") return;
             event.preventDefault();
             setZoomMenuOpen(false);
+            zoomTriggerRef.current?.focus();
         };
         document.addEventListener("pointerdown", closeOnPointerDown, true);
         document.addEventListener("keydown", closeOnEscape);
@@ -41,6 +43,11 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
             document.removeEventListener("keydown", closeOnEscape);
         };
     }, [zoomMenuOpen]);
+
+    useEffect(() => {
+        if (zoomMenuOpen) zoomMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
+    }, [zoomMenuOpen]);
+
     const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)" };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
 
@@ -74,7 +81,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
                     />
                 </Tooltip>
                 <div ref={zoomMenuRef} className="relative">
-                    <Button type="text" className="!px-1 !text-xs tabular-nums" style={{ color: theme.node.muted, background: zoomMenuOpen ? theme.toolbar.activeBg : undefined }} aria-label={`当前缩放 ${Math.round(scale * 100)}%，打开视图菜单`} aria-haspopup="menu" aria-expanded={zoomMenuOpen} onClick={() => setZoomMenuOpen((value) => !value)}>
+                    <Button ref={zoomTriggerRef} type="text" className="!px-1 !text-xs tabular-nums" style={{ color: theme.node.muted, background: zoomMenuOpen ? theme.toolbar.activeBg : undefined }} aria-label={`当前缩放 ${Math.round(scale * 100)}%，打开视图菜单`} aria-haspopup="menu" aria-expanded={zoomMenuOpen} onClick={() => setZoomMenuOpen((value) => !value)}>
                         {Math.round(scale * 100)}%
                     </Button>
                     {zoomMenuOpen ? (
