@@ -18,14 +18,26 @@ export function FilterTagGroup({ label, options, isSelected, onSelect, className
         const value = typeof option === "string" ? option : option.value;
         const text = typeof option === "string" ? option : option.label;
         return (
-            <Tag.CheckableTag
+            <span
                 key={value || "all"}
-                checked={isSelected(value)}
-                className={cn("prompt-filter-tag", isSelected(value) && "is-active")}
-                onChange={() => onSelect(value)}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected(value)}
+                className="inline-flex"
+                onKeyDown={(event: React.KeyboardEvent<HTMLSpanElement>) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    onSelect(value);
+                }}
             >
-                {text}
-            </Tag.CheckableTag>
+                <Tag.CheckableTag
+                    checked={isSelected(value)}
+                    className={cn("prompt-filter-tag", isSelected(value) && "is-active")}
+                    onChange={() => onSelect(value)}
+                >
+                    {text}
+                </Tag.CheckableTag>
+            </span>
         );
     });
 
