@@ -11,6 +11,8 @@ function CategoryPreviewImage({ image, index, count }: { image: GenerationLog["i
     const src = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
     return (
         <img
+            loading="lazy"
+            decoding="async"
             src={src}
             alt=""
             width={image.width || undefined}

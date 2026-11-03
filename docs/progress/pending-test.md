@@ -377,7 +377,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 本地生产构建通过：`bun run build` 33.5s 编译，23 个静态页生成成功。
 - 图片预览订阅下沉到 `useImagePreviewUrl`：每张可见结果 / 历史 / 分类图单独生成并订阅预览，隐藏的历史卡不再参与预览刷新；真实生成 1 图回归正常。
 - 画布创建菜单补充 `role="menu"` / `role="menuitem"`、打开聚焦首项、Esc 关闭；实测焦点落在「文本生成」，Esc 后菜单关闭。
-- 图片结果 / 历史 / 分类卡补内在宽高，减少图片加载造成的 CLS。
+- 图片结果 / 历史 / 分类卡补内在宽高；历史主图与分类预览改为 `loading="lazy"`，减少首次加载压力。
 - 画布缩放视图菜单打开聚焦首项，Esc 关闭后焦点回到缩放按钮；实测焦点与 aria-label 对齐。
 - Agent 的 Codex 模型 / 推理强度菜单补首项聚焦、方向键 / Home / End 与 Esc 返回触发按钮。
 - 提示词分类 / 标签筛选补 `role="button"`、`aria-pressed` 与 Enter / Space 选择；实测 system 分类从 false 切到 true。
