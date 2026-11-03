@@ -384,6 +384,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 图片 / 视频结果卡统一到 `MediaResultCard` / `PendingMediaCard` 基座，成功卡外壳、参考图浮层、元信息与操作区不再重复。
 - 公告条去掉 react-slick 轮播，改为单条渲染 + 5s 定时切换；移除隐藏 slide / inert 兜底，CLS 从 0.05–0.18 降到 0–0.008，axe 仍 0 violation。
 - 首页案例图落到 `web/public/banners/`：6 张原图压缩为 480 / 960 两档 WebP，共约 187KB；当前卡 `fetchPriority="high"`，侧卡 lazy / low。本机首页 LCP 从 1.1–1.7s 降到约 0.24s。
+- 首页 Agent 视频改为本地 `agent-vp9.webm`（约 2.1MB）+ `agent.mp4` 兜底，弹层用 `<source>` 自动选择格式；视频静音自动播放、保留控制条，修复部分浏览器 WebM 不支持导致的无法播放。
 - 生图 / 视频空状态加入 3 条可点选示例提示词，点击后写入输入框。
 - 视频参考视频 / 参考音频默认折叠；视频参数在移动端默认折叠、桌面默认展开。
 - 画布库增加名称搜索与 12 条/页分页；工作流模板增加 12 条/页分页。

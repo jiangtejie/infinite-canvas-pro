@@ -38,7 +38,7 @@ const HOME_BANNERS: HomeBanner[] = [
     { imageUrl: "/banners/88-960.webp", imageSrcSet: "/banners/88-480.webp 480w, /banners/88-960.webp 960w", videoUrl: "", linkUrl: "https://88api.ai/sign-up?aff=25ty", alt: "88API 创作服务" },
     { imageUrl: "/banners/metaso-960.webp", imageSrcSet: "/banners/metaso-480.webp 480w, /banners/metaso-960.webp 960w", videoUrl: "", linkUrl: "https://metaso.cn/minimax-h3/?s=tt", alt: "秘塔搜索创作服务" },
     { imageUrl: "/banners/3ddirectortl-960.webp", imageSrcSet: "/banners/3ddirectortl-480.webp 480w, /banners/3ddirectortl-960.webp 960w", videoUrl: "", linkUrl: "", alt: "三维导演工具展示" },
-    { imageUrl: "/banners/agent-960.webp", imageSrcSet: "/banners/agent-480.webp 480w, /banners/agent-960.webp 960w", videoUrl: "https://gcore.jsdelivr.net/gh/tigerowo/cdn-tdeh@v0.4/img/infinite-canvas/agent.webm", linkUrl: "", alt: "Agent 工作流演示" },
+    { imageUrl: "/banners/agent-960.webp", imageSrcSet: "/banners/agent-480.webp 480w, /banners/agent-960.webp 960w", videoUrl: "/banners/agent-vp9.webm", videoMp4Url: "/banners/agent.mp4", linkUrl: "", alt: "Agent 工作流演示" },
     { imageUrl: "/banners/panorama-960.webp", imageSrcSet: "/banners/panorama-480.webp 480w, /banners/panorama-960.webp 960w", videoUrl: "", linkUrl: "", alt: "全景创作展示" },
     { imageUrl: "/banners/3ddirector-960.webp", imageSrcSet: "/banners/3ddirector-480.webp 480w, /banners/3ddirector-960.webp 960w", videoUrl: "", linkUrl: "", alt: "三维导演案例" },
 ];

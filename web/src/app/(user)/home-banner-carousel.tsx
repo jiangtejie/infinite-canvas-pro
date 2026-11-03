@@ -10,6 +10,7 @@ export type HomeBanner = {
     imageUrl: string;
     imageSrcSet?: string;
     videoUrl?: string;
+    videoMp4Url?: string;
     linkUrl?: string;
     alt: string;
 };
@@ -29,6 +30,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
     const activeIndex =
         ((activePosition % banners.length) + banners.length) % banners.length;
     const [activeVideoUrl, setActiveVideoUrl] = useState("");
+    const [activeVideoMp4Url, setActiveVideoMp4Url] = useState("");
     const carouselRef = useRef<HTMLDivElement>(null);
     const pointerStartRef = useRef<number | null>(null);
     const draggedRef = useRef(false);
@@ -124,8 +126,10 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
             return;
         }
 
-        if (banner.videoUrl) setActiveVideoUrl(banner.videoUrl);
-        else if (banner.linkUrl) {
+        if (banner.videoUrl) {
+            setActiveVideoUrl(banner.videoUrl);
+            setActiveVideoMp4Url(banner.videoMp4Url || "");
+        } else if (banner.linkUrl) {
             window.open(banner.linkUrl, "_blank", "noopener,noreferrer");
         }
     };
@@ -214,8 +218,13 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                     </button>
                 ))}
             </div>
-            <Modal open={Boolean(activeVideoUrl)} footer={null} centered width={960} destroyOnHidden onCancel={() => setActiveVideoUrl("")}>
-                {activeVideoUrl ? <video key={activeVideoUrl} src={activeVideoUrl} controls autoPlay playsInline className="max-h-[78vh] w-full bg-black object-contain" /> : null}
+            <Modal open={Boolean(activeVideoUrl)} footer={null} centered width={960} destroyOnHidden onCancel={() => { setActiveVideoUrl(""); setActiveVideoMp4Url(""); }}>
+                {activeVideoUrl ? (
+                    <video key={activeVideoUrl} controls autoPlay muted playsInline preload="auto" poster={banners[activeIndex]?.imageUrl} onCanPlay={(event) => { void event.currentTarget.play().catch(() => undefined); }} className="max-h-[78vh] w-full bg-black object-contain">
+                        <source src={activeVideoUrl} type={activeVideoUrl.endsWith(".webm") ? "video/webm" : "video/mp4"} />
+                        {activeVideoMp4Url ? <source src={activeVideoMp4Url} type="video/mp4" /> : null}
+                    </video>
+                ) : null}
             </Modal>
         </>
     );
