@@ -8,8 +8,8 @@ import React from "react";
 
 export const metadata: Metadata = {
     title: {
-        default: "矩灵AI",
-        template: "%s | 矩灵AI",
+        default: "矩灵画布",
+        template: "%s | 矩灵画布",
     },
     description: "面向 AI 自媒体的创作工作台，画布、生图、视频与素材一站式完成",
 };

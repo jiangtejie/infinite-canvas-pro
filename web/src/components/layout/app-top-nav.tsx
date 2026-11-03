@@ -76,7 +76,7 @@ export function AppTopNav() {
                 <header className="sticky top-0 z-30 h-[60px] shrink-0 border-b border-border/80 bg-background/72 backdrop-blur-2xl">
                     <div className="mx-auto flex h-full max-w-[1240px] items-stretch justify-between gap-6 px-5 sm:px-8">
                         <div className="flex min-w-0 items-center">
-                            <Link href="/" className="group flex h-full shrink-0 items-center gap-2.5" aria-label="矩灵AI首页">
+                            <Link href="/" className="group flex h-full shrink-0 items-center gap-2.5" aria-label="矩灵画布首页">
                                 <span className="grid size-7 shrink-0 place-items-center rounded-[3px] bg-acid shadow-[0_0_20px_-8px_var(--acid)] transition-transform duration-300 group-hover:-rotate-6">
                                     <span
                                         className="size-4 bg-[#0b0b09]"
@@ -86,7 +86,7 @@ export function AppTopNav() {
                                         }}
                                     />
                                 </span>
-                                <span className="text-[15px] font-semibold tracking-tight text-foreground">矩灵AI</span>
+                                <span className="text-[15px] font-semibold tracking-tight text-foreground">矩灵画布</span>
                             </Link>
 
                             <span aria-hidden className="mx-5 hidden h-5 w-px bg-border md:block" />

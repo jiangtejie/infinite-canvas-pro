@@ -1,6 +1,6 @@
 ---
 title: Docker 部署
-description: 使用 Docker Compose 部署矩灵AI
+description: 使用 Docker Compose 部署矩灵画布
 ---
 
 # Docker 部署

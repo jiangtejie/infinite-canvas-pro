@@ -5,7 +5,7 @@ import { Megaphone, X } from "lucide-react";
 
 const ANNOUNCEMENTS = [
     <><Megaphone />TokenDance X 百亿 Token 补贴，一键登录即可接入，SD 2 Mini 低至 0.09元/秒 <a href="https://tokendance.space/" target="_blank" rel="noopener" className="text-[#e9e9e2]! underline! underline-offset-2">查看详情</a></>,
-    <><Megaphone />矩灵AI 现已支持 RunningHub X ComfyUI 工作流</>,
+    <><Megaphone />矩灵画布现已支持 RunningHub X ComfyUI 工作流</>,
     <><Megaphone />微信交流群现已开放 <a href="https://qr.tdeh.uk/ai" target="_blank" rel="noopener" className="text-[#e9e9e2]! underline! underline-offset-2">扫码加入</a></>,
 ];
 const DISMISSED_KEY = "infinite-canvas:announcement-dismissed";

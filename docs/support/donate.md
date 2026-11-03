@@ -1,6 +1,6 @@
 ---
 title: 打赏支持
-description: 支持矩灵AI 项目继续维护
+description: 支持矩灵画布项目继续维护
 ---
 
 # 打赏支持

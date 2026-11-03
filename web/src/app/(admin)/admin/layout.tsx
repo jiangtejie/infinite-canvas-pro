@@ -74,7 +74,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         <span className="grid size-7 shrink-0 place-items-center rounded-[3px] bg-acid">
                             <span className="size-4 bg-[#0b0b09]" style={{ mask: "url(/logo.svg) center / contain no-repeat", WebkitMask: "url(/logo.svg) center / contain no-repeat" }} />
                         </span>
-                        <span className="text-[15px] font-semibold tracking-tight">矩灵AI</span>
+                        <span className="text-[15px] font-semibold tracking-tight">矩灵画布</span>
                         <span className="chip !h-[18px] !px-1.5 !text-[9px]">ADMIN</span>
                     </Link>
                     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="后台导航">
