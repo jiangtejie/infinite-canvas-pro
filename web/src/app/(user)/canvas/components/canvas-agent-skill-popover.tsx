@@ -34,6 +34,11 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const [open, setOpen] = useState(false);
     const [panelBox, setPanelBox] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+
+    useEffect(() => {
+        if (open) wrapperRef.current?.querySelector<HTMLElement>("[data-canvas-skill-panel] button, [data-canvas-skill-panel] input, [data-canvas-skill-panel] [href]")?.focus();
+    }, [open]);
 
     useEffect(() => {
         if (!open) return;
@@ -46,6 +51,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
             if (event.key !== "Escape") return;
             event.preventDefault();
             setOpen(false);
+            triggerRef.current?.focus();
         };
         document.addEventListener("pointerdown", closeOnPointerDown, true);
         document.addEventListener("keydown", closeOnEscape);
@@ -205,7 +211,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     return (
         <>
             <div ref={wrapperRef} className="relative">
-                <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: open ? theme.toolbar.activeBg : undefined }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} />
+                <Button ref={triggerRef} type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: open ? theme.toolbar.activeBg : undefined }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} />
                 {open && panelBox ? (
                     <div
                         data-canvas-skill-panel
