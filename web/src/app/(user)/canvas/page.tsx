@@ -45,7 +45,7 @@ export default function CanvasPage() {
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
     };
-    const createAndEnter = () => enterProject(createProject(`无限画布 ${projects.length + 1}`));
+    const createAndEnter = () => enterProject(createProject(`矩灵AI ${projects.length + 1}`));
     const importCanvas = async (file?: File) => {
         if (!file) return;
         try {
@@ -114,7 +114,7 @@ export default function CanvasPage() {
                             <span className="text-muted-foreground">已选 {selectedIds.length} 个画布</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button size="small" icon={<Download className="size-3.5" />} onClick={() => void exportCanvasProjects(projects.filter((project) => selectedIds.includes(project.id)), `无限画布-${selectedIds.length}个项目`)}>
+                            <Button size="small" icon={<Download className="size-3.5" />} onClick={() => void exportCanvasProjects(projects.filter((project) => selectedIds.includes(project.id)), `矩灵AI-${selectedIds.length}个项目`)}>
                                 导出选中
                             </Button>
                             <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => setDeleteIds(selectedIds)}>

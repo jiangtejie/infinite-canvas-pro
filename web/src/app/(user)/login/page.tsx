@@ -79,7 +79,7 @@ function LoginContent() {
                     <div aria-hidden className="neon-bloom-b -bottom-16 right-0 h-[220px] w-[280px] opacity-50" />
                     <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle,var(--grid-dot)_1px,transparent_1.2px)] [background-size:16px_16px] opacity-50" />
                     <div className="relative">
-                        <span className="eyebrow">无限画布 / STUDIO</span>
+                        <span className="eyebrow">矩灵AI / STUDIO</span>
                         <h2 className="mt-7 text-[2.6rem] font-semibold leading-[1.06] tracking-[-0.045em] text-foreground">
                             登录，
                             <br />
@@ -107,10 +107,10 @@ function LoginContent() {
                                 className="size-[18px] bg-[#0b0b09]"
                                 style={{ mask: "url(/logo.svg) center / contain no-repeat", WebkitMask: "url(/logo.svg) center / contain no-repeat" }}
                                 role="img"
-                                aria-label="无限画布"
+                                aria-label="矩灵AI"
                             />
                         </span>
-                        <span className="text-[15px] font-semibold tracking-tight">无限画布</span>
+                        <span className="text-[15px] font-semibold tracking-tight">矩灵AI</span>
                     </div>
 
                     <div className="mb-6">

@@ -3,7 +3,7 @@
 import { Drawer } from "antd";
 import Link from "next/link";
 
-import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
+import { navigationSections, type NavigationTool, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { cn } from "@/lib/utils";
 
 type MobileNavDrawerProps = {
@@ -13,28 +13,43 @@ type MobileNavDrawerProps = {
 };
 
 export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDrawerProps) {
+    const renderTool = (tool: NavigationTool) => {
+        const Icon = tool.icon;
+        const active = tool.slug === activeToolSlug;
+        return (
+            <Link
+                key={tool.slug}
+                href={`/${tool.slug}`}
+                onClick={onClose}
+                className={cn(
+                    "relative flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-[14px] transition-colors",
+                    active ? "bg-acid/[0.08]! font-medium text-acid!" : "text-acid! hover:bg-acid/[0.08]!",
+                )}
+            >
+                {active ? <span className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-acid" aria-hidden /> : null}
+                <span className={cn("grid size-8 shrink-0 place-items-center rounded-[5px] border", active ? "border-acid/40 bg-acid/[0.08] text-acid" : "border-border/60 bg-muted/40 text-acid")}>
+                    <Icon className="size-4" />
+                </span>
+                <span>{tool.label}</span>
+            </Link>
+        );
+    };
+
     return (
         <Drawer title="导航" placement="left" size={280} open={open} onClose={onClose} className="md:hidden" styles={{ body: { paddingTop: 8 } }}>
             <div className="space-y-1.5">
-                {navigationTools.map((tool) => {
-                    const Icon = tool.icon;
-                    const active = tool.slug === activeToolSlug;
+                {navigationSections.map((section) => {
+                    const tools: readonly NavigationTool[] = "children" in section ? section.children : [section];
+                    const sectionActive = tools.some((tool) => tool.slug === activeToolSlug);
                     return (
-                        <Link
-                            key={tool.slug}
-                            href={`/${tool.slug}`}
-                            onClick={onClose}
-                            className={cn(
-                                "relative flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-[14px] transition-colors",
-                                active ? "bg-acid/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-                            )}
-                        >
-                            {active ? <span className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-acid" aria-hidden /> : null}
-                            <span className={cn("grid size-8 shrink-0 place-items-center rounded-[5px] border", active ? "border-border bg-background text-acid" : "border-border/60 bg-muted/40 text-muted-foreground")}>
-                                <Icon className="size-4" />
-                            </span>
-                            <span>{tool.label}</span>
-                        </Link>
+                        <div key={"children" in section ? section.label : section.slug} className="space-y-1.5">
+                            {"children" in section ? (
+                                <p className={cn("px-3 pt-2 font-mono text-[10px] tracking-[0.18em] uppercase", sectionActive ? "text-acid" : "text-muted-foreground/60")}>
+                                    {section.label}
+                                </p>
+                            ) : null}
+                            {tools.map(renderTool)}
+                        </div>
                     );
                 })}
             </div>
