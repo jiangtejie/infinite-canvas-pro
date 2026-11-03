@@ -384,7 +384,8 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 图片 / 视频结果卡统一到 `MediaResultCard` / `PendingMediaCard` 基座，成功卡外壳、参考图浮层、元信息与操作区不再重复。
 - 公告条去掉 react-slick 轮播，改为单条渲染 + 5s 定时切换；移除隐藏 slide / inert 兜底，CLS 从 0.05–0.18 降到 0–0.008，axe 仍 0 violation。
 - 首页当前公告卡图片 `fetchPriority="high"`，侧卡 lazy / low。
-- 本机 1440×900 首屏实测：`/` LCP 1.1–1.7s、CLS 0–0.008；`/image` LCP 0.5–1.3s、CLS 0；`/video` 0.4–0.8s、CLS 0；`/workflows` 0.6–1.0s、CLS 0。
+- 本机 1440×900 首屏实测：`/` LCP 1.1–1.7s、CLS 0–0.008；`/image` LCP 0.4–1.3s、CLS 0；`/video` 0.3–0.8s、CLS 0；`/workflows` 0.5–1.0s、CLS 0。
+- 工作流页移除大面积 WebGL 光场，页面顶部恢复干净网格背景；`PunkAura` 不再逐帧读取 canvas 尺寸，只在初始化与 ResizeObserver 时测量。
 - 移动端 390×844 / 844×390 已检查首页、生图、视频、画布、提示词、素材、工作流，均无横向溢出；真机安全区与手势仍待。
 - 视频任务轮询抽到 `video/hooks/use-video-task-polling.ts`（85 行）；视频历史同步抽到 `use-video-history-sync.ts`（59 行）；单条视频提交抽到 `use-video-generation.ts`（92 行）；停止编排抽到 `use-video-task-stop.ts`（95 行），视频页总行数 1686 → 1535 → 1469。真实 seedance 视频生成 / 停止回归通过。
 - 画布缩放视图菜单打开聚焦首项，Esc 关闭后焦点回到缩放按钮；实测焦点与 aria-label 对齐。

@@ -131,9 +131,10 @@ export function PunkAura({ className }: { className?: string }) {
             target.y = 1 - ((event.clientY - rect.top) / Math.max(1, rect.height)) * 2;
         };
 
+        resize();
+
         const render = (now: number) => {
             if (!visible) return;
-            resize();
             current.x += (target.x - current.x) * 0.045;
             current.y += (target.y - current.y) * 0.045;
             gl.uniform2f(resolution, width, height);

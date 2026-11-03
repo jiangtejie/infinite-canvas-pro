@@ -10,7 +10,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { PageHeader } from "@/components/ui/page-header";
-import { PunkAura } from "@/components/ui/punk-aura";
 import { EmptyState } from "@/components/ui/state-panel";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { FailureDetailModal, TaskErrorLine } from "@/components/workbench/task-result";
@@ -974,11 +973,6 @@ export function CreativeWorkflowWorkspace({
     return (
         <main className={`${embedded ? "h-full" : "h-full overflow-y-auto bg-transparent"} text-foreground`}>
             <div className={`relative isolate flex flex-col ${embedded ? "h-full gap-4 overflow-y-auto p-4" : "page-shell gap-6 py-10 sm:py-12"}`}>
-                {!embedded ? (
-                    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] overflow-hidden">
-                        <PunkAura className="punk-aura opacity-40" />
-                    </div>
-                ) : null}
                 {embedded ? (
                     <section className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
                         <p className="min-w-0 text-xs leading-5 text-muted-foreground">选择模板并启动任务，结果会写入生图历史。</p>
