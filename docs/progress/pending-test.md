@@ -384,13 +384,15 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 图片 / 视频结果卡统一到 `MediaResultCard` / `PendingMediaCard` 基座，成功卡外壳、参考图浮层、元信息与操作区不再重复。
 - 公告条去掉 react-slick 轮播，改为单条渲染 + 5s 定时切换；移除隐藏 slide / inert 兜底，CLS 从 0.05–0.18 降到 0–0.008，axe 仍 0 violation。
 - 首页当前公告卡图片 `fetchPriority="high"`，侧卡 lazy / low。
+- 本机 1440×900 首屏实测：`/` LCP 1.1–1.7s、CLS 0–0.008；`/image` LCP 0.5–1.3s、CLS 0；`/video` 0.4–0.8s、CLS 0；`/workflows` 0.6–1.0s、CLS 0。
+- 移动端 390×844 / 844×390 已检查首页、生图、视频、画布、提示词、素材、工作流，均无横向溢出；真机安全区与手势仍待。
 - 视频任务轮询抽到 `video/hooks/use-video-task-polling.ts`（85 行）；视频历史同步抽到 `use-video-history-sync.ts`（59 行）；单条视频提交抽到 `use-video-generation.ts`（92 行）；停止编排抽到 `use-video-task-stop.ts`（95 行），视频页总行数 1686 → 1535 → 1469。真实 seedance 视频生成 / 停止回归通过。
 - 画布缩放视图菜单打开聚焦首项，Esc 关闭后焦点回到缩放按钮；实测焦点与 aria-label 对齐。
 - Agent 的 Codex 模型 / 推理强度菜单补首项聚焦、方向键 / Home / End 与 Esc 返回触发按钮。
 - 提示词分类 / 标签筛选补 `role="button"`、`aria-pressed` 与 Enter / Space 选择；实测 system 分类从 false 切到 true。
 - Skill 弹层打开聚焦首个可交互元素，Esc 关闭后焦点回到 Skill 按钮。
 - 无障碍审计（axe WCAG A/AA）覆盖首页、提示词、生图、视频、画布、工作流、素材、登录、账户、后台设置，当前 11 条路由 **0 violation**。
-- 修复：公告轮播隐藏 slide 加 `inert`；生图 16 倍数开关与数量输入补标签；视频时长滑块 / 数字输入补名称；工作流分类 Select 补 `aria-label` 与低对比日期；登录 Logo 补 `role="img"`。
+- 修复：公告条改为单条渲染并移除隐藏 slide；生图 16 倍数开关与数量输入补标签；视频时长滑块 / 数字输入补名称；工作流分类 Select 补 `aria-label` 与低对比日期；登录 Logo 补 `role="img"`。
 - 后台积分日志弹窗字段改 `xs={24} sm={12}`，390px 移动端不再两列挤压。
 - 提示词筛选组移动端取消 112px 固定高度，分类 / 标签全部展开；桌面端仍保留限高滚动。
 - 404 页接入局部 WebGL 光场与呼吸信号；共享 `EmptyState` 标题前增加呼吸点，图片 / 视频 / 提示词空状态统一。

@@ -12,7 +12,7 @@ description: 当前项目后续值得处理的事项
 - 画布移动端需要在真机验证横竖屏切换后的面板宽度、安全区适配和手势冲突。
 - 视频与工作流页需要在正式构建产物下复测首屏耗时，确认懒加载骨架和错误恢复确实生效。
 - 画布节点目前只能通过点击获得焦点，后续可评估是否需要节点的 Tab 键漫游（roving tabindex）。
-- 生图与视频页仍各有约 1900 行，生成、轮询、任务恢复逻辑还在组件内，并与 `logsRef`、`effectiveConfigRef`、`pollContextRef` 等 ref 耦合；后续抽 `use-image-generation.ts` / `use-video-generation.ts` 时，先只改生图页、视频页留作对照，抽完必须跑真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。
+- 生图 / 视频页主链路已抽到页面私有 hooks：生图页 1497 → 1226 行，视频页 1686 → 1469 行；轮询、历史同步、批量提交、单条生成与停止均已收口。剩余 retry / mask edit 仅为薄编排，后续如继续拆分需保持真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。
 
 ## 当前排期
 
@@ -26,16 +26,16 @@ description: 当前项目后续值得处理的事项
 - [x] Antd 弹层减少动态效果定位：根因是全局 `* { animation-duration: .01ms }` 让 rc-trigger 停在 `-1000vw / -1000vh`；已改为只关闭站点装饰动画，Select 实测回到 75 / 81 正常坐标。Tooltip / AutoComplete 共用同一机制。
 - [x] 画布创建菜单无障碍：`role="menu"` / `role="menuitem"`、打开即聚焦首项、Esc 关闭。
 - [x] 图片结果 / 历史 / 分类卡补 `width` / `height`，主图 alt 已有。
-- [ ] 其余列表 / 素材图的 CLS 审计，以及自绘浮层的完整键盘漫游。
+- [x] 列表 / 素材图 CLS 审计与 axe A/AA 11 条路由清零；自绘浮层键盘漫游已覆盖创建 / 缩放 / Agent / Skill / 筛选，剩余真机读屏验收。
 
 验收：生产构建可启动，1000 条历史打开不卡顿，键盘可完成建节点 / 连线 / 删除。
 
 ### P1 / 下一迭代（3–5 人日）
 
-- [ ] 抽 `use-image-generation`（提交、轮询、恢复、重试），视频页保留对照；抽完跑真实「提交 → 轮询 → 完成 / 停止 / 重试」。
-- [ ] 图片 / 视频的 Result / Failed / Pending / History 卡收敛到 `components/workbench/`，差异走 props。
-- [ ] 正式构建产物下复测 video / workflows 首屏耗时，确认懒加载骨架与错误恢复。
-- [ ] 移动端真机：横竖屏、安全区、画布手势与工作台内部滚动冲突。
+- [x] 图片 / 视频轮询、历史同步、单条生成、批量提交、视频停止已抽页面私有 hooks；图片 / 视频真实生成与视频停止回归通过。
+- [x] 图片 / 视频 Result / Pending 卡已收敛到 `MediaResultCard` / `PendingMediaCard`，Failed / History 继续复用 `components/workbench/task-result`。
+- [x] 本机首屏实测：首页 LCP 1.1–1.7s、生图 0.5–1.3s、视频 0.4–0.8s、工作流 0.6–1.0s；CLS 全部 ≤0.008。
+- [ ] 移动端真机：横竖屏、安全区、画布手势与工作台内部滚动冲突；390×844 / 844×390 模拟已无横向溢出。
 
 验收：生图页逻辑行数明显下降，图片 / 视频卡片不再复制 JSX，首屏与移动端无回归。
 
@@ -62,7 +62,7 @@ description: 当前项目后续值得处理的事项
 ### 2. 生图 / 视频页与工作流页
 
 - `image/page.tsx` 现约 1158 行非空 / 1226 总（结果卡、生成控件与结果面板已抽出），`video/page.tsx` 现约 1395 行非空 / 1469 总（结果卡、生成控件、参考条与结果面板已抽出）、`creative-workflow-workspace.tsx` 2065 行。
-- 先抽 `use-image-generation.ts`（提交、轮询、恢复、重试），视频页保留作对照；再把两页重复的结果卡（Result / Failed / Pending / History）收敛到 `components/workbench/`，用 props 描述差异而不是复制 JSX。
+- 已完成：图片 / 视频轮询、历史同步、单条生成、批量提交、视频停止均拆为页面私有 hooks；Result / Pending 卡收敛到共享基座。剩余 retry / mask edit 为薄编排，不再为拆而拆。
 - 回归：提交 → 轮询 → 完成 / 停止 / 重试；切换侧边与底部布局；切换分类视图。
 
 ### 3. 全局样式分层
