@@ -383,7 +383,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 图片任务轮询抽到 `image/hooks/use-image-task-polling.ts`（97 行）；单图生成任务抽到 `use-image-generation.ts`（33 行）；历史同步抽到 `use-image-history-sync.ts`；批量提交抽到 `use-image-batch-generation.ts`（179 行），图片页总行数 1497 → 1388 → 1226。
 - 图片 / 视频结果卡统一到 `MediaResultCard` / `PendingMediaCard` 基座，成功卡外壳、参考图浮层、元信息与操作区不再重复。
 - 公告条去掉 react-slick 轮播，改为单条渲染 + 5s 定时切换；移除隐藏 slide / inert 兜底，CLS 从 0.05–0.18 降到 0–0.008，axe 仍 0 violation。
-- 首页当前公告卡图片 `fetchPriority="high"`，侧卡 lazy / low。
+- 首页当前公告卡图片 `fetchPriority="high"`，侧卡 lazy / low；首页增加首张案例图 preload，LCP 约 1.2s。
 - 本机 1440×900 首屏实测：`/` LCP 1.1–1.7s、CLS 0–0.008；`/image` LCP 0.4–1.3s、CLS 0；`/video` 0.3–0.8s、CLS 0；`/workflows` 0.5–1.0s、CLS 0。
 - 工作流页移除大面积 WebGL 光场，页面顶部恢复干净网格背景；`PunkAura` 不再逐帧读取 canvas 尺寸，只在初始化与 ResizeObserver 时测量。
 - 移动端 390×844 / 844×390 已检查首页、生图、视频、画布、提示词、素材、工作流，均无横向溢出；真机安全区与手势仍待。

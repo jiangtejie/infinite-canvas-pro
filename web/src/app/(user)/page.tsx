@@ -175,6 +175,7 @@ export default function IndexPage() {
 
     return (
         <main className="relative h-full overflow-x-hidden overflow-y-auto bg-transparent text-foreground">
+            <link rel="preload" as="image" href={HOME_BANNERS[0].imageUrl} fetchPriority="high" />
             <div className="page-shell relative">
                 <section className="relative isolate flex flex-col items-center pb-10 pt-12 sm:pt-16 lg:pt-20" aria-labelledby="home-title">
                     <div aria-hidden className="neon-bloom-a left-[2%] top-24 h-[260px] w-[38%] max-w-[480px] opacity-70" />
