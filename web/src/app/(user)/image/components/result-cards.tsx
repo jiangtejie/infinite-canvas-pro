@@ -40,7 +40,7 @@ export function ResultImageCard({
                     <Tag className="m-0 text-[10px]" color="blue">新生成</Tag>
                 </div>
                 <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
-                <Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
+                <Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} width={image.width || undefined} height={image.height || undefined} className="aspect-[4/3] object-cover" />
             </div>
             <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} onCopyPrompt={onCopyPrompt} />
             <ResultMediaMeta

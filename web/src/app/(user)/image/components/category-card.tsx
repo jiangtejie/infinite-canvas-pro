@@ -13,6 +13,8 @@ function CategoryPreviewImage({ image, index, count }: { image: GenerationLog["i
         <img
             src={src}
             alt=""
+            width={image.width || undefined}
+            height={image.height || undefined}
             className={`${count === 1 ? "inset-0 size-full rounded-none border-0" : "h-[92%] w-[86%] rounded-lg border border-border"} absolute object-cover shadow-xl transition-transform duration-200 group-hover:scale-[1.02]`}
             style={{
                 left: count === 1 ? 0 : `${3 + index * 4}%`,

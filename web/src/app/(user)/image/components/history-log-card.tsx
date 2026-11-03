@@ -11,7 +11,7 @@ import type { GeneratedImage, GenerationCategory, GenerationLog } from "../histo
 
 function HistoryPreviewImage({ image, preview = false, alt, className }: { image: GeneratedImage; preview?: boolean; alt: string; className: string }) {
     const src = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
-    return preview ? <Image src={src} preview={{ src: image.dataUrl }} alt={alt} className={className} /> : <img loading="lazy" decoding="async" src={src} alt={alt} className={className} />;
+    return preview ? <Image src={src} preview={{ src: image.dataUrl }} alt={alt} width={image.width || undefined} height={image.height || undefined} className={className} /> : <img loading="lazy" decoding="async" src={src} alt={alt} width={image.width || undefined} height={image.height || undefined} className={className} />;
 }
 
 export function HistoryLogCard({
