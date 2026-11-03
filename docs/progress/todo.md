@@ -61,7 +61,7 @@ description: 当前项目后续值得处理的事项
 
 ### 2. 生图 / 视频页与工作流页
 
-- `image/page.tsx` 现约 1345 行非空 / 1423 总（结果卡、生成控件与结果面板已抽出），`video/page.tsx` 现约 1609 行非空 / 1686 总（结果卡、生成控件、参考条与结果面板已抽出）、`creative-workflow-workspace.tsx` 2065 行。
+- `image/page.tsx` 现约 1300 行非空 / 约 1380 总（结果卡、生成控件与结果面板已抽出），`video/page.tsx` 现约 1609 行非空 / 1686 总（结果卡、生成控件、参考条与结果面板已抽出）、`creative-workflow-workspace.tsx` 2065 行。
 - 先抽 `use-image-generation.ts`（提交、轮询、恢复、重试），视频页保留作对照；再把两页重复的结果卡（Result / Failed / Pending / History）收敛到 `components/workbench/`，用 props 描述差异而不是复制 JSX。
 - 回归：提交 → 轮询 → 完成 / 停止 / 重试；切换侧边与底部布局；切换分类视图。
 

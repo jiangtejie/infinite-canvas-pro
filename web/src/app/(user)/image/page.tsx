@@ -23,7 +23,8 @@ import { GenerationSettings, ReferenceQuickActions, ReferenceStrip } from "./com
 import { ResultsPanel } from "./components/results-panel";
 import { useImageTaskPolling } from "./hooks/use-image-task-polling";
 import { useImageGeneration } from "./hooks/use-image-generation";
-import { CATEGORY_STORE_KEY, logStore, categoryStore, createPendingResult, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, updateResultByLogId, mergePendingLogResults, imageTaskIdentityKeys, imageLogIdentityKeys, dedupeGenerationLogs, imageLogTaskId, isRecoverableImageTask, mergeBackendImageTasks, errorMessage, errorDetail, readStoredLogs, readStoredCategories, replaceStoredImageHistory, withWorkflowLogCategories, mergeGenerationLogs, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition, buildLog } from "./history";
+import { useImageHistorySync } from "./hooks/use-image-history-sync";
+import { CATEGORY_STORE_KEY, logStore, categoryStore, createPendingResult, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, updateResultByLogId, mergePendingLogResults, imageLogIdentityKeys, dedupeGenerationLogs, imageLogTaskId, errorMessage, errorDetail, readStoredLogs, readStoredCategories, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition, buildLog } from "./history";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
@@ -32,10 +33,10 @@ import { IMAGE_MASK_EDIT_PROMPT_PREFIX } from "@/lib/image-reference-prompt";
 import type { WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess } from "@/components/workflows/creative-workflow-workspace";
 import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
-import { createCanvasImageTask, deleteCanvasImageTask, listCanvasImageTasks, type CanvasImageTask } from "@/services/api/image";
+import { createCanvasImageTask, deleteCanvasImageTask, type CanvasImageTask } from "@/services/api/image";
 import { submitWorkflowTask } from "@/services/api/workflow-generation";
 import type { WorkflowRef } from "@/lib/workflow-channel";
-import { deleteImageGenerationLogs, fetchImageGenerationLogs, saveImageGenerationLogs } from "@/services/api/generation-logs";
+import { deleteImageGenerationLogs } from "@/services/api/generation-logs";
 import { deleteImagePreviews, deleteStoredImages, imageToDataUrl, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -803,51 +804,15 @@ export default function ImagePage() {
     };
     const refreshCategories = async () => setCategories(await readStoredCategories());
 
-    const loadAccountImageHistory = async () => {
-        try {
-            accountHistorySyncEnabledRef.current = true;
-            const localLogs = await readStoredLogs();
-            const storedCategories = await readStoredCategories();
-            const remoteLogs = await fetchImageGenerationLogs<GenerationLog>(token);
-            const mergedLogs = await mergeGenerationLogs(remoteLogs, localLogs);
-            const categorized = withWorkflowLogCategories(mergedLogs, storedCategories);
-            await replaceStoredImageHistory(categorized.logs, categorized.categories);
-            setCategories(categorized.categories);
-            setLogs(categorized.logs);
-            return categorized.logs;
-        } catch {
-            // Keep local history available when account sync fails.
-            return undefined;
-        }
-    };
-
-    const persistImageHistory = async (nextLogs: GenerationLog[], _nextCategories: GenerationCategory[]) => {
-        if (!token || !accountHistorySyncEnabledRef.current) return;
-        await saveImageGenerationLogs(token, nextLogs.map(serializeLog)).catch(() => {
-            accountHistorySyncEnabledRef.current = false;
-        });
-    };
-
-    const syncBackendImageTasks = async (baseLogs?: GenerationLog[]) => {
-        const currentConfig = imageTaskConfig();
-        if (!token) return baseLogs || logsRef.current;
-        try {
-            const tasks = await listCanvasImageTasks(currentConfig, ["image-workbench", "workflow"]);
-            const recoverableTasks = tasks.filter(isRecoverableImageTask);
-            if (!recoverableTasks.length) return baseLogs || logsRef.current;
-            const currentLogs = baseLogs || (await readStoredLogs());
-            const mergedLogs = mergeBackendImageTasks(currentLogs, recoverableTasks, currentConfig);
-            const taskIds = new Set(recoverableTasks.flatMap(imageTaskIdentityKeys));
-            const recoveredLogs = mergedLogs.filter((log) => imageLogIdentityKeys(log).some((key) => taskIds.has(key)));
-            await Promise.all(recoveredLogs.map((log) => logStore.setItem(log.id, serializeLog(log))));
-            setLogs(mergedLogs);
-            setResults((value) => mergePendingLogResults(value, recoveredLogs));
-            return mergedLogs;
-        } catch {
-            return baseLogs || logsRef.current;
-        }
-    };
-
+    const { loadAccountImageHistory, persistImageHistory, syncBackendImageTasks } = useImageHistorySync({
+        token,
+        logsRef,
+        accountHistorySyncEnabledRef,
+        imageTaskConfig,
+        setCategories,
+        setLogs,
+        setResults,
+    });
     loadAccountImageHistoryRef.current = loadAccountImageHistory;
     syncBackendImageTasksRef.current = syncBackendImageTasks;
 
