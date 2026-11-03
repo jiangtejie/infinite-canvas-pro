@@ -24,7 +24,8 @@ description: 当前项目后续值得处理的事项
 - [x] 长历史首屏窗口：image / video 历史卡默认 48 条，底部「加载更多」每次 +48。
 - [x] 预览订阅与内存：预览生成与版本订阅下沉到每张可见图片的 `useImagePreviewUrl`，历史卡未渲染时不再生成预览或刷新。
 - [x] Antd 弹层减少动态效果定位：根因是全局 `* { animation-duration: .01ms }` 让 rc-trigger 停在 `-1000vw / -1000vh`；已改为只关闭站点装饰动画，Select 实测回到 75 / 81 正常坐标。Tooltip / AutoComplete 共用同一机制。
-- [ ] 无障碍收口：画布菜单 / 浮层 Esc / Tab / 焦点返回，图片补 width / height / alt，减少 CLS。
+- [x] 画布创建菜单无障碍：`role="menu"` / `role="menuitem"`、打开即聚焦首项、Esc 关闭。
+- [ ] 图片补 width / height / alt 的 CLS 审计，以及其余自绘浮层的完整键盘漫游。
 
 验收：生产构建可启动，1000 条历史打开不卡顿，键盘可完成建节点 / 连线 / 删除。
 

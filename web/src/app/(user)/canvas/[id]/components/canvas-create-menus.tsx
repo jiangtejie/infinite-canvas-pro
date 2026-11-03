@@ -12,6 +12,10 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: 
     const menuRef = useRef<HTMLDivElement>(null);
     const [offsetY, setOffsetY] = useState(0);
 
+    useEffect(() => {
+        menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    }, []);
+
     useLayoutEffect(() => {
         setOffsetY(0);
     }, [pending.position.x, pending.position.y]);
@@ -32,9 +36,17 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: 
             ref={menuRef}
             className="thin-scrollbar absolute z-[120] w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur"
             data-connection-create-menu
+            role="menu"
+            aria-label="引用节点生成"
             style={{ left: pending.position.x, top: pending.position.y, maxHeight: "calc(100vh - 24px)", transform: offsetY ? `translateY(-${offsetY}px)` : undefined, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
             onMouseDown={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                    event.stopPropagation();
+                    onClose();
+                }
+            }}
         >
             <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>
@@ -59,7 +71,7 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: 
 
 function ConnectionCreateOption({ theme, icon, title, description, onClick }: { theme: (typeof canvasThemes)[keyof typeof canvasThemes]; icon: React.ReactNode; title: string; description?: string; onClick?: () => void }) {
     return (
-        <button type="button" className="flex h-16 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 text-left transition" style={{ color: theme.node.text }} onClick={onClick} onMouseEnter={(event) => (event.currentTarget.style.background = theme.node.fill)} onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}>
+        <button type="button" role="menuitem" className="flex h-16 w-full cursor-pointer items-center gap-3 rounded-2xl px-3 text-left transition" style={{ color: theme.node.text }} onClick={onClick} onMouseEnter={(event) => (event.currentTarget.style.background = theme.node.fill)} onMouseLeave={(event) => (event.currentTarget.style.background = "transparent")}>
             <span className="grid size-11 shrink-0 place-items-center rounded-xl" style={{ background: theme.node.fill, color: theme.node.muted }}>
                 {icon}
             </span>
@@ -89,6 +101,10 @@ export function NodeCreateMenu({
     const [offsetY, setOffsetY] = useState(0);
 
     useEffect(() => {
+        menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    }, []);
+
+    useEffect(() => {
         const handlePointerDown = (event: PointerEvent) => {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) onClose();
         };
@@ -109,7 +125,7 @@ export function NodeCreateMenu({
     }, [offsetY, position.x, position.y]);
 
     return (
-        <div ref={menuRef} className="thin-scrollbar absolute z-[120] w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur" data-canvas-no-zoom style={{ left: position.x, top: position.y, maxHeight: "calc(100vh - 24px)", transform: `scale(calc(var(--canvas-inverse-scale) * 0.9)) translateY(-${offsetY / 0.9}px)`, transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }} onPointerDown={(event) => event.stopPropagation()}>
+        <div ref={menuRef} className="thin-scrollbar absolute z-[120] w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur" data-canvas-no-zoom role="menu" aria-label="添加节点" style={{ left: position.x, top: position.y, maxHeight: "calc(100vh - 24px)", transform: `scale(calc(var(--canvas-inverse-scale) * 0.9)) translateY(-${offsetY / 0.9}px)`, transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
             <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>添加节点</span>
                 <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭">×</button>
