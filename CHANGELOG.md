@@ -81,6 +81,7 @@
 + [优化] 图片任务轮询抽成页面私有 hook
 + [优化] 单图生成任务抽成 useImageGeneration
 + [优化] 图片历史同步与后端任务恢复抽成 hook
++ [优化] 图片批量提交抽成 useImageBatchGeneration
 + [优化] 视频任务轮询抽成页面私有 hook
 + [优化] 视频历史同步抽成页面私有 hook
 + [优化] 单条视频提交抽成 useVideoGeneration

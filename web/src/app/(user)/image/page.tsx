@@ -18,13 +18,14 @@ import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-he
 import { PunkAura } from "@/components/ui/punk-aura";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
 import { LoadingState } from "@/components/ui/state-panel";
-import type { GeneratedImage, GenerationResult, GenerationLog, GenerationLogConfig, RequestSnapshot, GenerationCategory, ResultViewMode, WorkflowPollContext, UpdateAiConfig } from "./history";
+import type { GeneratedImage, GenerationResult, GenerationLog, GenerationLogConfig, GenerationCategory, ResultViewMode, WorkflowPollContext, UpdateAiConfig } from "./history";
 import { GenerationSettings, ReferenceQuickActions, ReferenceStrip } from "./components/workbench-controls";
 import { ResultsPanel } from "./components/results-panel";
 import { useImageTaskPolling } from "./hooks/use-image-task-polling";
 import { useImageGeneration } from "./hooks/use-image-generation";
+import { useImageBatchGeneration } from "./hooks/use-image-batch-generation";
 import { useImageHistorySync } from "./hooks/use-image-history-sync";
-import { CATEGORY_STORE_KEY, logStore, categoryStore, createPendingResult, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, updateResultByLogId, mergePendingLogResults, imageLogIdentityKeys, dedupeGenerationLogs, imageLogTaskId, errorMessage, errorDetail, readStoredLogs, readStoredCategories, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition, buildLog } from "./history";
+import { CATEGORY_STORE_KEY, logStore, categoryStore, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, mergePendingLogResults, imageLogIdentityKeys, dedupeGenerationLogs, readStoredLogs, readStoredCategories, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition } from "./history";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
@@ -33,8 +34,7 @@ import { IMAGE_MASK_EDIT_PROMPT_PREFIX } from "@/lib/image-reference-prompt";
 import type { WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess } from "@/components/workflows/creative-workflow-workspace";
 import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
-import { createCanvasImageTask, deleteCanvasImageTask, type CanvasImageTask } from "@/services/api/image";
-import { submitWorkflowTask } from "@/services/api/workflow-generation";
+import { deleteCanvasImageTask } from "@/services/api/image";
 import type { WorkflowRef } from "@/lib/workflow-channel";
 import { deleteImageGenerationLogs } from "@/services/api/generation-logs";
 import { deleteImagePreviews, deleteStoredImages, imageToDataUrl, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
@@ -92,6 +92,7 @@ export default function ImagePage() {
     const syncBackendImageTasksRef = useRef<(baseLogs?: GenerationLog[]) => Promise<GenerationLog[]>>(async () => []);
     const pollPendingLogsOnceRef = useRef<(sourceLogs: GenerationLog[], context: WorkflowPollContext) => void>(() => undefined);
     const effectiveConfigRef = useRef(effectiveConfig);
+    const { runGenerationTask } = useImageGeneration({ setResults });
 
     const model = effectiveConfig.imageModel || effectiveConfig.model;
     const canGenerate = Boolean(prompt.trim() || config.imageWorkflowRef);
@@ -384,178 +385,6 @@ export default function ImagePage() {
         }
     };
 
-    const submitPersistentGenerationBatch = async (snapshot: RequestSnapshot) => {
-        const workflowToken = snapshot.workflowRef ? useUserStore.getState().token : "";
-        const active = () => !snapshot.workflowRef || useUserStore.getState().token === workflowToken;
-        setPreviewLog(null);
-        const taskCount = Math.max(1, Number(snapshot.displayConfig.count) || 1);
-        const pendingLogs = Array.from({ length: taskCount }, () => {
-            const id = nanoid();
-            const clientTaskId = `client_image_task_${id}`;
-            const task: CanvasImageTask = { id: clientTaskId, status: "queued", progress: 0, createdAt: Date.now().toString(), created_at: Date.now().toString() };
-            return buildLog({
-                id,
-                prompt: snapshot.text,
-                model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
-                config: { ...snapshot.displayConfig, count: "1" },
-                references: snapshot.references,
-                durationMs: 0,
-                successCount: 0,
-                failCount: 0,
-                status: "生成中",
-                images: [],
-                errors: [],
-                errorDetails: [],
-                categoryIds: activeResultCategoryId ? [activeResultCategoryId] : [],
-                providerWorkflowRef: snapshot.workflowRef,
-                task,
-                lastPolledAt: Date.now(),
-            });
-        });
-        setResults((value) => mergePendingLogResults(value, pendingLogs));
-        setNow(Date.now());
-
-        const settled = await Promise.allSettled(pendingLogs.map((log, index) => createPersistentImageTask(log, snapshot, index, taskCount, workflowToken)));
-        if (!active()) return;
-        const createdCount = settled.filter((item) => item.status === "fulfilled").length;
-        if (createdCount) message.success(`已创建 ${createdCount} 个图片任务`);
-        if (createdCount < pendingLogs.length) message.warning(`${pendingLogs.length - createdCount} 个图片任务创建失败`);
-    };
-
-    const createPersistentImageTask = async (pendingLog: GenerationLog, snapshot: RequestSnapshot, index: number, taskCount: number, workflowToken: string) => {
-        const active = () => !snapshot.workflowRef || useUserStore.getState().token === workflowToken;
-        try {
-            let task: CanvasImageTask;
-            if (snapshot.workflowRef) {
-                if (!workflowToken) throw new Error("工作流生成需要先登录");
-                const referenceImages = await Promise.all(snapshot.references.map(imageToDataUrl));
-                if (!active()) throw new Error("登录状态已变化");
-                const created = await submitWorkflowTask(workflowToken, {
-                    ref: snapshot.workflowRef,
-                    expectedCapability: "image",
-                    prompt: snapshot.text,
-                    systemPrompt: snapshot.requestConfig.systemPrompt,
-                    referenceImages,
-                    size: snapshot.requestConfig.size,
-                    quality: snapshot.requestConfig.quality,
-                    count: 1,
-                    source: "image-workbench",
-                    sourceId: pendingLog.id,
-                    clientTaskId: imageLogTaskId(pendingLog),
-                });
-                if (!active()) throw new Error("登录状态已变化");
-                task = { id: created.id, status: created.status, progress: created.progress, source: "workflow", source_id: pendingLog.id };
-            } else {
-                task = await createCanvasImageTask(
-                    { ...snapshot.requestConfig, seedIndex: index, seedCount: taskCount, count: "1" },
-                    snapshot.text,
-                    snapshot.references,
-                    { source: "image-workbench", sourceId: pendingLog.id, clientTaskId: imageLogTaskId(pendingLog) },
-                );
-            }
-            const nextLog = { ...pendingLog, task, lastPolledAt: Date.now() };
-            await saveLog(nextLog, active);
-            if (!active()) throw new Error("登录状态已变化");
-            setResults((value) => updateResultByLogId(value, pendingLog.id, { taskLogId: nextLog.id, task, progress: task.progress, lastPolledAt: nextLog.lastPolledAt }));
-            return nextLog;
-        } catch (error) {
-            if (!active()) throw error;
-            const nextLog = { ...pendingLog, status: "失败" as const, durationMs: Date.now() - pendingLog.createdAt, failCount: 1, errors: [errorMessage(error)], errorDetails: [errorDetail(error)], lastPolledAt: Date.now() };
-            await saveLog(nextLog, active);
-            if (!active()) throw error;
-            setResults((value) => updateResultByLogId(value, pendingLog.id, { status: "failed", error: nextLog.errors[0], errorDetail: nextLog.errorDetails?.[0], durationMs: nextLog.durationMs, lastPolledAt: nextLog.lastPolledAt }));
-            throw error;
-        }
-    };
-    const submitGenerationBatch = async (snapshot: RequestSnapshot) => {
-        if (snapshot.workflowRef) {
-            await submitPersistentGenerationBatch(snapshot);
-            return;
-        }
-        if (usesBackendImageTasks(snapshot.requestConfig)) {
-            await submitPersistentGenerationBatch(snapshot);
-            return;
-        }
-        setPreviewLog(null);
-        const taskCount = Math.max(1, Number(snapshot.displayConfig.count) || 1);
-        const taskIds = Array.from({ length: taskCount }, () => nanoid());
-        const pendingTasks = taskIds.map((id) => createPendingResult(id, snapshot));
-        setResults((value) => [...pendingTasks, ...value]);
-        setNow(Date.now());
-
-        const tasks = taskIds.map(async (id, index) => {
-            const taskStartedAt = performance.now();
-            try {
-                const image = await runGenerationTask(id, {
-                    ...snapshot,
-                    requestConfig: {
-                        ...snapshot.requestConfig,
-                        seedIndex: index,
-                        seedCount: taskCount,
-                    },
-                });
-
-                if (!image) {
-                    throw new Error("接口没有返回图片");
-                }
-
-                const durableImage = {
-                    ...image,
-                    storageKey: image.storageKey || "",
-                };
-                
-                // 更新结果状态
-                setResults((value) => updateResult(value, id, { image: durableImage }));
-                
-                // 立即保存单张成功日志
-                await saveLog(
-                    buildLog({
-                        prompt: snapshot.text,
-                        model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
-                        config: { ...snapshot.displayConfig, count: "1" },
-                        references: snapshot.references,
-                        durationMs: performance.now() - taskStartedAt,
-                        successCount: 1,
-                        failCount: 0,
-                        status: "成功",
-                        images: [durableImage],
-                        errors: [],
-                        errorDetails: [],
-                        categoryIds: activeResultCategoryId ? [activeResultCategoryId] : [],
-                    }),
-                );
-                message.success("图片已生成");
-            } catch (err) {
-                const errMsg = errorMessage(err);
-                const errDetail = errorDetail(err);
-                
-                // 立即保存单张失败日志
-                await saveLog(
-                    buildLog({
-                        prompt: snapshot.text,
-                        model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
-                        config: { ...snapshot.displayConfig, count: "1" },
-                        references: snapshot.references,
-                        durationMs: performance.now() - taskStartedAt,
-                        successCount: 0,
-                        failCount: 1,
-                        status: "失败",
-                        images: [],
-                        errors: [errMsg],
-                        errorDetails: [errDetail],
-                        categoryIds: activeResultCategoryId ? [activeResultCategoryId] : [],
-                    }),
-                );
-                message.error(errMsg || "生成失败");
-            } finally {
-                // 任务完成，从进行中状态移除
-                setResults((value) => value.filter((item) => item.id !== id));
-            }
-        });
-
-        await Promise.allSettled(tasks);
-    };
-
     const downloadImage = async (image: GeneratedImage, index: number) => {
         try {
             const dataUrl = await imageToDataUrl(image);
@@ -797,6 +626,17 @@ export default function ImagePage() {
         await nextChain;
     };
 
+    const { submitGenerationBatch } = useImageBatchGeneration({
+        saveLog,
+        setResults,
+        setPreviewLog,
+        setNow,
+        activeResultCategoryId,
+        runGenerationTask,
+        usesBackendImageTasks,
+        notify: message,
+    });
+
     const refreshLogs = async () => {
         const nextLogs = await readStoredLogs();
         setLogs(nextLogs);
@@ -939,8 +779,6 @@ export default function ImagePage() {
             workflowRef: workflowRef || undefined,
         };
     };
-
-    const { runGenerationTask } = useImageGeneration({ setResults });
 
     const retryResult = (result: GenerationResult) => {
         const retryChannelId = imageTaskChannelId(result.task);
