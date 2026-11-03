@@ -101,18 +101,19 @@ function AudioSettingsPortal({ buttonRect, panelRef, placement, theme, config, o
         left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)),
         ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(260, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(260, window.innerHeight - buttonRect.bottom - margin * 2) }),
         background: theme.toolbar.panel,
-        borderRadius: 18,
-        boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",
-        padding: 18,
+        border: "1px solid " + theme.toolbar.border,
+        borderRadius: 16,
+        boxShadow: "inset 0 1px 0 var(--glass-highlight), 0 32px 72px -40px rgba(0, 0, 0, 0.85)",
+        padding: 14,
         overflowY: "auto",
         color: theme.node.text,
     } as const;
     const model = config.model || config.audioModel || "";
 
     return createPortal(
-        <div ref={panelRef} className="canvas-image-settings-popover" style={style} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-            <div className="space-y-4">
-                <div className="text-lg font-semibold">音频设置</div>
+        <div ref={panelRef} className="canvas-image-settings-popover thin-scrollbar" style={style} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+            <div className="space-y-3">
+                <div className="text-[15px] font-semibold">音频设置</div>
                 {isMimoVoiceCloneModel(model) || isAutoDLConfig(config, model) ? (
                     <ResourceSinglePicker
                         label="参考音频"

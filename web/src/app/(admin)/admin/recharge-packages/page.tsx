@@ -191,6 +191,7 @@ export default function AdminRechargePackagesPage() {
                     search={false}
                     defaultSize="middle"
                     tableLayout="fixed"
+                    scroll={{ x: 1000 }}
                     cardProps={{ variant: "borderless" }}
                     headerTitle={
                         <Space>
@@ -221,32 +222,32 @@ export default function AdminRechargePackagesPage() {
             >
                 <Form form={form} layout="vertical" requiredMark={false} initialValues={DEFAULT_VALUES} style={{ marginTop: 16 }}>
                     <Row gutter={14}>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="name" label="套餐名称" rules={[{ required: true, message: "请输入套餐名称" }]}>
                                 <Input maxLength={40} placeholder="例如：基础包" />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="amountYuan" label="价格（元）" rules={[{ required: true, message: "请输入价格" }]}>
-                                <InputNumber min={0.01} precision={2} step={1} style={{ width: "100%" }} addonAfter="元" />
+                                <InputNumber min={0.01} precision={2} step={1} style={{ width: "100%" }} />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="credits" label="到账算力点" rules={[{ required: true, message: "请输入到账算力点" }]}>
                                 <InputNumber min={1} step={10} style={{ width: "100%" }} />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="bonus" label="赠送算力点" tooltip="用户实付金额对应的额外赠送，可为 0">
                                 <InputNumber min={0} step={10} style={{ width: "100%" }} />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="sort" label="排序" tooltip="数字越小越靠前">
                                 <InputNumber min={0} step={1} style={{ width: "100%" }} />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="enabled" label="是否上架" valuePropName="checked">
                                 <Switch checkedChildren="在售" unCheckedChildren="下架" />
                             </Form.Item>

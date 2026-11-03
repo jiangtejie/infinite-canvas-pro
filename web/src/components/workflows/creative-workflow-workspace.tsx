@@ -1,7 +1,7 @@
 "use client";
 
 import { App, Button, Checkbox, Image, Input, Modal, Select, Space, Switch, Tag, Typography } from "antd";
-import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edit3, FilePlus2, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, RotateCcw, Sparkles, Trash2, WandSparkles } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edit3, FilePlus2, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import localforage from "localforage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
@@ -9,6 +9,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
+import { PageHeader } from "@/components/ui/page-header";
+import { PunkAura } from "@/components/ui/punk-aura";
 import { EmptyState } from "@/components/ui/state-panel";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { FailureDetailModal, TaskErrorLine } from "@/components/workbench/task-result";
@@ -274,9 +276,11 @@ export function CreativeWorkflowWorkspace({
     const agentChannelId = agentTextChannelId || effectiveConfig.textChannelId;
     const agentModelInfo = useMemo(() => describeModelSelection(effectiveConfig, agentModel, agentChannelId), [agentChannelId, agentModel, effectiveConfig]);
 
+    const refreshWorkflowsRef = useRef<() => Promise<void>>(async () => undefined);
+
     useEffect(() => {
         if (!isUserReady) return;
-        void refreshWorkflows();
+        void refreshWorkflowsRef.current();
     }, [isUserReady, token]);
 
     useEffect(() => {
@@ -290,10 +294,13 @@ export function CreativeWorkflowWorkspace({
         return () => window.clearInterval(timer);
     }, [runningTaskCount]);
 
+    const runningWorkflowId = runningWorkflow?.id;
+    const runningWorkflowMode = runningWorkflow?.mode;
+
     useEffect(() => {
-        if (!runningWorkflow || runningWorkflow.mode !== "multi_image_series" || !seriesDraftsLoadedRef.current) return;
-        void workflowStore.setItem(seriesDraftStorageKey(runningWorkflow.id), seriesDrafts);
-    }, [runningWorkflow?.id, runningWorkflow?.mode, seriesDrafts]);
+        if (!runningWorkflowId || runningWorkflowMode !== "multi_image_series" || !seriesDraftsLoadedRef.current) return;
+        void workflowStore.setItem(seriesDraftStorageKey(runningWorkflowId), seriesDrafts);
+    }, [runningWorkflowId, runningWorkflowMode, seriesDrafts]);
 
     const refreshWorkflows = async () => {
         if (token) {
@@ -326,6 +333,7 @@ export function CreativeWorkflowWorkspace({
         setWorkflows(seed);
         await workflowStore.setItem(WORKFLOW_STORE_KEY, seed);
     };
+    refreshWorkflowsRef.current = refreshWorkflows;
 
     const saveWorkflows = async (items: CreativeWorkflow[]) => {
         const sorted = [...items].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -949,45 +957,67 @@ export function CreativeWorkflowWorkspace({
         }
     };
 
+    const createActions = (
+        <>
+            <Button icon={<Bot className="size-4" />} onClick={() => setAgentOpen(true)}>
+                AI 创建
+            </Button>
+            <Button icon={<Layers3 className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig, "multi_image_series"))}>
+                新建多图
+            </Button>
+            <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig))}>
+                新建工作流
+            </Button>
+        </>
+    );
+
     return (
-        <main className={`${embedded ? "h-full" : "h-full overflow-y-auto bg-background p-4"} text-foreground`}>
-            <div className={`${embedded ? "h-full overflow-y-auto p-4" : "mx-auto max-w-7xl"} flex flex-col gap-4`}>
-                <section
-                    className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4"
-                >
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2 text-lg font-semibold">
-                            <WandSparkles className="size-5" />
-                            创作工作流
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">{embedded ? "选择模板并启动任务，结果会写入生图历史。" : "把固定提示词和参数沉淀成模板，每次只填写变量即可批量复用。"}</p>
+        <main className={`${embedded ? "h-full" : "h-full overflow-y-auto bg-transparent"} text-foreground`}>
+            <div className={`relative isolate flex flex-col ${embedded ? "h-full gap-4 overflow-y-auto p-4" : "page-shell gap-6 py-10 sm:py-12"}`}>
+                {!embedded ? (
+                    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] overflow-hidden">
+                        <PunkAura className="punk-aura opacity-40" />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Select
-                            className="w-36"
-                            value={workflowCategory}
-                            options={[{ value: "all", label: "全部分类" }, ...workflowCategories.map((category) => ({ value: category, label: category }))]}
-                            onChange={setWorkflowCategory}
-                        />
-                        <Input.Search allowClear placeholder="搜索名称、分类、描述" className="w-72 max-w-full" value={query} onChange={(event) => setQuery(event.target.value)} />
-                        <Button icon={<Bot className="size-4" />} onClick={() => setAgentOpen(true)}>
-                            AI 创建
-                        </Button>
-                        <Button icon={<Layers3 className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig, "multi_image_series"))}>
-                            新建多图
-                        </Button>
-                        <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setEditingWorkflow(createBlankWorkflow(effectiveConfig))}>
-                            新建工作流
-                        </Button>
-                    </div>
+                ) : null}
+                {embedded ? (
+                    <section className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+                        <p className="min-w-0 text-xs leading-5 text-muted-foreground">选择模板并启动任务，结果会写入生图历史。</p>
+                        <div className="flex flex-wrap items-center gap-2">{createActions}</div>
+                    </section>
+                ) : (
+                    <PageHeader
+                        eyebrow="创作工作流"
+                        title="工作流"
+                        description="把固定提示词与参数沉淀成模板，每次只填变量，就能批量复用同一套创作方法。"
+                        meta={
+                            <>
+                                <span className="chip chip-acid">{filteredWorkflows.length} 个模板</span>
+                                {runningTaskCount ? <span className="chip">{runningTaskCount} 运行中</span> : null}
+                            </>
+                        }
+                        actions={createActions}
+                    />
+                )}
+
+                <section className="flex flex-wrap items-center gap-2">
+                    <Input.Search allowClear placeholder="搜索名称、分类、描述" className="w-full max-w-sm" value={query} onChange={(event) => setQuery(event.target.value)} />
+                    <Select
+                        className="w-36"
+                        value={workflowCategory}
+                        options={[{ value: "all", label: "全部分类" }, ...workflowCategories.map((category) => ({ value: category, label: category }))]}
+                        onChange={setWorkflowCategory}
+                    />
+                    <span className="ml-auto font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">
+                        {workflowCategory === "all" ? "全部分类" : workflowCategory} · {filteredWorkflows.length} 个结果
+                    </span>
                 </section>
 
-                <section className={`${embedded ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"} grid gap-3`}>
+                <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {filteredWorkflows.map((workflow) => (
                         <WorkflowCard key={workflow.id} workflow={workflow} onRun={() => openRunner(workflow)} onEdit={() => setEditingWorkflow(workflow)} onCopy={() => void duplicateWorkflow(workflow)} onDelete={() => deleteWorkflow(workflow)} />
                     ))}
                     {!filteredWorkflows.length ? (
-                        <div className="col-span-full rounded-lg border border-dashed border-border bg-card/70 py-14/60">
+                        <div className="col-span-full rounded-xl border border-dashed border-border bg-card/40">
                             <EmptyState title="暂无工作流" description="新建一个模板，或让 AI 根据描述生成工作流。" />
                         </div>
                     ) : null}
@@ -1329,39 +1359,37 @@ export function CreativeWorkflowWorkspace({
 function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow: CreativeWorkflow; onRun: () => void; onEdit: () => void; onCopy: () => void; onDelete: () => void }) {
     const editable = workflow.editable !== false;
     return (
-        <article className="group flex min-h-[220px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-lg">
-            <div className="h-1 bg-gradient-to-r from-foreground via-muted-foreground to-border opacity-80" />
-            <div className="flex flex-1 flex-col p-3.5">
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <div className="line-clamp-1 text-base font-semibold">{workflow.name}</div>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                        <Tag className="m-0">{workflow.category || "未分类"}</Tag>
-                        <Tag className="m-0" color={workflow.mode === "multi_image_series" ? "purple" : undefined}>
-                            {workflow.mode === "multi_image_series" ? "多图" : "单图"}
-                        </Tag>
-                        <Tag className="m-0">{workflow.variables.length} 个变量</Tag>
-                        <Tag className="m-0" color={workflow.scope === "public" ? "blue" : undefined}>
-                            {workflow.scope === "public" ? "公开" : "个人"}
-                        </Tag>
+        <article className="punk-card brackets group relative flex min-h-[240px] flex-col overflow-hidden rounded-xl border border-border bg-card">
+            <div aria-hidden className="h-[3px] w-full shrink-0 bg-[linear-gradient(90deg,var(--acid)_0_52px,transparent_52px)]" />
+            <div className="flex flex-1 flex-col p-4">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <div className="line-clamp-1 text-[15px] font-semibold tracking-tight">{workflow.name}</div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            <span className="chip">{workflow.category || "未分类"}</span>
+                            <span className="chip">{workflow.mode === "multi_image_series" ? "多图" : "单图"}</span>
+                            <span className="chip">{workflow.variables.length} 变量</span>
+                            <span className={workflow.scope === "public" ? "chip chip-acid" : "chip"}>{workflow.scope === "public" ? "公开" : "个人"}</span>
+                        </div>
+                    </div>
+                    <Button type="primary" size="small" icon={<Play className="size-3.5" />} onClick={onRun}>
+                        运行
+                    </Button>
+                </div>
+                <p className="mt-3 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{workflow.description || "暂无描述"}</p>
+                <div className="mt-3 rounded-md border border-border/70 bg-background/50 p-3 font-mono text-[11px] leading-5 text-muted-foreground">
+                    <div className="line-clamp-4 whitespace-pre-wrap">{workflow.config.promptTemplate}</div>
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+                    <span className="truncate font-mono text-[10px] tracking-[0.1em] text-muted-foreground/70 uppercase">
+                        {workflow.lastRunAt ? `RUN ${formatDate(workflow.lastRunAt)}` : `NEW ${formatDate(workflow.createdAt)}`}
+                    </span>
+                    <div className="flex shrink-0 gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+                        <Button size="small" disabled={!editable} icon={<Edit3 className="size-3.5" />} onClick={onEdit} aria-label="编辑工作流" />
+                        <Button size="small" icon={<FilePlus2 className="size-3.5" />} onClick={onCopy} aria-label="复制工作流" />
+                        <Button size="small" disabled={!editable} danger icon={<Trash2 className="size-3.5" />} onClick={onDelete} aria-label="删除工作流" />
                     </div>
                 </div>
-                <Button type="primary" size="small" icon={<Play className="size-3.5" />} onClick={onRun}>
-                    运行
-                </Button>
-            </div>
-            <p className="mt-3 line-clamp-2 min-h-10 text-sm text-muted-foreground">{workflow.description || "暂无描述"}</p>
-            <div className="mt-3 rounded-md bg-muted/80 p-3 text-xs text-muted-foreground dark:bg-background/80">
-                <div className="line-clamp-5 whitespace-pre-wrap">{workflow.config.promptTemplate}</div>
-            </div>
-            <div className="mt-auto flex items-center justify-between gap-2 pt-4 text-xs text-muted-foreground">
-                <span>{workflow.lastRunAt ? `最近运行 ${formatDate(workflow.lastRunAt)}` : `创建于 ${formatDate(workflow.createdAt)}`}</span>
-                <div className="flex gap-1">
-                    <Button size="small" disabled={!editable} icon={<Edit3 className="size-3.5" />} onClick={onEdit} />
-                    <Button size="small" icon={<FilePlus2 className="size-3.5" />} onClick={onCopy} />
-                    <Button size="small" disabled={!editable} danger icon={<Trash2 className="size-3.5" />} onClick={onDelete} />
-                </div>
-            </div>
             </div>
         </article>
     );
@@ -1671,10 +1699,11 @@ function WorkflowVariableInput({ variable, value, onChange }: { variable: Workfl
 }
 
 function VariableEditorValueControls({ variable, onChange }: { variable: WorkflowVariable; onChange: (next: Partial<WorkflowVariable>) => void }) {
-    const [optionDraft, setOptionDraft] = useState(variable.options.join(" / "));
+    const optionText = variable.options.join(" / ");
+    const [optionDraft, setOptionDraft] = useState(optionText);
     useEffect(() => {
-        if (variable.type === "select") setOptionDraft(variable.options.join(" / "));
-    }, [variable.id, variable.type]);
+        if (variable.type === "select") setOptionDraft(optionText);
+    }, [optionText, variable.type]);
 
     if (variable.type === "boolean") {
         return (

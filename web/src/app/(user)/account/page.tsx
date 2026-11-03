@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, App, Empty, Form, Input, Modal, QRCode, Table, Tag } from "antd";
+import { Avatar, App, Button, Empty, Form, Input, Modal, QRCode, Table, Tag } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CreditCard, FileText, LockKeyhole, ReceiptText, UserRound, Wallet } from "lucide-react";
@@ -27,8 +27,8 @@ import {
 const TABS = ["概览", "账户资料", "微信充值", "充值订单", "积分流水", "开票申请"] as const;
 type Tab = (typeof TABS)[number];
 
-const CARD = "rounded-2xl border border-border/60 bg-card/45 backdrop-blur-xl";
-const LABEL = "flex items-center gap-2 text-xs font-medium text-foreground/55";
+const CARD = "rounded-xl border border-border bg-card/60";
+const LABEL = "flex items-center gap-2 font-mono text-[10px] font-medium tracking-[0.14em] text-muted-foreground/80 uppercase";
 
 export default function AccountPage() {
     const { message } = App.useApp();
@@ -126,48 +126,49 @@ export default function AccountPage() {
     }
 
     return (
-        <main className="h-full overflow-y-auto bg-transparent px-4 py-10 sm:px-8">
-            <div className="mx-auto max-w-6xl">
+        <main className="h-full overflow-y-auto bg-transparent">
+            <div className="page-shell py-10 sm:py-12">
                 <button
                     type="button"
-                    className="mb-5 inline-flex items-center gap-2 rounded-full px-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="mb-6 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase transition-colors hover:text-foreground focus-visible:outline-none"
                     onClick={() => router.push("/")}
                 >
-                    <ArrowLeft className="size-4" />
+                    <ArrowLeft className="size-3.5" />
                     返回工作台
                 </button>
 
-                <section className={cn(CARD, "relative overflow-hidden p-6 sm:p-8")}>
-                    <div aria-hidden className="neon-bloom-b pointer-events-none absolute -right-16 -top-24 h-[260px] w-[380px] opacity-35" />
-                    <div className="relative flex flex-wrap items-center justify-between gap-6">
-                        <div className="flex min-w-0 items-center gap-4">
+                <section className="relative overflow-hidden pb-8">
+                    <div aria-hidden className="neon-bloom-b pointer-events-none -right-16 -top-24 h-[260px] w-[380px] opacity-30" />
+                    <div className="relative flex flex-wrap items-end justify-between gap-8">
+                        <div className="flex min-w-0 items-center gap-5">
                             <Avatar
                                 size={64}
                                 src={user?.avatarUrl ? <img src={user.avatarUrl} alt={displayName} referrerPolicy="no-referrer" /> : undefined}
-                                className="!flex !items-center !justify-center border border-border bg-muted text-lg font-semibold text-foreground"
+                                className="!flex !items-center !justify-center rounded-xl border border-border bg-muted text-lg font-semibold text-foreground"
                             >
                                 {displayName.slice(0, 1).toUpperCase()}
                             </Avatar>
                             <div className="min-w-0">
-                                <p className="text-xs font-medium tracking-[0.2em] text-foreground/45">ACCOUNT CENTER</p>
-                                <h1 className="mt-1.5 truncate text-3xl font-semibold tracking-tight text-foreground">{displayName}</h1>
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-foreground/60">
-                                    <span className="truncate">@{user?.username || "guest"}</span>
-                                    <span className="rounded-full border border-border/70 px-2 py-0.5">{user?.role === "admin" ? "管理员" : "普通用户"}</span>
+                                <span className="eyebrow">账户中心</span>
+                                <h1 className="mt-3 truncate text-[clamp(1.65rem,2.6vw,2.35rem)] font-semibold leading-[1.1] tracking-[-0.035em] text-foreground">{displayName}</h1>
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    <span className="font-mono text-[11px] text-muted-foreground">@{user?.username || "guest"}</span>
+                                    <span className="chip">{user?.role === "admin" ? "管理员" : "普通用户"}</span>
                                 </div>
                             </div>
                         </div>
-                        <div className="neon-ring rounded-2xl border border-border/60 bg-background/50 px-5 py-4">
+                        <div className="punk-panel flex min-w-[220px] flex-col gap-2 rounded-xl px-5 py-4">
                             <div className={LABEL}>
                                 <Wallet className="size-3.5" />
                                 算力点余额
                             </div>
-                            <div className="mt-1.5 text-3xl font-semibold tabular-nums">{balance}</div>
+                            <div className="text-3xl font-semibold tabular-nums tracking-tight">{balance}</div>
                         </div>
                     </div>
+                    <div aria-hidden className="punk-rule mt-8" />
                 </section>
 
-                <div role="tablist" aria-label="用户中心分区" className="hide-scrollbar mt-6 flex gap-1 overflow-x-auto rounded-full border border-border/60 bg-card/40 p-1 backdrop-blur-xl">
+                <div role="tablist" aria-label="用户中心分区" className="hide-scrollbar -mt-1 flex gap-1 overflow-x-auto border-b border-border/70">
                     {TABS.map((item) => (
                         <button
                             key={item}
@@ -175,8 +176,8 @@ export default function AccountPage() {
                             role="tab"
                             aria-selected={tab === item}
                             className={cn(
-                                "shrink-0 rounded-full px-4 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                                tab === item ? "bg-foreground/10 font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                                "relative shrink-0 px-3.5 pb-3 pt-2 text-[13px] transition-colors focus-visible:outline-none",
+                                tab === item ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:bg-acid" : "text-muted-foreground hover:text-foreground",
                             )}
                             onClick={() => setTab(item)}
                         >
@@ -189,21 +190,21 @@ export default function AccountPage() {
                     {tab === "概览" ? (
                         <div className="grid gap-4 sm:grid-cols-3">
                             <div className={cn(CARD, "flex items-center gap-4 p-5")}>
-                                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-foreground/6 text-foreground/70"><UserRound className="size-4.5" /></span>
+                                <span className="grid size-10 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70"><UserRound className="size-4.5" /></span>
                                 <div className="min-w-0">
                                     <div className={LABEL}>账户</div>
                                     <div className="mt-1 truncate text-lg font-semibold">{displayName}</div>
                                 </div>
                             </div>
                             <div className={cn(CARD, "flex items-center gap-4 p-5")}>
-                                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-foreground/6 text-foreground/70"><CreditCard className="size-4.5" /></span>
+                                <span className="grid size-10 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70"><CreditCard className="size-4.5" /></span>
                                 <div>
                                     <div className={LABEL}>算力点余额</div>
                                     <div className="mt-1 text-2xl font-semibold tabular-nums">{balance}</div>
                                 </div>
                             </div>
                             <div className={cn(CARD, "flex items-center gap-4 p-5")}>
-                                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-foreground/6 text-foreground/70"><FileText className="size-4.5" /></span>
+                                <span className="grid size-10 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70"><FileText className="size-4.5" /></span>
                                 <div>
                                     <div className={LABEL}>充值记录</div>
                                     <div className="mt-1 text-2xl font-semibold tabular-nums">{orders.length} <span className="text-sm font-normal text-foreground/55">笔订单</span></div>
@@ -220,7 +221,7 @@ export default function AccountPage() {
                                     <Form.Item label="昵称" name="displayName"><Input maxLength={40} /></Form.Item>
                                     <Form.Item label="头像地址" name="avatarUrl"><Input maxLength={500} /></Form.Item>
                                     <Form.Item label="邮箱" name="email"><Input type="email" maxLength={120} /></Form.Item>
-                                    <button type="submit" disabled={saving} className="neon-primary inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{saving ? "保存中..." : "保存资料"}</button>
+                                    <Button type="primary" htmlType="submit" loading={saving}>保存资料</Button>
                                 </Form>
                             </div>
                             <div className={cn(CARD, "p-6")}>
@@ -228,7 +229,7 @@ export default function AccountPage() {
                                 <Form className="mt-4" layout="vertical" requiredMark={false} onFinish={savePassword}>
                                     <Form.Item label="当前密码" name="oldPassword" rules={[{ required: true }]}><Input.Password /></Form.Item>
                                     <Form.Item label="新密码（至少 6 位）" name="newPassword" rules={[{ required: true, min: 6 }]}><Input.Password /></Form.Item>
-                                    <button type="submit" disabled={saving} className="inline-flex h-9 items-center justify-center rounded-full border border-border/70 px-4 text-sm text-foreground/80 transition-colors hover:border-foreground/25 hover:bg-foreground/5 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{saving ? "更新中..." : "更新密码"}</button>
+                                    <Button htmlType="submit" loading={saving}>更新密码</Button>
                                 </Form>
                             </div>
                         </div>
@@ -238,19 +239,22 @@ export default function AccountPage() {
                         packages.length ? (
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 {packages.map((pkg) => (
-                                    <div key={pkg.id} className={cn(CARD, "neon-ring relative flex flex-col p-5")}>
-                                        <div className="text-sm font-medium text-foreground/80">{pkg.name}</div>
-                                        <div className="mt-3 flex items-baseline gap-1">
-                                            <span className="text-sm text-foreground/60">¥</span>
-                                            <span className="text-3xl font-semibold tabular-nums">{(pkg.amountFen / 100).toFixed(2)}</span>
+                                    <div key={pkg.id} className="punk-card brackets relative flex flex-col rounded-xl border border-border bg-card/60 p-5">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-sm font-medium text-foreground">{pkg.name}</span>
+                                            <span className="chip">微信支付</span>
                                         </div>
-                                        <p className="mt-2 text-xs leading-5 text-foreground/60">
+                                        <div className="mt-4 flex items-baseline gap-1">
+                                            <span className="text-sm text-muted-foreground">¥</span>
+                                            <span className="text-3xl font-semibold tabular-nums tracking-tight">{(pkg.amountFen / 100).toFixed(2)}</span>
+                                        </div>
+                                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
                                             到账 <span className="font-medium text-foreground">{pkg.credits + pkg.bonus}</span> 算力点
                                             {pkg.bonus ? `（含赠送 ${pkg.bonus}）` : ""}
                                         </p>
-                                        <button type="button" className="neon-primary mt-5 inline-flex h-9 items-center justify-center rounded-full text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => void buy(pkg)}>
+                                        <Button type="primary" className="mt-5" onClick={() => void buy(pkg)}>
                                             微信扫码支付
-                                        </button>
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
@@ -307,7 +311,7 @@ export default function AccountPage() {
                                     <Form.Item label="发票抬头" name="title" rules={[{ required: true }]}><Input /></Form.Item>
                                     <Form.Item label="税号" name="taxNumber"><Input /></Form.Item>
                                     <Form.Item label="接收邮箱" name="email" rules={[{ required: true, type: "email" }]}><Input /></Form.Item>
-                                    <button type="submit" className="neon-primary inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">提交申请</button>
+                                    <Button type="primary" htmlType="submit">提交申请</Button>
                                 </Form>
                             </div>
                             <div className={cn(CARD, "p-6")}>

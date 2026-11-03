@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -84,7 +84,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         };
     }, []);
 
-    const handleWheel = (event: React.WheelEvent<HTMLDivElement> | WheelEvent) => {
+    const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement> | WheelEvent) => {
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest("[data-canvas-no-zoom],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown")) return;
         if (event instanceof WheelEvent) {
@@ -107,7 +107,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         }
         viewportRef.current = next;
         onViewportChange(next);
-    };
+    }, [containerRef, onViewportChange, wheelMode]);
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target instanceof Element ? event.target : null;

@@ -150,8 +150,9 @@ export const CanvasNode = React.memo(function CanvasNode({
     });
 
     useLayoutEffect(() => {
-        const { naturalWidth, naturalHeight, clientTaskId, isBatchRoot, batchRootId } = data.metadata || {};
-        if ((data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Video) && clientTaskId && !isBatchRoot && !batchRootId && naturalWidth && naturalHeight) resizeRef.current.ratio = naturalWidth / naturalHeight;
+        const naturalWidth = data.metadata?.naturalWidth;
+        const naturalHeight = data.metadata?.naturalHeight;
+        if ((data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Video) && data.metadata?.clientTaskId && !data.metadata?.isBatchRoot && !data.metadata?.batchRootId && naturalWidth && naturalHeight) resizeRef.current.ratio = naturalWidth / naturalHeight;
     }, [data.type, data.metadata?.clientTaskId, data.metadata?.isBatchRoot, data.metadata?.batchRootId, data.metadata?.naturalWidth, data.metadata?.naturalHeight]);
 
     useEffect(() => {

@@ -55,6 +55,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
     const activeRef = useRef(true);
     const selected = workflows.find((item) => entryKey(item) === selectedKey);
     const bridge = bridges.find((item) => item.id === channel.bridgeId);
+    const isAdmin = Boolean(admin);
 
     useEffect(() => {
         activeRef.current = true;
@@ -65,8 +66,8 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
 
     useEffect(() => {
         if (channel.protocol !== "comfyui" || !token) return;
-        void listComfyBridges(token, Boolean(admin)).then(setBridges).catch((error) => message.error(error instanceof Error ? error.message : "读取 Bridge 失败"));
-    }, [channel.protocol, token, admin?.index]);
+        void listComfyBridges(token, isAdmin).then(setBridges).catch((error) => message.error(error instanceof Error ? error.message : "读取 Bridge 失败"));
+    }, [channel.protocol, isAdmin, message, token]);
 
     const choose = (key?: string) => {
         const item = workflows.find((entry) => entryKey(entry) === key);

@@ -21,7 +21,9 @@ export function CanvasCodexConnectView({ agent, onChat }: {
     const connected = agent.status === "ready";
     const connecting = agent.status === "connecting";
     const statusText = { idle: "未连接", connecting: "连接中", ready: "已连接", error: "连接失败" }[agent.status];
-    useEffect(() => setDraft(agent.connection), [agent.connection.endpoint, agent.connection.token]);
+    const connectionEndpoint = agent.connection.endpoint;
+    const connectionToken = agent.connection.token;
+    useEffect(() => setDraft({ endpoint: connectionEndpoint, token: connectionToken }), [connectionEndpoint, connectionToken]);
     const commandBlock = (command: string, label?: string) => (
         <div className="flex items-center gap-2 rounded-md border px-2.5 py-2" style={{ borderColor: theme.node.stroke }}>
             {label ? <span className="shrink-0 text-[11px]" style={{ color: theme.node.muted }}>{label}</span> : null}

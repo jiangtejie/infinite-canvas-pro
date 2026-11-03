@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Button, Tag } from "antd";
+import { Button } from "antd";
 import { CheckSquare, Download, History, Plus, Trash2 } from "lucide-react";
 
 export function ResultsPanelShell({ className = "", title, count, pendingCount, actions, empty, children }: {
@@ -14,16 +14,16 @@ export function ResultsPanelShell({ className = "", title, count, pendingCount, 
     children?: ReactNode;
 }) {
     return (
-        <section className={`thin-scrollbar rounded-lg border border-border bg-card p-4 shadow-sm lg:min-h-0 lg:overflow-y-auto lg:p-5 ${className}`}>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
+        <section className={`thin-scrollbar punk-panel rounded-xl p-4 lg:min-h-0 lg:overflow-y-auto lg:p-5 ${className}`}>
+            <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-card px-4 pb-3 pt-0.5 lg:-mx-5 lg:px-5">
+                <div className="flex min-w-0 items-center gap-2.5">
                     <History className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <h2 className="truncate text-xl font-semibold">{title}</h2>
-                    <Tag className="m-0">{count}</Tag>
+                    <h2 className="truncate text-[15px] font-semibold tracking-tight">{title}</h2>
+                    <span className="chip chip-acid">{count}</span>
                     {pendingCount ? (
-                        <Tag className="m-0 px-2 py-1" role="status" aria-live="polite">
-                            {pendingCount} 个生成中
-                        </Tag>
+                        <span className="chip" role="status" aria-live="polite">
+                            {pendingCount} 生成中
+                        </span>
                     ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">{actions}</div>

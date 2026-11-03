@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderPlus, Search } from "lucide-react";
+import { ExternalLink, FolderPlus, Search } from "lucide-react";
 import { type UIEvent, useState } from "react";
 import { App, Button, Input } from "antd";
 
@@ -8,6 +8,7 @@ import { PromptCard } from "@/components/prompts/prompt-card";
 import { PromptDetailDialog } from "@/components/prompts/prompt-detail-dialog";
 import { usePromptList } from "@/components/prompts/use-prompt-list";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
+import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -54,78 +55,94 @@ export default function PromptsPage() {
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
-            <main
-                className="min-h-0 flex-1 overflow-y-auto bg-transparent px-6 py-10"
-                onScroll={handleListScroll}
-            >
-                <div className="pb-8">
-                    <div className="relative mx-auto max-w-5xl text-center">
-                        <div aria-hidden className="neon-bloom-a pointer-events-none absolute left-1/2 top-[-40px] h-[220px] w-[440px] -translate-x-1/2 opacity-45" />
-                        <p className="relative text-xs font-medium tracking-[0.2em] text-foreground/50">AI 灵感库</p>
-                        <h1 className="neon-title relative mt-3 text-4xl font-semibold tracking-tight text-foreground">提示词库</h1>
-                        <div className="relative mt-3 flex flex-wrap items-center justify-center gap-2 text-sm text-foreground/60">
-                            <span className="rounded-full border border-border/70 bg-foreground/4 px-2.5 py-0.5 text-xs font-medium tabular-nums text-foreground/80">共 {totalPrompts} 条</span>
-                            <span>按标题、标签与分类快速查找灵感</span>
+            <main className="min-h-0 flex-1 overflow-y-auto bg-transparent" onScroll={handleListScroll}>
+                <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
+                    <PageHeader
+                        eyebrow="AI 灵感库"
+                        title="提示词库"
+                        description="按标题、分类与标签快速检索，把好用的提示词收进素材库随时复用。"
+                        meta={
+                            <>
+                                <span className="chip chip-acid">{totalPrompts} 条提示词</span>
+                                <span className="chip">{promptCategoryOptions.length} 个分类</span>
+                            </>
+                        }
+                        actions={
+                            <Button href="https://prompts.tdeh.top/" target="_blank" rel="noopener noreferrer" icon={<ExternalLink className="size-4" />} iconPlacement="end">
+                                外部提示词仓库
+                            </Button>
+                        }
+                    />
+
+                    <section className="flex flex-col gap-4">
+                        <div className="flex h-11 w-full items-center gap-3 rounded-lg border border-border bg-card/70 px-4 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-2xl">
+                            <Search className="size-4 shrink-0 text-muted-foreground" />
+                            <Input
+                                variant="borderless"
+                                size="large"
+                                className="!bg-transparent"
+                                value={titleInput}
+                                placeholder="按标题查询，按 Enter 搜索"
+                                onChange={(event) => setTitleInput(event.target.value)}
+                                onPressEnter={searchByTitleInput}
+                            />
+                            <Button type="primary" size="small" onClick={searchByTitleInput}>搜索</Button>
                         </div>
-                    </div>
-                    {query.isLoading ? <LoadingState className="h-60" label="正在加载提示词..." /> : null}
-                    {!query.isLoading ? (
-                        <>
-                            <div className="mx-auto mt-8 w-full max-w-2xl">
-                                <div className="neon-ring flex items-center gap-2 rounded-2xl border border-border/60 bg-card/60 px-4 py-0.5 backdrop-blur-xl transition-colors focus-within:border-foreground/25">
-                                    <Search className="size-4 shrink-0 text-muted-foreground" />
-                                    <Input variant="borderless" size="large" className="!bg-transparent" value={titleInput} placeholder="按标题查询，按 Enter 搜索" onChange={(event) => setTitleInput(event.target.value)} onPressEnter={searchByTitleInput} />
-                                </div>
+                        <div className="grid gap-2.5 rounded-lg border border-border/70 bg-card/40 p-4">
+                            <FilterTagGroup label="分类" options={promptCategoryOptions} isSelected={(value) => selectedCategory === value} onSelect={setSelectedCategory} />
+                            <FilterTagGroup label="标签" options={promptTags} isSelected={(value) => value === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(value)} onSelect={toggleTag} />
+                        </div>
+                    </section>
+
+                    {query.isLoading ? <LoadingState className="min-h-[320px]" label="正在加载提示词" /> : null}
+
+                    {!query.isLoading && query.isError ? (
+                        <ErrorState
+                            className="py-16"
+                            description={query.error instanceof Error ? query.error.message : "获取提示词失败，请检查网络后重试。"}
+                            detail={query.error instanceof Error ? query.error.stack : undefined}
+                            onRetry={() => void query.refetch()}
+                        />
+                    ) : null}
+
+                    {!query.isLoading && !query.isError ? (
+                        <section className="flex flex-col gap-6">
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground/70 uppercase">
+                                    {selectedCategory === ALL_PROMPTS_OPTION ? "全部提示词" : selectedCategory}
+                                    {selectedTags.length ? ` / ${selectedTags.join(" + ")}` : ""}
+                                </p>
+                                <span className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground/70 uppercase">
+                                    {query.isFetchingNextPage ? "加载中" : query.hasNextPage ? "向下滚动加载更多" : promptItems.length > 0 ? "已经到底了" : ""}
+                                </span>
                             </div>
-                            <div className="mx-auto mt-6 grid max-w-6xl gap-3 text-left">
-                                <FilterTagGroup label="分类" options={promptCategoryOptions} isSelected={(value) => selectedCategory === value} onSelect={setSelectedCategory} />
-                                <FilterTagGroup label="标签" options={promptTags} isSelected={(value) => value === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(value)} onSelect={toggleTag} />
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {promptItems.map((item, index) => (
+                                    <div key={item.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
+                                        <PromptCard
+                                            item={item}
+                                            onOpen={() => setSelectedPrompt(item)}
+                                            onCopy={() => copyText(item.prompt, "提示词已复制")}
+                                            extraAction={
+                                                <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => savePromptAsset(item)}>
+                                                    加入素材
+                                                </Button>
+                                            }
+                                        />
+                                    </div>
+                                ))}
                             </div>
-                        </>
+                            {promptItems.length === 0 ? (
+                                <EmptyState
+                                    className="rounded-xl border border-dashed border-border bg-card/40"
+                                    title="没有找到匹配的提示词"
+                                    description="调整标题、分类或标签后再试。"
+                                    action={<Button onClick={clearFilters}>清空筛选</Button>}
+                                />
+                            ) : null}
+                        </section>
                     ) : null}
                 </div>
-
-                {!query.isLoading && query.isError ? (
-                    <ErrorState
-                        className="py-16"
-                        description={query.error instanceof Error ? query.error.message : "获取提示词失败，请检查网络后重试。"}
-                        detail={query.error instanceof Error ? query.error.stack : undefined}
-                        onRetry={() => void query.refetch()}
-                    />
-                ) : null}
-
-                {!query.isLoading && !query.isError ? (
-                    <div>
-                        <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {promptItems.map((item, index) => (
-                                <div key={item.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
-                                <PromptCard
-                                    key={item.id}
-                                    item={item}
-                                    onOpen={() => setSelectedPrompt(item)}
-                                    onCopy={() => copyText(item.prompt, "提示词已复制")}
-                                    extraAction={
-                                        <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => savePromptAsset(item)}>
-                                            加入我的素材
-                                        </Button>
-                                    }
-                                />
-                                </div>
-                            ))}
-                        </div>
-                        {promptItems.length === 0 ? (
-                            <EmptyState
-                                className="py-10"
-                                title="没有找到匹配的提示词"
-                                description="调整标题、分类或标签后再试。"
-                                action={<Button onClick={clearFilters}>清空筛选</Button>}
-                            />
-                        ) : null}
-                        <div className="mx-auto mt-6 max-w-7xl text-center text-xs text-muted-foreground">
-                            {query.isFetchingNextPage ? "加载中..." : query.hasNextPage ? "继续向下滚动加载更多" : promptItems.length > 0 ? "已经到底了" : null}
-                        </div>
-                    </div>
-                ) : null}
             </main>
 
             <PromptDetailDialog prompt={selectedPrompt} onClose={() => setSelectedPrompt(null)} onCopy={(prompt) => copyText(prompt, "提示词已复制")} onSaveAsset={savePromptAsset} />

@@ -111,13 +111,18 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                             </div>
                         </div>
                         <div className="space-y-2.5">
-                            <SettingTitle color={theme.node.muted}>宽高比</SettingTitle>
-                            <div className="grid grid-cols-4 gap-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                                <SettingTitle color={theme.node.muted}>宽高比</SettingTitle>
+                                <span className="font-mono text-[9px] tracking-[0.12em] uppercase" style={{ color: theme.node.muted, opacity: 0.65 }}>
+                                    左右滑动
+                                </span>
+                            </div>
+                            <div className="thin-scrollbar grid auto-cols-[calc((100%-24px)/4)] grid-flow-col grid-rows-2 gap-2 overflow-x-auto pb-1">
                                 {aspectOptions.map((item) => (
                                     <button
                                         key={item.value}
                                         type="button"
-                                        className="flex h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border bg-transparent text-sm transition hover:opacity-80"
+                                        className="flex h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border bg-transparent text-xs transition hover:opacity-80"
                                         style={{ borderColor: selectedAspect?.value === item.value ? theme.node.text : theme.node.stroke, background: "transparent", color: theme.node.text }}
                                         onMouseDown={(event) => event.stopPropagation()}
                                         onClick={() => selectAspect(item.value)}

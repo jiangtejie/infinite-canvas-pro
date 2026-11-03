@@ -6,12 +6,12 @@ import { BookOpen, ClipboardPaste, FolderPlus, PanelLeft, SlidersHorizontal, Spa
 
 export function WorkbenchSection({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
     return (
-        <section className="overflow-hidden rounded-lg border border-border bg-background">
-            <div className="flex items-center gap-2 px-3 py-2">
-                <span className="text-sm font-medium">{title}</span>
-                {typeof count === "number" ? <Tag className="m-0 text-xs">{count}</Tag> : null}
+        <section className="border-b border-border/60 pb-4 last:border-0 last:pb-0">
+            <div className="flex items-center gap-2 pb-2.5">
+                <span className="font-mono text-[10px] font-medium tracking-[0.16em] text-muted-foreground/80 uppercase">{title}</span>
+                {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
             </div>
-            <div className="space-y-2 border-t border-border p-3">{children}</div>
+            <div className="space-y-2">{children}</div>
         </section>
     );
 }
@@ -24,17 +24,17 @@ export function PromptQuickActions({ onPaste, onClear, onOpenPromptLibrary, onOp
 }) {
     return (
         <div className="flex flex-wrap gap-1">
-            <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPaste}>
+            <Button size="small" className="!text-[11px]" icon={<ClipboardPaste className="size-3.5" />} onClick={onPaste}>
                 读取剪贴板
             </Button>
-            <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={onClear}>
+            <Button size="small" className="!text-[11px]" icon={<Trash2 className="size-3.5" />} onClick={onClear}>
                 清空
             </Button>
-            <Button size="small" icon={<BookOpen className="size-3.5" />} onClick={onOpenPromptLibrary}>
+            <Button size="small" className="!text-[11px]" icon={<BookOpen className="size-3.5" />} onClick={onOpenPromptLibrary}>
                 提示词库
             </Button>
-            <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>
-                我的素材
+            <Button size="small" className="!text-[11px]" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>
+                素材库
             </Button>
         </div>
     );
@@ -52,7 +52,13 @@ export function WorkbenchPromptSection({ prompt, placeholder, onPromptChange, on
     return (
         <WorkbenchSection title="提示词">
             <PromptQuickActions onPaste={onPastePrompt} onClear={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} />
-            <Input.TextArea value={prompt} onChange={(event) => onPromptChange(event.target.value)} rows={6} placeholder={placeholder} />
+            <Input.TextArea
+                value={prompt}
+                onChange={(event) => onPromptChange(event.target.value)}
+                rows={5}
+                placeholder={placeholder}
+                className="!rounded-lg !bg-background/60 !text-[13px] !leading-6"
+            />
         </WorkbenchSection>
     );
 }
@@ -82,7 +88,7 @@ export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canG
                             onChange={(event) => onPromptChange(event.target.value)}
                             placeholder={placeholder}
                             autoSize={{ minRows: 2, maxRows: 4 }}
-                            className="rounded-lg"
+                            className="!rounded-lg !bg-background/60 !text-[13px] !leading-6"
                             onPressEnter={(event) => {
                                 if (!event.shiftKey && canGenerate) onGenerate();
                             }}
@@ -94,12 +100,12 @@ export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canG
                             <Button
                                 title="参数配置"
                                 aria-label="参数配置"
-                                className={`lg:hidden ${settingsOpen ? "!border-sky-500/30 !bg-sky-500/10 !text-sky-500" : ""}`}
+                                className={`lg:hidden ${settingsOpen ? "!border-acid/40 !bg-acid/10 !text-acid" : ""}`}
                                 icon={<SlidersHorizontal className="size-4" />}
                                 onClick={onToggleSettings}
                             />
                             <Button title="切换到侧边工作台" aria-label="切换到侧边工作台" icon={<PanelLeft className="size-4" />} onClick={onSwitchToSide} />
-                            <Button type="primary" className="h-9 rounded-xl px-4 font-medium lg:!hidden" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
+                            <Button type="primary" className="h-9 rounded-lg px-4 font-medium lg:!hidden" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                                 {pendingCount ? `${pendingCount} 生成中` : "开始创作"}
                             </Button>
                         </div>

@@ -4,7 +4,7 @@ import { CheckCircleOutlined, DeleteOutlined, FormatPainterOutlined, LoadingOutl
 import { json } from "@codemirror/lang-json";
 import { App, Button, Card, Col, Drawer, Flex, Form, Input, InputNumber, Modal, Row, Segmented, Select, Space, Switch, Table, Tabs, Tag, Typography } from "antd";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EditorView } from "@uiw/react-codemirror";
 
 import { ChannelModelSelectorModal } from "@/components/channel-model-selector-modal";
@@ -86,7 +86,8 @@ export default function AdminSettingsPage() {
     const [measuringProviderIndex, setMeasuringProviderIndex] = useState<number | null>(null);
     const [modelCosts, setModelCosts] = useState<AdminModelCost[]>([]);
     const [knownModels, setKnownModels] = useState<string[]>([]);
-    const publicModels = Form.useWatch(["public", "modelChannel", "availableModels"], form) || [];
+    const watchedPublicModels = Form.useWatch(["public", "modelChannel", "availableModels"], form);
+    const publicModels = useMemo(() => watchedPublicModels || [], [watchedPublicModels]);
     const publicVideoModels = useMemo(() => new Set(filterChannelModelsByCapability(channels, "video", publicModels)), [channels, publicModels]);
     const orderedPublicModels = useMemo(() => uniqueModels([
         ...publicVideoModels,
@@ -107,7 +108,7 @@ export default function AdminSettingsPage() {
     const activeJsonText = jsonText[activeTab];
     const jsonError = activeMode === "json" ? getJsonError(activeJsonText) : "";
 
-    const loadSettings = async () => {
+    const loadSettings = useCallback(async () => {
         if (!token) return;
         setIsLoading(true);
         try {
@@ -125,11 +126,11 @@ export default function AdminSettingsPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [form, message, token]);
 
     useEffect(() => {
         void loadSettings();
-    }, [token]);
+    }, [loadSettings]);
 
     useEffect(() => {
         if (!token) return;
@@ -396,7 +397,7 @@ export default function AdminSettingsPage() {
     return (
         <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
-                <div className="sticky top-0 z-10 border-b border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-bg-layout)] pt-1">
+                <div className="sticky top-0 z-10 border-b border-[var(--ant-color-border-secondary)] bg-background/90 pt-1 backdrop-blur-xl">
                     <Flex justify="space-between" align="flex-start" gap={16} wrap>
                         <Typography.Text type="secondary">公开配置会暴露给前端读取，私有配置只在服务端生效。</Typography.Text>
                         <Space wrap>

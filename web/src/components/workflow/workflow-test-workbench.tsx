@@ -72,7 +72,7 @@ export function WorkflowTestWorkbench({ workflowRef, token, provider, workflowId
         setError("");
         setProgress(0);
         setStage("等待运行");
-    }, [workflowId, workflowKind, capability, fields, config.size, config.quality, config.vquality, token]);
+    }, [workflowId, workflowKind, capability, fields, config, token]);
 
     useEffect(() => {
         filesRef.current = files;

@@ -11,7 +11,7 @@ type Phase = "typing" | "deleting";
  * 用最长的一条做不可见占位，避免逐字和切换时布局跳动。
  * 开启“减少动态效果”时保留打字但放慢速度，并去掉光标闪烁。
  */
-export function TypewriterText({ text, speed = 70, deleteSpeed = 34, hold = 1600, startDelay = 200, className }: {
+export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400, startDelay = 200, className }: {
     text: string | string[];
     speed?: number;
     deleteSpeed?: number;

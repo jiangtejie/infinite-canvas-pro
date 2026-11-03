@@ -53,7 +53,7 @@ export function CanvasConfigComposer({ value, inputs, onChange, onClose }: Canva
                 return;
             }
             const input = referenceById.get(token.nodeId);
-            if (input) editor.append(createReferenceChip(input, inputs, theme, setImagePreview));
+            if (input) editor.append(createReferenceChip(input, theme, setImagePreview));
         });
     }, [inputs, referenceById, theme, tokens]);
 
@@ -94,7 +94,7 @@ export function CanvasConfigComposer({ value, inputs, onChange, onClose }: Canva
         const editor = editorRef.current;
         if (!editor) return;
         removeActiveMention();
-        const chip = createReferenceChip(input, inputs, theme, setImagePreview);
+        const chip = createReferenceChip(input, theme, setImagePreview);
         const beforeSpace = document.createTextNode(" ");
         const space = document.createTextNode(" ");
         const selection = window.getSelection();
@@ -252,7 +252,7 @@ function ResourcePreview({ input }: { input: NodeGenerationInput }) {
     );
 }
 
-function createReferenceChip(input: NodeGenerationInput, inputs: NodeGenerationInput[], theme: (typeof canvasThemes)[keyof typeof canvasThemes], onImagePreview: (url: string) => void) {
+function createReferenceChip(input: NodeGenerationInput, theme: (typeof canvasThemes)[keyof typeof canvasThemes], onImagePreview: (url: string) => void) {
     const wrapper = document.createElement("span");
     wrapper.contentEditable = "false";
     wrapper.dataset.referenceNodeId = input.nodeId;

@@ -52,7 +52,15 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-transparent text-foreground">
             <AppTopNav />
-            <div className="min-h-0 flex-1 overflow-hidden">{isProtectedPage && (!isReady || !user) ? null : children}</div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+                {isProtectedPage && (!isReady || !user) ? (
+                    <div className="grid h-full place-items-center">
+                        <p className="font-mono text-[10px] tracking-[0.22em] text-muted-foreground/60 uppercase">正在校验登录状态</p>
+                    </div>
+                ) : (
+                    children
+                )}
+            </div>
         </div>
     );
 }

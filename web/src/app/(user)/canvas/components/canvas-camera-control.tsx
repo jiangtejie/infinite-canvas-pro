@@ -105,8 +105,8 @@ export function CanvasCameraControl({ value, onChange, buttonClassName }: Canvas
             overflowY: "auto",
             background: theme.toolbar.panel,
             border: "1px solid " + theme.toolbar.border,
-            borderRadius: 18,
-            boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)",
+            borderRadius: 16,
+            boxShadow: "inset 0 1px 0 var(--glass-highlight), 0 32px 72px -40px rgba(0, 0, 0, 0.85)",
             color: theme.node.text,
         } as const
         : undefined;

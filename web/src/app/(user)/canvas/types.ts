@@ -152,6 +152,11 @@ export type CanvasConnection = {
     toNodeId: string;
 };
 
+export type PendingConnectionCreate = {
+    connection: ConnectionHandle;
+    position: Position;
+};
+
 export type CanvasAssistantReference = {
     id: string;
     type: CanvasNodeType;

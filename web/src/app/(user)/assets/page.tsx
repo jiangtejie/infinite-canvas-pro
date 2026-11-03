@@ -1,11 +1,11 @@
 "use client";
 
-import { Copy, Download, PencilLine, Search, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Copy, Download, FileUp, LayoutGrid, Package, PencilLine, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { App, Button, Card, Drawer, Image, Input, Modal, Pagination, Space, Tag, Typography } from "antd";
+import { App, Button, Drawer, Image, Input, Modal, Pagination, Space, Tag, Typography } from "antd";
 import { saveAs } from "file-saver";
 
+import { PageHeader } from "@/components/ui/page-header";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { EmptyState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
@@ -129,120 +129,101 @@ export default function AssetsPage() {
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-transparent px-6 py-8">
-                <div className="pb-8">
-                    <div className="relative mx-auto max-w-5xl text-center">
-                        <div aria-hidden className="neon-bloom-a pointer-events-none absolute left-1/2 top-[-40px] h-[220px] w-[440px] -translate-x-1/2 opacity-45" />
-                        <p className="relative text-xs font-medium tracking-[0.2em] text-foreground/50">AI 素材库</p>
-                        <h1 className="neon-title relative mt-3 text-4xl font-semibold tracking-tight text-foreground">我的素材</h1>
-                        <div className="relative mt-3 flex flex-wrap items-center justify-center gap-2 text-sm text-foreground/60">
-                            <span className="rounded-full border border-border/70 bg-foreground/4 px-2.5 py-0.5 text-xs font-medium tabular-nums text-foreground/80">共 {filteredAssets.length} 条</span>
-                            <span>收藏和管理常用素材，按类型、标题、分类和标签快速查找</span>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto mt-8 w-full max-w-2xl">
-                        <div className="neon-ring flex items-center gap-2 rounded-2xl border border-border/60 bg-card/60 px-4 py-0.5 backdrop-blur-xl transition-colors focus-within:border-foreground/25">
-                            <Search className="size-4 shrink-0 text-muted-foreground" />
-                            <Input
-                                variant="borderless"
-                                size="large"
-                                className="!bg-transparent"
-                                allowClear
-                                value={keyword}
-                                placeholder="搜索标题、内容、分类、标签或来源"
-                                onChange={(event) => {
-                                    setPage(1);
-                                    setKeyword(event.target.value);
-                                }}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="mx-auto mt-6 grid max-w-6xl gap-3 text-left">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <FilterTagGroup
-                                className="flex-1"
-                                label="类型"
-                                options={kindOptions}
-                                isSelected={(value) => kindFilter === value}
-                                onSelect={(value) => {
-                                    setPage(1);
-                                    setKindFilter(value as AssetKind | "all");
-                                }}
-                            />
-                            <div className="flex flex-wrap items-center gap-2 sm:pt-2">
-                                <button
-                                    type="button"
-                                    className="inline-flex h-8 items-center rounded-full border border-border/70 px-3 text-xs text-foreground/75 transition-colors hover:border-foreground/25 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                    onClick={() => void exportAllAssets()}
-                                >
-                                    导出素材
-                                </button>
-                                <button
-                                    type="button"
-                                    className="inline-flex h-8 items-center rounded-full border border-border/70 px-3 text-xs text-foreground/75 transition-colors hover:border-foreground/25 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                    onClick={() => assetInputRef.current?.click()}
-                                >
-                                    导入素材
-                                </button>
-                                <button
-                                    type="button"
-                                    className="neon-primary inline-flex h-8 items-center rounded-full px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                    onClick={openCreate}
-                                >
-                                    新增素材
-                                </button>
-                                <Link href="/asset-library" className="inline-flex h-8 items-center rounded-full border border-border/70 px-3 text-xs text-foreground/75 transition-colors hover:border-foreground/25 hover:bg-foreground/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+            <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
+                <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
+                    <PageHeader
+                        eyebrow="AI 素材库"
+                        title="我的素材"
+                        description="收藏和管理常用素材，按类型、标题、分类与标签快速定位。"
+                        meta={
+                            <>
+                                <span className="chip chip-acid">{filteredAssets.length} 条结果</span>
+                                <span className="chip">全部 {validAssets.length} 条</span>
+                            </>
+                        }
+                        actions={
+                            <>
+                                <Button icon={<FileUp className="size-4" />} onClick={() => assetInputRef.current?.click()}>
+                                    导入
+                                </Button>
+                                <Button icon={<Package className="size-4" />} onClick={() => void exportAllAssets()}>
+                                    导出
+                                </Button>
+                                <Button icon={<LayoutGrid className="size-4" />} href="/asset-library">
                                     素材库
-                                </Link>
+                                </Button>
+                                <Button type="primary" icon={<Plus className="size-4" />} onClick={openCreate}>
+                                    新增素材
+                                </Button>
+                            </>
+                        }
+                    />
+
+                    <section className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-md">
+                                <Search className="size-4 shrink-0 text-muted-foreground" />
+                                <Input
+                                    variant="borderless"
+                                    className="!bg-transparent"
+                                    allowClear
+                                    value={keyword}
+                                    placeholder="搜索标题、内容、分类、标签或来源"
+                                    onChange={(event) => {
+                                        setPage(1);
+                                        setKeyword(event.target.value);
+                                    }}
+                                />
+                                <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">/</kbd>
                             </div>
+                            <FilterTagGroup inline options={kindOptions} isSelected={(value) => kindFilter === value} onSelect={(value) => { setPage(1); setKindFilter(value as AssetKind | "all"); }} />
                         </div>
-                        <FilterTagGroup
-                            label="分类"
-                            options={[{ value: "", label: "全部" }, ...categories.map((category) => ({ value: category, label: category }))]}
-                            isSelected={(value) => categoryFilter === value}
-                            onSelect={(value) => {
-                                setPage(1);
-                                setCategoryFilter(value);
-                            }}
-                        />
-                        <FilterTagGroup
-                            label="标签"
-                            options={[{ value: "", label: "全部" }, ...tags.map((tag) => ({ value: tag, label: tag }))]}
-                            isSelected={(value) => value ? tagFilters.includes(value) : tagFilters.length === 0}
-                            onSelect={(value) => {
-                                setPage(1);
-                                setTagFilters((items) => value ? (items.includes(value) ? items.filter((item) => item !== value) : [...items, value]) : []);
-                            }}
-                        />
-                    </div>
-                </div>
-
-                <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {visibleAssets.map((asset, index) => (
-                            <div key={asset.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
-                                <AssetCard asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadAsset} onDelete={() => setDeletingAsset(asset)} />
+                        {categories.length || tags.length ? (
+                            <div className="grid gap-2 rounded-lg border border-border/70 bg-card/40 p-4">
+                                {categories.length ? (
+                                    <FilterTagGroup label="分类" options={[{ value: "", label: "全部" }, ...categories.map((category) => ({ value: category, label: category }))]} isSelected={(value) => categoryFilter === value} onSelect={(value) => { setPage(1); setCategoryFilter(value); }} />
+                                ) : null}
+                                {tags.length ? (
+                                    <FilterTagGroup label="标签" options={[{ value: "", label: "全部" }, ...tags.map((tag) => ({ value: tag, label: tag }))]} isSelected={(value) => value ? tagFilters.includes(value) : tagFilters.length === 0} onSelect={(value) => { setPage(1); setTagFilters((items) => value ? (items.includes(value) ? items.filter((item) => item !== value) : [...items, value]) : []); }} />
+                                ) : null}
                             </div>
-                        ))}
-                    </div>
+                        ) : null}
+                    </section>
 
-                    {!visibleAssets.length ? <EmptyState className="py-10" title="没有找到素材" description="调整类型、分类、标签或搜索关键词后再试。" action={<Button onClick={clearFilters}>清空筛选</Button>} /> : null}
+                    <section className="flex flex-col gap-5">
+                        {visibleAssets.length ? (
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                                {visibleAssets.map((asset, index) => (
+                                    <div key={asset.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
+                                        <AssetCard asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadAsset} onDelete={() => setDeletingAsset(asset)} />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <EmptyState
+                                className="rounded-xl border border-dashed border-border bg-card/40"
+                                title="没有找到素材"
+                                description="调整类型、分类、标签或搜索关键词后再试。"
+                                action={<Button onClick={clearFilters}>清空筛选</Button>}
+                            />
+                        )}
 
-                    <div className="flex justify-center">
-                        <Pagination
-                            current={page}
-                            pageSize={pageSize}
-                            total={filteredAssets.length}
-                            showSizeChanger
-                            pageSizeOptions={[12, 24, 48, 96]}
-                            onChange={(nextPage, nextPageSize) => {
-                                setPage(nextPage);
-                                setPageSize(nextPageSize);
-                            }}
-                        />
-                    </div>
+                        {filteredAssets.length > pageSize ? (
+                            <div className="flex justify-center pt-2">
+                                <Pagination
+                                    current={page}
+                                    pageSize={pageSize}
+                                    total={filteredAssets.length}
+                                    showSizeChanger
+                                    pageSizeOptions={[12, 24, 48, 96]}
+                                    onChange={(nextPage, nextPageSize) => {
+                                        setPage(nextPage);
+                                        setPageSize(nextPageSize);
+                                    }}
+                                />
+                            </div>
+                        ) : null}
+                    </section>
                 </div>
             </main>
 
@@ -262,69 +243,48 @@ export default function AssetsPage() {
 function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
     const cover = asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "");
     const summary = assetSummary(asset);
+    const actions = [
+        asset.kind === "text"
+            ? { key: "copy", icon: <Copy className="size-3.5" />, label: "复制", onClick: () => void onCopy(asset) }
+            : { key: "download", icon: <Download className="size-3.5" />, label: "下载", onClick: () => onDownload(asset) },
+        { key: "edit", icon: <PencilLine className="size-3.5" />, label: "编辑", onClick: onEdit },
+        { key: "delete", icon: <Trash2 className="size-3.5" />, label: "删除", onClick: onDelete },
+    ];
+
     return (
-        <Card
-            hoverable
-            className="group overflow-hidden transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5"
-            styles={{ body: { padding: 0 } }}
-            cover={
-                <button type="button" className="block w-full overflow-hidden text-left" onClick={onOpen}>
-                    {cover ? (
-                        <img loading="lazy" decoding="async" src={cover} alt={asset.title} className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-                    ) : asset.kind === "video" ? (
-                        <video src={asset.data.url + "#t=0.1"} muted playsInline preload="metadata" className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-                    ) : (
-                        <div className="flex aspect-[4/3] items-center justify-center bg-muted p-5 text-center text-sm leading-6 text-muted-foreground">{asset.kind === "text" ? asset.data.content : "暂无封面"}</div>
-                    )}
+        <article className="punk-card group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground">
+            <button type="button" className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden bg-muted/50 text-left" onClick={onOpen} aria-label={`查看 ${asset.title}`}>
+                {cover ? (
+                    <img loading="lazy" decoding="async" src={cover} alt={asset.title} className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                ) : asset.kind === "video" ? (
+                    <video src={asset.data.url + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                ) : (
+                    <span className="flex size-full items-center justify-center bg-muted/60 p-5 text-center text-xs leading-6 text-muted-foreground">{asset.kind === "text" ? asset.data.content : "暂无封面"}</span>
+                )}
+                <span className="absolute left-2.5 top-2.5 inline-flex h-5 items-center rounded-[3px] border border-white/15 bg-black/55 px-1.5 font-mono text-[10px] tracking-[0.12em] text-white/90 uppercase backdrop-blur">
+                    {assetKindLabel(asset.kind)}
+                </span>
+            </button>
+            <div className="flex flex-1 flex-col gap-2.5 p-4">
+                <button type="button" className="cursor-pointer text-left" onClick={onOpen}>
+                    <h2 className="line-clamp-1 text-sm font-medium text-foreground">{asset.title}</h2>
+                    <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{summary}</p>
                 </button>
-            }
-        >
-            <button type="button" className="block w-full text-left" onClick={onOpen}>
-                <div className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <h2 className="line-clamp-1 text-sm font-semibold text-foreground">{asset.title}</h2>
-                            <Typography.Text type="secondary" className="mt-1 block text-xs">
-                                {asset.source || "未标注来源"}
-                            </Typography.Text>
-                        </div>
-                        <Tag className="m-0 shrink-0 text-[11px]">{assetKindLabel(asset.kind)}</Tag>
-                    </div>
-                    <Typography.Paragraph type="secondary" ellipsis={{ rows: 3 }} className="!mb-0 !mt-2 !text-xs !leading-5">
-                        {summary}
-                    </Typography.Paragraph>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                        {(asset.tags || []).slice(0, 3).map((tag) => (
-                            <Tag key={tag} className="m-0 text-[11px]">
-                                {tag}
-                            </Tag>
+                <div className="flex flex-wrap gap-1.5">
+                    {(asset.tags || []).slice(0, 3).map((tag) => (
+                        <Tag key={tag} className="!m-0 !rounded-[3px] !text-[10px]">{tag}</Tag>
+                    ))}
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 pt-3">
+                    <span className="truncate font-mono text-[10px] tracking-[0.1em] text-muted-foreground/70 uppercase">{asset.source || "未标注来源"}</span>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                        {actions.map((action) => (
+                            <Button key={action.key} type="text" size="small" className="!px-1.5" icon={action.icon} onClick={action.onClick} aria-label={action.label} title={action.label} />
                         ))}
-                        {!asset.tags?.length ? <Tag className="m-0 text-[11px]">无标签</Tag> : null}
                     </div>
                 </div>
-            </button>
-            <div className="flex items-center gap-2 px-4 pb-4">
-                <Button size="small" onClick={onOpen}>
-                    查看
-                </Button>
-                <Button size="small" icon={<PencilLine className="size-3.5" />} onClick={onEdit}>
-                    编辑
-                </Button>
-                {asset.kind === "text" ? (
-                    <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => void onCopy(asset)}>
-                        复制
-                    </Button>
-                ) : null}
-                {asset.kind === "image" || asset.kind === "video" || asset.kind === "audio" ? (
-                    <Button size="small" icon={<Download className="size-3.5" />} onClick={() => onDownload(asset)}>
-                        下载
-                    </Button>
-                ) : null}
-                <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={onDelete}>
-                    删除
-                </Button>
             </div>
-        </Card>
+        </article>
     );
 }
 
@@ -335,7 +295,7 @@ function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | nu
             {asset ? (
                 <div className="space-y-5">
                     {cover ? (
-                        <Image src={cover} alt={asset.title} className="rounded-lg" />
+                        <Image src={cover} alt={asset.title} className="rounded-lg" style={{ maxHeight: "46vh", width: "auto", maxWidth: "100%", objectFit: "contain" }} preview={{ getContainer: () => document.body }} />
                     ) : (
                         <div className="rounded-lg border border-border bg-muted p-5 text-sm leading-6 text-muted-foreground">{asset.kind === "text" ? asset.data.content : "暂无封面"}</div>
                     )}

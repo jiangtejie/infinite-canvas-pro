@@ -3,12 +3,19 @@ import type { ThemeConfig } from "antd";
 import { theme as antdTheme } from "antd";
 import { appFontFamily } from "@/lib/app-font";
 
+/* 朋克双色：与 globals.css 的 --acid / --hot 同源 */
+export const punkAccent = {
+    acid: "#d0ec00",
+    hot: "#ff3ead",
+};
+
 const neutral = {
     light: {
         primary: "#171717",
         primaryHover: "#000000",
         primaryText: "#ffffff",
-        menuBg: "#f5f5f5",
+        link: "#171717",
+        menuBg: "#f2f2ee",
         menuText: "#171717",
         selectActiveBg: "#f5f5f5",
         selectSelectedBg: "#f0f0f0",
@@ -17,9 +24,10 @@ const neutral = {
         tableSelectedHoverBg: "rgba(17, 17, 17, 0.08)",
     },
     dark: {
-        primary: "#fafafa",
-        primaryHover: "#ffffff",
-        primaryText: "#171717",
+        primary: punkAccent.acid,
+        primaryHover: "#e4ff1a",
+        primaryText: "#0b0b09",
+        link: punkAccent.acid,
         menuBg: "#262626",
         menuText: "#fafafa",
         selectActiveBg: "#262626",
@@ -31,11 +39,11 @@ const neutral = {
 };
 
 export const adminLayoutStyle = {
-    siderWidth: 232,
-    headerHeight: 56,
-    brandHeight: 56,
-    menu: { borderInlineEnd: 0, padding: "18px 12px", fontSize: 15 } satisfies CSSProperties,
-    menuItem: { height: 44, lineHeight: "44px", marginBlock: 4, borderRadius: 8 } satisfies CSSProperties,
+    siderWidth: 240,
+    headerHeight: 60,
+    brandHeight: 60,
+    menu: { borderInlineEnd: 0, padding: "16px 10px", fontSize: 14 } satisfies CSSProperties,
+    menuItem: { height: 42, lineHeight: "42px", marginBlock: 3, borderRadius: 6 } satisfies CSSProperties,
 };
 
 export function getAntThemeConfig(dark: boolean): ThemeConfig {
@@ -47,18 +55,34 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
         token: {
             colorPrimary: color.primary,
             colorInfo: color.primary,
-            colorLink: color.primary,
+            colorLink: color.link,
             colorLinkHover: color.primaryHover,
-            colorLinkActive: color.primary,
+            colorLinkActive: color.link,
             colorTextLightSolid: color.primaryText,
             fontFamily: appFontFamily,
-            borderRadius: 10,
-            borderRadiusLG: 14,
-            borderRadiusSM: 6,
+            borderRadius: 8,
+            borderRadiusLG: 12,
+            borderRadiusSM: 4,
+            controlHeight: 34,
         },
         components: {
             Button: {
                 primaryShadow: "none",
+                defaultShadow: "none",
+                fontWeight: 500,
+                borderRadius: 8,
+            },
+            Modal: {
+                borderRadiusLG: 16,
+            },
+            Drawer: {
+                borderRadiusLG: 16,
+            },
+            Input: {
+                borderRadius: 8,
+            },
+            Tag: {
+                borderRadiusSM: 4,
             },
             Menu: {
                 itemActiveBg: color.menuBg,
@@ -70,6 +94,7 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
                 darkItemSelectedColor: neutral.dark.menuText,
             },
             Select: {
+                borderRadius: 8,
                 optionActiveBg: color.selectActiveBg,
                 optionSelectedBg: color.selectSelectedBg,
                 optionSelectedColor: color.selectText,

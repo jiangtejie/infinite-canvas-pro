@@ -12,6 +12,7 @@ import { PromptDetailDialog } from "@/components/prompts/prompt-detail-dialog";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
+import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
 import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
@@ -89,9 +90,9 @@ const ASSET_TYPE_OPTIONS = [
 ];
 
 const STATUS_COLOR: Record<string, string> = {
-    success: "#22c55e",
-    loading: "#f59e0b",
-    error: "#ef4444",
+    success: canvasStatusColors.success,
+    loading: canvasStatusColors.loading,
+    error: canvasStatusColors.error,
 };
 
 export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthChange, onFocusNode, onAssetDragStart, onAssetDragEnd, onInsertAsset, onClose }: Props) {

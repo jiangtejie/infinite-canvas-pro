@@ -15,6 +15,9 @@ import { tokenDanceRecoveryMessage } from "./protocols/tokendance";
 import type { ReferenceImage } from "@/types/image";
 import { nanoid } from "nanoid";
 
+/** 同一提示词批量出图时，用于区分第几张的种子参数。 */
+export type SeedableImageConfig = AiConfig & { seedIndex?: number; seedCount?: number };
+
 export type ChatCompletionMessage = {
     role: "system" | "user" | "assistant";
     content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
@@ -564,7 +567,7 @@ export function refreshRemoteUser(config: AiConfig) {
     if (usesAccountProxy(config)) void useUserStore.getState().hydrateUser();
 }
 
-async function writeLocalAICallLog(config: AiConfig, endpoint: string, startedAt: number, status: number, timeoutSeconds: number, requestBody: string, responseBody: string, error: string) {
+async function writeLocalAICallLog(config: AiConfig, endpoint: string, startedAt: number, status: number, requestBody: string, responseBody: string, error: string) {
     if (config.channelMode !== "local" || usesAccountProxy(config)) return;
     const token = useUserStore.getState().token;
     if (!token) return;
@@ -646,7 +649,7 @@ function withSystemMessage(config: AiConfig, messages: ChatCompletionMessage[]) 
     return systemPrompt ? [{ role: "system" as const, content: systemPrompt }, ...messages] : messages;
 }
 
-async function requestImageGenerationSingle(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, params: ImageRequestParams): Promise<GeneratedImage[]> {
+async function requestImageGenerationSingle(config: SeedableImageConfig, prompt: string, params: ImageRequestParams): Promise<GeneratedImage[]> {
     const mime = IMAGE_MIME;
 
     if (isGeminiConfig(config)) return requestGeminiImageSingle(config, prompt, [], params);
@@ -931,7 +934,7 @@ async function requestChatImagesSingle(config: AiConfig, prompt: string, inputIm
     );
 }
 
-async function requestAndParseImages(config: AiConfig, endpoint: string, requestBody: unknown, timeoutSeconds: number, fetchResponse: () => Promise<Response>, parseResponse: (response: Response) => Promise<ParsedImageResponse>) {
+async function requestAndParseImages(config: AiConfig, endpoint: string, requestBody: unknown, _timeoutSeconds: number, fetchResponse: () => Promise<Response>, parseResponse: (response: Response) => Promise<ParsedImageResponse>) {
     const startedAt = Date.now();
     let logged = false;
     try {
@@ -939,22 +942,22 @@ async function requestAndParseImages(config: AiConfig, endpoint: string, request
         if (!response.ok) {
             const error = await fetchErrorDetail(response, "请求失败");
             logged = true;
-            void writeLocalAICallLog(config, endpoint, startedAt, response.status, timeoutSeconds, stringifyLogPayload(requestBody), stringifyLogPayload(error.detail || error.message), error.message);
+            void writeLocalAICallLog(config, endpoint, startedAt, response.status, stringifyLogPayload(requestBody), stringifyLogPayload(error.detail || error.message), error.message);
             throw new ImageRequestError(error.message, error.detail);
         }
         const parsed = await parseResponse(response);
         logged = true;
-        void writeLocalAICallLog(config, endpoint, startedAt, response.status, timeoutSeconds, stringifyLogPayload(requestBody), parsed.responseBody, "");
+        void writeLocalAICallLog(config, endpoint, startedAt, response.status, stringifyLogPayload(requestBody), parsed.responseBody, "");
         return parsed.images;
     } catch (error) {
         if (!logged) {
-            void writeLocalAICallLog(config, endpoint, startedAt, 0, timeoutSeconds, stringifyLogPayload(requestBody), "", error instanceof ImageRequestError ? error.detail || error.message : error instanceof Error ? error.message : "请求失败");
+            void writeLocalAICallLog(config, endpoint, startedAt, 0, stringifyLogPayload(requestBody), "", error instanceof ImageRequestError ? error.detail || error.message : error instanceof Error ? error.message : "请求失败");
         }
         throw error;
     }
 }
 
-async function requestImages(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], signal?: AbortSignal): Promise<GeneratedImage[]> {
+async function requestImages(config: SeedableImageConfig, prompt: string, references: ReferenceImage[], signal?: AbortSignal): Promise<GeneratedImage[]> {
 	const translation = await findParameterTranslation(config);
 	if (translation) {
 		const input = await imageTranslationInput(config,prompt,references,createImageRequestParams(config));
@@ -1012,7 +1015,7 @@ async function syncCanvasImageTask(task: CanvasImageTask, resultId = task.starte
     return { ...task, ...(stored ? { storageKey: stored.storageKey, bytes: stored.bytes, mimeType: stored.mimeType } : {}), url: syncedUrls[0], image_url: syncedUrls[0], ...(task.image_urls?.length ? { image_urls: syncedUrls } : {}), imageStorage };
 }
 
-export async function requestGeneration(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string) {
+export async function requestGeneration(config: SeedableImageConfig, prompt: string) {
     try {
         const images = await requestImages(config, prompt, []);
         refreshRemoteUser(config);
@@ -1023,7 +1026,7 @@ export async function requestGeneration(config: AiConfig & { seedIndex?: number;
     }
 }
 
-export async function requestEdit(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[]) {
+export async function requestEdit(config: SeedableImageConfig, prompt: string, references: ReferenceImage[]) {
     try {
         const images = await requestImages(config, prompt, references);
         refreshRemoteUser(config);
@@ -1034,7 +1037,7 @@ export async function requestEdit(config: AiConfig & { seedIndex?: number; seedC
     }
 }
 
-export async function createCanvasImageTask(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], options: CanvasImageTaskOptions = {}): Promise<CanvasImageTask> {
+export async function createCanvasImageTask(config: SeedableImageConfig, prompt: string, references: ReferenceImage[], options: CanvasImageTaskOptions = {}): Promise<CanvasImageTask> {
 	const translation = await findParameterTranslation(config);
     if (!usesAccountProxy(config)) {
         const images = await requestImages({ ...config, count: "1" }, prompt, references, options.signal);
@@ -1085,7 +1088,7 @@ export async function pollCanvasImageTaskStatus(taskId: string, signal?: AbortSi
     return syncCanvasImageTask(payload.data);
 }
 
-async function createCanvasImageTaskRequest(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions): Promise<RequestInit> {
+async function createCanvasImageTaskRequest(config: SeedableImageConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions): Promise<RequestInit> {
     assertImageReferencesSupported(config.model, references);
     const taskChannelId = channelIdForActiveModel(config);
     const taskChannelHeader: Record<string, string> = config.channelMode === "remote" && taskChannelId ? { "X-Model-Channel-ID": taskChannelId } : {};
@@ -1501,7 +1504,7 @@ function publicHttpUrl(value?: string) {
     }
 }
 
-async function requestAgnesImageEdit(config: AiConfig & { seedIndex?: number; seedCount?: number }, prompt: string, references: ReferenceImage[], params: ImageRequestParams): Promise<GeneratedImage[]> {
+async function requestAgnesImageEdit(config: SeedableImageConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams): Promise<GeneratedImage[]> {
     const mime = IMAGE_MIME;
 
     // 获取所有参考图的公共 HTTP 链接或降级为 base64 数组，完美对齐 extra_body.image

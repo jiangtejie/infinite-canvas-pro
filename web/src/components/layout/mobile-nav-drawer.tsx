@@ -25,13 +25,13 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
                             href={`/${tool.slug}`}
                             onClick={onClose}
                             className={cn(
-                                "relative flex items-center gap-3 rounded-xl px-3 py-3 text-base transition-colors",
-                                active ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+                                "relative flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-[14px] transition-colors",
+                                active ? "bg-acid/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
                             )}
                         >
-                            {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-foreground" aria-hidden /> : null}
-                            <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg border", active ? "border-border bg-background text-foreground" : "border-transparent bg-muted/60 text-muted-foreground")}>
-                                <Icon className="size-4.5" />
+                            {active ? <span className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-acid" aria-hidden /> : null}
+                            <span className={cn("grid size-8 shrink-0 place-items-center rounded-[5px] border", active ? "border-border bg-background text-acid" : "border-border/60 bg-muted/40 text-muted-foreground")}>
+                                <Icon className="size-4" />
                             </span>
                             <span>{tool.label}</span>
                         </Link>

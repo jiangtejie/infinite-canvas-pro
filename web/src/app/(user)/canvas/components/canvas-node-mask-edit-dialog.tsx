@@ -193,7 +193,7 @@ export function CanvasNodeMaskEditDialog({
                                 setError("");
                             }}
                         />
-                        {error ? <div className="text-xs font-medium text-[#ef4444]">{error}</div> : null}
+                        {error ? <div className="text-xs font-medium text-destructive">{error}</div> : null}
                     </div>
 
                     <div className="space-y-2">

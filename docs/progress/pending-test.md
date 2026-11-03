@@ -217,3 +217,181 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 - 视频页和工作流页在浏览器观察中曾出现导航/加载超时，需要确认首屏加载是否稳定，以及是否需要进一步做客户端模块懒加载。
 - 本轮未改变生成 API、任务轮询、文件存储、历史数据和画布数据结构，需对图片/视频真实任务做一次完整回归。
+## 朋克主题与全站版式统一
+
+- 设计令牌整体换成「酸性黄绿 + 荧光洋红」：深色主操作、激活态、焦点环用酸性色，洋红只做光晕；浅色改为暖纸底（非纯白）+ 白色卡片，卡片层级更容易浮起来。
+- 新增全站排版原语：`.page-shell`（统一 1240 容器与呼吸边距）、`.eyebrow`（等宽小标 + 双斜杠）、`.page-title` / `.page-lede`、`.punk-rule`（酸性标尺）、`.punk-panel`（分层面板）、`.punk-card`（悬停硬边偏移）、`.brackets`（四角准星）、`.chip`（等宽胶囊）。
+- 新增 `PageHeader` 共用页头，画布库 / 提示词库 / 我的素材 / 素材库 / 工作流 / 后台统一为「小标 + 标题 + 说明 + 胶囊 + 操作 + 酸性标尺」。
+- 首页重做：hero 补小标与输入提示，新增「六种创作入口」卡片区（悬停出现准星与偏移阴影），案例区补提示词为空时的空状态。
+- 画布库项目卡改为「封面预览 + 编号占位 + 等宽元信息」，多选后的导出/删除收进独立选择条。
+- 提示词、素材、素材库、工作流模板卡统一为同一套卡面语言：左上类型角标、等宽页脚、细线操作区。
+- 生图 / 视频工作台左栏改为细线分隔的扁平分区（`WorkbenchSection`），结果面板头部吸顶；修复生图页「工作流」悬浮按钮的 hydration 失配（SSR 与客户端位置不一致导致按钮卡在左上角压住输入框）。
+- 后台改为自绘侧栏 + 顶栏 + 页头，Card / ProTable 统一描边、等宽表头与行高；窄屏新增横向分区导航；Skill 管理页更新时间改为可读格式。
+- 登录页改为左右分栏海报 + 表单；用户中心改为页头 + 下划线页签；公告条改为黑底 + 酸性标识。
+- 画布编辑器同步换成中性碳黑 / 暖纸底配色，避免与前台其他页面割裂。
+- 需验证：深浅色下酸性色与文字的对比度、列表页滚动与吸顶、工作台左右栏在 1280 / 1600 宽度下的比例、后台窄屏导航、登录与用户中心的窄屏换行、画布编辑器与新的中性色是否协调。
+- 移除入口处引入的 `antd/dist/reset.css`：antd 的 `p { margin-top: 0; margin-bottom: 1em }` 是没有层级的规则，会压过 Tailwind 的 `@layer utilities`，导致所有段落上的 `mt-*` 失效；改用 Tailwind preflight 后，页头说明、首页微文案等间距恢复正常。需验证：登录表单、后台表格、弹窗与输入框在去掉 reset 后是否仍保持原有外观。
+
+## 技术债清理（第一批）
+
+- 后台 `ProConfigProvider` 从根 `AppProviders` 下沉到 `(admin)/admin/layout.tsx`，前台路由的首屏共享包不再引入 `@ant-design/pro-components`；后台 ProTable 仍保持深色主题与上下文。
+- 配置弹窗 `AppConfigModal` 改为动态引入 + 首次打开才挂载，避免每个页面首屏加载模型、渠道、语音等一大串依赖。
+- 删除未使用的 `components/ui/dia-text-reveal.tsx`，以及 `.ai-title-aurora`、`.neon-primary`、`.neon-hover-border` 三段废弃样式。
+- 批量生图的 `seedIndex` / `seedCount` 收敛为 `SeedableImageConfig` 类型，去掉生图页两处 `as any` 强转。
+- 新增 `bun run typecheck`，CI 增加 `bun test` 步骤。
+- 需验证：任意前台页面首次打开「配置」弹窗能正常加载、拉取与保存；后台用户 / 提示词 / 技能页 ProTable 的深色主题、分页与工具栏正常；生图页一次提交多张时种子参数与结果数量一致。
+
+## 开发服务器切换到 Turbopack
+
+- 排查发现原来的 `next dev --webpack` 长时间运行后内存会累积到 14 GB 并失去响应，日志里还反复出现 `Fast Refresh had to perform a full reload`。
+- 实测对比（同一台机器、同一批路由）：webpack 启动约 5.4 s、路由按需编译 5–8 s、11 条路由后常驻约 5.9 GB；Turbopack 启动约 0.4 s、路由 1.5–3.4 s（含固定等待）、11 条路由 + 画布详情页后常驻约 2.1 GB，且不再出现整页重载告警。
+- `dev` 脚本改为 `next dev --turbopack`，保留 `dev:webpack` 作为回退；后台 ProTable、配置弹窗、工作流抽屉、404、画布详情页均已在 Turbopack 下验证通过。
+- CI 增加 `bun run typecheck`（`next.config.ts` 里 `typescript.ignoreBuildErrors: true`，构建本身不会拦住类型错误）。
+- 需验证：日常 HMR 是否正常（改组件后局部刷新、改 store/service 后按预期整页刷新）、生产构建与开发下的交互是否一致；如遇端口被旧进程占用，先确认 3000 端口的占用进程再启动。
+
+## 回归修复（窄屏创作框）
+
+- 首页创作框底部工具条在 390px 宽度下会把「720p · 横屏」压到发送按钮下面；工具条从 `flex justify-between` 改为 `grid grid-cols-[minmax(0,1fr)_auto]`，左侧工具组允许换行，右侧推理 / 发送按钮固定在右列。
+- 需验证：390px 下工具条两行显示且不与发送按钮重叠；画布助手面板（宽度随侧栏变化）内工具条仍为单行；桌面 1440px 布局不变。
+
+## 窄屏与后台细节修复
+
+- 后台 6 个 ProTable（用户 / 提示词 / Skill / 充值套餐 / 算力点日志 / 素材）统一加 `scroll={{ x: 1000 }}`：窄屏可横向滑动查看全部列，桌面 1440 下仍铺满容器、不出现滚动条。
+- 画布顶栏左侧改为可收缩（`flex-1` + 标题 `min-w-0`），右侧操作组 `shrink-0`；打开右侧助手面板后顶栏不再被裁切（实测顶栏 694px 时右组右边界 959px）。
+- 充值套餐价格输入去掉已弃用的 `addonAfter="元"`，标签本身已带「价格（元）」，同时消除 antd 弃用告警。
+- 需验证：390px 下后台各表可横向滑动且页面本身不出现横向滚动；画布助手面板展开/收起时顶栏完整；充值套餐新增/编辑弹窗正常保存。
+
+## 交互浮层统一（弹窗 / 抽屉 / 下拉 / 气泡 / 提示）
+
+- 弹窗按 antd v6 的 `.ant-modal-container` 重做：独立描边面板、头 / 正文 / 底三段结构、标题下 36px 酸性短线、底部操作区细线分隔与浅色底；最大高度 `100dvh - 128px`、正文内滚动；遮罩加深并加 3px 模糊。
+- 抽屉按 `.ant-drawer-section` 重做：同一套头 / 底分隔与酸性短线，正文 20px 留白。
+- 选择器下拉统一为 10px 面板 + 1px 描边、34px 选项、6px 圆角；悬停 9% 前景色，选中项酸性底色 + 左侧 2px 酸性条。
+- 下拉菜单、气泡、确认气泡统一描边 / 阴影 / 内边距；Popconfirm 最小宽度 240px，正文与按钮留白。
+- Tooltip 改用 v6 的 `.ant-tooltip-container`，暗底、细边、12px 字号；Message 下移到顶栏下方 108px，避免压住公告条。
+- 画布图像 / 视频 / 音频设置浮层与相机面板：圆角 16、1px 边框、统一阴影，内边距收紧。
+- 需验证：深浅色下弹窗、抽屉、下拉、气泡、Tooltip、Message 的对比度；长表单弹窗的正文滚动与底部按钮可见；画布三个设置浮层和相机面板；Popconfirm 删除流程；后台各表格与登录表单在这些改动后是否仍正常。
+
+## 分段控件与移动端弹窗表单
+
+- 分段控件（登录/注册、配置里的渠道模式、生图的接口模式）选中态改为「酸性底色 + 1px 酸性描边 + 前景色文字」，替换原来的纯黑块，与筛选胶囊、页签的激活语言一致。
+- 后台用户与充值套餐的新增 / 编辑弹窗把 `Col span={12}` 改为 `xs={24} sm={12}`：移动端单列、桌面仍是两列；实测 390px 下字段全宽、底部按钮固定可见。
+- 生图页的工作流抽屉去掉内层重复的「创作工作流」标题，只保留一句说明与右侧操作按钮，避免抽屉标题与内容标题重复。
+- 需验证：390px 下用户 / 套餐弹窗单列且可保存；桌面仍为两列；登录、配置、生图三处分段控件的选中态在深浅色下清晰；工作流抽屉头部不重复。
+
+## 图片预览与按钮文字
+
+- 素材详情抽屉的图片预览改为挂载到 `document.body`，避免预览被抽屉的层叠上下文遮挡；遮罩加深到 90% 并加模糊。
+- 预览关闭按钮改为 36px 描边方块，底部旋转 / 缩放工具条改成描边深色面板，并修正图标对比度（此前按钮文字色被设为深色，图标几乎不可见）。
+- 全局关闭 antd 的双字按钮自动空格（`button.autoInsertSpace: false`），「保存 / 取消 / 删除」不再渲染为「保 存」。
+- 素材详情抽屉的图片高度限制为 46vh，标题、标签、内容和下载按钮不用滚动即可看到。
+- 实测：新增一张图片素材 → 打开抽屉 → 点击图片 → 预览、关闭、缩放按钮均正常；测试素材已删除。
+- 需验证：深浅色下预览遮罩、关闭按钮、工具条图标的可读性；其它抽屉（素材库、工作流）里的图片预览；按钮文案是否统一为无空格。
+
+## 浮层与移动端收尾
+
+- 图像设置的宽高比从 4×4 网格改为 2 行 × 整 4 列的横向滚动，标题右侧加「左右滑动」提示；单元格 64px 高，首页浮层高度稳定在约 386px，内容不再上下滚动；工作流编辑弹窗、生图 / 视频工作台同步更紧凑。
+- 移动端画布顶栏隐藏「配置」入口与算力点余额，标题获得更多空间；主题切换、登录 / 头像与助手入口保留。
+- 后台表格在 ≤640px 时常驻显示横向滚动条，作为「还有列」的可发现提示。
+- 需验证：首页创作框打开图像设置能一屏看到质量 / 尺寸 / 宽高比，2k/4k 比例可横向滑动；390px 画布顶栏无溢出且标题可读；后台各表窄屏能左右滑动。
+## 工程清理（收尾）
+
+- 全量打开 `noUnusedLocals` / `noUnusedParameters`，清理了 7 处未使用的变量、参数与解构绑定；`bun run typecheck` 与 CI 现在会直接拦下新增的未使用代码。
+- 后台 AI 日志里语义容易混淆的 `formatDuration` 改名为 `formatElapsed`，与 `lib/image-utils` 的「分秒」格式化区分开。
+- 回归了工作流编辑弹窗：双栏、头部 / 底部、宽高比滚动网格与固定底部按钮均正常。
+- 控制台告警扫描：除应用自身的首屏耗时日志外，无 antd 弃用、React key、useForm 等告警。
+- 需验证：CI 的 typecheck 在新增未使用变量时按预期失败；工作流编辑弹窗在 1440 / 390 下的双栏与单栏布局。
+
+## 画布任务纯函数拆分与下拉样式
+
+- 把画布任务状态 / 时间 / 尺寸 / URL 解析（`canvasTaskCompleted`、`parseCanvasTaskTime`、`canvasVideoTaskFromMetadata`、`canvasImageTaskURLs` 等）从 `canvas-client-page.tsx` 抽到 `lib/canvas-task-helpers.ts`，并补 9 条单测；主文件 6092 → 6041 行（非空行），`bun test` 37 通过。
+- 修复画布裁切比例下拉样式未生效：antd v6 的 `.ant-dropdown-menu` 规则优先级高于旧样式，给规则加 `body` 前缀后，菜单恢复 10px 圆角、1px 描边与 6px 内边距。
+- 实测：画布导入图片 → 右键唤出图片工具栏 → 裁剪 → 打开「自由比例」下拉，菜单样式与操作正常。
+- 需验证：真实生图 / 视频任务的状态合并、时间与尺寸回填（本轮无 API Key，只覆盖纯函数与页面交互）；裁切比例切换与确认裁剪。
+- 视频 / 音频任务回填（`applyCanvasVideoTaskUpdate`、`applyCanvasAudioTaskUpdate`）与 `fitCanvasMediaNode` 迁到 `lib/canvas-task-updates.ts`，状态常量与视频尺寸上限迁到 `lib/canvas-node-constants.ts`；补 7 条单测，主文件 6041 → 5944 行（非空行），`bun test` 44 通过。
+- 图片批量回填（`applyCanvasImageTaskUpdate`）与连接生成（`applyCanvasImageTaskConnections`）迁到 `lib/canvas-task-updates.ts`，补 5 条单测：单图完成、完成但无 URL、工作流批次、批次连接、图层分解子连接；主文件非空行 5944 → 5720（总行数 6096），`bun test` 49 通过。
+- 主页面剩余的任务逻辑只有轮询调用；下一步进入组件层，先抽 `CanvasTopBar`。
+- `CanvasTopBar` 与画布菜单 / 快捷键弹窗迁到 `components/canvas-top-bar.tsx`（314 行），主页面非空行 5720 → 5429（总行数 5792）；菜单项、快捷键弹窗、移动端 390px 菜单均实测正常。
+- 弹窗正文补了常驻细滚动条样式，长内容（如快捷键列表）能明确滚动。
+- `FullscreenPreview` 迁到 `components/fullscreen-preview.tsx`（235 行），主页面非空行 5429 → 5218（总行数 5569）。
+- 全屏预览补了统一的右上角关闭按钮（图片 / 全景 / 视频都有），并按对话框补 `role="dialog"` / `aria-modal`；Esc / ← → 改为捕获阶段监听，修复「焦点在节点上时 Esc 关不掉预览」的问题。
+- 实测：画布双击图片打开预览 → 右上角关闭；再次打开 → Esc 关闭；滚轮缩放正常，无控制台报错。
+- `ConnectionCreateMenu` / `NodeCreateMenu` 迁到 `components/canvas-create-menus.tsx`（121 行），`PendingConnectionCreate` 类型移到 `canvas/types.ts`；主页面非空行 5218 → 5128（总行数 5473）。
+- 修复两个创建菜单在底部被视口 / 底部工具栏截断：菜单渲染后测量溢出并整体上移，预留 88px 底部工具栏空间，超高时内部滚动；节点菜单按 0.9 净缩放换算，连接菜单按 `--canvas-inverse-scale` 换算。
+- 实测：900px 高视口底部双击，节点菜单 top 169 / bottom 812 完整显示；从文本节点右侧拖出连接菜单 top 278 / bottom 813，7 个选项全部可见，点击选项能正常建节点。
+- Agent 摘要、视频时长校验（`canvasAgentNodeSummary` / `validateCanvasAgentVideoSeconds` 等）迁到 `lib/canvas-agent-summary.ts`（77 行），补 5 条单测。
+- 连接校验（`getConnectionTargetAnchor` / `normalizeConnection`）迁到 `lib/canvas-connections.ts`（29 行），补 5 条单测，覆盖导演台 / 配置节点 / 分组 / 非法端点。
+- 主页面非空行 5128 → 5040（总行数 5376），`bun test` 59 通过。
+- 节点构造与媒资元数据（`buildImportedVideoNode`、`imageMetadata` / `videoMetadata` / `audioMetadata`、`buildImageGenerationMetadata`、`getNextDirectorOutputY`、`referenceUrl` 等）迁到 `lib/canvas-node-builders.ts`（106 行），补 6 条单测。
+- 主页面非空行 5040 → 4953（总行数 5279），`bun test` 65 通过。
+- 生成参数合并（`buildGenerationConfig`）迁到 `lib/canvas-generation-config.ts`（54 行），重试 / 批量 / 角度辅助迁到 `lib/canvas-graph.ts`（59 行），补 8 条单测（模式与节点覆盖、全景尺寸、重试溯源、批次折叠、角度文案）。
+- 主页面非空行 4953 → 4858（总行数 5176），`bun test` 73 通过；文件末尾纯函数迁移到此收口。
+- 工作流异步任务（`submitCanvasWorkflowTask` / `workflowImageTask` / `workflowVideoTask` / `workflowAudioTask`）迁到 `lib/canvas-workflow-tasks.ts`（75 行），补 5 条单测：comfy 输出映射、token 失效、失败任务保留错误。
+- 主页面非空行 4858 → 4798（总行数 5112），`bun test` 78 通过。
+- 视口数学与缩放 / 适配（`screenToCanvas`、`fitNodesToView`、`setZoomScale`）抽到 `hooks/use-canvas-viewport.ts`（86 行）；状态仍留在页面，先抽函数、后续再把状态并入 hook。
+- 主页面非空行 4798 → 4746（总行数 5056）。
+- 实测：新建节点后缩放 200% → 查看全部回到 100% → 滚轮缩放到 121%，无控制台报错。
+- 画布交互回归（本轮重构后）：新建文本 + 图片节点 → Shift 多选显示「2 项」→ 拖动位移 80/40 → Delete 清空 → Ctrl+Z 恢复 2 个 → Ctrl+Shift+Z 再清空，全程无控制台报错。
+- 选中状态（节点集合、连接、`selectedNodeIdsRef`）迁到 `hooks/use-canvas-selection.ts`（31 行），并提供 `selectOnly` / `selectMany` / `clearSelection`；27 处单选中、7 处清空、7 处多选调用改用语义化方法。
+- 主页面非空行 4746 → 4744（总行数 5054）。
+- 视口状态、`viewportRef`、动画 ref 也并入 `useCanvasViewport`（89 行），页面删除对应 state/ref 与同步逻辑；主页面非空行 4744 → 4732（总行数 5041）。
+- 实测：缩放 200% → 刷新页面仍为 200% → 查看全部回到 100%，无控制台报错。
+- 任务注册表第一刀：`runningNodeId`、`runningRequestRef`、`nodeTaskRunsRef` 与 `CanvasNodeTaskRun` 类型迁到 `hooks/use-canvas-tasks.ts`（32 行）；提交 / 轮询 / 停止 / 重试仍在页面，行为不变。
+- 主页面非空行 4732 → 4730（总行数 5038）；画布冒烟测试（底部建节点菜单）正常。
+- 剩余纯函数收口：`applyNodeConfigPatch`、`getInputSummary`、`getGenerationCount` 迁到 `canvas-node-builders.ts`，`resetInterruptedGeneration` 迁到 `canvas-task-updates.ts`；补 6 条单测，主页面非空行 4730 → 4707（总行数 5012），`bun test` 84 通过。
+- 生成侧辅助（`selectAudioReference`、`withCanvasVideoAdvancedConfig`、`generationReferenceUrls`）迁到 `lib/canvas-generation-helpers.ts`（46 行），补 3 条单测；主页面非空行 4707 → 4672（总行数 4974），`bun test` 87 通过。
+- Agent 会话引用同步（`syncAssistantReferences`）迁到 `lib/canvas-assistant-references.ts`（26 行），补 4 条单测；主页面非空行 4672 → 4653（总行数 4956），`bun test` 91 通过。
+- 节点工厂 `createCanvasNode` 迁到 `lib/canvas-node-factory.ts`（27 行），刷新占位组件迁到 `components/canvas-refresh-shell.tsx`（34 行），补 2 条单测；主页面非空行 4653 → 4605（总行数 4902），`bun test` 93 通过。
+
+## 真实生成链路回归（Modelflare / gpt-image-2）
+
+- 使用临时本地渠道（baseUrl `https://modelflare.dev`，模型 `gpt-image-2`），不写入仓库、不保存 Key。
+- 单图：`POST /v1/images/generations` 200，约 20s 完成，节点显示生成图并写入本地存储。
+- 停止：生成中 3.5s 点击停止，请求 `ERR_ABORTED`，节点显示「已停止 / 重新生成」。
+- 重试：停止后点击「重新生成」，第二次请求 200，正常出图。
+- 批量 2 张：两次请求均 200，生成 1 个批量根节点 + 2 个子节点，根节点显示数量 2。
+- 刷新恢复：单图生成后刷新页面，节点从本地存储恢复并以 blob URL 显示。
+- 全程无控制台报错。
+- 任务运行器（`rememberNodeTask` / `submitNodeTask` / `isNodeTaskActive`）迁到 `hooks/use-canvas-task-runner.ts`（54 行）；重构后再次用同一真实渠道回归：单图 200、停止 ABORT、重试 200，两张图均正常。
+- 停止任务（`handleStopNode`）迁到 `hooks/use-canvas-task-control.ts`（79 行）；真实渠道再次回归：生成中停止 → 请求 ABORT、节点「已停止」。
+- 轮询编排迁到 `hooks/use-canvas-task-polling.ts`（114 行）；重构后用真实视频再次回归：seedance-2.0-fast 约 33 次轮询后完成，视频正常播放（期间一次 503 由下一轮轮询恢复）。
+- 任务门面 `useCanvasTaskSystem`（50 行）统一组合注册表 / 提交 / 停止 / 轮询与轮询 ref；页面只保留一次调用。真实图片生成再次回归：200 正常出图。
+- 主页面非空行 4605 → 4463（总行数 4756）。
+- 图片结果卡（`ResultImageCard` / `PendingImageCard` / `FailedImageCard` / `TaskTags`）迁到 `image/components/result-cards.tsx`（119 行）；图片页当前非空 1682 行 / 总 1768 行。
+- 真实回归：图片工作台生成 gpt-image-2 图片 200，结果卡正常显示图片、状态标签、尺寸 / 耗时与操作按钮，无控制台报错。
+- 视频结果卡（`ResultVideoCard` / `PendingVideoCard` / `FailedVideoCard` / `HistoryLogCard` / `VideoSourceTag` / `TaskTags`）迁到 `video/components/result-cards.tsx`（153 行）；视频页当前非空 1829 行 / 总 1917 行。
+- 真实回归：视频工作台生成 seedance-2.0-fast 视频，结果卡正常显示播放器、临时 URL / 成功标签、提示词、模型 / 尺寸 / 分辨率 / 时长与操作按钮，无控制台报错。
+- 图片工作台控件（`ReferenceStrip` / `ReferenceQuickActions` / `GenerationSettings`）迁到 `image/components/workbench-controls.tsx`（83 行）；图片页当前非空 1613 行 / 总 1695 行，左侧面板视觉正常。
+- 视频工作台控件（`FrameReferenceStrip` / `ReferenceQuickActions` / `GenerationSettings`）迁到 `video/components/workbench-controls.tsx`（92 行）；视频页当前非空 1756 行 / 总 1838 行，左侧面板视觉正常。
+- 视频参考条（`ReferenceImageStrip` / `ReferenceVideoStrip` / `ReferenceAudioStrip` / `ReferenceOrderButtons`）迁到 `video/components/reference-strips.tsx`（77 行）；视频页当前非空 1692 行 / 总 1770 行，参考图 / 视频 / 音频区视觉正常。
+- 图片结果面板 `ResultsPanel` 迁到 `image/components/results-panel.tsx`（230 行）；图片页当前非空 1414 行 / 总 1497 行，空状态与工具栏视觉正常。
+- 视频结果面板 `ResultsPanel` 迁到 `video/components/results-panel.tsx`（148 行）；视频页当前非空 1609 行 / 总 1686 行，空状态与工具栏视觉正常。
+- 图片 / 视频页的历史同步与任务轮询改用 latest ref 调用（`loadAccount*HistoryRef`、`syncBackend*TasksRef`、`pollPendingLogsOnceRef`），去掉 4 条 `exhaustive-deps` warning。
+- ESLint 全量清零：画布页 54 条依赖告警补 stable ref / setter / callback；其余管理页、工作流页、Agent 页逐条修复（latest ref、useCallback、useMemo、字段依赖）；当前 **0 error / 0 warning**。
+- 首页与登录页接入 `PunkAura`：原生 WebGL 酸性 / 洋红流光、同心环与网格，跟随指针产生轻微视差；WebGL 不可用或 `prefers-reduced-motion` 时降级为静态画面。
+- 新增 `.punk-aura`、`.punk-signal`、`.punk-scanlines`：呼吸信号、扫描线纹理；工作台标题接入呼吸信号，首页补垂直信号铭牌与示例序号。
+- 生图 / 视频工作台左侧标题栏叠加局部光场；共享 `PageHeader` 接入呼吸信号，提示词库、素材库、后台列表页同步获得统一的小节奏点。
+- 画布空状态新增 `Blank Canvas / 000` 引导：呼吸信号、危险胶带、双击创建 / 拖入素材 / @ 引用提示，不拦截双击建节点。
+- 首页示例按钮、工作台入口、提示词卡片加错峰入场（`enter-up`）；图片 / 视频结果卡与历史卡也按索引错峰进入。
+- 后台积分日志弹窗字段改 `xs={24} sm={12}`，390px 移动端不再两列挤压。
+- 提示词筛选组移动端取消 112px 固定高度，分类 / 标签全部展开；桌面端仍保留限高滚动。
+- 404 页接入局部 WebGL 光场与呼吸信号；共享 `EmptyState` 标题前增加呼吸点，图片 / 视频 / 提示词空状态统一。
+- 工作流页、画布库页头部接入 `PunkAura` 光场；画布库空状态与工作流模板列表保持可读。
+- `PunkAura` 卸载时通过 `WEBGL_lose_context` 释放上下文；首页 → 生图 → 视频 → 工作流 → 画布库连续 SPA 切换，每页仅 1 个 canvas，无控制台报错。
+- Review 修复：画布空状态改用 `nodes.length === 0`，平移把节点移出视口时不再误显「开始第一笔」；404 光场加 `isolate` / `-z-10` 避免盖住正文；首页 / 登录同样收紧层叠上下文。
+- `bun run lint` 改为 `--max-warnings=0`，CI 会拦截新增 warning。
+- 首页 / 登录页视觉回归：WebGL 画面正常、标题与输入区可读，无控制台报错；CSS chunk 异常时清 `web/.next` 并重启 dev server。
+- 接入 ESLint 9 + `eslint-config-next` 16：新增 `web/eslint.config.mjs` 与 `bun run lint`，CI 增加 Lint 步骤；当前 0 error / 0 warning。
+- Next 16 默认开启的 React Compiler 规则（purity / set-state-in-effect / refs 等）会误报现有事件处理写法，暂在 flat config 中关闭，只保留 `rules-of-hooks` 与 `exhaustive-deps`。
+- 画布语义色收敛到 `lib/canvas-palette.ts`：状态色（success / loading / error）与节点类型色（image / video / audio / config）；assistant、侧栏、小地图改用常量，危险色改用 `var(--destructive)`。
+- 实测小地图两节点颜色为 `rgb(16,185,129)` / `rgb(249,115,22)`，画布布局正常，无控制台报错。
+- 画布私有样式抽到 `web/src/styles/canvas.css`（53 行），后台面板 / 设置页签抽到 `styles/admin.css`（102 行），提示词筛选抽到 `styles/prompts.css`（31 行）；统一由 `globals.css` 顶部 `@import` 引入，保持单一 CSS 图。globals.css 非空行 1197 → 957。
+- 同时删掉已无引用的 `.canvas-control-*`、`.canvas-composer-*` 与旧的 `.canvas-image-settings-popover .ant-popover-inner*` 规则；仅保留 popover 分段控件、节点信息弹窗与批次动画 keyframes。
+- 实测：画布、生图、视频、后台用户、提示词页布局与样式正常，无控制台报错。
+- 注意：拆分后 dev server 曾把旧 CSS chunk 缓存成 canvas.css，表现为整站像丢了 Tailwind；清除 `web/.next` 并重启后恢复。后续改全局 CSS 若出现类似现象，优先清缓存。
+
+## 真实视频生成与轮询（Modelflare / seedance-2.0-fast）
+
+- OpenAI 兼容视频协议补充 `resolution` 表单字段（保留 `resolution_name`），否则 Modelflare 返回 400「resolution must be one of 480p or 720p」。
+- `POST /v1/videos` 200 → 返回 task_id；随后每 6s 轮询 `/v1/videos/{task_id}?model=seedance-2.0-fast`，约 8 次 200。
+- 进度 50% → 100% 完成，约 96s；节点切换为视频播放器，视频 URL 正常。
+- 轮询期间无控制台报错；任务完成后停止轮询。

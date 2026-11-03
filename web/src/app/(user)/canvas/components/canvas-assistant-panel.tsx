@@ -34,6 +34,7 @@ import { ImageGenerationPending } from "@/components/image-generation-pending";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
+import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { fetchSystemAgentSkillFile } from "@/services/api/agent-skills";
 import { imageToDataUrl } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -74,9 +75,9 @@ const ASSISTANT_NODE_TYPE_META = {
     [CanvasNodeType.Group]: { Icon: Group, label: "组" },
 };
 const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
-    success: "#22c55e",
-    loading: "#f59e0b",
-    error: "#ef4444",
+    success: canvasStatusColors.success,
+    loading: canvasStatusColors.loading,
+    error: canvasStatusColors.error,
 };
 
 type CanvasAssistantPanelProps = {
@@ -161,7 +162,7 @@ export function CanvasAssistantPanel({
     const [initialSession] = useState(() => createSession(mode));
     const lastSessionIds = useRef<Partial<Record<"api" | "codex", string>>>({});
     const drafts = useRef<Partial<Record<"api" | "codex", { prompt: string; references: string[]; skills: CanvasAgentSkillSelection[] }>>>({});
-    const safeSessions = sessions.length ? sessions : [initialSession];
+    const safeSessions = useMemo(() => sessions.length ? sessions : [initialSession], [initialSession, sessions]);
     const visibleSessions = safeSessions.filter((session) => (session.provider || "api") === mode);
     const rememberedId = lastSessionIds.current[mode] || activeSessionId;
     const resolvedActiveSessionId = visibleSessions.find((session) => session.id === rememberedId)?.id || visibleSessions[0]?.id || null;
@@ -171,7 +172,7 @@ export function CanvasAssistantPanel({
     useEffect(() => {
         sessionsRef.current = safeSessions;
         activeSessionIdRef.current = resolvedActiveSessionId;
-    }, [resolvedActiveSessionId, sessions]);
+    }, [resolvedActiveSessionId, safeSessions]);
 
     useEffect(() => () => {
         abortRef.current?.abort();
@@ -181,7 +182,7 @@ export function CanvasAssistantPanel({
 
     const activeSession = visibleSessions.find((session) => session.id === resolvedActiveSessionId) || visibleSessions[0] || null;
     const historySessions = visibleSessions.filter((session) => session.messages.length > 0);
-    const messages = activeSession?.messages || [];
+    const messages = useMemo(() => activeSession?.messages || [], [activeSession]);
     const hasMessages = messages.length > 0;
     const selectedNodeKey = useMemo(() => Array.from(selectedNodeIds).sort().join(","), [selectedNodeIds]);
 
@@ -548,12 +549,14 @@ export function CanvasAssistantPanel({
             setIsRunning(false);
         }
     };
+    const sendMessageRef = useRef(sendMessage);
+    sendMessageRef.current = sendMessage;
 
     useEffect(() => {
         if (!initialRequest || consumedInitialRequestRef.current === initialRequest) return;
         consumedInitialRequestRef.current = initialRequest;
         onInitialRequestConsumed?.();
-        void sendMessage(initialRequest.prompt, initialRequest.references, initialRequest.skills, initialRequest.skills.length > 0);
+        void sendMessageRef.current(initialRequest.prompt, initialRequest.references, initialRequest.skills, initialRequest.skills.length > 0);
     }, [initialRequest, onInitialRequestConsumed]);
 
     const submit = async (nextPrompt = prompt, referenceIds = composerReferenceIds) => {
@@ -794,7 +797,7 @@ function AssistantPanelCard({ title, children, actions }: { title: string; child
             <div className="mt-1">{children}</div>
         </div>
         <div className="flex border-t" style={{ borderColor: theme.node.stroke }}>
-            {actions.map((action, index) => <button key={action.label} type="button" className={cn("h-9 min-w-0 flex-1 cursor-pointer bg-transparent text-sm", index > 0 && "border-l", action.danger && "font-medium")} style={{ borderColor: theme.node.stroke, color: action.danger ? "#ef4444" : theme.node.text }} onClick={action.onClick}>{action.label}</button>)}
+            {actions.map((action, index) => <button key={action.label} type="button" className={cn("h-9 min-w-0 flex-1 cursor-pointer bg-transparent text-sm", index > 0 && "border-l", action.danger && "font-medium")} style={{ borderColor: theme.node.stroke, color: action.danger ? "var(--destructive)" : theme.node.text }} onClick={action.onClick}>{action.label}</button>)}
         </div>
     </section>;
 }

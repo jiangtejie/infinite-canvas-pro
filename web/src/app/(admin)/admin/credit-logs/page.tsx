@@ -138,6 +138,7 @@ export default function AdminCreditLogsPage() {
                     search={false}
                     defaultSize="middle"
                     tableLayout="fixed"
+                    scroll={{ x: 1000 }}
                     cardProps={{ variant: "borderless" }}
                     headerTitle={
                         <Space>
@@ -166,32 +167,32 @@ export default function AdminCreditLogsPage() {
             <Modal forceRender title={editingLog?.id ? "编辑日志" : "新增日志"} open={Boolean(editingLog)} width={680} onCancel={() => setEditingLog(null)} onOk={() => void saveLog()} okText="保存" cancelText="取消">
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Row gutter={14}>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="userId" label="用户 ID" rules={[{ required: true, message: "请输入用户 ID" }]}>
                                 <Input />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="type" label="类型" rules={[{ required: true, message: "请输入类型" }]}>
                                 <Input />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="amount" label="变动数量" rules={[{ required: true, message: "请输入变动数量" }]}>
                                 <InputNumber step={0.01} precision={2} style={{ width: "100%" }} />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="balance" label="变动后余额" rules={[{ required: true, message: "请输入变动后余额" }]}>
                                 <InputNumber min={0} step={0.01} precision={2} style={{ width: "100%" }} />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="relatedId" label="关联 ID">
                                 <Input />
                             </Form.Item>
                         </Col>
-                        <Col span={12}>
+                        <Col xs={24} sm={12}>
                             <Form.Item name="createdAt" label="创建时间">
                                 <Input placeholder="不填则新增时自动生成" />
                             </Form.Item>

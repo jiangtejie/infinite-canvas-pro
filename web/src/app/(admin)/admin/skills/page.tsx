@@ -3,6 +3,7 @@
 import { CaretDownFilled, DeleteOutlined, EditOutlined, FileAddOutlined, FileTextOutlined, FolderAddOutlined, FolderOpenOutlined, FolderOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import dayjs from "dayjs";
 import { App, Button, Card, Col, ConfigProvider, Flex, Form, Input, InputNumber, Modal, Row, Space, Switch, Tag, Tree, theme, Tooltip, Typography } from "antd";
 import { type DragEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
@@ -246,7 +247,7 @@ export default function AdminSkillsPage() {
         },
         { title: "状态", dataIndex: "enabled", width: 88, render: (_, item) => <Tag color={item.enabled ? "success" : "default"}>{item.enabled ? "已启用" : "已停用"}</Tag> },
         { title: "排序", dataIndex: "sort", width: 72 },
-        { title: "更新时间", dataIndex: "updatedAt", width: 190 },
+        { title: "更新时间", dataIndex: "updatedAt", width: 150, render: (_, item) => <span className="font-mono text-[11px] text-muted-foreground">{dayjs(item.updatedAt).isValid() ? dayjs(item.updatedAt).format("YYYY-MM-DD HH:mm") : "-"}</span> },
         {
             title: "操作",
             key: "actions",
@@ -283,6 +284,7 @@ export default function AdminSkillsPage() {
                     search={false}
                     defaultSize="middle"
                     tableLayout="fixed"
+                    scroll={{ x: 1000 }}
                     cardProps={{ variant: "borderless" }}
                     headerTitle={<Space><Typography.Text strong>系统预设 Skill</Typography.Text><Tag>{skills.length} 条</Tag></Space>}
                     options={false}

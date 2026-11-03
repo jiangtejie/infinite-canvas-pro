@@ -46,6 +46,8 @@ export function useCodexAgent(options: {
     const dispatch = useRef<((event: CodexRpcEvent) => void) | null>(null);
     const latest = useRef(options);
     latest.current = options;
+    const connectionEndpoint = connection.endpoint;
+    const connectionToken = connection.token;
     const disconnect = () => {
         connectionAttempt.current += 1;
         active.current?.finish(stopped());
@@ -79,6 +81,11 @@ export function useCodexAgent(options: {
             return false;
         }
     };
+    const connectRef = useRef(connect);
+    const disconnectRef = useRef(disconnect);
+    connectRef.current = connect;
+    disconnectRef.current = disconnect;
+
     useEffect(() => {
         try {
             const stored = JSON.parse(localStorage.getItem(CONNECTION_KEY) || "null");
@@ -91,12 +98,12 @@ export function useCodexAgent(options: {
             const remaining = hash.split("&").filter((part) => !["agentUrl", "agentToken"].includes(new URLSearchParams(part).keys().next().value || "")).join("&");
             window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search + (remaining ? "#" + remaining : ""));
             if (!params.get("agentUrl") || !params.get("agentToken")?.trim()) {
-                disconnect();
+                disconnectRef.current();
                 setError("自动连接链接缺少地址或 Token，请重新通过插件连接");
                 setStatus("error");
                 return;
             }
-            void connect({ endpoint: params.get("agentUrl")!, token: params.get("agentToken")! }).then((connected) => {
+            void connectRef.current({ endpoint: params.get("agentUrl")!, token: params.get("agentToken")! }).then((connected) => {
                 if (connected) latest.current.onBootstrap();
             });
         };
@@ -106,8 +113,8 @@ export function useCodexAgent(options: {
     }, []);
 
     useEffect(() => {
-        if (!enabled || !connection.token || !options.canvasId) return;
-        try { normalizeCodexEndpoint(connection.endpoint); }
+        if (!enabled || !connectionToken || !options.canvasId) return;
+        try { normalizeCodexEndpoint(connectionEndpoint); }
         catch (reason) { setError((reason as Error).message); setStatus("error"); return; }
         setStatus("connecting");
         setError("");
@@ -207,7 +214,7 @@ export function useCodexAgent(options: {
                 } finally { toolControllers.delete(event.requestId); }
             }).catch(fail);
         };
-        const link = createCodexAgentClient(connection, options.canvasId, agentTools, {
+        const link = createCodexAgentClient({ endpoint: connectionEndpoint, token: connectionToken }, options.canvasId, agentTools, {
             rpc: handleRpc, tool: handleTool, error: fail,
             cancelTool: (requestId) => toolControllers.get(requestId)?.abort(new Error("画布工具执行超时")),
             ready: async () => {
@@ -234,7 +241,7 @@ export function useCodexAgent(options: {
             if (client.current === link) { client.current = null; dispatch.current = null; }
             link.close();
         };
-    }, [options.canvasId, connection.endpoint, connection.token, retry, enabled]);
+    }, [options.canvasId, connectionEndpoint, connectionToken, retry, enabled]);
 
     const getClient = () => {
         if (!client.current?.connected() || status !== "ready") throw new Error(error || "请先连接本地 Agent");

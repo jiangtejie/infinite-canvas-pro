@@ -123,8 +123,8 @@ export function CanvasAssistantComposer({
                     placeholder="描述创作目标，或让我继续操作画布"
                     placeholderClassName="!left-1 !top-0"
                 />
-                <div ref={toolbarRef} className="@container mt-2 flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 flex-1 items-center gap-1">
+                <div ref={toolbarRef} className="@container mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1">
                         <div ref={assetMenuRef} className="relative">
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: assetMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Menu className="size-4" />} aria-label="添加素材" aria-haspopup="menu" aria-expanded={assetMenuOpen} onClick={() => {
                                 const rect = toolbarRef.current?.getBoundingClientRect();

@@ -1,53 +1,51 @@
 "use client";
 
-import { AuditOutlined, FileTextOutlined, HomeOutlined, LogoutOutlined, PictureOutlined, SettingOutlined, ToolOutlined, TransactionOutlined, UserOutlined, WalletOutlined } from "@ant-design/icons";
-import { Button, Flex, Layout, Menu, Typography, theme } from "antd";
+import { ProConfigProvider } from "@ant-design/pro-components";
+import { Button } from "antd";
+import { Coins, FileText, Home, Image as ImageIcon, LogOut, ScrollText, Settings2, ShieldCheck, Users, Wallet, Wrench } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
-import { adminLayoutStyle } from "@/lib/app-theme";
+import { cn } from "@/lib/utils";
+import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 
 const adminMenus = [
-    { key: "/admin/users", icon: <UserOutlined />, label: "用户管理" },
-    { key: "/admin/credit-logs", icon: <TransactionOutlined />, label: "算力点日志" },
-    { key: "/admin/ai-logs", icon: <AuditOutlined />, label: "AI 日志" },
-    { key: "/admin/prompts", icon: <FileTextOutlined />, label: "提示词管理" },
-    { key: "/admin/skills", icon: <ToolOutlined />, label: "Skill 管理" },
-    { key: "/admin/recharge-packages", icon: <WalletOutlined />, label: "充值套餐" },
-    { key: "/admin/assets", icon: <PictureOutlined />, label: "素材库" },
-    { key: "/admin/settings", icon: <SettingOutlined />, label: "系统设置" },
+    { key: "/admin/users", icon: Users, label: "用户管理", group: "运营", desc: "账号、角色与算力点余额" },
+    { key: "/admin/credit-logs", icon: Coins, label: "算力点日志", group: "运营", desc: "充值与消耗的完整流水" },
+    { key: "/admin/ai-logs", icon: ScrollText, label: "AI 日志", group: "运营", desc: "模型请求与生成结果追踪" },
+    { key: "/admin/prompts", icon: FileText, label: "提示词管理", group: "内容", desc: "维护提示词库的分类与条目" },
+    { key: "/admin/skills", icon: Wrench, label: "Skill 管理", group: "内容", desc: "Agent 可调用的技能与文件" },
+    { key: "/admin/recharge-packages", icon: Wallet, label: "充值套餐", group: "商业化", desc: "套餐价格、算力点与赠送规则" },
+    { key: "/admin/assets", icon: ImageIcon, label: "素材库", group: "内容", desc: "团队公共素材的维护与归档" },
+    { key: "/admin/settings", icon: Settings2, label: "系统设置", group: "系统", desc: "模型渠道、提示词与站点配置" },
 ];
 
+const PAGE_META: Record<string, { title: string; desc: string }> = {
+    "/admin/users": { title: "用户管理", desc: "管理账号、角色与算力点余额。" },
+    "/admin/credit-logs": { title: "算力点日志", desc: "查看每一次充值、消耗与调整记录。" },
+    "/admin/ai-logs": { title: "AI 日志", desc: "追踪模型调用、耗时与生成结果。" },
+    "/admin/prompts": { title: "提示词管理", desc: "维护提示词库的分类、标签与条目。" },
+    "/admin/skills": { title: "Skill 管理", desc: "配置 Agent 可调用的技能与文件。" },
+    "/admin/recharge-packages": { title: "充值套餐", desc: "设置套餐价格、到账算力点与赠送规则。" },
+    "/admin/assets": { title: "素材库管理", desc: "维护团队公共素材，供前台素材库读取。" },
+    "/admin/settings": { title: "系统设置", desc: "配置模型渠道、系统提示词与站点能力。" },
+};
+
 export default function AdminLayout({ children }: { children: ReactNode }) {
-    const { token: antToken } = theme.useToken();
     const router = useRouter();
     const pathname = usePathname();
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
     const logout = useUserStore((state) => state.clearSession);
-    const activeKey = pathname.startsWith("/admin/recharge-packages")
-        ? "/admin/recharge-packages"
-        : pathname.startsWith("/admin/settings")
-        ? "/admin/settings"
-        : pathname.startsWith("/admin/assets")
-          ? "/admin/assets"
-          : pathname.startsWith("/admin/skills")
-            ? "/admin/skills"
-            : pathname.startsWith("/admin/prompts")
-              ? "/admin/prompts"
-              : pathname.startsWith("/admin/ai-logs")
-                ? "/admin/ai-logs"
-                : pathname.startsWith("/admin/credit-logs")
-                  ? "/admin/credit-logs"
-                  : pathname.startsWith("/admin/users")
-                    ? "/admin/users"
-                    : "";
-    const pageTitle = pathname.startsWith("/admin/recharge-packages") ? "充值套餐" : pathname.startsWith("/admin/settings") ? "系统设置" : pathname.startsWith("/admin/assets") ? "素材库管理" : pathname.startsWith("/admin/skills") ? "Skill 管理" : pathname.startsWith("/admin/prompts") ? "提示词管理" : pathname.startsWith("/admin/ai-logs") ? "AI 日志" : pathname.startsWith("/admin/credit-logs") ? "算力点日志" : "用户管理";
+    const dark = useThemeStore((state) => state.theme === "dark");
+    const activeKey = pathname === "/admin" ? "/admin/users" : adminMenus.find((item) => pathname === item.key || pathname.startsWith(`${item.key}/`))?.key ?? "";
+    const meta = PAGE_META[activeKey] ?? { title: "管理后台", desc: "运维与内容管理。" };
+    const activeGroup = adminMenus.find((item) => item.key === activeKey)?.group ?? "系统";
 
     useEffect(() => {
         if (!isReady) return;
@@ -62,57 +60,110 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
     if (!isReady || !token || user?.role !== "admin") {
         return (
-            <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: antToken.colorBgLayout }}>
-                <span />
+            <div className="grid h-screen place-items-center bg-transparent">
+                <p className="font-mono text-[10px] tracking-[0.22em] text-muted-foreground/60 uppercase">正在校验管理员权限</p>
             </div>
         );
     }
 
     return (
-        <Layout hasSider style={{ height: "100vh", overflow: "hidden", background: antToken.colorBgLayout }}>
-            <Layout.Sider width={adminLayoutStyle.siderWidth} style={{ height: "100vh", overflow: "hidden", background: antToken.colorBgContainer, borderRight: `1px solid ${antToken.colorBorder}` }}>
-                <Flex align="center" gap={12} style={{ height: adminLayoutStyle.brandHeight, padding: "0 20px", borderBottom: `1px solid ${antToken.colorBorderSecondary}` }}>
-                    <span aria-hidden style={{ display: "inline-block", width: 30, height: 30, background: antToken.colorText, WebkitMask: "url(/logo.svg) center / contain no-repeat", mask: "url(/logo.svg) center / contain no-repeat" }} />
-                    <Typography.Text strong style={{ fontSize: 18, letterSpacing: 0 }}>
-                        无限画布
-                    </Typography.Text>
-                </Flex>
-                <Menu
-                    mode="inline"
-                    selectedKeys={[activeKey]}
-                    style={adminLayoutStyle.menu}
-                    items={adminMenus.map((item) => ({
-                        ...item,
-                        label: (
-                            <Link href={item.key} style={{ color: "inherit" }}>
-                                {item.label}
+        <ProConfigProvider dark={dark}>
+            <div className="admin-shell flex h-screen overflow-hidden bg-transparent text-foreground">
+                <aside className="hidden w-[238px] shrink-0 flex-col border-r border-border/70 bg-card/35 backdrop-blur-xl lg:flex">
+                    <Link href="/admin" className="flex h-[60px] shrink-0 items-center gap-2.5 border-b border-border/70 px-5">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-[3px] bg-acid">
+                            <span className="size-4 bg-[#0b0b09]" style={{ mask: "url(/logo.svg) center / contain no-repeat", WebkitMask: "url(/logo.svg) center / contain no-repeat" }} />
+                        </span>
+                        <span className="text-[15px] font-semibold tracking-tight">无限画布</span>
+                        <span className="chip !h-[18px] !px-1.5 !text-[9px]">ADMIN</span>
+                    </Link>
+                    <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="后台导航">
+                        <p className="px-2.5 pb-1.5 font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50 uppercase">管理</p>
+                        {adminMenus.map((item) => {
+                            const Icon = item.icon;
+                            const active = item.key === activeKey;
+                            return (
+                                <Link
+                                    key={item.key}
+                                    href={item.key}
+                                    aria-current={active ? "page" : undefined}
+                                    className={cn(
+                                        "group relative flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
+                                        active ? "bg-acid/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground",
+                                    )}
+                                >
+                                    {active ? <span aria-hidden className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-acid" /> : null}
+                                    <Icon className={cn("size-4 shrink-0", active ? "text-acid" : "opacity-70")} />
+                                    <span className="truncate">{item.label}</span>
+                                </Link>
+                            );
+                        })}
+                    </nav>
+                    <div className="shrink-0 space-y-2 border-t border-border/70 p-3">
+                        <Button block icon={<Home className="size-4" />} href="/canvas" target="_blank" rel="noreferrer">
+                            前往画布
+                        </Button>
+                        <Button block icon={<LogOut className="size-4" />} onClick={logout}>
+                            退出登录
+                        </Button>
+                    </div>
+                </aside>
+
+                <div className="flex min-w-0 flex-1 flex-col">
+                    <header className="flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-border/70 bg-background/60 px-5 backdrop-blur-xl sm:px-6">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <span className="grid size-7 shrink-0 place-items-center rounded-[3px] border border-border bg-card text-foreground/70 lg:hidden">
+                                <ShieldCheck className="size-3.5" />
+                            </span>
+                            <span className="hidden font-mono text-[10px] tracking-[0.18em] text-muted-foreground/60 uppercase sm:block">后台 / {activeGroup}</span>
+                            <span aria-hidden className="hidden h-4 w-px bg-border sm:block" />
+                            <h1 className="truncate text-[14px] font-medium text-foreground">{meta.title}</h1>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            <Link href="/" className="hidden font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase transition-colors hover:text-foreground sm:block">
+                                返回前台
                             </Link>
-                        ),
-                        style: adminLayoutStyle.menuItem,
-                    }))}
-                />
-                <Flex vertical gap={8} style={{ position: "absolute", bottom: 0, insetInline: 0, padding: 12, borderTop: `1px solid ${antToken.colorBorder}`, background: antToken.colorBgContainer }}>
-                    <Button block icon={<HomeOutlined />} href="/canvas" target="_blank" rel="noreferrer">
-                        前往画布
-                    </Button>
-                    <Button block icon={<LogoutOutlined />} onClick={logout}>
-                        退出登录
-                    </Button>
-                </Flex>
-            </Layout.Sider>
-            <Layout style={{ background: antToken.colorBgLayout }}>
-                <Layout.Header
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: adminLayoutStyle.headerHeight, padding: "0 24px", background: antToken.colorBgContainer, borderBottom: `1px solid ${antToken.colorBorder}` }}
-                >
-                    <Typography.Title level={5} style={{ margin: 0 }}>
-                        {pageTitle}
-                    </Typography.Title>
-                    <Flex align="center" gap={4}>
-                        <UserStatusActions showConfig={false} />
-                    </Flex>
-                </Layout.Header>
-                <Layout.Content style={{ minHeight: 0, overflow: "auto" }}>{children}</Layout.Content>
-            </Layout>
-        </Layout>
+                            <UserStatusActions showConfig={false} />
+                        </div>
+                    </header>
+
+                    <nav aria-label="后台分区" className="hide-scrollbar flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/70 px-4 py-2 lg:hidden">
+                        {adminMenus.map((item) => {
+                            const Icon = item.icon;
+                            const active = item.key === activeKey;
+                            return (
+                                <Link
+                                    key={item.key}
+                                    href={item.key}
+                                    aria-current={active ? "page" : undefined}
+                                    className={cn(
+                                        "inline-flex shrink-0 items-center gap-1.5 rounded-[5px] px-2.5 py-1.5 text-xs transition-colors",
+                                        active ? "bg-acid/10 font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                                    )}
+                                >
+                                    <Icon className={cn("size-3.5", active ? "text-acid" : "opacity-70")} />
+                                    {item.label}
+                                </Link>
+                            );
+                        })}
+                    </nav>
+
+                    <main className="min-h-0 flex-1 overflow-y-auto">
+                        <div className="mx-auto w-full max-w-[1440px] px-5 pt-6 sm:px-6">
+                            <header className="flex flex-wrap items-end justify-between gap-4">
+                                <div className="min-w-0">
+                                    <span className="eyebrow">{activeGroup}</span>
+                                    <h2 className="mt-3 text-[1.45rem] font-semibold leading-tight tracking-[-0.025em] text-foreground">{meta.title}</h2>
+                                    <p className="mt-2 max-w-xl text-xs leading-6 text-muted-foreground">{meta.desc}</p>
+                                </div>
+                                <span className="chip">{user?.displayName || user?.username}</span>
+                            </header>
+                            <div aria-hidden className="punk-rule mt-5" />
+                        </div>
+                        <div className="[&>main]:mx-auto [&>main]:w-full [&>main]:max-w-[1440px]">{children}</div>
+                    </main>
+                </div>
+            </div>
+        </ProConfigProvider>
     );
 }

@@ -175,6 +175,7 @@ export default function AdminAssetsPage() {
                     search={false}
                     defaultSize="middle"
                     tableLayout="fixed"
+                    scroll={{ x: 1000 }}
                     cardProps={{ variant: "borderless" }}
                     headerTitle={
                         <Space>

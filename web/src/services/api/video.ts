@@ -483,7 +483,9 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
         }
         if (tokenDance || isSeedanceVideoConfig(config)) body.append("size", normalizeSeedanceRatio(config.size));
         else if (size) body.append("size", size);
-        body.append("resolution_name", normalizeVideoResolution(config.vquality));
+        const resolution = normalizeVideoResolution(config.vquality);
+        body.append("resolution_name", resolution);
+        if (videoChannelProtocol(config, model) === "openai") body.append("resolution", resolution);
         if (isKIEGrokVideoModel(config, model)) body.append("mode", normalizeGrokVideoMode(config.videoMode));
         else body.append("preset", "normal");
     }

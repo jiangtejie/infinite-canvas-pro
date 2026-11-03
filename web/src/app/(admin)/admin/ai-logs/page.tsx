@@ -2,7 +2,7 @@
 
 import { DeleteOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { deleteAdminAICallLogs, fetchAdminAICallLogs, fetchAdminSettings, saveAdminSettings, type AdminAICallLog } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
@@ -36,8 +36,11 @@ export default function AdminAICallLogsPage() {
         }
     };
 
+    const loadLogsRef = useRef(loadLogs);
+    loadLogsRef.current = loadLogs;
+
     useEffect(() => {
-        void loadLogs();
+        void loadLogsRef.current();
     }, [token, page, pageSize]);
 
     useEffect(() => {
@@ -96,7 +99,7 @@ export default function AdminAICallLogsPage() {
             { title: "模型", dataIndex: "model", width: 180, ellipsis: true },
             { title: "渠道", dataIndex: "channelName", width: 150, ellipsis: true, render: (_: string, item: AdminAICallLog) => item.channelName || item.channelId || "-" },
             { title: "状态", dataIndex: "status", width: 90, render: (status: number, item: AdminAICallLog) => <Tag color={!item.failed && status >= 200 && status < 400 ? "success" : "error"}>{status || "失败"}</Tag> },
-            { title: "耗时", dataIndex: "durationMs", width: 110, render: (value: number) => formatDuration(value) },
+            { title: "耗时", dataIndex: "durationMs", width: 110, render: (value: number) => formatElapsed(value) },
             { title: "扣点", dataIndex: "credits", width: 80 },
             {
                 title: "操作",
@@ -192,7 +195,7 @@ function formatTime(value: string) {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-function formatDuration(value: number) {
+function formatElapsed(value: number) {
     if (!Number.isFinite(value) || value <= 0) return "-";
     return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${value}ms`;
 }

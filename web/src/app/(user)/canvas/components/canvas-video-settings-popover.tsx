@@ -101,7 +101,7 @@ function VideoSettingsPortal({ buttonRect, panelRef, placement, theme, config, o
     const spaceBelow = window.innerHeight - buttonRect.bottom - gap - margin;
     const preferTop = placement?.startsWith("top");
     const topPlacement = preferTop ? !(spaceAbove < 260 && spaceBelow > spaceAbove) : spaceBelow < 260 && spaceAbove > spaceBelow;
-    const style = { position: "fixed", zIndex: 1200, width, left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)), ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(260, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(260, window.innerHeight - buttonRect.bottom - margin * 2) }), background: theme.toolbar.panel, borderRadius: 18, boxShadow: "0 18px 54px rgba(28, 25, 23, 0.16)", padding: 18, overflowY: "auto", color: theme.node.text } as const;
+    const style = { position: "fixed", zIndex: 1200, width, left: Math.max(margin, Math.min(window.innerWidth - width - margin, left)), ...(topPlacement ? { bottom: window.innerHeight - buttonRect.top + gap, maxHeight: Math.max(260, buttonRect.top - margin * 2) } : { top: buttonRect.bottom + gap, maxHeight: Math.max(260, window.innerHeight - buttonRect.bottom - margin * 2) }), background: theme.toolbar.panel, border: "1px solid " + theme.toolbar.border, borderRadius: 16, boxShadow: "inset 0 1px 0 var(--glass-highlight), 0 32px 72px -40px rgba(0, 0, 0, 0.85)", padding: 14, overflowY: "auto", color: theme.node.text } as const;
     const model = config.model || config.videoModel || "";
     const isAPIMartKlingV3 = isAPIMartKlingV3Config(config, model);
     const isKIEKlingV3 = isKIEKlingV3Config(config, model);
@@ -114,9 +114,9 @@ function VideoSettingsPortal({ buttonRect, panelRef, placement, theme, config, o
     const lastFrameValue = lastFrameNodeId && optionIds.has(lastFrameNodeId) ? lastFrameNodeId : "";
 
     return createPortal(
-        <div ref={panelRef} className="canvas-image-settings-popover" style={style} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-            <div className="space-y-4">
-                <div className="text-lg font-semibold">视频设置</div>
+        <div ref={panelRef} className="canvas-image-settings-popover thin-scrollbar" style={style} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+            <div className="space-y-3">
+                <div className="text-[15px] font-semibold">视频设置</div>
                 {!visualOnly && isKlingMotionControl ? <CharacterOrientationSetting value={config.videoCharacterOrientation} theme={theme} onChange={(value) => onConfigChange("videoCharacterOrientation", value)} /> : null}
                 {!visualOnly && isKlingV3 ? <KlingV3AdvancedSettings config={config} metadata={metadata} resourceOptions={resourceOptions} theme={theme} isKIEKlingV3={isKIEKlingV3} kieKlingOmni={kieKlingOmni} onConfigChange={onConfigChange} onMetadataChange={onMetadataChange} /> : null}
                 {!visualOnly && frameReferencesEnabled ? (
@@ -281,7 +281,7 @@ function ClearButton({ onClick }: { onClick: () => void }) {
 }
 
 function IconButton({ title, disabled = false, danger = false, theme, onClick, children }: { title: string; disabled?: boolean; danger?: boolean; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onClick: () => void; children: ReactNode }) {
-    return <button type="button" title={title} disabled={disabled} className="grid size-8 place-items-center rounded-lg border text-xs transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: danger ? "#ef4444" : theme.node.text }} onClick={onClick}>{children}</button>;
+    return <button type="button" title={title} disabled={disabled} className="grid size-8 place-items-center rounded-lg border text-xs transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>{children}</button>;
 }
 
 function NumberField({ value, min, max, theme, onChange }: { value: string; min: number; max: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onChange: (value: string) => void }) {

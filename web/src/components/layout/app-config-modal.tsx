@@ -88,6 +88,8 @@ export function AppConfigModal() {
     const miniMaxTts = isMiniMaxTtsConfig(audioConfig, config.audioModel);
     const officialMiniMaxTts = miniMaxTts && channelProtocolForConfig(audioConfig) === "minimax";
     const modelSelectChannel = normalizeLocalChannels(config).find((channel) => channel.id === modelSelectChannelId);
+    const modelSelectProtocol = modelSelectChannel?.protocol;
+    const modelSelectId = modelSelectChannel?.id;
 
     useEffect(() => {
         setParameterTranslation(undefined);
@@ -101,14 +103,13 @@ export function AppConfigModal() {
 
     useEffect(() => {
         setWorkflowEntries([]);
-        if (!modelSelectChannel || !isWorkflowProtocol(modelSelectChannel.protocol)) return;
-        const protocol = modelSelectChannel.protocol;
+        if (!modelSelectProtocol || !modelSelectId || !isWorkflowProtocol(modelSelectProtocol)) return;
         let canceled = false;
-		void readWorkflowChannel(user?.id || "guest", protocol, modelSelectChannel.id)
+        void readWorkflowChannel(user?.id || "guest", modelSelectProtocol, modelSelectId)
             .then((items) => { if (!canceled) setWorkflowEntries(items); })
             .catch((error) => { if (!canceled) message.error(error instanceof Error ? error.message : "读取工作流配置失败"); });
         return () => { canceled = true; };
-    }, [modelSelectChannelId, modelSelectChannel?.protocol, user?.id]);
+    }, [message, modelSelectId, modelSelectProtocol, user?.id]);
 
     useEffect(() => {
         setUserStorage(loadUserS3StorageProvider() || defaultUserStorageProvider());

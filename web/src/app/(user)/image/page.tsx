@@ -2,55 +2,44 @@
 
 import {
     ClipboardPaste,
-    CloudUpload,
-    Download,
     FolderPlus,
-    ImagePlus,
-    LoaderCircle,
-    PenLine,
     Sparkles,
-    Trash2,
     Upload,
     WandSparkles,
 } from "lucide-react";
-import { useEffect, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import dynamic from "next/dynamic";
-import { App, Button, Drawer, Image, Input, Modal, Segmented, Tag } from "antd";
+import { App, Button, Drawer, Modal, Segmented } from "antd";
 import { saveAs } from "file-saver";
 
-import { ImageSettingsPanel, imageSizeOptions } from "@/components/image-settings-panel";
+import { imageSizeOptions } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-header";
+import { PunkAura } from "@/components/ui/punk-aura";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
-import { EmptyState, LoadingState } from "@/components/ui/state-panel";
-import type { GeneratedImage, GenerationResult, GenerationLog, GenerationLogConfig, RequestSnapshot, GenerationCategory, ResultViewMode, WorkflowPollContext } from "./history";
-import { CATEGORY_STORE_KEY, logStore, categoryStore, createPendingResult, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, updateResultByLogId, mergePendingLogResults, imageTaskIdentityKeys, imageLogIdentityKeys, imageResultIdentityKeys, imageResultMatchesLog, dedupeGenerationLogs, imageLogTaskId, isRecoverableImageTask, mergeBackendImageTasks, imageLogsFromTask, imageLogFromTask, errorMessage, errorDetail, readStoredLogs, readStoredCategories, replaceStoredImageHistory, withWorkflowLogCategories, mergeGenerationLogs, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, defaultWorkflowButtonPosition, clampWorkflowButtonPosition, buildLog } from "./history";
-import { FailedResultCard, ReferenceThumbnailOverlay, ResultMediaMeta, TaskResultInfo, formatTaskTime } from "@/components/workbench/task-result";
-import { ReferenceStripShell } from "@/components/workbench/reference-strip";
-import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
+import { LoadingState } from "@/components/ui/state-panel";
+import type { GeneratedImage, GenerationResult, GenerationLog, GenerationLogConfig, RequestSnapshot, GenerationCategory, ResultViewMode, WorkflowPollContext, UpdateAiConfig } from "./history";
+import { GenerationSettings, ReferenceQuickActions, ReferenceStrip } from "./components/workbench-controls";
+import { ResultsPanel } from "./components/results-panel";
+import { CATEGORY_STORE_KEY, logStore, categoryStore, createPendingResult, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, updateResultByLogId, mergePendingLogResults, imageTaskIdentityKeys, imageLogIdentityKeys, imageResultMatchesLog, dedupeGenerationLogs, imageLogTaskId, isRecoverableImageTask, mergeBackendImageTasks, imageLogsFromTask, imageLogFromTask, errorMessage, errorDetail, readStoredLogs, readStoredCategories, replaceStoredImageHistory, withWorkflowLogCategories, mergeGenerationLogs, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition, buildLog } from "./history";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/app/(user)/canvas/components/canvas-node-mask-edit-dialog";
-import { canvasThemes } from "@/lib/canvas-theme";
 import { IMAGE_MASK_EDIT_PROMPT_PREFIX } from "@/lib/image-reference-prompt";
 import type { WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess } from "@/components/workflows/creative-workflow-workspace";
 import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
-import { useThemeStore } from "@/stores/use-theme-store";
 import { nanoid } from "nanoid";
-import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
+import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { batchCanvasImageTaskStatus, createCanvasImageTask, deleteCanvasImageTask, listCanvasImageTasks, requestEdit, requestGeneration, type CanvasImageTask } from "@/services/api/image";
 import { comfyOutputStorageKey, getWorkflowTask, isRetryableWorkflowError, submitWorkflowTask } from "@/services/api/workflow-generation";
 import type { WorkflowRef } from "@/lib/workflow-channel";
 import { deleteImageGenerationLogs, fetchImageGenerationLogs, saveImageGenerationLogs } from "@/services/api/generation-logs";
-import { deleteImagePreviews, deleteStoredImages, ensureImagePreview, getImagePreviewRevision, imageToDataUrl, previewUrlFor, resolveImageUrl, subscribeImagePreviews, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
-import { CategoryCard } from "./components/category-card";
-import { HistoryLogCard } from "./components/history-log-card";
+import { deleteImagePreviews, deleteStoredImages, imageToDataUrl, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 
-type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
 const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const RESULT_VIEW_MODE_KEY = "infinite-canvas:image-result-view-mode";
 const IMAGE_TASK_POLL_INTERVAL_MS = 10000;
@@ -97,6 +86,9 @@ export default function ImagePage() {
     const pollingLogIdsRef = useRef(new Set<string>());
     const pollContextRef = useRef<WorkflowPollContext | null>(null);
     const logsRef = useRef<GenerationLog[]>([]);
+    const loadAccountImageHistoryRef = useRef<() => Promise<GenerationLog[] | undefined>>(async () => undefined);
+    const syncBackendImageTasksRef = useRef<(baseLogs?: GenerationLog[]) => Promise<GenerationLog[]>>(async () => []);
+    const pollPendingLogsOnceRef = useRef<(sourceLogs: GenerationLog[], context: WorkflowPollContext) => void>(() => undefined);
     const effectiveConfigRef = useRef(effectiveConfig);
 
     const model = effectiveConfig.imageModel || effectiveConfig.model;
@@ -118,6 +110,7 @@ export default function ImagePage() {
         if (!pendingLogs.length) return;
         void pollImageTaskLogsOnce(pendingLogs, context);
     };
+    pollPendingLogsOnceRef.current = pollPendingLogsOnce;
 
     useEffect(() => {
         void refreshCategories();
@@ -127,11 +120,10 @@ export default function ImagePage() {
             const storedViewMode = window.localStorage?.getItem(RESULT_VIEW_MODE_KEY);
             if (storedViewMode === "all" || storedViewMode === "category") setResultViewModeState(storedViewMode);
             const storedButtonPosition = JSON.parse(window.localStorage?.getItem(WORKFLOW_BUTTON_POSITION_KEY) || "null") as { x?: number; y?: number } | null;
+            // 没有自定义位置时保持 (0,0)，由固定右下角的 CSS 兜底，避免 SSR/CSR 样式不一致导致 hydration 失配。
             if (typeof storedButtonPosition?.x === "number" && typeof storedButtonPosition?.y === "number") setWorkflowButtonPosition(clampWorkflowButtonPosition(storedButtonPosition));
-            else setWorkflowButtonPosition(defaultWorkflowButtonPosition());
         } catch {
             // Local storage can be unavailable in restricted browser contexts.
-            setWorkflowButtonPosition(defaultWorkflowButtonPosition());
         }
 
         // 监听窗口大小变化，拉窄窗口时自动将工作流按钮实时 clamp 限制在可视区域内，杜绝越界
@@ -167,10 +159,10 @@ export default function ImagePage() {
     useEffect(() => {
         if (!isUserReady) return;
         if (token) {
-            void loadAccountImageHistory().then((items) => syncBackendImageTasks(items));
+            void loadAccountImageHistoryRef.current().then((items) => syncBackendImageTasksRef.current(items));
             return;
         }
-        void refreshLogs().then((items) => syncBackendImageTasks(items));
+        void refreshLogs().then((items) => syncBackendImageTasksRef.current(items));
     }, [isUserReady, token]);
 
     useEffect(() => {
@@ -182,8 +174,8 @@ export default function ImagePage() {
     useEffect(() => {
         const context = pollContextRef.current;
         if (!pendingLogCount || !context) return;
-        pollPendingLogsOnce(logsRef.current, context);
-        const timer = window.setInterval(() => pollPendingLogsOnce(logsRef.current, context), IMAGE_TASK_POLL_INTERVAL_MS);
+        pollPendingLogsOnceRef.current(logsRef.current, context);
+        const timer = window.setInterval(() => pollPendingLogsOnceRef.current(logsRef.current, context), IMAGE_TASK_POLL_INTERVAL_MS);
         return () => window.clearInterval(timer);
     }, [pendingLogCount, token, userId]);
 
@@ -217,7 +209,15 @@ export default function ImagePage() {
 
     const handleWorkflowButtonPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
         event.currentTarget.setPointerCapture(event.pointerId);
-        const origin = workflowButtonPosition.x || workflowButtonPosition.y ? workflowButtonPosition : defaultWorkflowButtonPosition();
+        const rect = event.currentTarget.getBoundingClientRect();
+        const origin = workflowButtonPosition.x || workflowButtonPosition.y ? workflowButtonPosition : { x: rect.left, y: rect.top };
+        if (!workflowButtonPosition.x && !workflowButtonPosition.y) {
+            // 把 CSS 兜底位置固化到 inline 样式，拖动时不会被 right/bottom 拉伸。
+            event.currentTarget.style.left = `${rect.left}px`;
+            event.currentTarget.style.top = `${rect.top}px`;
+            event.currentTarget.style.right = "auto";
+            event.currentTarget.style.bottom = "auto";
+        }
         workflowButtonDragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: origin.x, originY: origin.y, moved: false };
     };
 
@@ -387,7 +387,7 @@ export default function ImagePage() {
         const active = () => !snapshot.workflowRef || useUserStore.getState().token === workflowToken;
         setPreviewLog(null);
         const taskCount = Math.max(1, Number(snapshot.displayConfig.count) || 1);
-        const pendingLogs = Array.from({ length: taskCount }, (_, index) => {
+        const pendingLogs = Array.from({ length: taskCount }, () => {
             const id = nanoid();
             const clientTaskId = `client_image_task_${id}`;
             const task: CanvasImageTask = { id: clientTaskId, status: "queued", progress: 0, createdAt: Date.now().toString(), created_at: Date.now().toString() };
@@ -445,7 +445,7 @@ export default function ImagePage() {
                 task = { id: created.id, status: created.status, progress: created.progress, source: "workflow", source_id: pendingLog.id };
             } else {
                 task = await createCanvasImageTask(
-                    { ...snapshot.requestConfig, seedIndex: index, seedCount: taskCount, count: "1" } as AiConfig & { seedIndex?: number; seedCount?: number },
+                    { ...snapshot.requestConfig, seedIndex: index, seedCount: taskCount, count: "1" },
                     snapshot.text,
                     snapshot.references,
                     { source: "image-workbench", sourceId: pendingLog.id, clientTaskId: imageLogTaskId(pendingLog) },
@@ -490,7 +490,7 @@ export default function ImagePage() {
                         ...snapshot.requestConfig,
                         seedIndex: index,
                         seedCount: taskCount,
-                    } as any,
+                    },
                 });
 
                 if (!image) {
@@ -847,6 +847,9 @@ export default function ImagePage() {
         }
     };
 
+    loadAccountImageHistoryRef.current = loadAccountImageHistory;
+    syncBackendImageTasksRef.current = syncBackendImageTasks;
+
     const pollImageTaskLogsOnce = async (pendingLogs: GenerationLog[], context: WorkflowPollContext) => {
         const active = () => !context.signal.aborted && useUserStore.getState().token === context.token;
         const ids = pendingLogs.map(imageLogTaskId).filter(Boolean);
@@ -1150,7 +1153,7 @@ export default function ImagePage() {
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
-            <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:overflow-hidden`}>
+            <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[minmax(300px,376px)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-4 overflow-y-auto p-3 lg:overflow-hidden lg:p-4`}>
                 {workbenchLayout === "side" ? (
                     <>
                         <WorkbenchPanel
@@ -1275,11 +1278,8 @@ export default function ImagePage() {
             <button
                 ref={workflowButtonRef}
                 type="button"
-                className="fixed z-50 inline-flex touch-none select-none items-center gap-2 rounded-full border border-border bg-background/90 px-4 py-3 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-accent"
-                style={{
-                    left: (typeof window === "undefined" ? defaultWorkflowButtonPosition() : clampWorkflowButtonPosition(workflowButtonPosition.x || workflowButtonPosition.y ? workflowButtonPosition : defaultWorkflowButtonPosition())).x,
-                    top: (typeof window === "undefined" ? defaultWorkflowButtonPosition() : clampWorkflowButtonPosition(workflowButtonPosition.x || workflowButtonPosition.y ? workflowButtonPosition : defaultWorkflowButtonPosition())).y
-                }}
+                className={`fixed z-40 inline-flex touch-none select-none items-center gap-2 rounded-lg border border-border bg-background/90 px-3.5 py-2.5 text-[13px] font-medium text-foreground shadow-lg backdrop-blur-xl transition hover:border-acid/45 hover:bg-accent ${workflowButtonPosition.x || workflowButtonPosition.y ? "" : "bottom-6 right-6"}`}
+                style={workflowButtonPosition.x || workflowButtonPosition.y ? { left: workflowButtonPosition.x, top: workflowButtonPosition.y } : undefined}
                 onPointerDown={handleWorkflowButtonPointerDown}
                 onPointerMove={handleWorkflowButtonPointerMove}
                 onPointerUp={handleWorkflowButtonPointerUp}
@@ -1292,8 +1292,8 @@ export default function ImagePage() {
                     setWorkflowDrawerOpen(true);
                 }}
             >
-                <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.9)]" />
-                <WandSparkles className="size-4 text-sky-500 dark:text-sky-300" />
+                <span className="size-1.5 rounded-full bg-acid shadow-[0_0_10px_var(--acid)]" aria-hidden />
+                <WandSparkles className="size-4 text-acid" />
                 工作流
             </button>
             <Drawer title="创作工作流" placement="right" size="min(1120px, 92vw)" open={workflowDrawerOpen}  onClose={() => setWorkflowDrawerOpen(false)} styles={{ body: { padding: 0 } }} destroyOnHidden={false}>
@@ -1466,11 +1466,12 @@ function WorkbenchPanel({
     }
 
     return (
-        <div className="flex min-h-[420px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:min-h-0">
-            <div className="shrink-0 p-4 pb-3">
-                <WorkbenchHeader title="生图工作台" currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
+        <div className="punk-panel flex min-h-[420px] flex-col overflow-hidden rounded-xl lg:min-h-0">
+            <div className="relative shrink-0 overflow-hidden border-b border-border/70 px-4 py-3">
+                <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden"><PunkAura className="punk-aura opacity-60" /></div>
+                <div className="relative"><WorkbenchHeader title="生图工作台" currentLayout={currentLayout} onLayoutChange={onLayoutChange} /></div>
             </div>
-            <div className="thin-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-3">
+            <div className="thin-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
                 <WorkbenchPromptSection prompt={prompt} placeholder="描述画面主体、风格、构图、光线和用途" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} />
 
                 <WorkbenchSection title="参考图" count={references.length}>
@@ -1486,395 +1487,11 @@ function WorkbenchPanel({
                     <GenerationSettings config={config} model={model} updateConfig={updateConfig} openConfigDialog={openConfigDialog} />
                 </div>
             </div>
-            <div className="shrink-0 border-t border-border p-4">
+            <div className="shrink-0 border-t border-border/70 px-4 py-3">
                 <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                     {pendingCount ? `继续提交（${pendingCount} 个生成中）` : "开始生成"}
                 </Button>
             </div>
         </div>
-    );
-}
-
-function ReferenceStrip({ references, compact = false, className = "", onRemoveReference, uploadingCount = 0 }: { references: ReferenceImage[]; compact?: boolean; className?: string; onRemoveReference: (id: string) => void; uploadingCount?: number }) {
-    return (
-        <ReferenceStripShell compact={compact} className={className}>
-            {references.map((item) => (
-                <div key={item.id} className={`${compact ? "size-12" : "size-20"} group relative shrink-0 overflow-hidden rounded-md border border-border`}>
-                    <Image
-                        src={item.dataUrl || undefined}
-                        alt={item.name}
-                        className="size-full object-cover cursor-pointer"
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        preview={{
-                            mask: "点击预览",
-                        }}
-                    />
-                    <button type="button" className="absolute right-1 top-1 hidden z-10 size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label="移除参考图">
-                        <Trash2 className="size-3.5" />
-                    </button>
-                </div>
-            ))}
-            {Array.from({ length: uploadingCount }).map((_, i) => (
-                <div key={`loading-${i}`} className={`${compact ? "size-12" : "size-20"} shrink-0 flex items-center justify-center rounded-md border border-border bg-muted/50`}>
-                    <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
-                </div>
-            ))}
-            {!references.length && !uploadingCount ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">暂无参考图</div> : null}
-        </ReferenceStripShell>
-    );
-}
-
-function ReferenceQuickActions({ references, onUploadReferences }: { references: ReferenceImage[]; onUploadReferences: () => void }) {
-    return (
-        <div className="flex h-11 items-center gap-1 rounded-xl border border-border bg-background px-2">
-            {references[0] ? <img loading="lazy" decoding="async" src={references[0].dataUrl || undefined} alt={references[0].name} className="size-7 rounded object-cover" /> : null}
-            {references.length ? <span className="min-w-7 text-xs text-muted-foreground">{references.length} 张</span> : null}
-            <Button size="small" type="text" icon={<Upload className="size-3.5" />} onClick={onUploadReferences} />
-        </div>
-    );
-}
-
-function ResultsPanel({
-    className = "",
-    results,
-    logs,
-    categories,
-    resultViewMode,
-    activeCategoryId,
-    pendingCount,
-    now,
-    selectedLogIds,
-    activeLogId,
-    onSelectedLogIdsChange,
-    onCreateSession,
-    onResultViewModeChange,
-    onActiveCategoryChange,
-    onCreateCategory,
-    onRenameCategory,
-    onDeleteCategory,
-    onToggleLogCategory,
-    onClearLogCategories,
-    onDeleteSelected,
-    onDeleteLog,
-    onPreviewLog,
-    onRetryLog,
-    onCopyPrompt,
-    onEdit,
-    onMaskEdit,
-    onDownload,
-    onSaveAsset,
-    syncingImageIds,
-    onSyncResult,
-    onSyncLog,
-    onRetry,
-}: {
-    className?: string;
-    results: GenerationResult[];
-    logs: GenerationLog[];
-    categories: GenerationCategory[];
-    resultViewMode: ResultViewMode;
-    activeCategoryId: string | null;
-    pendingCount: number;
-    now: number;
-    selectedLogIds: string[];
-    activeLogId?: string;
-    onSelectedLogIdsChange: (ids: string[]) => void;
-    onCreateSession: () => void;
-    onResultViewModeChange: (mode: ResultViewMode) => void;
-    onActiveCategoryChange: (id: string | null) => void;
-    onCreateCategory: (name: string) => Promise<GenerationCategory | null>;
-    onRenameCategory: (category: GenerationCategory, name: string) => void;
-    onDeleteCategory: (category: GenerationCategory) => void;
-    onToggleLogCategory: (log: GenerationLog, categoryId: string) => void;
-    onClearLogCategories: (log: GenerationLog) => void;
-    onDeleteSelected: () => void;
-    onDeleteLog: (log: GenerationLog) => void;
-    onPreviewLog: (log: GenerationLog) => void;
-    onRetryLog: (log: GenerationLog) => void;
-    onCopyPrompt: (text: string) => void | Promise<void>;
-    onEdit: (image: GeneratedImage, index: number) => void;
-    onMaskEdit: (log: GenerationLog, image: GeneratedImage) => void;
-    onDownload: (image: GeneratedImage, index: number) => void;
-    onSaveAsset: (image: GeneratedImage, index: number) => void;
-    syncingImageIds: string[];
-    onSyncResult: (resultId: string, image: GeneratedImage, index: number) => void;
-    onSyncLog: (log: GenerationLog, image: GeneratedImage, index: number) => void;
-    onRetry: (result: GenerationResult) => void;
-}) {
-    const { message } = App.useApp();
-    const [creatingCategory, setCreatingCategory] = useState(false);
-    const [categoryName, setCategoryName] = useState("");
-    useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision, getImagePreviewRevision);
-    const liveImageIds = new Set(results.map((result) => result.image?.id).filter((id): id is string => Boolean(id)));
-    const liveLogIds = new Set(results.flatMap(imageResultIdentityKeys));
-    const baseVisibleLogs = logs.filter((log) => !imageLogIdentityKeys(log).some((key) => liveLogIds.has(key)) && !log.images.some((image) => liveImageIds.has(image.id)));
-    const categoryGroups = categories.map((category) => ({ category, logs: baseVisibleLogs.filter((log) => log.categoryIds.includes(category.id)) }));
-    const activeCategory = activeCategoryId ? categories.find((category) => category.id === activeCategoryId) : null;
-    const visibleLogs = resultViewMode === "category" ? (activeCategoryId ? baseVisibleLogs.filter((log) => log.categoryIds.includes(activeCategoryId)) : baseVisibleLogs.filter((log) => !log.categoryIds.length)) : baseVisibleLogs;
-    const totalCount = results.length + (resultViewMode === "category" ? (activeCategoryId ? visibleLogs.length : categories.length + visibleLogs.length) : visibleLogs.length);
-    const shouldShowGrid = totalCount > 0;
-    const allVisibleLogsSelected = Boolean(visibleLogs.length) && visibleLogs.every((log) => selectedLogIds.includes(log.id));
-    const selectedImages = visibleLogs.flatMap((log) => selectedLogIds.includes(log.id) ? log.images.filter((image) => Boolean(image.dataUrl)) : []);
-    const toggleVisibleLogs = () => onSelectedLogIdsChange(allVisibleLogsSelected ? selectedLogIds.filter((id) => !visibleLogs.some((log) => log.id === id)) : Array.from(new Set([...selectedLogIds, ...visibleLogs.map((log) => log.id)])));
-    const createCategory = async () => {
-        const name = categoryName.trim();
-        if (!name) {
-            message.error("请输入分类名称");
-            return;
-        }
-        const category = await onCreateCategory(name);
-        if (!category) return;
-        setCategoryName("");
-        setCreatingCategory(false);
-    };
-
-    useEffect(() => {
-        if (activeCategoryId && !categories.some((category) => category.id === activeCategoryId)) onActiveCategoryChange(null);
-    }, [activeCategoryId, categories, onActiveCategoryChange]);
-
-    useEffect(() => {
-        [...results.flatMap((result) => result.image ? [result.image] : []), ...logs.flatMap((log) => log.images)]
-            .forEach((image) => void ensureImagePreview(`image-result:${image.id}`, image.dataUrl, image.storageKey));
-    }, [logs, results]);
-
-    return (
-        <ResultsPanelShell
-            className={className}
-            title={activeCategory ? activeCategory.name : "全部结果"}
-            count={totalCount}
-            pendingCount={pendingCount}
-            actions={
-                <>
-                    {activeCategory ? (
-                        <Button size="small" onClick={() => onActiveCategoryChange(null)}>
-                            返回分类
-                        </Button>
-                    ) : null}
-                    <div className="flex shrink-0 rounded-lg border border-border bg-muted p-1">
-                        <Button
-                            size="small"
-                            type={resultViewMode === "all" ? "primary" : "text"}
-                            onClick={() => {
-                                onActiveCategoryChange(null);
-                                onResultViewModeChange("all");
-                            }}
-                        >
-                            全部展示
-                        </Button>
-                        <Button size="small" type={resultViewMode === "category" ? "primary" : "text"} onClick={() => onResultViewModeChange("category")}>
-                            分类展示
-                        </Button>
-                    </div>
-                    <ResultsToolbarActions
-                        onNew={resultViewMode === "category" ? () => setCreatingCategory(true) : onCreateSession}
-                        newLabel={resultViewMode === "category" ? "新建分类" : "新建"}
-                        onToggleSelectAll={toggleVisibleLogs}
-                        selectAllLabel={allVisibleLogsSelected ? "取消" : "全选"}
-                        selectAllDisabled={!visibleLogs.length}
-                        onDownload={() => selectedImages.forEach(onDownload)}
-                        downloadDisabled={!selectedImages.length}
-                        onDelete={onDeleteSelected}
-                        deleteDisabled={!selectedLogIds.length}
-                    />
-                </>
-            }
-            empty={
-                <div className="flex min-h-[320px] flex-col items-center justify-center rounded-lg border border-dashed border-border text-center lg:min-h-[560px]">
-                    <ImagePlus className="mb-4 size-11 text-muted-foreground" />
-                    <EmptyState title="还没有生成图片" description="输入提示词并开始生成，结果会出现在这里。" />
-                </div>
-            }
-        >
-            {shouldShowGrid ? (
-                <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                    {results.map((result, index) =>
-                        result.status === "success" && result.image ? (
-                            <ResultImageCard key={result.id} result={result} image={result.image} index={index} onCopyPrompt={onCopyPrompt} onEdit={onEdit} onDownload={onDownload} onSaveAsset={onSaveAsset} syncing={syncingImageIds.includes(result.image.id)} onSync={(image) => onSyncResult(result.id, image, index)} />
-                        ) : result.status === "failed" ? (
-                            <FailedImageCard key={result.id} result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
-                        ) : (
-                            <PendingImageCard key={result.id} result={result} now={now} onCopyPrompt={onCopyPrompt} />
-                        ),
-                    )}
-                    {resultViewMode === "category" ? (
-                        <>
-                            {!activeCategoryId
-                                ? categoryGroups.map(({ category, logs: categoryLogs }) => (
-                                      <CategoryCard key={category.id} category={category} logs={categoryLogs} onRename={onRenameCategory} onDelete={onDeleteCategory} onOpen={() => onActiveCategoryChange(category.id)} />
-                                  ))
-                                : null}
-                        </>
-                    ) : null}
-                    {visibleLogs.map((log, index) => (
-                        <HistoryLogCard
-                            key={log.id}
-                            log={log}
-                            categories={categories}
-                            index={index}
-                            selected={selectedLogIds.includes(log.id)}
-                            active={activeLogId === log.id}
-                            onSelectedChange={(checked) => onSelectedLogIdsChange(checked ? [...selectedLogIds, log.id] : selectedLogIds.filter((id) => id !== log.id))}
-                            onDelete={() => onDeleteLog(log)}
-                            onToggleCategory={(categoryId) => onToggleLogCategory(log, categoryId)}
-                            onClearCategories={() => onClearLogCategories(log)}
-                            onCreateCategory={onCreateCategory}
-                            onPreview={() => onPreviewLog(log)}
-                            onRetry={() => onRetryLog(log)}
-                            onCopyPrompt={onCopyPrompt}
-                            onEdit={onEdit}
-                            onMaskEdit={(image) => onMaskEdit(log, image)}
-                            onDownload={onDownload}
-                            onSaveAsset={onSaveAsset}
-                            syncing={syncingImageIds.includes(log.images.find((image) => Boolean(image.dataUrl))?.id || "")}
-                            onSync={(image) => onSyncLog(log, image, index)}
-                        />
-                    ))}
-                </div>
-            ) : null}
-            <Modal title="新建分类" open={creatingCategory} onCancel={() => setCreatingCategory(false)} onOk={() => void createCategory()} okText="创建" cancelText="取消" destroyOnHidden>
-                <Input value={categoryName} autoFocus placeholder="输入分类名称" onChange={(event) => setCategoryName(event.target.value)} onPressEnter={() => void createCategory()} />
-            </Modal>
-        </ResultsPanelShell>
-    );
-}
-
-function GenerationSettings({ config, model, updateConfig, openConfigDialog }: { config: AiConfig; model: string; updateConfig: UpdateAiConfig; openConfigDialog: (shouldPromptContinue?: boolean) => void }) {
-    const theme = canvasThemes[useThemeStore((state) => state.theme)];
-
-    return (
-        <div className="space-y-3">
-            <section className="overflow-hidden rounded-xl border border-border bg-background">
-                <div className="px-3 py-2">
-                    <span className="font-medium text-sm">模型</span>
-                </div>
-                <div className="border-t border-border p-3 space-y-2">
-                    <ModelPicker config={config} value={model} capability="image" channelId={config.imageChannelId} workflowRef={config.imageWorkflowRef} onWorkflowChange={(value) => updateConfig("imageWorkflowRef", value)} onChange={(value, channelId) => { updateConfig("imageModel", value); if (channelId) updateConfig("imageChannelId", channelId); }} fullWidth onMissingConfig={() => openConfigDialog(false)} />
-                    <div className="flex items-center justify-between gap-3 pt-1">
-                        <div className="text-xs opacity-75">接口模式</div>
-                        <Segmented
-                            size="small"
-                            className="canvas-config-mode !rounded-md !p-0.5"
-                            value={config.apiMode}
-                            onChange={(value) => updateConfig("apiMode", value as "images" | "responses" | "chat")}
-                            options={[
-                                { value: "images", label: "images" },
-                                { value: "responses", label: "responses" },
-                                { value: "chat", label: "chat" },
-                            ]}
-                        />
-                    </div>
-                </div>
-            </section>
-            <ImageSettingsPanel config={config} onConfigChange={(key, value) => updateConfig(key, value)} theme={theme} showTitle={false} className="space-y-3" maxCount={10} />
-        </div>
-    );
-}
-
-function ResultImageCard({
-    result,
-    image,
-    index,
-    onCopyPrompt,
-    onEdit,
-    onDownload,
-    onSaveAsset,
-    syncing,
-    onSync,
-}: {
-    result: GenerationResult;
-    image: GeneratedImage;
-    index: number;
-    onCopyPrompt: (text: string) => void | Promise<void>;
-    onEdit: (image: GeneratedImage, index: number) => void;
-    onDownload: (image: GeneratedImage, index: number) => void;
-    onSaveAsset: (image: GeneratedImage, index: number) => void;
-    syncing: boolean;
-    onSync: (image: GeneratedImage) => void;
-}) {
-    return (
-        <div className="overflow-hidden rounded-xl border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
-            <div className="relative aspect-[4/3] bg-muted">
-                <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
-                    {!image.storageKey?.startsWith("server:") ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
-                    <Tag className="m-0 text-[10px]" color="blue">新生成</Tag>
-                </div>
-                <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
-                <Image src={previewUrlFor(`image-result:${image.id}`, image.storageKey || image.dataUrl) || image.dataUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
-            </div>
-            <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} onCopyPrompt={onCopyPrompt} />
-            <ResultMediaMeta
-                meta={
-                    <>
-                        <span>
-                            {image.width}x{image.height}
-                        </span>
-                        <span>{formatBytes(image.bytes)}</span>
-                        <span>{formatDuration(image.durationMs)}</span>
-                    </>
-                }
-                actions={
-                    <>
-                        <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
-                        <Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
-                        <Button size="small" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
-                        <Button size="small" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
-                    </>
-                }
-            />
-        </div>
-    );
-}
-
-function PendingImageCard({ result, now, onCopyPrompt }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void> }) {
-    return (
-        <div className="overflow-hidden rounded-xl border border-dashed border-border bg-muted/50">
-            <div className="relative aspect-[4/3]">
-                <div
-                    className="absolute inset-0 opacity-60"
-                    style={{
-                        backgroundImage: "radial-gradient(circle, rgba(120,113,108,0.35) 1.4px, transparent 1.6px)",
-                        backgroundSize: "16px 16px",
-                    }}
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
-                    <LoaderCircle className="size-6 animate-spin" />
-                    <span>生成中</span>
-                    <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, now - result.createdAt))}</span>
-                </div>
-            </div>
-            <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={{ ...result, durationMs: Math.max(0, now - result.createdAt) }} />} onCopyPrompt={onCopyPrompt} />
-        </div>
-    );
-}
-
-function FailedImageCard({ result, error, onCopyPrompt, onRetry }: { result: GenerationResult; error: string; onCopyPrompt: (text: string) => void | Promise<void>; onRetry: () => void }) {
-    return (
-        <FailedResultCard
-            mediaClassName="aspect-[4/3]"
-            references={result.references}
-            error={error}
-            detail={result.errorDetail || error}
-            info={<TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} error={error} onCopyPrompt={onCopyPrompt} />}
-            onRetry={onRetry}
-        />
-    );
-}
-
-function TaskTags({ item }: { item: GenerationResult }) {
-    return (
-        <>
-            {item.workflowName ? (
-                <Tag className="m-0" color="cyan">
-                    工作流 {item.workflowName}
-                </Tag>
-            ) : null}
-            <Tag className="m-0">{formatTaskTime(item.createdAt)}</Tag>
-            <Tag className="m-0">{item.model}</Tag>
-            <Tag className="m-0">{item.config.apiMode === "chat" ? "Chat" : item.config.apiMode === "responses" ? "Responses" : "Images"}</Tag>
-            <Tag className="m-0">{item.config.size || "auto"}</Tag>
-            <Tag className="m-0">{item.config.quality || "auto"}</Tag>
-            {item.config.apiMode !== "chat" && item.config.streamImages ? <Tag className="m-0">流式 {item.config.streamPartialImages || "1"}</Tag> : null}
-            {item.durationMs ? <Tag className="m-0">{formatDuration(item.durationMs)}</Tag> : null}
-        </>
     );
 }

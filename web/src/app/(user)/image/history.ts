@@ -2,7 +2,7 @@
 
 import localforage from "localforage";
 import { formatTaskTime } from "@/components/workbench/task-result";
-import type { CanvasImageTask } from "@/services/api/image";
+import type { CanvasImageTask, SeedableImageConfig } from "@/services/api/image";
 import { resolveImageUrl } from "@/services/image-storage";
 import type { AiConfig } from "@/stores/use-config-store";
 import { normalizeLocalChannels } from "@/stores/use-config-store";
@@ -15,6 +15,8 @@ import { nanoid } from "nanoid";
 
 import { errorDetailWith, errorMessage, updateResult } from "@/lib/generation-history";
 export { errorMessage, updateResult };
+export type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
+
 export function errorDetail(error: unknown) {
     return errorDetailWith(error, (value) => value instanceof ImageRequestError);
 }
@@ -84,7 +86,7 @@ export type GenerationLog = {
 };
 
 export type GenerationLogConfig = Pick<AiConfig, "channelMode" | "model" | "imageModel" | "activeChannelId" | "imageChannelId" | "quality" | "size" | "count" | "apiMode" | "streamImages" | "streamPartialImages" | "responseFormatB64Json" | "codexCli">;
-export type RequestSnapshot = { text: string; requestConfig: AiConfig; displayConfig: GenerationLogConfig; references: ReferenceImage[]; workflowRef?: WorkflowRef };
+export type RequestSnapshot = { text: string; requestConfig: SeedableImageConfig; displayConfig: GenerationLogConfig; references: ReferenceImage[]; workflowRef?: WorkflowRef };
 export type GenerationCategory = { id: string; name: string; createdAt: number };
 export type ResultViewMode = "all" | "category";
 export type WorkflowPollContext = { token: string; signal: AbortSignal };
@@ -643,11 +645,6 @@ export function imageExtension(value: string) {
     if (lower.includes("jpeg") || lower.includes("jpg")) return "jpg";
     if (lower.includes("webp")) return "webp";
     return "png";
-}
-
-export function defaultWorkflowButtonPosition() {
-    if (typeof window === "undefined") return { x: 24, y: 320 };
-    return { x: Math.max(16, window.innerWidth - 132), y: Math.max(96, Math.round(window.innerHeight / 2)) };
 }
 
 export function clampWorkflowButtonPosition(position: { x?: number; y?: number }) {
