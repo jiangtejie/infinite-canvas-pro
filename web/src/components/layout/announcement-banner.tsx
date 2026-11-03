@@ -16,6 +16,7 @@ export function AnnouncementBanner() {
     const [slide, setSlide] = useState({ index: 0, direction: "right" });
     const [paused, setPaused] = useState(false);
     const carouselRef = useRef<GetRef<typeof Carousel>>(null);
+    const sectionRef = useRef<HTMLElement>(null);
 
     useEffect(() => {
         try {
@@ -25,10 +26,21 @@ export function AnnouncementBanner() {
         }
     }, []);
 
+    useEffect(() => {
+        const frame = window.requestAnimationFrame(() => {
+            sectionRef.current?.querySelectorAll<HTMLElement>(".slick-slide").forEach((element) => {
+                if (element.getAttribute("aria-hidden") === "true") element.setAttribute("inert", "");
+                else element.removeAttribute("inert");
+            });
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [slide.index, visible]);
+
     if (!visible || !ANNOUNCEMENTS.length) return null;
 
     return (
         <section
+            ref={sectionRef}
             aria-label="站点公告"
             className="relative min-h-10 w-full shrink-0 border-b border-border/70 bg-[#0b0b09] text-[#e9e9e2]"
             onMouseEnter={() => setPaused(true)}

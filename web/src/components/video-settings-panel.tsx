@@ -388,6 +388,7 @@ function VideoDurationField({ value, options, theme, onChange, onBlur }: { value
     return (
         <div className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-3">
             <Slider
+                ariaLabelForHandle="视频时长"
                 min={0}
                 max={options.length - 1}
                 step={1}
@@ -437,7 +438,7 @@ function DimensionInput({ prefix, value, disabled, theme, onChange }: { prefix: 
 }
 
 function NumberInput({ value, theme, onChange, onBlur }: { value: string; theme: CanvasTheme; onChange: (value: string) => void; onBlur?: (value: string) => void }) {
-    return <input type="number" className="h-9 w-full rounded-full border bg-transparent px-2 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text }} value={value} onChange={(event) => onChange(event.target.value)} onBlur={(event) => onBlur?.(event.target.value)} onMouseDown={(event) => event.stopPropagation()} />;
+    return <input type="number" aria-label="视频时长（秒）" className="h-9 w-full rounded-full border bg-transparent px-2 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text }} value={value} onChange={(event) => onChange(event.target.value)} onBlur={(event) => onBlur?.(event.target.value)} onMouseDown={(event) => event.stopPropagation()} />;
 }
 
 function SizePreview({ width, height, color }: { width: number; height: number; color: string }) {

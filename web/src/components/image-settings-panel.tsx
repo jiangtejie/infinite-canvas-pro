@@ -100,7 +100,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                         16倍数对齐
                                     </span>
                                     <span title="输入完成后自动向上补成 16 的倍数" onMouseDown={(event) => event.stopPropagation()}>
-                                        <Switch size="small" checked={snapDimensionToStep} onChange={setSnapDimensionToStep} />
+                                        <Switch size="small" aria-label="16 倍数对齐" checked={snapDimensionToStep} onChange={setSnapDimensionToStep} />
                                     </span>
                                 </div>
                             </div>
@@ -227,6 +227,7 @@ function CountInput({ value, max, theme, onChange }: { value: number; max: numbe
                 type="number"
                 min={1}
                 max={max}
+                aria-label="生成数量"
                 className="min-w-0 flex-1 bg-transparent px-3 text-center outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 style={{ color: theme.node.text, WebkitTextFillColor: theme.node.text }}
                 value={value || ""}

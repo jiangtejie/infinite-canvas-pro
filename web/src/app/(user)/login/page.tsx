@@ -106,6 +106,7 @@ function LoginContent() {
                             <span
                                 className="size-[18px] bg-[#0b0b09]"
                                 style={{ mask: "url(/logo.svg) center / contain no-repeat", WebkitMask: "url(/logo.svg) center / contain no-repeat" }}
+                                role="img"
                                 aria-label="无限画布"
                             />
                         </span>

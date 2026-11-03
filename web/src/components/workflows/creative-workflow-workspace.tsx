@@ -1003,6 +1003,7 @@ export function CreativeWorkflowWorkspace({
                     <Input.Search allowClear placeholder="搜索名称、分类、描述" className="w-full max-w-sm" value={query} onChange={(event) => setQuery(event.target.value)} />
                     <Select
                         className="w-36"
+                        aria-label="工作流分类"
                         value={workflowCategory}
                         options={[{ value: "all", label: "全部分类" }, ...workflowCategories.map((category) => ({ value: category, label: category }))]}
                         onChange={setWorkflowCategory}
@@ -1381,7 +1382,7 @@ function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow:
                     <div className="line-clamp-4 whitespace-pre-wrap">{workflow.config.promptTemplate}</div>
                 </div>
                 <div className="mt-auto flex items-center justify-between gap-2 pt-4">
-                    <span className="truncate font-mono text-[10px] tracking-[0.1em] text-muted-foreground/70 uppercase">
+                    <span className="truncate font-mono text-[10px] tracking-[0.1em] text-muted-foreground uppercase">
                         {workflow.lastRunAt ? `RUN ${formatDate(workflow.lastRunAt)}` : `NEW ${formatDate(workflow.createdAt)}`}
                     </span>
                     <div className="flex shrink-0 gap-1 opacity-60 transition-opacity group-hover:opacity-100">
