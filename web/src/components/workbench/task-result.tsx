@@ -115,6 +115,46 @@ export function FailedResultCard({ mediaClassName, references, error, detail, in
     );
 }
 
+export function MediaResultCard({ media, mediaClassName, mediaBackgroundClassName = "bg-muted", overlay, references, prompt, tags, meta, actions, onCopyPrompt }: {
+    media: ReactNode;
+    mediaClassName: string;
+    mediaBackgroundClassName?: string;
+    overlay?: ReactNode;
+    references?: ReferenceImage[];
+    prompt: string;
+    tags?: ReactNode;
+    meta: ReactNode;
+    actions?: ReactNode;
+    onCopyPrompt: (text: string) => void | Promise<void>;
+}) {
+    return (
+        <div className="overflow-hidden rounded-xl border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
+            <div className={`relative ${mediaClassName} ${mediaBackgroundClassName}`}>
+                {overlay}
+                <ReferenceThumbnailOverlay references={references} className="left-1.5 top-1.5" />
+                {media}
+            </div>
+            <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} />
+            <ResultMediaMeta meta={meta} actions={actions} />
+        </div>
+    );
+}
+
+export function PendingMediaCard({ mediaClassName, prompt, tags, onCopyPrompt, children }: {
+    mediaClassName: string;
+    prompt: string;
+    tags?: ReactNode;
+    onCopyPrompt: (text: string) => void | Promise<void>;
+    children: ReactNode;
+}) {
+    return (
+        <div className="overflow-hidden rounded-xl border border-dashed border-border bg-muted/50">
+            <div className={`relative ${mediaClassName}`}>{children}</div>
+            <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} />
+        </div>
+    );
+}
+
 export function ResultMediaMeta({ meta, actions }: { meta: ReactNode; actions?: ReactNode }) {
     return (
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border px-2.5 py-2">

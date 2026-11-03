@@ -3,7 +3,7 @@
 import { Button, Image, Tag } from "antd";
 import { CloudUpload, Download, FolderPlus, LoaderCircle, PenLine } from "lucide-react";
 
-import { FailedResultCard, ReferenceThumbnailOverlay, ResultMediaMeta, TaskResultInfo, formatTaskTime } from "@/components/workbench/task-result";
+import { FailedResultCard, MediaResultCard, PendingMediaCard, TaskResultInfo, formatTaskTime } from "@/components/workbench/task-result";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { useImagePreviewUrl } from "./use-preview-url";
 
@@ -33,58 +33,61 @@ export function ResultImageCard({
     const previewUrl = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
 
     return (
-        <div className="overflow-hidden rounded-xl border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
-            <div className="relative aspect-[4/3] bg-muted">
+        <MediaResultCard
+            mediaClassName="aspect-[4/3]"
+            overlay={
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     {!image.storageKey?.startsWith("server:") ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
                     <Tag className="m-0 text-[10px]" color="blue">新生成</Tag>
                 </div>
-                <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
-                <Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} width={image.width || undefined} height={image.height || undefined} className="aspect-[4/3] object-cover" />
-            </div>
-            <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} onCopyPrompt={onCopyPrompt} />
-            <ResultMediaMeta
-                meta={
-                    <>
-                        <span>
-                            {image.width}x{image.height}
-                        </span>
-                        <span>{formatBytes(image.bytes)}</span>
-                        <span>{formatDuration(image.durationMs)}</span>
-                    </>
-                }
-                actions={
-                    <>
-                        <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
-                        <Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
-                        <Button size="small" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
-                        <Button size="small" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
-                    </>
-                }
-            />
-        </div>
+            }
+            references={result.references}
+            prompt={result.prompt}
+            tags={<TaskTags item={result} />}
+            meta={
+                <>
+                    <span>
+                        {image.width}x{image.height}
+                    </span>
+                    <span>{formatBytes(image.bytes)}</span>
+                    <span>{formatDuration(image.durationMs)}</span>
+                </>
+            }
+            actions={
+                <>
+                    <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
+                    <Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
+                    <Button size="small" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
+                    <Button size="small" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
+                </>
+            }
+            onCopyPrompt={onCopyPrompt}
+            media={<Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} width={image.width || undefined} height={image.height || undefined} className="aspect-[4/3] object-cover" />}
+        />
     );
 }
 
 export function PendingImageCard({ result, now, onCopyPrompt }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void> }) {
     return (
-        <div className="overflow-hidden rounded-xl border border-dashed border-border bg-muted/50">
-            <div className="relative aspect-[4/3]">
-                <div
-                    className="absolute inset-0 opacity-60"
-                    style={{
-                        backgroundImage: "radial-gradient(circle, rgba(120,113,108,0.35) 1.4px, transparent 1.6px)",
-                        backgroundSize: "16px 16px",
-                    }}
-                />
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
-                    <LoaderCircle className="size-6 animate-spin" />
-                    <span>生成中</span>
-                    <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, now - result.createdAt))}</span>
-                </div>
+        <PendingMediaCard
+            mediaClassName="aspect-[4/3]"
+            prompt={result.prompt}
+            tags={<TaskTags item={{ ...result, durationMs: Math.max(0, now - result.createdAt) }} />}
+            onCopyPrompt={onCopyPrompt}
+        >
+            <div
+                className="absolute inset-0 opacity-60"
+                style={{
+                    backgroundImage: "radial-gradient(circle, rgba(120,113,108,0.35) 1.4px, transparent 1.6px)",
+                    backgroundSize: "16px 16px",
+                }}
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
+                <LoaderCircle className="size-6 animate-spin" />
+                <span>生成中</span>
+                <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, now - result.createdAt))}</span>
             </div>
-            <TaskResultInfo prompt={result.prompt} tags={<TaskTags item={{ ...result, durationMs: Math.max(0, now - result.createdAt) }} />} onCopyPrompt={onCopyPrompt} />
-        </div>
+        </PendingMediaCard>
     );
 }
 
