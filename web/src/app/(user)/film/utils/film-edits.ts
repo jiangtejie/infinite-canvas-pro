@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { FilmEpisode, FilmScene, FilmShot } from "../types";
+import type { FilmAsset, FilmAssetKind, FilmEpisode, FilmScene, FilmShot } from "../types";
 
 export function addFilmEpisode(episodes: FilmEpisode[]): FilmEpisode[] {
     return [
@@ -65,6 +65,28 @@ export function updateFilmScene(episodes: FilmEpisode[], sceneId: string, patch:
 
 export function removeFilmScene(episodes: FilmEpisode[], sceneId: string): FilmEpisode[] {
     return episodes.map((episode) => ({ ...episode, scenes: episode.scenes.filter((scene) => scene.id !== sceneId) }));
+}
+
+export function addFilmAsset(assets: FilmAsset[], kind: FilmAssetKind): FilmAsset[] {
+    return [
+        ...assets,
+        {
+            id: nanoid(),
+            name: kind === "character" ? `角色 ${assets.length + 1}` : `场景 ${assets.length + 1}`,
+            description: "",
+            visualPrompt: "",
+            status: "idle",
+            createdAt: new Date().toISOString(),
+        },
+    ];
+}
+
+export function updateFilmAsset(assets: FilmAsset[], id: string, patch: Partial<FilmAsset>): FilmAsset[] {
+    return assets.map((asset) => asset.id === id ? { ...asset, ...patch } : asset);
+}
+
+export function removeFilmAsset(assets: FilmAsset[], id: string): FilmAsset[] {
+    return assets.filter((asset) => asset.id !== id);
 }
 
 function createScene(index: number): FilmScene {

@@ -4,8 +4,10 @@ import { useRef, useState } from "react";
 import { App } from "antd";
 
 import { createCanvasImageTask, pollCanvasImageTaskStatus, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
+import { imageToDataUrl } from "@/services/image-storage";
 import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import type { FilmProject, FilmShot } from "../types";
+import type { ReferenceImage } from "@/types/image";
+import type { FilmAsset, FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
 
 const POLL_INTERVAL = 2000;
@@ -42,10 +44,14 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
             openConfigDialog(true);
             return;
         }
-        const prompt = current.visualStyle ? `${promptText}\n\n视觉风格：${current.visualStyle}` : promptText;
+        const { references, hints } = await collectShotReferences(current, shot);
+        const prompt = [
+            current.visualStyle ? `${promptText}\n\n视觉风格：${current.visualStyle}` : promptText,
+            hints ? `参考角色与场景：${hints}` : "",
+        ].filter(Boolean).join("\n\n");
         setGeneratingShotId(shot.id);
         try {
-            let task: CanvasImageTask = await createCanvasImageTask(config, prompt, [], { source: "canvas", nodeId: shot.id });
+            let task: CanvasImageTask = await createCanvasImageTask(config, prompt, references, { source: "canvas", nodeId: shot.id });
             for (let attempt = 0; !isDone(task.status) && !isFailed(task.status) && attempt < POLL_LIMIT; attempt++) {
                 await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
                 task = await pollCanvasImageTaskStatus(task.id);
@@ -71,4 +77,24 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
     };
 
     return { generatingShotId, generate };
+}
+
+async function collectShotReferences(project: FilmProject, shot: FilmShot): Promise<{ references: ReferenceImage[]; hints: string }> {
+    const characters = project.characters || [];
+    const locations = project.locations || [];
+    const assets = [
+        ...(shot.characterIds || []).map((id) => characters.find((asset) => asset.id === id)),
+        shot.locationId ? locations.find((asset) => asset.id === shot.locationId) : undefined,
+    ].filter((asset): asset is FilmAsset => Boolean(asset && (asset.imageUrl || asset.storageKey)));
+    const references: ReferenceImage[] = [];
+    for (const asset of assets) {
+        try {
+            const dataUrl = await imageToDataUrl({ url: asset.imageUrl, storageKey: asset.storageKey });
+            if (dataUrl) references.push({ id: asset.id, name: `${asset.name}.png`, type: "image/png", dataUrl, storageKey: asset.storageKey });
+        } catch {
+            // 参考图读取失败时继续用纯提示词生成
+        }
+    }
+    const hints = assets.map((asset) => `${asset.name}${asset.description ? `（${asset.description}）` : ""}`).join("；");
+    return { references, hints };
 }

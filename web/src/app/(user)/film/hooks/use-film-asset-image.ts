@@ -1,0 +1,70 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { App } from "antd";
+
+import { createCanvasImageTask, pollCanvasImageTaskStatus, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
+import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
+import { updateFilmAsset } from "../utils/film-edits";
+
+const POLL_INTERVAL = 2000;
+const POLL_LIMIT = 150;
+
+function isDone(status?: string) {
+    return ["completed", "complete", "done", "succeeded", "success"].includes((status || "").toLowerCase());
+}
+
+function isFailed(status?: string) {
+    return (status || "").toLowerCase() === "failed";
+}
+
+export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
+    const { message } = App.useApp();
+    const effectiveConfig = useEffectiveConfig();
+    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const [generatingAssetId, setGeneratingAssetId] = useState("");
+    const projectRef = useRef(project);
+    projectRef.current = project;
+
+    const generateAsset = async (asset: FilmAsset, kind: FilmAssetKind) => {
+        const current = projectRef.current;
+        if (!current || generatingAssetId) return;
+        const name = asset.name.trim() || (kind === "character" ? "未命名角色" : "未命名场景");
+        const basePrompt = asset.visualPrompt.trim() || [name, asset.description.trim()].filter(Boolean).join("，");
+        const style = current.visualStyle ? `，视觉风格：${current.visualStyle}` : "";
+        const prompt = kind === "character" ? `角色设定图：${basePrompt}${style}` : `场景概念图：${basePrompt}${style}`;
+        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.imageModel, "image");
+        const config = { ...effectiveConfig, model, count: "1" } as SeedableImageConfig;
+        if (!isAiConfigReady(config, model)) {
+            openConfigDialog(true);
+            return;
+        }
+        setGeneratingAssetId(asset.id);
+        try {
+            let task: CanvasImageTask = await createCanvasImageTask(config, prompt, [], { source: "canvas", nodeId: asset.id });
+            for (let attempt = 0; !isDone(task.status) && !isFailed(task.status) && attempt < POLL_LIMIT; attempt++) {
+                await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+                task = await pollCanvasImageTaskStatus(task.id);
+            }
+            if (isFailed(task.status)) throw new Error(task.error?.message || task.error_detail || "设定图生成失败");
+            if (!isDone(task.status)) throw new Error("生成超时，稍后重试");
+            const imageUrl = task.image_url || task.image_urls?.[0] || task.url || "";
+            if (!imageUrl) throw new Error("接口没有返回图片");
+            onUpdate(kind === "character"
+                ? { characters: updateFilmAsset(projectRef.current?.characters || [], asset.id, { imageUrl, storageKey: task.storageKey || "", status: "ready", errorMessage: "" }) }
+                : { locations: updateFilmAsset(projectRef.current?.locations || [], asset.id, { imageUrl, storageKey: task.storageKey || "", status: "ready", errorMessage: "" }) });
+            message.success(kind === "character" ? "角色设定图已生成" : "场景概念图已生成");
+        } catch (error) {
+            onUpdate(kind === "character"
+                ? { characters: updateFilmAsset(projectRef.current?.characters || [], asset.id, { status: "failed", errorMessage: error instanceof Error ? error.message : "生成失败" }) }
+                : { locations: updateFilmAsset(projectRef.current?.locations || [], asset.id, { status: "failed", errorMessage: error instanceof Error ? error.message : "生成失败" }) });
+            message.error(error instanceof Error ? error.message : "设定图生成失败");
+        } finally {
+            setGeneratingAssetId("");
+        }
+    };
+
+    return { generatingAssetId, generateAsset };
+}

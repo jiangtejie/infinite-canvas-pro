@@ -1,4 +1,8 @@
-export type FilmStage = "script" | "storyboard";
+export type FilmStage = "script" | "cast" | "storyboard";
+
+export type FilmAssetKind = "character" | "location";
+
+export type FilmAssetStatus = "idle" | "ready" | "failed";
 
 export type FilmShotStatus = "idle" | "image_ready" | "video_ready" | "failed";
 
@@ -12,6 +16,8 @@ export type FilmShot = {
     audio: string;
     prompt: string;
     status: FilmShotStatus;
+    characterIds?: string[];
+    locationId?: string;
     imageUrl?: string;
     storageKey?: string;
     videoUrl?: string;
@@ -34,6 +40,18 @@ export type FilmEpisode = {
     scenes: FilmScene[];
 };
 
+export type FilmAsset = {
+    id: string;
+    name: string;
+    description: string;
+    visualPrompt: string;
+    imageUrl?: string;
+    storageKey?: string;
+    status: FilmAssetStatus;
+    errorMessage?: string;
+    createdAt: string;
+};
+
 export type FilmProject = {
     id: string;
     title: string;
@@ -41,6 +59,8 @@ export type FilmProject = {
     stage: FilmStage;
     scriptText: string;
     episodes: FilmEpisode[];
+    characters: FilmAsset[];
+    locations: FilmAsset[];
     createdAt: string;
     updatedAt: string;
 };

@@ -178,6 +178,8 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, generating
                         onGenerateVideo={() => onGenerateVideo(selectedShot)}
                         generatingVideo={generatingVideoShotId === selectedShot.id}
                         videoProgress={videoProgress}
+                        characters={project.characters || []}
+                        locations={project.locations || []}
                     />
                 ) : (
                     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">

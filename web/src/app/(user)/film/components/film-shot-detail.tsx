@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Clapperboard, ImagePlus, Trash2 } from "lucide-react";
 import { Button, Image, Input, InputNumber, Select } from "antd";
 
-import type { FilmShot, FilmShotStatus } from "../types";
+import type { FilmAsset, FilmShot, FilmShotStatus } from "../types";
 import { useFilmImageUrl, useFilmVideoUrl } from "../hooks/use-film-image-url";
 
 const SHOT_TYPE_OPTIONS = ["ECU", "MCU", "CU", "MS", "WS", "LS", "OTS", "POV"].map((value) => ({ value, label: value }));
@@ -25,9 +25,11 @@ type FilmShotDetailProps = {
     onGenerateVideo?: () => void;
     generatingVideo?: boolean;
     videoProgress?: number;
+    characters?: FilmAsset[];
+    locations?: FilmAsset[];
 };
 
-export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, generatingVideo, videoProgress }: FilmShotDetailProps) {
+export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, generatingVideo, videoProgress, characters = [], locations = [] }: FilmShotDetailProps) {
     const imageSrc = useFilmImageUrl(shot.imageUrl, shot.storageKey);
     const videoSrc = useFilmVideoUrl(shot.videoUrl, shot.videoStorageKey);
     return (
@@ -49,6 +51,38 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                         <Select value={shot.status} options={STATUS_OPTIONS} onChange={(value: FilmShotStatus) => onChange({ status: value })} />
                     </Field>
                 </div>
+                {characters.length || locations.length ? (
+                    <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">参考对象</span>
+                        {characters.length ? (
+                            <div className="grid gap-1">
+                                <span className="text-[11px] text-muted-foreground/70">出场角色</span>
+                                <Select
+                                    mode="multiple"
+                                    size="small"
+                                    allowClear
+                                    placeholder="选择角色，生成时作为参考图"
+                                    value={shot.characterIds ?? []}
+                                    options={characters.map((character) => ({ value: character.id, label: character.name }))}
+                                    onChange={(value: string[]) => onChange({ characterIds: value })}
+                                />
+                            </div>
+                        ) : null}
+                        {locations.length ? (
+                            <div className="grid gap-1">
+                                <span className="text-[11px] text-muted-foreground/70">场景</span>
+                                <Select
+                                    size="small"
+                                    allowClear
+                                    placeholder="选择场景"
+                                    value={shot.locationId || undefined}
+                                    options={locations.map((location) => ({ value: location.id, label: location.name }))}
+                                    onChange={(value: string) => onChange({ locationId: value || "" })}
+                                />
+                            </div>
+                        ) : null}
+                    </div>
+                ) : null}
                 {onGenerate ? (
                     <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
                         <div className="flex items-center justify-between gap-2">

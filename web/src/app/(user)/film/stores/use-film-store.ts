@@ -32,6 +32,8 @@ export const useFilmStore = create<FilmStore>()(
                     stage: "script",
                     scriptText: "",
                     episodes: [],
+                    characters: [],
+                    locations: [],
                     createdAt: now,
                     updatedAt: now,
                 };

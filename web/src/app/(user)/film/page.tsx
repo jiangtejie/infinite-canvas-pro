@@ -14,6 +14,7 @@ import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/pars
 
 const STAGE_LABEL: Record<FilmProject["stage"], string> = {
     script: "剧本",
+    cast: "角色与场景",
     storyboard: "导演台",
 };
 

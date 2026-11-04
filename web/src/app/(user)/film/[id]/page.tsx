@@ -7,8 +7,10 @@ import { ArrowLeft, Check } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
+import { FilmCastStage } from "../components/film-cast-stage";
 import { FilmScriptStage } from "../components/film-script-stage";
 import { FilmStoryboardStage } from "../components/film-storyboard-stage";
+import { useFilmAssetImage } from "../hooks/use-film-asset-image";
 import { useFilmShotImage } from "../hooks/use-film-shot-image";
 import { useFilmShotVideo } from "../hooks/use-film-shot-video";
 import { useFilmStore } from "../stores/use-film-store";
@@ -16,6 +18,7 @@ import type { FilmStage } from "../types";
 
 const STAGES: Array<{ key: FilmStage; label: string }> = [
     { key: "script", label: "剧本" },
+    { key: "cast", label: "角色与场景" },
     { key: "storyboard", label: "导演台" },
 ];
 
@@ -32,6 +35,9 @@ export default function FilmProjectPage() {
         if (project) updateProject(project.id, patch);
     });
     const videoGeneration = useFilmShotVideo(project, (patch) => {
+        if (project) updateProject(project.id, patch);
+    });
+    const assetGeneration = useFilmAssetImage(project, (patch) => {
         if (project) updateProject(project.id, patch);
     });
 
@@ -108,6 +114,13 @@ export default function FilmProjectPage() {
                             onGenerateVideo={videoGeneration.generateVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}
+                        />
+                    ) : currentStage === "cast" ? (
+                        <FilmCastStage
+                            project={project}
+                            onUpdate={(patch) => updateProject(project.id, patch)}
+                            onGenerateAsset={assetGeneration.generateAsset}
+                            generatingAssetId={assetGeneration.generatingAssetId}
                         />
                     ) : (
                         <FilmStoryboardStage
