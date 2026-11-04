@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { App, Button } from "antd";
-import { Check, Clapperboard, ImageIcon, LayoutGrid, List } from "lucide-react";
+import { App, Button, Select } from "antd";
+import { Check, Clapperboard, ImageIcon, LayoutGrid, List, Maximize2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "../types";
@@ -13,7 +13,9 @@ import { FilmShotStatusChip } from "./film-shot-status-chip";
 import { FilmStoryboardBoard } from "./film-storyboard-board";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 
-type ViewMode = "list" | "board";
+type ViewMode = "list" | "groups" | "board";
+
+type ShotGroup = { id: string; episodeTitle: string; sceneName: string; startIndex: number; shots: FilmShot[] };
 
 type FilmStoryboardStageProps = {
     project: FilmProject;
@@ -35,8 +37,35 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
     const shots = useMemo(() => flattenFilmShots(project.episodes), [project.episodes]);
     const readyCount = countReadyShots(project.episodes);
     const [view, setView] = useState<ViewMode>("list");
+    const [groupSize, setGroupSize] = useState<4 | 9>(4);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedShotId, setSelectedShotId] = useState("");
+
+    const groups = useMemo(() => {
+        const result: ShotGroup[] = [];
+        project.episodes.forEach((episode) => episode.scenes.forEach((scene) => {
+            for (let index = 0; index < scene.shots.length; index += groupSize) {
+                result.push({
+                    id: `${scene.id}-${index}`,
+                    episodeTitle: episode.title,
+                    sceneName: scene.name,
+                    startIndex: index,
+                    shots: scene.shots.slice(index, index + groupSize),
+                });
+            }
+        }));
+        return result;
+    }, [project.episodes, groupSize]);
+
+    const confirmGroupVideo = (targets: FilmShot[]) => {
+        modal.confirm({
+            title: `生成本组 ${targets.length} 个分镜视频？`,
+            content: "会按顺序逐个提交视频任务，耗时取决于视频模型；已有分镜图会自动作为首帧。",
+            okText: "开始生成",
+            cancelText: "取消",
+            onOk: () => onGenerateVideoBatch(targets),
+        });
+    };
 
     const toggleSelect = (shotId: string) => {
         setSelectedIds((prev) => prev.includes(shotId) ? prev.filter((id) => id !== shotId) : [...prev, shotId]);
@@ -86,9 +115,19 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                             <Button size="small" onClick={() => setSelectedIds([])}>清空</Button>
                         </>
                     ) : null}
+                    {view === "groups" ? (
+                        <Select
+                            size="small"
+                            value={groupSize}
+                            className="w-28"
+                            options={[{ value: 4, label: "4 镜一组" }, { value: 9, label: "9 镜一组" }]}
+                            onChange={(value: 4 | 9) => setGroupSize(value)}
+                        />
+                    ) : null}
                     <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
                         <ViewButton active={view === "list"} onClick={() => setView("list")} icon={<List className="size-3.5" />}>列表</ViewButton>
-                        <ViewButton active={view === "board"} onClick={() => setView("board")} icon={<LayoutGrid className="size-3.5" />}>画布</ViewButton>
+                        <ViewButton active={view === "groups"} onClick={() => setView("groups")} icon={<LayoutGrid className="size-3.5" />}>分组</ViewButton>
+                        <ViewButton active={view === "board"} onClick={() => setView("board")} icon={<Maximize2 className="size-3.5" />}>画布</ViewButton>
                     </div>
                 </div>
             </div>
@@ -96,6 +135,42 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
             <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px]">
                 {view === "board" ? (
                     <FilmStoryboardBoard project={project} selectedShotId={selectedShotId} onSelect={setSelectedShotId} />
+                ) : view === "groups" ? (
+                    <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+                            <span className="eyebrow">分组板</span>
+                            <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">每 {groupSize} 镜一组</span>
+                        </div>
+                        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+                            {shots.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                                    <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                                        <Clapperboard className="size-5" />
+                                    </div>
+                                    <p className="mt-4 text-sm text-foreground">还没有分镜</p>
+                                    <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先去剧本页粘贴剧本并解析，分组会自动生成。</p>
+                                    <button type="button" className="mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoScript}>
+                                        去剧本页
+                                    </button>
+                                </div>
+                            ) : null}
+                            <div className="grid gap-3 xl:grid-cols-2">
+                                {groups.map((group) => (
+                                    <ShotGroupCard
+                                        key={group.id}
+                                        group={group}
+                                        groupSize={groupSize}
+                                        selectedShotId={selectedShotId}
+                                        onSelectShot={setSelectedShotId}
+                                        onGenerateImage={onGenerateImageBatch}
+                                        onGenerateVideo={confirmGroupVideo}
+                                        imageLoading={Boolean(batchProgress)}
+                                        videoLoading={Boolean(videoBatchProgress)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </section>
                 ) : (
                     <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
@@ -238,5 +313,55 @@ function ViewButton({ active, onClick, icon, children }: { active: boolean; onCl
             {icon}
             {children}
         </button>
+    );
+}
+
+function ShotGroupCard({ group, groupSize, selectedShotId, onSelectShot, onGenerateImage, onGenerateVideo, imageLoading, videoLoading }: {
+    group: ShotGroup;
+    groupSize: 4 | 9;
+    selectedShotId: string;
+    onSelectShot: (shotId: string) => void;
+    onGenerateImage: (shots: FilmShot[]) => void;
+    onGenerateVideo: (shots: FilmShot[]) => void;
+    imageLoading: boolean;
+    videoLoading: boolean;
+}) {
+    const totalDuration = group.shots.reduce((sum, shot) => sum + shot.duration, 0);
+    return (
+        <article className="rounded-xl border border-border/70 bg-card/40 p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="truncate text-xs font-medium text-foreground/85">{group.sceneName}</span>
+                <span className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">第 {group.startIndex + 1}-{group.startIndex + group.shots.length} 镜</span>
+                <span className="ml-auto font-mono text-[10px] text-muted-foreground/60 tabular-nums">{group.shots.length} 镜 · {Math.round(totalDuration)}s</span>
+            </div>
+            <div className={cn("grid gap-1", groupSize === 9 ? "grid-cols-3" : "grid-cols-2")}>
+                {group.shots.map((shot) => (
+                    <button
+                        key={shot.id}
+                        type="button"
+                        onClick={() => onSelectShot(shot.id)}
+                        className={cn(
+                            "relative overflow-hidden rounded-md border text-left transition-colors",
+                            shot.id === selectedShotId ? "border-acid/60" : "border-border/60 hover:border-border",
+                        )}
+                    >
+                        {shot.imageUrl || shot.storageKey ? (
+                            <FilmShotThumbnail shot={shot} className={cn("w-full", groupSize === 9 ? "h-16" : "h-24")} />
+                        ) : (
+                            <span className={cn("grid w-full place-items-center bg-background/40 text-muted-foreground/25", groupSize === 9 ? "h-16" : "h-24")}>
+                                <ImageIcon className="size-4" aria-hidden />
+                            </span>
+                        )}
+                        <span className="absolute left-1 top-1 rounded bg-background/80 px-1 font-mono text-[8px] text-foreground/80">{shot.shotNo}</span>
+                        {shot.status === "video_ready" ? <span className="absolute bottom-1 right-1 rounded bg-acid/90 px-1 font-mono text-[8px] text-background">视频</span> : null}
+                    </button>
+                ))}
+            </div>
+            <div className="mt-2.5 flex items-center gap-2">
+                <Button size="small" icon={<ImageIcon className="size-3.5" />} loading={imageLoading} onClick={() => onGenerateImage(group.shots)}>本组出图</Button>
+                <Button size="small" icon={<Clapperboard className="size-3.5" />} loading={videoLoading} onClick={() => onGenerateVideo(group.shots)}>本组视频</Button>
+                <span className="ml-auto font-mono text-[10px] text-muted-foreground/50">{group.episodeTitle}</span>
+            </div>
+        </article>
     );
 }
