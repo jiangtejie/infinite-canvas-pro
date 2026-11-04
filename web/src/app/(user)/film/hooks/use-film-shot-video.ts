@@ -9,6 +9,8 @@ import { resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiC
 import type { ReferenceImage } from "@/types/image";
 import type { FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
+import { flattenFilmShots } from "../utils/parse-script";
+import { withVideoVersion } from "../utils/film-versions";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
 
@@ -62,13 +64,9 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
         setGeneratingShotId(shot.id);
         try {
             const { videoUrl, storageKey } = await runShotVideo(current, config, shot);
+            const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
             onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
-                    videoUrl,
-                    videoStorageKey: storageKey,
-                    status: "video_ready",
-                    errorMessage: "",
-                }),
+                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withVideoVersion(latestShot, videoUrl, storageKey)),
             });
             message.success("分镜视频已生成");
         } catch (error) {
@@ -102,13 +100,9 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                 setGeneratingShotId(shot.id);
                 try {
                     const { videoUrl, storageKey } = await runShotVideo(projectRef.current || current, config, shot);
+                    const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
                     onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
-                            videoUrl,
-                            videoStorageKey: storageKey,
-                            status: "video_ready",
-                            errorMessage: "",
-                        }),
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withVideoVersion(latestShot, videoUrl, storageKey)),
                     });
                 } catch (error) {
                     failed += 1;

@@ -7,6 +7,7 @@ import { Clapperboard, ListVideo, Play, SkipForward } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
 import type { FilmProject, FilmShot } from "../types";
+import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { flattenFilmShots } from "../utils/parse-script";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 
@@ -107,7 +108,7 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                                     <span className="min-w-0 flex-1">
                                         <span className="block font-mono text-[9px] text-muted-foreground/60 tabular-nums">{String(index + 1).padStart(2, "0")} · {shot.shotNo}</span>
                                         <span className="mt-0.5 line-clamp-1 block text-[11px] text-foreground/80">{shot.description || "未填写画面描述"}</span>
-                                        <span className="mt-0.5 block font-mono text-[9px] text-muted-foreground/50">{shot.duration}s · {shot.shotType || "—"}</span>
+                                        <span className="mt-0.5 block font-mono text-[9px] text-muted-foreground/50">{shot.duration}s · {filmShotTypeLabel(shot.shotType)}</span>
                                     </span>
                                 </button>
                             );

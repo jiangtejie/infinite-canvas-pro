@@ -9,7 +9,9 @@ import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@
 import type { ReferenceImage } from "@/types/image";
 import type { FilmAsset, FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
+import { flattenFilmShots } from "../utils/parse-script";
 import { runImageTask } from "../utils/film-image-task";
+import { withImageVersion } from "../utils/film-versions";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -57,8 +59,9 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         try {
             const { prompt, references } = await buildShotPrompt(current, shot);
             const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id);
+            const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
             onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { imageUrl, storageKey, status: "image_ready", errorMessage: "" }),
+                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withImageVersion(latestShot, imageUrl, storageKey)),
             });
             message.success("分镜图已生成");
         } catch (error) {
@@ -87,8 +90,9 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
                 try {
                     const { prompt, references } = await buildShotPrompt(projectRef.current || current, shot);
                     const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id);
+                    const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
                     onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { imageUrl, storageKey, status: "image_ready", errorMessage: "" }),
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withImageVersion(latestShot, imageUrl, storageKey)),
                     });
                 } catch (error) {
                     failed += 1;

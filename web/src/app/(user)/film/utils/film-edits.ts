@@ -27,6 +27,7 @@ export function addFilmShot(episodes: FilmEpisode[], sceneId: string): FilmEpiso
                     id: nanoid(),
                     shotNo: `${episodes.indexOf(episode) + 1}-${episode.scenes.indexOf(scene) + 1}-${String(shotIndex).padStart(2, "0")}`,
                     shotType: "",
+                    cameraMovement: "",
                     duration: 5,
                     description: "",
                     dialogue: "",
@@ -47,6 +48,48 @@ export function updateFilmShot(episodes: FilmEpisode[], shotId: string, patch: P
             shots: scene.shots.map((shot) => shot.id === shotId ? { ...shot, ...patch } : shot),
         })),
     }));
+}
+
+export function moveFilmShot(episodes: FilmEpisode[], shotId: string, direction: -1 | 1): FilmEpisode[] {
+    return episodes.map((episode) => ({
+        ...episode,
+        scenes: episode.scenes.map((scene) => {
+            const index = scene.shots.findIndex((shot) => shot.id === shotId);
+            if (index < 0) return scene;
+            const target = index + direction;
+            if (target < 0 || target >= scene.shots.length) return scene;
+            const shots = [...scene.shots];
+            [shots[index], shots[target]] = [shots[target], shots[index]];
+            return { ...scene, shots };
+        }),
+    }));
+}
+
+export function moveFilmShotToScene(episodes: FilmEpisode[], shotId: string, targetSceneId: string): FilmEpisode[] {
+    const shot = episodes.flatMap((episode) => episode.scenes.flatMap((scene) => scene.shots)).find((item) => item.id === shotId);
+    if (!shot) return episodes;
+    const without = episodes.map((episode) => ({
+        ...episode,
+        scenes: episode.scenes.map((scene) => scene.id === targetSceneId ? scene : { ...scene, shots: scene.shots.filter((item) => item.id !== shotId) }),
+    }));
+    return without.map((episode) => ({
+        ...episode,
+        scenes: episode.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, shots: [...scene.shots, shot] } : scene),
+    }));
+}
+
+export function filmShotPosition(episodes: FilmEpisode[], shotId: string) {
+    for (const [episodeIndex, episode] of episodes.entries()) {
+        for (const [sceneIndex, scene] of episode.scenes.entries()) {
+            const shotIndex = scene.shots.findIndex((shot) => shot.id === shotId);
+            if (shotIndex >= 0) return { episodeIndex, sceneIndex, shotIndex, sceneId: scene.id, sceneShotCount: scene.shots.length };
+        }
+    }
+    return null;
+}
+
+export function filmSceneOptions(episodes: FilmEpisode[]) {
+    return episodes.flatMap((episode) => episode.scenes.map((scene) => ({ value: scene.id, label: `${episode.title} / ${scene.name}` })));
 }
 
 export function removeFilmShot(episodes: FilmEpisode[], shotId: string): FilmEpisode[] {

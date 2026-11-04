@@ -6,10 +6,18 @@ export type FilmAssetStatus = "idle" | "ready" | "failed";
 
 export type FilmShotStatus = "idle" | "image_ready" | "video_ready" | "failed";
 
+export type FilmMediaVersion = {
+    id: string;
+    url: string;
+    storageKey?: string;
+    createdAt: string;
+};
+
 export type FilmShot = {
     id: string;
     shotNo: string;
     shotType: string;
+    cameraMovement: string;
     duration: number;
     description: string;
     dialogue: string;
@@ -23,6 +31,8 @@ export type FilmShot = {
     videoUrl?: string;
     videoStorageKey?: string;
     errorMessage?: string;
+    imageVersions?: FilmMediaVersion[];
+    videoVersions?: FilmMediaVersion[];
 };
 
 export type FilmScene = {

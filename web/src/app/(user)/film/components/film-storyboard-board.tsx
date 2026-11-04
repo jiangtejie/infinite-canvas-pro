@@ -5,6 +5,7 @@ import { Clapperboard, ImageIcon, Maximize2, ZoomIn, ZoomOut } from "lucide-reac
 
 import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "../types";
+import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { FilmShotStatusChip } from "./film-shot-status-chip";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 
@@ -132,7 +133,7 @@ function BoardCard({ shot, selected, onSelect }: { shot: FilmShot; selected: boo
                 {shot.description || "未填写画面描述"}
             </span>
             <span className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground/60">
-                <span>{shot.shotType || "—"}</span>
+                <span>{filmShotTypeLabel(shot.shotType)}</span>
                 <span aria-hidden>·</span>
                 <span>{shot.duration}s</span>
             </span>
