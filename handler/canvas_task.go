@@ -252,6 +252,7 @@ func GetCanvasAudioTask(w http.ResponseWriter, r *http.Request, id string) {
 func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []byte, contentType string, channelID string, userChannelID string) {
 	ctx, cleanup, err := service.CanvasTaskContext("image", task.UserID, task.ID)
 	if err != nil {
+		log.Printf("canvas image task context failed: task=%s user=%s err=%v", task.ID, task.UserID, err)
 		return
 	}
 	defer cleanup()
@@ -311,6 +312,7 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 func runCanvasAudioTask(task model.CanvasAudioTask, user model.AuthUser, body []byte, contentType string, channelID string, userChannelID string) {
 	ctx, cleanup, err := service.CanvasTaskContext("audio", task.UserID, task.ID)
 	if err != nil {
+		log.Printf("canvas audio task context failed: task=%s user=%s err=%v", task.ID, task.UserID, err)
 		return
 	}
 	defer cleanup()
@@ -406,7 +408,10 @@ func saveFailedCanvasImageTask(task model.CanvasImageTask, message string, detai
 	task.CompletedAt = taskTime()
 	task.Error = firstNonEmpty(message, "图片生成失败")
 	task.ErrorDetail = detail
-	_, _ = service.SaveCanvasImageTask(task)
+	log.Printf("canvas image task failed: task=%s user=%s model=%s channel=%s error=%s", task.ID, task.UserID, task.Model, task.ChannelID, task.Error)
+	if _, err := service.SaveCanvasImageTask(task); err != nil {
+		log.Printf("canvas image task save failed: task=%s err=%v", task.ID, err)
+	}
 }
 
 func saveFailedCanvasAudioTask(task model.CanvasAudioTask, message string, detail string) {
@@ -414,7 +419,10 @@ func saveFailedCanvasAudioTask(task model.CanvasAudioTask, message string, detai
 	task.CompletedAt = taskTime()
 	task.Error = firstNonEmpty(message, "音频生成失败")
 	task.ErrorDetail = detail
-	_, _ = service.SaveCanvasAudioTask(task)
+	log.Printf("canvas audio task failed: task=%s user=%s model=%s channel=%s error=%s", task.ID, task.UserID, task.Model, task.ChannelID, task.Error)
+	if _, err := service.SaveCanvasAudioTask(task); err != nil {
+		log.Printf("canvas audio task save failed: task=%s err=%v", task.ID, err)
+	}
 }
 
 func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, string, string, string, string, string, string, string, string, error) {

@@ -246,19 +246,27 @@ type aiLogContext struct {
 func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.ModelChannel, logContext aiLogContext, onFailure func()) {
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
-		log.Printf("AI proxy request failed: url=%s err=%v", request.URL.String(), err)
+		duration := time.Duration(0)
+		if !logContext.StartedAt.IsZero() {
+			duration = time.Since(logContext.StartedAt).Round(time.Millisecond)
+		}
+		log.Printf("AI proxy request failed: endpoint=%s model=%s channel=%s user=%s duration=%s url=%s err=%v", logContext.Endpoint, logContext.Model, channel.Name, logContext.UserID, duration, request.URL.String(), err)
 		if onFailure != nil {
 			onFailure()
 		}
 		saveAIProxyLog(logContext, 0, "", err.Error())
-		Fail(w, "AI 接口请求失败")
+		Fail(w, aiTransportErrorMessage(err))
 		return
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode >= http.StatusBadRequest {
 		payload, _ := io.ReadAll(io.LimitReader(response.Body, 256*1024))
-		log.Printf("AI upstream error: url=%s status=%d body=%s", request.URL.String(), response.StatusCode, strings.TrimSpace(string(payload)))
+		duration := time.Duration(0)
+		if !logContext.StartedAt.IsZero() {
+			duration = time.Since(logContext.StartedAt).Round(time.Millisecond)
+		}
+		log.Printf("AI upstream error: endpoint=%s model=%s channel=%s user=%s status=%d duration=%s url=%s body=%s", logContext.Endpoint, logContext.Model, channel.Name, logContext.UserID, response.StatusCode, duration, request.URL.String(), truncateForLog(strings.TrimSpace(string(payload)), 2000))
 		if onFailure != nil {
 			onFailure()
 		}
@@ -347,6 +355,38 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// aiTransportErrorMessage 把底层连接错误翻译成可读文案，让前端任务详情能直接看到失败原因。
+func aiTransportErrorMessage(err error) string {
+	if err == nil {
+		return "AI 接口请求失败"
+	}
+	text := err.Error()
+	lower := strings.ToLower(text)
+	switch {
+	case strings.Contains(lower, "tls handshake timeout"):
+		return "AI 接口请求失败：TLS 握手超时，请检查服务器网络或代理"
+	case strings.Contains(lower, "context deadline exceeded"), strings.Contains(lower, "client.timeout exceeded"):
+		return "AI 接口请求失败：请求超时，请检查服务器网络或渠道地址"
+	case strings.Contains(lower, "no such host"):
+		return "AI 接口请求失败：域名解析失败，请检查渠道地址"
+	case strings.Contains(lower, "connection refused"):
+		return "AI 接口请求失败：连接被拒绝，请检查渠道地址或代理"
+	case strings.Contains(lower, "proxyconnect"):
+		return "AI 接口请求失败：代理连接失败，请检查服务器的代理配置"
+	case strings.Contains(lower, "certificate"):
+		return "AI 接口请求失败：证书校验失败"
+	}
+	return "AI 接口请求失败：" + truncateForLog(text, 120)
+}
+
+func truncateForLog(text string, limit int) string {
+	runes := []rune(strings.TrimSpace(text))
+	if len(runes) <= limit {
+		return string(runes)
+	}
+	return string(runes[:limit]) + "…"
 }
 
 func summarizeAIRequest(body []byte, contentType string) string {
