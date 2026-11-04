@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { App, Button, Input, Modal } from "antd";
-import { Clapperboard, Plus, Trash2 } from "lucide-react";
+import { Clapperboard, Library, Plus, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
@@ -70,9 +70,14 @@ export default function FilmListPage() {
                             </>
                         }
                         actions={
-                            <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setCreateOpen(true)}>
-                                新建项目
-                            </Button>
+                            <>
+                                <Button icon={<Library className="size-4" />} href="/film/library">
+                                    角色与场景库
+                                </Button>
+                                <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setCreateOpen(true)}>
+                                    新建项目
+                                </Button>
+                            </>
                         }
                     />
 

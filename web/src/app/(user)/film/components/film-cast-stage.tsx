@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { App, Button, Input, Select } from "antd";
-import { ImagePlus, Plus, Trash2 } from "lucide-react";
+import { App, Button, Input, Modal, Select } from "antd";
+import { ImagePlus, Library, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
-import { addFilmAsset, removeFilmAsset, updateFilmAsset } from "../utils/film-edits";
+import { useFilmCastStore } from "../stores/use-film-cast-store";
+import { addFilmAsset, importFilmAsset, removeFilmAsset, updateFilmAsset } from "../utils/film-edits";
 import { FILM_CHARACTER_VIEW_PRESETS, type FilmViewPreset } from "../utils/film-view-presets";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
 
@@ -21,10 +22,14 @@ type FilmCastStageProps = {
 };
 
 export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateView, generatingAssetId }: FilmCastStageProps) {
-    const { modal } = App.useApp();
+    const { modal, message } = App.useApp();
     const characters = project.characters || [];
     const locations = project.locations || [];
+    const libraryCharacters = useFilmCastStore((state) => state.characters);
+    const libraryLocations = useFilmCastStore((state) => state.locations);
+    const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
     const [selection, setSelection] = useState<Selection | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
     const [viewPresetKey, setViewPresetKey] = useState(FILM_CHARACTER_VIEW_PRESETS[0].key);
     const viewPreset = FILM_CHARACTER_VIEW_PRESETS.find((preset) => preset.key === viewPresetKey) || FILM_CHARACTER_VIEW_PRESETS[0];
 
@@ -64,6 +69,20 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
             : { locations: updateFilmAsset(locations, selection.id, patch) });
     };
 
+    const saveToLibrary = () => {
+        if (!selection || !selected) return;
+        addLibraryAsset(selection.kind, selected);
+        message.success(selection.kind === "character" ? "已存入角色库" : "已存入场景库");
+    };
+
+    const importFromLibrary = (kind: FilmAssetKind, asset: FilmAsset) => {
+        const next = importFilmAsset(kind === "character" ? characters : locations, asset);
+        onUpdate(kind === "character" ? { characters: next } : { locations: next });
+        setSelection({ kind, id: next[next.length - 1].id });
+        setImportOpen(false);
+        message.success("已导入当前项目");
+    };
+
     const removeSelected = () => {
         if (!selection || !selected) return;
         modal.confirm({
@@ -88,6 +107,7 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
                     <span className="eyebrow">角色与场景</span>
                     <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => createAsset("character")}>新建角色</Button>
                     <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => createAsset("location")}>新建场景</Button>
+                    <Button size="small" icon={<Library className="size-3.5" />} onClick={() => setImportOpen(true)}>从库导入</Button>
                     <span className="ml-auto font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">{characters.length} 角色 / {locations.length} 场景</span>
                 </div>
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
@@ -173,6 +193,7 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
                                 >
                                     {selected.imageUrl ? "重新生成设定图" : "生成设定图"}
                                 </Button>
+                                <Button size="small" icon={<Library className="size-3.5" />} onClick={saveToLibrary}>存入{selection?.kind === "location" ? "场景库" : "角色库"}</Button>
                                 <Button danger size="small" icon={<Trash2 className="size-3.5" />} onClick={removeSelected}>删除</Button>
                             </div>
                             <p className="text-[11px] leading-5 text-muted-foreground/70">生成分镜图时勾选这个角色或场景，会自动作为参考图使用。</p>
@@ -188,6 +209,47 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
                     </div>
                 )}
             </section>
+
+            <Modal title="从角色与场景库导入" open={importOpen} onCancel={() => setImportOpen(false)} footer={null} width={760}>
+                <div className="thin-scrollbar max-h-[60vh] overflow-y-auto">
+                    <ImportSection title="角色库" kind="character" assets={libraryCharacters} onImport={importFromLibrary} />
+                    <ImportSection title="场景库" kind="location" assets={libraryLocations} onImport={importFromLibrary} />
+                </div>
+            </Modal>
+        </div>
+    );
+}
+
+function ImportSection({ title, kind, assets, onImport }: {
+    title: string;
+    kind: FilmAssetKind;
+    assets: FilmAsset[];
+    onImport: (kind: FilmAssetKind, asset: FilmAsset) => void;
+}) {
+    return (
+        <div className="mb-5 last:mb-0">
+            <div className="mb-2 flex items-center gap-2">
+                <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">{title}</span>
+                <span aria-hidden className="h-px flex-1 bg-border/50" />
+                <span className="font-mono text-[10px] text-muted-foreground/50 tabular-nums">{assets.length}</span>
+            </div>
+            {assets.length === 0 ? <p className="px-1 py-2 text-[11px] text-muted-foreground/60">库中还没有资产，先在项目里生成并点「存入角色库」。</p> : null}
+            <div className="grid gap-2 sm:grid-cols-2">
+                {assets.map((asset) => (
+                    <button
+                        key={asset.id}
+                        type="button"
+                        onClick={() => onImport(kind, asset)}
+                        className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-card/50 p-2 text-left transition-colors hover:border-acid/50"
+                    >
+                        <FilmImageThumbnail url={asset.imageUrl} storageKey={asset.storageKey} alt={asset.name} className="size-12 shrink-0 rounded-md border border-border/60" />
+                        <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
+                            <span className="mt-0.5 line-clamp-1 block text-[10px] leading-4 text-muted-foreground/70">{asset.description || "未填写描述"}</span>
+                        </span>
+                    </button>
+                ))}
+            </div>
         </div>
     );
 }

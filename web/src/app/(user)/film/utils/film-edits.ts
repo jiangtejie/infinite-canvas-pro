@@ -82,6 +82,10 @@ export function addFilmAsset(assets: FilmAsset[], kind: FilmAssetKind): FilmAsse
     ];
 }
 
+export function importFilmAsset(assets: FilmAsset[], asset: FilmAsset): FilmAsset[] {
+    return [...assets, { ...asset, id: nanoid(), createdAt: new Date().toISOString() }];
+}
+
 export function updateFilmAsset(assets: FilmAsset[], id: string, patch: Partial<FilmAsset>): FilmAsset[] {
     return assets.map((asset) => asset.id === id ? { ...asset, ...patch } : asset);
 }
