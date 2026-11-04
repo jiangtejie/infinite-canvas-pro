@@ -76,6 +76,7 @@ export function addFilmAsset(assets: FilmAsset[], kind: FilmAssetKind): FilmAsse
             description: "",
             visualPrompt: "",
             status: "idle",
+            views: [],
             createdAt: new Date().toISOString(),
         },
     ];

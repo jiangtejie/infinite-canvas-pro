@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { App, Button, Input } from "antd";
+import { App, Button, Input, Select } from "antd";
 import { ImagePlus, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
 import { addFilmAsset, removeFilmAsset, updateFilmAsset } from "../utils/film-edits";
-import { FilmAssetThumbnail } from "./film-asset-thumbnail";
+import { FILM_CHARACTER_VIEW_PRESETS, type FilmViewPreset } from "../utils/film-view-presets";
+import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
 
 type Selection = { kind: FilmAssetKind; id: string };
 
@@ -15,14 +16,17 @@ type FilmCastStageProps = {
     project: FilmProject;
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     onGenerateAsset: (asset: FilmAsset, kind: FilmAssetKind) => void;
+    onGenerateView: (asset: FilmAsset, preset: FilmViewPreset) => void;
     generatingAssetId: string;
 };
 
-export function FilmCastStage({ project, onUpdate, onGenerateAsset, generatingAssetId }: FilmCastStageProps) {
+export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateView, generatingAssetId }: FilmCastStageProps) {
     const { modal } = App.useApp();
     const characters = project.characters || [];
     const locations = project.locations || [];
     const [selection, setSelection] = useState<Selection | null>(null);
+    const [viewPresetKey, setViewPresetKey] = useState(FILM_CHARACTER_VIEW_PRESETS[0].key);
+    const viewPreset = FILM_CHARACTER_VIEW_PRESETS.find((preset) => preset.key === viewPresetKey) || FILM_CHARACTER_VIEW_PRESETS[0];
 
     useEffect(() => {
         if (selection) {
@@ -124,7 +128,41 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, generatingAs
                             <Field label="视觉提示词">
                                 <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} value={selected.visualPrompt} placeholder="用于生成设定图的补充描述，留空则用名称和描述" onChange={(event) => updateSelected({ visualPrompt: event.target.value })} />
                             </Field>
+                            {selected.views?.length ? (
+                                <div className="grid gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视图设定</span>
+                                        <span className="font-mono text-[10px] text-muted-foreground/50 tabular-nums">{selected.views.length} 张</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {selected.views.map((view) => (
+                                            <div key={view.id} className="relative overflow-hidden rounded-md border border-border/60">
+                                                <FilmImageThumbnail url={view.imageUrl} storageKey={view.storageKey} alt={view.label} className="h-24 w-full" />
+                                                <span className="absolute left-1 top-1 rounded bg-background/80 px-1.5 py-0.5 font-mono text-[9px] text-foreground/80">{view.label}</span>
+                                                <button
+                                                    type="button"
+                                                    aria-label={`删除${view.label}`}
+                                                    className="absolute right-1 top-1 grid size-5 place-items-center rounded bg-background/80 text-muted-foreground transition-colors hover:text-hot"
+                                                    onClick={() => updateSelected({ views: (selected.views || []).filter((item) => item.id !== view.id) })}
+                                                >
+                                                    <Trash2 className="size-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
                             {selected.errorMessage ? <p className="rounded-md border border-hot/30 bg-hot/5 px-2.5 py-2 text-[11px] leading-5 text-hot">{selected.errorMessage}</p> : null}
+                            <div className="grid gap-2">
+                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">生成视图</span>
+                                <div className="flex items-center gap-2">
+                                    <Select size="small" className="flex-1" value={viewPresetKey} options={FILM_CHARACTER_VIEW_PRESETS.map((preset) => ({ value: preset.key, label: preset.label }))} onChange={setViewPresetKey} />
+                                    <Button size="small" loading={generatingAssetId === selected.id} onClick={() => onGenerateView(selected, viewPreset)}>
+                                        生成视图
+                                    </Button>
+                                </div>
+                                <p className="text-[11px] leading-5 text-muted-foreground/70">生成视图时会用主设定图作为参考，保持形象一致。</p>
+                            </div>
                             <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <Button
                                     type="primary"

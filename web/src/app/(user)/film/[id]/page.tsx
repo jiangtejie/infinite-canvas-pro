@@ -120,6 +120,7 @@ export default function FilmProjectPage() {
                             project={project}
                             onUpdate={(patch) => updateProject(project.id, patch)}
                             onGenerateAsset={assetGeneration.generateAsset}
+                            onGenerateView={assetGeneration.generateView}
                             generatingAssetId={assetGeneration.generatingAssetId}
                         />
                     ) : (

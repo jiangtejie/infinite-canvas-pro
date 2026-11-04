@@ -40,6 +40,13 @@ export type FilmEpisode = {
     scenes: FilmScene[];
 };
 
+export type FilmAssetView = {
+    id: string;
+    label: string;
+    imageUrl?: string;
+    storageKey?: string;
+};
+
 export type FilmAsset = {
     id: string;
     name: string;
@@ -49,6 +56,7 @@ export type FilmAsset = {
     storageKey?: string;
     status: FilmAssetStatus;
     errorMessage?: string;
+    views?: FilmAssetView[];
     createdAt: string;
 };
 
