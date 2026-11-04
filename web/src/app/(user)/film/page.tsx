@@ -3,13 +3,14 @@
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
-import { App, Button, Input, Modal } from "antd";
+import { App, Button, Input, Modal, Select } from "antd";
 import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useFilmStore } from "./stores/use-film-store";
-import type { FilmProject } from "./types";
+import type { FilmAspect, FilmProject } from "./types";
+import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel } from "./utils/film-aspects";
 import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
 
@@ -32,6 +33,7 @@ export default function FilmListPage() {
     const [createOpen, setCreateOpen] = useState(false);
     const [title, setTitle] = useState("");
     const [visualStyle, setVisualStyle] = useState("");
+    const [aspect, setAspect] = useState<FilmAspect>(DEFAULT_FILM_ASPECT);
     const [renameTarget, setRenameTarget] = useState<FilmProject | null>(null);
     const [renameTitle, setRenameTitle] = useState("");
     const importInputRef = useRef<HTMLInputElement>(null);
@@ -44,10 +46,11 @@ export default function FilmListPage() {
             message.warning("先给项目起个名字");
             return;
         }
-        const id = createProject(title, visualStyle);
+        const id = createProject(title, visualStyle, aspect);
         setCreateOpen(false);
         setTitle("");
         setVisualStyle("");
+        setAspect(DEFAULT_FILM_ASPECT);
         router.push(`/film/${id}`);
     };
 
@@ -214,7 +217,7 @@ export default function FilmListPage() {
                                                 </div>
                                             </div>
                                             <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-muted-foreground/70 uppercase">
-                                                {project.episodes.length} 集 · {countFilmScenes(project.episodes)} 场 · {shots.length} 镜
+                                                {project.episodes.length} 集 · {countFilmScenes(project.episodes)} 场 · {shots.length} 镜 · {filmAspectLabel(project.aspect)}
                                             </p>
                                             <div className="mt-4 h-1 overflow-hidden rounded-full bg-border/60">
                                                 <span className="block h-full rounded-full bg-acid transition-[width]" style={{ width: `${progress}%` }} />
@@ -244,6 +247,10 @@ export default function FilmListPage() {
                     <label className="grid gap-1.5">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">项目名称</span>
                         <Input autoFocus value={title} placeholder="例如：灌篮少女" onChange={(event) => setTitle(event.target.value)} onPressEnter={create} />
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">画面画幅</span>
+                        <Select value={aspect} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspect(value)} />
                     </label>
                     <label className="grid gap-1.5">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视觉风格（可选）</span>

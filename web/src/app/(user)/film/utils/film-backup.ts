@@ -1,4 +1,5 @@
 import type { FilmProject } from "../types";
+import { normalizeFilmAspect } from "./film-aspects";
 
 type FilmBackup = {
     app: "film";
@@ -24,6 +25,7 @@ export function parseFilmProjectBackup(text: string): FilmProject {
         id: typeof project.id === "string" ? project.id : "",
         title: project.title,
         visualStyle: project.visualStyle || "",
+        aspect: normalizeFilmAspect(project.aspect),
         stage,
         scriptText: project.scriptText || "",
         episodes: project.episodes,

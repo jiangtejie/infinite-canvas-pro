@@ -1,5 +1,7 @@
 export type FilmStage = "script" | "cast" | "storyboard" | "edit";
 
+export type FilmAspect = "9:16" | "16:9" | "2.39:1" | "4:3" | "1:1";
+
 export type FilmAssetKind = "character" | "location";
 
 export type FilmAssetStatus = "idle" | "ready" | "failed";
@@ -74,6 +76,7 @@ export type FilmProject = {
     id: string;
     title: string;
     visualStyle: string;
+    aspect: FilmAspect;
     stage: FilmStage;
     scriptText: string;
     episodes: FilmEpisode[];

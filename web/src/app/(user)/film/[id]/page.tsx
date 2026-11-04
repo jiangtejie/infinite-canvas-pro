@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { Modal, Select } from "antd";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
@@ -15,7 +16,8 @@ import { useFilmAssetImage } from "../hooks/use-film-asset-image";
 import { useFilmShotImage } from "../hooks/use-film-shot-image";
 import { useFilmShotVideo } from "../hooks/use-film-shot-video";
 import { useFilmStore } from "../stores/use-film-store";
-import type { FilmStage } from "../types";
+import type { FilmAspect, FilmStage } from "../types";
+import { FILM_ASPECT_OPTIONS, filmAspectLabel, normalizeFilmAspect } from "../utils/film-aspects";
 
 const STAGES: Array<{ key: FilmStage; label: string }> = [
     { key: "script", label: "剧本" },
@@ -32,6 +34,8 @@ export default function FilmProjectPage() {
     const updateProject = useFilmStore((state) => state.updateProject);
     const project = projects.find((item) => item.id === id);
     const [stage, setStage] = useState<FilmStage | null>(null);
+    const [aspectOpen, setAspectOpen] = useState(false);
+    const [aspectDraft, setAspectDraft] = useState<FilmAspect>("16:9");
     const currentStage = stage ?? project?.stage ?? "script";
     const imageGeneration = useFilmShotImage(project, (patch) => {
         if (project) updateProject(project.id, patch);
@@ -91,7 +95,17 @@ export default function FilmProjectPage() {
                             </button>
                         ))}
                     </nav>
-                    <span className="ml-auto hidden items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase sm:flex">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setAspectDraft(normalizeFilmAspect(project.aspect));
+                            setAspectOpen(true);
+                        }}
+                        className="ml-auto hidden items-center gap-1.5 rounded-full border border-border/70 px-2.5 py-1 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/80 uppercase transition-colors hover:border-acid/50 hover:text-foreground sm:flex"
+                    >
+                        画幅 {filmAspectLabel(project.aspect)}
+                    </button>
+                    <span className="hidden items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase sm:flex">
                         <Check className="size-3 text-acid" aria-hidden />
                         已自动保存
                     </span>
@@ -145,6 +159,23 @@ export default function FilmProjectPage() {
                     )}
                 </div>
             </div>
+
+            <Modal
+                title="项目画幅"
+                open={aspectOpen}
+                okText="保存"
+                cancelText="取消"
+                onOk={() => {
+                    updateProject(project.id, { aspect: normalizeFilmAspect(aspectDraft) });
+                    setAspectOpen(false);
+                }}
+                onCancel={() => setAspectOpen(false)}
+            >
+                <div className="grid gap-3 py-2">
+                    <p className="text-xs leading-6 text-muted-foreground">画幅只影响之后生成的图片（分镜图、角色/场景设定图），已经生成的结果不会自动重做。</p>
+                    <Select value={normalizeFilmAspect(aspectDraft)} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspectDraft(value)} />
+                </div>
+            </Modal>
         </div>
     );
 }

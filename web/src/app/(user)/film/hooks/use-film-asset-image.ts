@@ -11,6 +11,7 @@ import type { ReferenceImage } from "@/types/image";
 import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
 import { updateFilmAsset } from "../utils/film-edits";
 import { runImageTask } from "../utils/film-image-task";
+import { normalizeFilmAspect } from "../utils/film-aspects";
 import type { FilmViewPreset } from "../utils/film-view-presets";
 
 export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
@@ -22,9 +23,9 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
     const projectRef = useRef(project);
     projectRef.current = project;
 
-    const buildImageConfig = () => {
+    const buildImageConfig = (current: FilmProject) => {
         const model = resolveModelForCapability(effectiveConfig, effectiveConfig.imageModel, "image");
-        const config = { ...effectiveConfig, model, count: "1" } as SeedableImageConfig;
+        const config = { ...effectiveConfig, model, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig;
         if (!isAiConfigReady(config, model)) {
             openConfigDialog(true);
             return null;
@@ -35,7 +36,7 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
     const generateAsset = async (asset: FilmAsset, kind: FilmAssetKind) => {
         const current = projectRef.current;
         if (!current || generatingAssetId) return;
-        const config = buildImageConfig();
+        const config = buildImageConfig(current);
         if (!config) return;
         const name = asset.name.trim() || (kind === "character" ? "未命名角色" : "未命名场景");
         const basePrompt = asset.visualPrompt.trim() || [name, asset.description.trim()].filter(Boolean).join("，");
@@ -61,7 +62,7 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
     const generateView = async (asset: FilmAsset, kind: FilmAssetKind, preset: FilmViewPreset) => {
         const current = projectRef.current;
         if (!current || generatingAssetId) return;
-        const config = buildImageConfig();
+        const config = buildImageConfig(current);
         if (!config) return;
         const name = asset.name.trim() || (kind === "character" ? "未命名角色" : "未命名场景");
         const description = asset.description.trim();

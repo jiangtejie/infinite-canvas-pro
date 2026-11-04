@@ -3,7 +3,8 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { localForageStorage } from "@/lib/localforage-storage";
-import type { FilmProject } from "../types";
+import type { FilmAspect, FilmProject } from "../types";
+import { DEFAULT_FILM_ASPECT } from "../utils/film-aspects";
 
 export const FILM_STORE_KEY = "infinite-canvas:film_store";
 
@@ -11,7 +12,7 @@ type FilmStore = {
     hydrated: boolean;
     projects: FilmProject[];
     markHydrated: () => void;
-    createProject: (title: string, visualStyle?: string) => string;
+    createProject: (title: string, visualStyle?: string, aspect?: FilmAspect) => string;
     importProject: (project: FilmProject) => string;
     updateProject: (id: string, patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     deleteProjects: (ids: string[]) => void;
@@ -23,13 +24,14 @@ export const useFilmStore = create<FilmStore>()(
             hydrated: false,
             projects: [],
             markHydrated: () => set({ hydrated: true }),
-            createProject: (title, visualStyle = "") => {
+            createProject: (title, visualStyle = "", aspect = DEFAULT_FILM_ASPECT) => {
                 const id = nanoid();
                 const now = new Date().toISOString();
                 const project: FilmProject = {
                     id,
                     title: title.trim() || "未命名影视项目",
                     visualStyle: visualStyle.trim(),
+                    aspect,
                     stage: "script",
                     scriptText: "",
                     episodes: [],

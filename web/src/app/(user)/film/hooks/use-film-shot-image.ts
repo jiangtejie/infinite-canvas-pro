@@ -12,6 +12,7 @@ import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { runImageTask } from "../utils/film-image-task";
 import { withImageVersion } from "../utils/film-versions";
+import { normalizeFilmAspect } from "../utils/film-aspects";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -26,9 +27,9 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
     projectRef.current = project;
     const busy = Boolean(generatingShotId) || Boolean(batchProgress);
 
-    const buildImageConfig = () => {
+    const buildImageConfig = (current: FilmProject) => {
         const model = resolveModelForCapability(effectiveConfig, effectiveConfig.imageModel, "image");
-        const config = { ...effectiveConfig, model, count: "1" } as SeedableImageConfig;
+        const config = { ...effectiveConfig, model, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig;
         if (!isAiConfigReady(config, model)) {
             openConfigDialog(true);
             return null;
@@ -53,7 +54,7 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
             message.warning("先填写画面描述或生成提示词");
             return;
         }
-        const config = buildImageConfig();
+        const config = buildImageConfig(current);
         if (!config) return;
         setGeneratingShotId(shot.id);
         try {
@@ -80,7 +81,7 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
             message.warning("选中的镜头还没有画面描述或提示词");
             return;
         }
-        const config = buildImageConfig();
+        const config = buildImageConfig(current);
         if (!config) return;
         let failed = 0;
         setBatchProgress({ done: 0, total: pending.length });
