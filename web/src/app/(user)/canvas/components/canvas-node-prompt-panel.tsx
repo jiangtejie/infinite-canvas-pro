@@ -21,6 +21,7 @@ import { CanvasNodeReferenceBar } from "./canvas-node-reference-bar";
 import { CanvasVideoSettingsPopover, type CanvasVideoFrameOption, type CanvasVideoResourceOption } from "./canvas-video-settings-popover";
 import { CanvasNodeType, type CanvasGenerationMode, type CanvasNodeData, type CanvasNodeMetadata } from "../types";
 import { PANORAMA_IMAGE_SIZE, isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
+import { inferNegativePrompt } from "../utils/canvas-negative-prompt";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
 export type { CanvasVideoFrameOption };
@@ -124,6 +125,9 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                                 buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-full !px-3"
                                 negativePrompt={node.metadata?.negativePrompt || ""}
                                 onNegativePromptChange={(value) => onConfigChange(node.id, { negativePrompt: value })}
+                                negativePromptSuggestion={inferNegativePrompt(prompt)}
+                                autoNegativePrompt={node.metadata?.autoNegativePrompt !== false}
+                                onAutoNegativePromptChange={(value) => onConfigChange(node.id, { autoNegativePrompt: value })}
                                 onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })}
                                 onMissingConfig={() => openConfigDialog(true)}
                                 onOpenChange={onImageSettingsOpenChange}

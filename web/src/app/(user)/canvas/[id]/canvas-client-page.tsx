@@ -24,6 +24,7 @@ import { fitNodeSize, nodeSizeFromRatio } from "../utils/canvas-node-size";
 import { captureVideoFrame, type VideoFramePosition } from "../utils/canvas-video-frame";
 import { PANORAMA_IMAGE_SIZE, PANORAMA_NODE_SIZE, buildPanoramaPrompt, isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
 import { applyCameraPrompt } from "../utils/canvas-camera";
+import { resolveImageNegativePrompt } from "../utils/canvas-negative-prompt";
 import { GROUP_PADDING, findContainingGroupId, findGroupDropTarget, getNodeBounds, snapNodesIntoGroup } from "../utils/canvas-group";
 import {
     calculateCanvasAlignment,
@@ -2833,7 +2834,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 buildNodeGenerationContext(nodeId, nodesRef.current, connectionsRef.current, editingTextNode ? `请根据要求修改以下文本。\n\n原文：\n${sourceTextContent}\n\n修改要求：\n${prompt}` : prompt),
             );
             const effectivePrompt = generationContext.prompt.trim();
-            const imageNegativePrompt = isCanvasImageNodeType(sourceNode?.type) ? (sourceNode?.metadata?.negativePrompt || "").trim() : "";
+            const imageNegativePrompt = isCanvasImageNodeType(sourceNode?.type)
+                ? resolveImageNegativePrompt(effectivePrompt, sourceNode?.metadata?.negativePrompt, sourceNode?.metadata?.autoNegativePrompt !== false)
+                : "";
             const cameraPrompt =
                 mode === "video" || (mode === "image" && !isPanoramaNodeType(sourceNode?.type))
                     ? applyCameraPrompt(effectivePrompt, sourceNode?.metadata?.cameraControl)
@@ -3876,7 +3879,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
             const context = hasSavedImageMetadata ? null : await hydrateNodeGenerationContext(buildNodeGenerationContext(sourceNode.id, nodesRef.current, connectionsRef.current, sourceNode.metadata?.prompt || node.metadata?.prompt || ""));
             const prompt = (isPanorama ? savedImageMetadata?.panoramaFinalPrompt || "" : savedImageMetadata?.prompt || context?.prompt || "").trim();
-            const retryNegativePrompt = !isPanorama && isCanvasImageNodeType(node.type) ? (savedImageMetadata?.negativePrompt || node.metadata?.negativePrompt || "").trim() : "";
+            const retryNegativePrompt = !isPanorama && isCanvasImageNodeType(node.type)
+                ? resolveImageNegativePrompt(prompt, savedImageMetadata?.negativePrompt || node.metadata?.negativePrompt, (savedImageMetadata?.autoNegativePrompt ?? node.metadata?.autoNegativePrompt) !== false)
+                : "";
             const retryCameraPrompt = isPanorama ? prompt : applyCameraPrompt(prompt, savedImageMetadata?.cameraControl || node.metadata?.cameraControl);
             const requestPrompt = appendImageNegativePrompt(retryCameraPrompt, retryNegativePrompt);
             if (!prompt && !retryWorkflowRef && !(node.type === CanvasNodeType.Video && isAutoDLConfig(generationConfig))) {

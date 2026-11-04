@@ -53,6 +53,7 @@ export type CanvasNodeMetadata = {
     vquality?: string;
     mode?: string;
     negativePrompt?: string;
+    autoNegativePrompt?: boolean;
     generateAudio?: string;
     characterOrientation?: string;
     watermark?: string;
