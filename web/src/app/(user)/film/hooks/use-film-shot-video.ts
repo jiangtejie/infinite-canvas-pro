@@ -5,10 +5,12 @@ import { App } from "antd";
 
 import { requestVideoGeneration } from "@/services/api/video";
 import { imageToDataUrl } from "@/services/image-storage";
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
+
+export type FilmVideoBatchProgress = { done: number; total: number };
 
 export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
@@ -17,23 +19,24 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const [generatingShotId, setGeneratingShotId] = useState("");
     const [progress, setProgress] = useState(0);
+    const [batchProgress, setBatchProgress] = useState<FilmVideoBatchProgress | null>(null);
     const projectRef = useRef(project);
     projectRef.current = project;
+    const busy = Boolean(generatingShotId) || Boolean(batchProgress);
 
-    const generateVideo = async (shot: FilmShot) => {
-        const current = projectRef.current;
-        if (!current || generatingShotId) return;
-        const promptText = (shot.prompt || shot.description).trim();
-        if (!promptText) {
-            message.warning("先填写画面描述或生成提示词");
-            return;
-        }
+    const buildVideoConfig = () => {
         const model = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video");
-        const config = { ...effectiveConfig, model };
+        const config: AiConfig = { ...effectiveConfig, model };
         if (!isAiConfigReady(config, model)) {
             openConfigDialog(true);
-            return;
+            return null;
         }
+        return config;
+    };
+
+    const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot) => {
+        const promptText = (shot.prompt || shot.description).trim();
+        if (!promptText) throw new Error("先填写画面描述或生成提示词");
         const prompt = current.visualStyle ? `${promptText}\n\n视觉风格：${current.visualStyle}` : promptText;
         let firstFrame: ReferenceImage | null = null;
         if (shot.imageUrl || shot.storageKey) {
@@ -44,16 +47,25 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                 firstFrame = null;
             }
         }
-        setGeneratingShotId(shot.id);
         setProgress(0);
+        const result = await requestVideoGeneration(config, prompt, { firstFrame }, (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))));
+        const videoUrl = result.url || result.task.video_url || result.task.url || "";
+        if (!videoUrl) throw new Error("视频接口没有返回地址");
+        return { videoUrl, storageKey: result.task.storageKey || "" };
+    };
+
+    const generateVideo = async (shot: FilmShot) => {
+        const current = projectRef.current;
+        if (!current || busy) return;
+        const config = buildVideoConfig();
+        if (!config) return;
+        setGeneratingShotId(shot.id);
         try {
-            const result = await requestVideoGeneration(config, prompt, { firstFrame }, (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))));
-            const videoUrl = result.url || result.task.video_url || result.task.url || "";
-            if (!videoUrl) throw new Error("视频接口没有返回地址");
+            const { videoUrl, storageKey } = await runShotVideo(current, config, shot);
             onUpdate({
                 episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
                     videoUrl,
-                    videoStorageKey: result.task.storageKey || "",
+                    videoStorageKey: storageKey,
                     status: "video_ready",
                     errorMessage: "",
                 }),
@@ -73,5 +85,50 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
         }
     };
 
-    return { generatingShotId, videoProgress: progress, generateVideo };
+    const generateVideoBatch = async (targets: FilmShot[]) => {
+        const current = projectRef.current;
+        if (!current || busy) return;
+        const pending = targets.filter((shot) => (shot.prompt || shot.description).trim());
+        if (!pending.length) {
+            message.warning("选中的镜头还没有画面描述或提示词");
+            return;
+        }
+        const config = buildVideoConfig();
+        if (!config) return;
+        let failed = 0;
+        setBatchProgress({ done: 0, total: pending.length });
+        try {
+            for (const [index, shot] of pending.entries()) {
+                setGeneratingShotId(shot.id);
+                try {
+                    const { videoUrl, storageKey } = await runShotVideo(projectRef.current || current, config, shot);
+                    onUpdate({
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
+                            videoUrl,
+                            videoStorageKey: storageKey,
+                            status: "video_ready",
+                            errorMessage: "",
+                        }),
+                    });
+                } catch (error) {
+                    failed += 1;
+                    onUpdate({
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
+                            errorMessage: error instanceof Error ? error.message : "分镜视频生成失败",
+                            status: shot.imageUrl ? "image_ready" : "failed",
+                        }),
+                    });
+                } finally {
+                    setBatchProgress({ done: index + 1, total: pending.length });
+                }
+            }
+        } finally {
+            setGeneratingShotId("");
+            setProgress(0);
+            setBatchProgress(null);
+        }
+        message.success(`批量视频完成：成功 ${pending.length - failed} 个${failed ? `，失败 ${failed} 个` : ""}`);
+    };
+
+    return { generatingShotId, videoProgress: progress, batchProgress, generateVideo, generateVideoBatch };
 }

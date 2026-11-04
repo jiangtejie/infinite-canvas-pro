@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "antd";
+import { App, Button } from "antd";
 import { Check, Clapperboard, ImageIcon, LayoutGrid, List } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -26,9 +26,12 @@ type FilmStoryboardStageProps = {
     onGenerateVideo: (shot: FilmShot) => void;
     generatingVideoShotId: string;
     videoProgress: number;
+    onGenerateVideoBatch: (shots: FilmShot[]) => void;
+    videoBatchProgress: { done: number; total: number } | null;
 };
 
-export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateImageBatch, batchProgress, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmStoryboardStageProps) {
+export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateImageBatch, batchProgress, onGenerateVideo, generatingVideoShotId, videoProgress, onGenerateVideoBatch, videoBatchProgress }: FilmStoryboardStageProps) {
+    const { modal } = App.useApp();
     const shots = useMemo(() => flattenFilmShots(project.episodes), [project.episodes]);
     const readyCount = countReadyShots(project.episodes);
     const [view, setView] = useState<ViewMode>("list");
@@ -63,6 +66,22 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                 onClick={() => onGenerateImageBatch(shots.filter((shot) => selectedIds.includes(shot.id)))}
                             >
                                 {batchProgress ? `批量生成 ${batchProgress.done}/${batchProgress.total}` : "批量生成分镜图"}
+                            </Button>
+                            <Button
+                                size="small"
+                                loading={Boolean(videoBatchProgress)}
+                                onClick={() => {
+                                    const targets = shots.filter((shot) => selectedIds.includes(shot.id));
+                                    modal.confirm({
+                                        title: `批量生成 ${targets.length} 个分镜视频？`,
+                                        content: "会按顺序逐个提交视频任务，耗时取决于视频模型；已有分镜图会自动作为首帧。",
+                                        okText: "开始生成",
+                                        cancelText: "取消",
+                                        onOk: () => onGenerateVideoBatch(targets),
+                                    });
+                                }}
+                            >
+                                {videoBatchProgress ? `批量视频 ${videoBatchProgress.done}/${videoBatchProgress.total}` : "批量生成视频"}
                             </Button>
                             <Button size="small" onClick={() => setSelectedIds([])}>清空</Button>
                         </>

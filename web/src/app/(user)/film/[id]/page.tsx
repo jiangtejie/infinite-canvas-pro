@@ -135,6 +135,8 @@ export default function FilmProjectPage() {
                             onGenerateVideo={videoGeneration.generateVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}
+                            onGenerateVideoBatch={videoGeneration.generateVideoBatch}
+                            videoBatchProgress={videoGeneration.batchProgress}
                         />
                     )}
                 </div>
