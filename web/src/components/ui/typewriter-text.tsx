@@ -64,7 +64,7 @@ export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400
     const finished = !looping && count >= Array.from(phrases[0] || "").length;
 
     return (
-        <span className={cn("relative inline-block max-w-full align-bottom", className)}>
+        <span className={cn("relative inline-block max-w-full align-bottom pr-1.5", className)}>
             <span className="invisible" aria-hidden>
                 {longest}
             </span>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FileUp, Pencil, Search, Trash2, Wrench } from "lucide-react";
 import { App, Button, Empty, Form, Input, Modal, Spin } from "antd";
+import { createPortal } from "react-dom";
 
 import { AgentSkillCover, AgentSkillCoverEditor } from "@/components/agent-skill-cover";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -35,16 +36,17 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const [panelBox, setPanelBox] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (open) wrapperRef.current?.querySelector<HTMLElement>("[data-canvas-skill-panel] button, [data-canvas-skill-panel] input, [data-canvas-skill-panel] [href]")?.focus();
+        if (open) panelRef.current?.querySelector<HTMLElement>("button, input, [href]")?.focus();
     }, [open]);
 
     useEffect(() => {
         if (!open) return;
         const closeOnPointerDown = (event: PointerEvent) => {
             const target = event.target;
-            if (target instanceof Node && wrapperRef.current?.contains(target)) return;
+            if (target instanceof Node && (wrapperRef.current?.contains(target) || panelRef.current?.contains(target))) return;
             setOpen(false);
         };
         const closeOnEscape = (event: KeyboardEvent) => {
@@ -212,19 +214,23 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
         <>
             <div ref={wrapperRef} className="relative">
                 <Button ref={triggerRef} type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: open ? theme.toolbar.activeBg : undefined }} icon={<Wrench className="size-4" />} title="Skill" aria-label="Skill" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)} />
-                {open && panelBox ? (
-                    <div
-                        data-canvas-skill-panel
-                        role="dialog"
-                        aria-label="选择 Skill"
-                        className="fixed z-[80] overflow-hidden rounded-2xl border p-3.5 shadow-2xl"
-                        style={{ left: panelBox.left, top: panelBox.top, width: panelBox.width, maxHeight: panelBox.maxHeight, background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke, backdropFilter: "blur(18px) saturate(1.15)", WebkitBackdropFilter: "blur(18px) saturate(1.15)" }}
-                    >
-                        <div className="thin-scrollbar h-full overflow-x-hidden overflow-y-auto overscroll-contain">
-                            {content}
-                        </div>
-                    </div>
-                ) : null}
+                {open && panelBox
+                    ? createPortal(
+                          <div
+                              ref={panelRef}
+                              data-canvas-skill-panel
+                              role="dialog"
+                              aria-label="选择 Skill"
+                              className="fixed z-[80] overflow-hidden rounded-2xl border p-3.5 shadow-2xl"
+                              style={{ left: panelBox.left, top: panelBox.top, width: panelBox.width, maxHeight: panelBox.maxHeight, background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke, backdropFilter: "blur(18px) saturate(1.15)", WebkitBackdropFilter: "blur(18px) saturate(1.15)" }}
+                          >
+                              <div className="thin-scrollbar h-full overflow-x-hidden overflow-y-auto overscroll-contain">
+                                  {content}
+                              </div>
+                          </div>,
+                          document.body,
+                      )
+                    : null}
             </div>
             <Modal title="编辑 Skill" open={Boolean(editingSkill)} width={920} footer={null} destroyOnHidden onCancel={() => setEditingSkill(null)}>
                 <Form form={form} layout="vertical" requiredMark={false}>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Brain, FolderOpen, ImageIcon, Menu, Navigation, Square, Upload, Video } from "lucide-react";
 import { Button } from "antd";
+import { createPortal } from "react-dom";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useEffectiveConfig } from "@/stores/use-config-store";
@@ -57,27 +58,16 @@ export function CanvasAssistantComposer({
 }: CanvasAssistantComposerProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [assetMenuOpen, setAssetMenuOpen] = useState(false);
+    const [assetMenuPosition, setAssetMenuPosition] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
     const assetMenuRef = useRef<HTMLDivElement>(null);
-    const toolbarRef = useRef<HTMLDivElement>(null);
-    const [openDown, setOpenDown] = useState(false);
+    const assetMenuPanelRef = useRef<HTMLDivElement>(null);
     const canSend = isRunning || Boolean(prompt.trim());
-
-    useEffect(() => {
-        const update = () => {
-            const rect = toolbarRef.current?.getBoundingClientRect();
-            if (!rect) return;
-            setOpenDown(window.innerHeight - rect.bottom > 280);
-        };
-        update();
-        window.addEventListener("resize", update);
-        return () => window.removeEventListener("resize", update);
-    }, []);
 
     useEffect(() => {
         if (!assetMenuOpen) return;
         const closeOnPointerDown = (event: PointerEvent) => {
             const target = event.target;
-            if (target instanceof Node && assetMenuRef.current?.contains(target)) return;
+            if (target instanceof Node && (assetMenuRef.current?.contains(target) || assetMenuPanelRef.current?.contains(target))) return;
             setAssetMenuOpen(false);
         };
         const closeOnEscape = (event: KeyboardEvent) => {
@@ -85,11 +75,16 @@ export function CanvasAssistantComposer({
             event.preventDefault();
             setAssetMenuOpen(false);
         };
+        const closeOnViewportChange = () => setAssetMenuOpen(false);
         document.addEventListener("pointerdown", closeOnPointerDown, true);
         document.addEventListener("keydown", closeOnEscape);
+        window.addEventListener("resize", closeOnViewportChange);
+        window.addEventListener("scroll", closeOnViewportChange, true);
         return () => {
             document.removeEventListener("pointerdown", closeOnPointerDown, true);
             document.removeEventListener("keydown", closeOnEscape);
+            window.removeEventListener("resize", closeOnViewportChange);
+            window.removeEventListener("scroll", closeOnViewportChange, true);
         };
     }, [assetMenuOpen]);
     const effectiveConfig = useEffectiveConfig();
@@ -124,26 +119,41 @@ export function CanvasAssistantComposer({
                     placeholder="描述创作目标，或让我继续操作画布"
                     placeholderClassName="!left-1 !top-0"
                 />
-                <div ref={toolbarRef} className="@container mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                <div className="@container mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                     <div className="flex min-w-0 flex-wrap items-center gap-1">
                         <div ref={assetMenuRef} className="relative">
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text, background: assetMenuOpen ? theme.toolbar.activeBg : undefined }} icon={<Menu className="size-4" />} aria-label="添加素材" aria-haspopup="menu" aria-expanded={assetMenuOpen} onClick={() => {
-                                const rect = toolbarRef.current?.getBoundingClientRect();
-                                setOpenDown(rect ? window.innerHeight - rect.bottom > 200 : false);
-                                setAssetMenuOpen((value) => !value);
+                                if (assetMenuOpen) {
+                                    setAssetMenuOpen(false);
+                                    return;
+                                }
+                                const rect = assetMenuRef.current?.getBoundingClientRect();
+                                if (!rect) return;
+                                const menuHeight = 96;
+                                const openDown = window.innerHeight - rect.bottom >= menuHeight + 16;
+                                setAssetMenuPosition(openDown ? { left: rect.left, top: rect.bottom + 8 } : { left: rect.left, bottom: window.innerHeight - rect.top + 8 });
+                                setAssetMenuOpen(true);
                             }} />
-                            {assetMenuOpen ? (
-                                <div role="menu" className={`absolute left-0 z-50 w-40 overflow-hidden rounded-xl border p-1 ${openDown ? "top-full mt-2" : "bottom-full mb-2"}`} style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
-                                    <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenUpload(); }}>
-                                        <Upload className="size-4 shrink-0 opacity-70" />
-                                        上传文件
-                                    </button>
-                                    <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenAssets(); }}>
-                                        <FolderOpen className="size-4 shrink-0 opacity-70" />
-                                        我的素材
-                                    </button>
-                                </div>
-                            ) : null}
+                            {assetMenuOpen && assetMenuPosition
+                                ? createPortal(
+                                      <div
+                                          ref={assetMenuPanelRef}
+                                          role="menu"
+                                          className="w-40 overflow-hidden rounded-xl border p-1"
+                                          style={{ position: "fixed", zIndex: 1200, left: assetMenuPosition.left, top: assetMenuPosition.top, bottom: assetMenuPosition.bottom, background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}
+                                      >
+                                          <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenUpload(); }}>
+                                              <Upload className="size-4 shrink-0 opacity-70" />
+                                              上传文件
+                                          </button>
+                                          <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenAssets(); }}>
+                                              <FolderOpen className="size-4 shrink-0 opacity-70" />
+                                              我的素材
+                                          </button>
+                                      </div>,
+                                      document.body,
+                                  )
+                                : null}
                         </div>
                         {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} /> : null}
                         {codexControls}
