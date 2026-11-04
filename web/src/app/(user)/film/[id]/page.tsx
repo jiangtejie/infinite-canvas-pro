@@ -31,7 +31,7 @@ export default function FilmProjectPage() {
     const project = projects.find((item) => item.id === id);
     const [stage, setStage] = useState<FilmStage | null>(null);
     const currentStage = stage ?? project?.stage ?? "script";
-    const { generatingShotId, generate } = useFilmShotImage(project, (patch) => {
+    const imageGeneration = useFilmShotImage(project, (patch) => {
         if (project) updateProject(project.id, patch);
     });
     const videoGeneration = useFilmShotVideo(project, (patch) => {
@@ -109,8 +109,8 @@ export default function FilmProjectPage() {
                         <FilmScriptStage
                             project={project}
                             onUpdate={(patch) => updateProject(project.id, patch)}
-                            onGenerateImage={generate}
-                            generatingShotId={generatingShotId}
+                            onGenerateImage={imageGeneration.generate}
+                            generatingShotId={imageGeneration.generatingShotId}
                             onGenerateVideo={videoGeneration.generateVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}
@@ -128,8 +128,10 @@ export default function FilmProjectPage() {
                             project={project}
                             onUpdate={(patch) => updateProject(project.id, patch)}
                             onGoScript={() => switchStage("script")}
-                            onGenerateImage={generate}
-                            generatingShotId={generatingShotId}
+                            onGenerateImage={imageGeneration.generate}
+                            generatingShotId={imageGeneration.generatingShotId}
+                            onGenerateImageBatch={imageGeneration.generateBatch}
+                            batchProgress={imageGeneration.batchProgress}
                             onGenerateVideo={videoGeneration.generateVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}

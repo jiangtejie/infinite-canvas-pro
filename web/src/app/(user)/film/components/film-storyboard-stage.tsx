@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clapperboard, ImageIcon, LayoutGrid, List } from "lucide-react";
+import { Button } from "antd";
+import { Check, Clapperboard, ImageIcon, LayoutGrid, List } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "../types";
@@ -20,16 +21,23 @@ type FilmStoryboardStageProps = {
     onGoScript: () => void;
     onGenerateImage: (shot: FilmShot) => void;
     generatingShotId: string;
+    onGenerateImageBatch: (shots: FilmShot[]) => void;
+    batchProgress: { done: number; total: number } | null;
     onGenerateVideo: (shot: FilmShot) => void;
     generatingVideoShotId: string;
     videoProgress: number;
 };
 
-export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmStoryboardStageProps) {
+export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateImageBatch, batchProgress, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmStoryboardStageProps) {
     const shots = useMemo(() => flattenFilmShots(project.episodes), [project.episodes]);
     const readyCount = countReadyShots(project.episodes);
     const [view, setView] = useState<ViewMode>("list");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedShotId, setSelectedShotId] = useState("");
+
+    const toggleSelect = (shotId: string) => {
+        setSelectedIds((prev) => prev.includes(shotId) ? prev.filter((id) => id !== shotId) : [...prev, shotId]);
+    };
     const selectedShot = shots.find((shot) => shot.id === selectedShotId) ?? null;
 
     useEffect(() => {
@@ -44,9 +52,25 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                 <span className="chip chip-acid">{shots.length} 个分镜</span>
                 <span className="chip">{countFilmScenes(project.episodes)} 场</span>
                 <span className="chip">{readyCount}/{shots.length} 已完成</span>
-                <div className="ml-auto flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
-                    <ViewButton active={view === "list"} onClick={() => setView("list")} icon={<List className="size-3.5" />}>列表</ViewButton>
-                    <ViewButton active={view === "board"} onClick={() => setView("board")} icon={<LayoutGrid className="size-3.5" />}>画布</ViewButton>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                    {view === "list" && selectedIds.length > 0 ? (
+                        <>
+                            <span className="chip chip-acid">{selectedIds.length} 已选</span>
+                            <Button
+                                size="small"
+                                type="primary"
+                                loading={Boolean(batchProgress)}
+                                onClick={() => onGenerateImageBatch(shots.filter((shot) => selectedIds.includes(shot.id)))}
+                            >
+                                {batchProgress ? `批量生成 ${batchProgress.done}/${batchProgress.total}` : "批量生成分镜图"}
+                            </Button>
+                            <Button size="small" onClick={() => setSelectedIds([])}>清空</Button>
+                        </>
+                    ) : null}
+                    <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
+                        <ViewButton active={view === "list"} onClick={() => setView("list")} icon={<List className="size-3.5" />}>列表</ViewButton>
+                        <ViewButton active={view === "board"} onClick={() => setView("board")} icon={<LayoutGrid className="size-3.5" />}>画布</ViewButton>
+                    </div>
                 </div>
             </div>
 
@@ -87,17 +111,47 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                             {scene.shots.length === 0 ? <p className="px-1 py-2 text-[11px] text-muted-foreground/60">这一场还没有分镜</p> : null}
                                             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                                                 {scene.shots.map((shot) => (
-                                                    <button
+                                                    <div
                                                         key={shot.id}
-                                                        type="button"
+                                                        role="button"
+                                                        tabIndex={0}
                                                         onClick={() => setSelectedShotId(shot.id)}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key === "Enter" || event.key === " ") {
+                                                                event.preventDefault();
+                                                                setSelectedShotId(shot.id);
+                                                            }
+                                                        }}
                                                         className={cn(
-                                                            "group flex flex-col gap-2 rounded-lg border p-3 text-left transition-colors",
+                                                            "group flex cursor-pointer flex-col gap-2 rounded-lg border p-3 text-left transition-colors",
                                                             shot.id === selectedShotId ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-border",
+                                                            selectedIds.includes(shot.id) ? "ring-1 ring-acid/50 ring-inset" : "",
                                                         )}
                                                     >
                                                         <span className="flex items-center justify-between gap-2">
-                                                            <span className={cn("font-mono text-[10px] tabular-nums", shot.id === selectedShotId ? "text-acid" : "text-muted-foreground/70")}>{shot.shotNo}</span>
+                                                            <span className="flex min-w-0 items-center gap-2">
+                                                                <span
+                                                                    role="checkbox"
+                                                                    aria-checked={selectedIds.includes(shot.id)}
+                                                                    aria-label={`选择 ${shot.shotNo}`}
+                                                                    tabIndex={0}
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        toggleSelect(shot.id);
+                                                                    }}
+                                                                    onKeyDown={(event) => {
+                                                                        if (event.key === "Enter" || event.key === " ") {
+                                                                            event.preventDefault();
+                                                                            event.stopPropagation();
+                                                                            toggleSelect(shot.id);
+                                                                        }
+                                                                    }}
+                                                                    className={cn("grid size-4 shrink-0 cursor-pointer place-items-center rounded-[3px] border transition-colors", selectedIds.includes(shot.id) ? "border-acid bg-acid/20 text-acid" : "border-border/70 text-transparent hover:border-acid/50")}
+                                                                >
+                                                                    <Check className="size-2.5" />
+                                                                </span>
+                                                                <span className={cn("truncate font-mono text-[10px] tabular-nums", shot.id === selectedShotId ? "text-acid" : "text-muted-foreground/70")}>{shot.shotNo}</span>
+                                                            </span>
                                                             <FilmShotStatusChip status={shot.status} />
                                                         </span>
                                                         <FilmShotThumbnail shot={shot} className="h-24 w-full rounded-md border border-border/50" />
@@ -110,7 +164,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                             <span>{shot.duration}s</span>
                                                             {shot.prompt ? <ImageIcon className="ml-auto size-3 text-acid/70" aria-label="已填写提示词" /> : null}
                                                         </span>
-                                                    </button>
+                                                    </div>
                                                 ))}
                                             </div>
                                         </div>
