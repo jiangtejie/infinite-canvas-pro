@@ -9,6 +9,7 @@ import type { FilmProject, FilmShot } from "../types";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "../utils/parse-script";
 import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { filmAspectCssRatio, filmAspectLabel } from "../utils/film-aspects";
+import { resolveFilmStyleText } from "../utils/film-styles";
 import { checkFilmContinuity } from "../utils/film-continuity";
 import { FILM_SHOT_TYPE_OPTIONS, filmShotTypeLabel } from "../utils/film-shot-types";
 import { FilmShotDetail } from "./film-shot-detail";
@@ -431,6 +432,8 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                             videoProgress={videoProgress}
                             characters={project.characters || []}
                             locations={project.locations || []}
+                            aspect={project.aspect}
+                            styleText={resolveFilmStyleText(project)}
                             onMove={moveSelectedShot}
                             canMoveUp={Boolean(selectedPosition && selectedPosition.shotIndex > 0)}
                             canMoveDown={Boolean(selectedPosition && selectedPosition.shotIndex < selectedPosition.sceneShotCount - 1)}

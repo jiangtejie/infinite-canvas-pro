@@ -11,6 +11,7 @@ import { useFilmAiParse } from "../hooks/use-film-ai-parse";
 import { bindFilmCast } from "../utils/film-cast-bind";
 import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
+import { resolveFilmStyleText } from "../utils/film-styles";
 import { countFilmScenes, flattenFilmShots } from "../utils/parse-script";
 import { FilmShotDetail } from "./film-shot-detail";
 
@@ -269,6 +270,8 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, generating
                         videoProgress={videoProgress}
                         characters={project.characters || []}
                         locations={project.locations || []}
+                        aspect={project.aspect}
+                        styleText={resolveFilmStyleText(project)}
                         onMove={moveSelectedShot}
                         canMoveUp={Boolean(selectedPosition && selectedPosition.shotIndex > 0)}
                         canMoveDown={Boolean(selectedPosition && selectedPosition.shotIndex < selectedPosition.sceneShotCount - 1)}

@@ -7,14 +7,29 @@ import { requestVideoGeneration } from "@/services/api/video";
 import { imageToDataUrl } from "@/services/image-storage";
 import { resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
-import type { FilmProject, FilmShot } from "../types";
+import type { FilmFrameSource, FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { withVideoVersion } from "../utils/film-versions";
-import { normalizeFilmAspect } from "../utils/film-aspects";
+
 import { resolveFilmStyleText } from "../utils/film-styles";
+import { collectFilmShotReferences } from "../utils/film-references";
+import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from "../utils/film-video-segments";
+import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "../utils/film-video-limits";
+import { filmShotTypeLabel } from "../utils/film-shot-types";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
+
+async function frameToReference(frame: FilmFrameSource | undefined, name: string): Promise<ReferenceImage | null> {
+    if (!frame?.url && !frame?.storageKey) return null;
+    try {
+        const dataUrl = await imageToDataUrl({ url: frame.url, storageKey: frame.storageKey });
+        if (!dataUrl) return null;
+        return { id: name, name: `${name}.png`, type: "image/png", dataUrl, storageKey: frame.storageKey };
+    } catch {
+        return null;
+    }
+}
 
 export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
@@ -30,7 +45,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
 
     const buildVideoConfig = (current: FilmProject) => {
         const model = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video");
-        const config: AiConfig = { ...effectiveConfig, model, size: normalizeFilmAspect(current.aspect) };
+        const config: AiConfig = { ...effectiveConfig, model, size: filmVideoAspect(current.aspect, model) };
         if (!isAiConfigReady(config, model)) {
             openConfigDialog(true);
             return null;
@@ -39,21 +54,43 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     };
 
     const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot) => {
-        const promptText = (shot.prompt || shot.description).trim();
-        if (!promptText) throw new Error("先填写画面描述或生成提示词");
-        const styleText = resolveFilmStyleText(current);
-        const prompt = styleText ? `${promptText}\n\n视觉风格：${styleText}` : promptText;
-        let firstFrame: ReferenceImage | null = null;
-        if (shot.imageUrl || shot.storageKey) {
-            try {
-                const dataUrl = await imageToDataUrl({ url: shot.imageUrl, storageKey: shot.storageKey });
-                if (dataUrl) firstFrame = { id: shot.id, name: `shot-${shot.shotNo}.png`, type: "image/png", dataUrl, storageKey: shot.storageKey };
-            } catch {
-                firstFrame = null;
-            }
+        const shotConfig: AiConfig = { ...config, videoSeconds: String(clampFilmVideoDuration(shot.duration, config.model || config.videoModel || "")) };
+        const model = config.model || config.videoModel || "";
+        const mode = shot.videoMode === "frames" ? "frames" : "reference";
+        const segments = shot.videoSegments?.length ? shot.videoSegments : createDefaultSegments(shot.duration);
+        const validation = validateSegments(segments, shot.duration);
+        if (validation) throw new Error(validation);
+        if (!(shot.prompt || shot.description).trim() && !segments.some((segment) => segment.prompt.trim())) {
+            throw new Error("先填写画面描述或分段提示词");
         }
+
+        let input: { references?: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null } = {};
+        let hints = "";
+        if (mode === "frames") {
+            const firstFrame = await frameToReference(shot.firstFrame, `${shot.id}-first`);
+            if (!firstFrame) throw new Error("首尾帧模式需要先选择首帧");
+            const lastFrame = await frameToReference(shot.lastFrame, `${shot.id}-last`);
+            input = { firstFrame, lastFrame };
+        } else {
+            const collected = await collectFilmShotReferences(current, shot, { includeStoryboard: true });
+            input = { references: collected.references.slice(0, filmVideoReferenceLimit(model)) };
+            hints = collected.hints;
+        }
+
+        const prompt = composeFilmVideoPrompt({
+            segments,
+            shotTypeLabel: filmShotTypeLabel(shot.shotType),
+            cameraMovement: shot.cameraMovement || "",
+            description: shot.description || "",
+            videoPrompt: shot.videoPrompt || "",
+            styleText: resolveFilmStyleText(current),
+            mode,
+            hasFirstFrame: mode === "frames" && Boolean(shot.firstFrame),
+            hints,
+        });
+
         setProgress(0);
-        const result = await requestVideoGeneration(config, prompt, { firstFrame }, (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))));
+        const result = await requestVideoGeneration(shotConfig, prompt, input, (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))));
         const videoUrl = result.url || result.task.video_url || result.task.url || "";
         if (!videoUrl) throw new Error("视频接口没有返回地址");
         return { videoUrl, storageKey: result.task.storageKey || "" };
@@ -88,18 +125,13 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
 
     const generateVideoBatch = async (targets: FilmShot[]) => {
         const current = projectRef.current;
-        if (!current || busy) return;
-        const pending = targets.filter((shot) => (shot.prompt || shot.description).trim());
-        if (!pending.length) {
-            message.warning("选中的镜头还没有画面描述或提示词");
-            return;
-        }
+        if (!current || busy || !targets.length) return;
         const config = buildVideoConfig(current);
         if (!config) return;
         let failed = 0;
-        setBatchProgress({ done: 0, total: pending.length });
+        setBatchProgress({ done: 0, total: targets.length });
         try {
-            for (const [index, shot] of pending.entries()) {
+            for (const [index, shot] of targets.entries()) {
                 setGeneratingShotId(shot.id);
                 try {
                     const { videoUrl, storageKey } = await runShotVideo(projectRef.current || current, config, shot);
@@ -116,7 +148,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                         }),
                     });
                 } finally {
-                    setBatchProgress({ done: index + 1, total: pending.length });
+                    setBatchProgress({ done: index + 1, total: targets.length });
                 }
             }
         } finally {
@@ -124,7 +156,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             setProgress(0);
             setBatchProgress(null);
         }
-        message.success(`批量视频完成：成功 ${pending.length - failed} 个${failed ? `，失败 ${failed} 个` : ""}`);
+        message.success(`批量视频完成：成功 ${targets.length - failed} 个${failed ? `，失败 ${failed} 个` : ""}`);
     };
 
     return { generatingShotId, videoProgress: progress, batchProgress, generateVideo, generateVideoBatch };

@@ -3,17 +3,16 @@
 import { useRef, useState } from "react";
 import { App } from "antd";
 
-import { imageToDataUrl } from "@/services/image-storage";
 import type { SeedableImageConfig } from "@/services/api/image";
 import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import type { ReferenceImage } from "@/types/image";
-import type { FilmAsset, FilmProject, FilmShot } from "../types";
+import type { FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { runImageTask } from "../utils/film-image-task";
 import { withImageVersion } from "../utils/film-versions";
 import { normalizeFilmAspect } from "../utils/film-aspects";
 import { resolveFilmStyleText } from "../utils/film-styles";
+import { collectFilmShotReferences } from "../utils/film-references";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -40,7 +39,7 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
 
     const buildShotPrompt = async (current: FilmProject, shot: FilmShot) => {
         const promptText = (shot.prompt || shot.description).trim();
-        const { references, hints } = await collectShotReferences(current, shot);
+        const { references, hints } = await collectFilmShotReferences(current, shot);
         const styleText = resolveFilmStyleText(current);
         const prompt = [
             styleText ? `${promptText}\n\n视觉风格：${styleText}` : promptText,
@@ -114,22 +113,3 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
     return { generatingShotId, batchProgress, generate, generateBatch };
 }
 
-async function collectShotReferences(project: FilmProject, shot: FilmShot): Promise<{ references: ReferenceImage[]; hints: string }> {
-    const characters = project.characters || [];
-    const locations = project.locations || [];
-    const assets = [
-        ...(shot.characterIds || []).map((id) => characters.find((asset) => asset.id === id)),
-        shot.locationId ? locations.find((asset) => asset.id === shot.locationId) : undefined,
-    ].filter((asset): asset is FilmAsset => Boolean(asset && (asset.imageUrl || asset.storageKey)));
-    const references: ReferenceImage[] = [];
-    for (const asset of assets) {
-        try {
-            const dataUrl = await imageToDataUrl({ url: asset.imageUrl, storageKey: asset.storageKey });
-            if (dataUrl) references.push({ id: asset.id, name: `${asset.name}.png`, type: "image/png", dataUrl, storageKey: asset.storageKey });
-        } catch {
-            // 参考图读取失败时继续用纯提示词生成
-        }
-    }
-    const hints = assets.map((asset) => `${asset.name}${asset.description ? `（${asset.description}）` : ""}`).join("；");
-    return { references, hints };
-}

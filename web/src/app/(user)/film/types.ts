@@ -2,6 +2,22 @@ export type FilmStage = "script" | "cast" | "storyboard" | "edit";
 
 export type FilmAspect = "9:16" | "16:9" | "2.39:1" | "4:3" | "1:1";
 
+export type FilmVideoMode = "reference" | "frames";
+
+export type FilmVideoSegment = {
+    id: string;
+    start: number;
+    end: number;
+    prompt: string;
+};
+
+export type FilmFrameSource = {
+    kind: "storyboard" | "version" | "upload";
+    url: string;
+    storageKey?: string;
+    versionId?: string;
+};
+
 export type FilmStylePresetId =
     | "custom"
     | "jp-3d"
@@ -40,6 +56,11 @@ export type FilmShot = {
     status: FilmShotStatus;
     characterIds?: string[];
     locationId?: string;
+    videoMode?: FilmVideoMode;
+    firstFrame?: FilmFrameSource;
+    lastFrame?: FilmFrameSource;
+    videoSegments?: FilmVideoSegment[];
+    videoPrompt?: string;
     imageUrl?: string;
     storageKey?: string;
     videoUrl?: string;
