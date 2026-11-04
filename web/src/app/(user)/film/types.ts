@@ -2,6 +2,39 @@ export type FilmStage = "script" | "cast" | "storyboard" | "edit";
 
 export type FilmAspect = "9:16" | "16:9" | "2.39:1" | "4:3" | "1:1";
 
+export type FilmImageRef = {
+    id: string;
+    url: string;
+    storageKey?: string;
+    source?: "upload" | "generated";
+    createdAt?: string;
+};
+
+export type FilmCharacterPartKey = "face" | "hair" | "upper" | "middle" | "lower" | "limbs";
+
+export type FilmCharacterPart = {
+    images: FilmImageRef[];
+    prompt: string;
+    notes: string;
+    locked: boolean;
+};
+
+export type FilmCharacterProp = {
+    id: string;
+    name: string;
+    type: "accessory" | "weapon" | "other";
+    description: string;
+    images: FilmImageRef[];
+    locked: boolean;
+};
+
+export type FilmCharacterProfile = {
+    parts: Record<FilmCharacterPartKey, FilmCharacterPart>;
+    props: FilmCharacterProp[];
+    masterViews: FilmImageRef[];
+    masterLocked: boolean;
+};
+
 export type FilmVideoMode = "reference" | "frames";
 
 export type FilmVideoSegment = {
@@ -102,6 +135,7 @@ export type FilmAsset = {
     status: FilmAssetStatus;
     errorMessage?: string;
     views?: FilmAssetView[];
+    character?: FilmCharacterProfile;
     createdAt: string;
 };
 

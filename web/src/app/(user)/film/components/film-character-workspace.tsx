@@ -1,0 +1,594 @@
+"use client";
+
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { App, Button, Image, Input, Modal, Spin } from "antd";
+import { ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { uploadImage } from "@/services/image-storage";
+import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmImageRef, FilmProject } from "../types";
+import { useFilmCastStore } from "../stores/use-film-cast-store";
+import { useFilmCharacterImage } from "../hooks/use-film-character-image";
+import { addFilmAsset, importFilmAsset, removeFilmAsset } from "../utils/film-edits";
+import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel } from "../utils/film-character";
+import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
+
+type FilmCharacterWorkspaceProps = {
+    project: FilmProject;
+    onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
+};
+
+type UploadTarget = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | null;
+
+const CHARACTER_LAYOUT_STYLE = `
+.film-character-layout { display: grid; gap: 12px; }
+.film-character-body { display: grid; gap: 8px; }
+.film-slot-column { display: flex; flex-direction: column; gap: 8px; }
+.film-stage { position: relative; overflow: hidden; border-radius: 12px; background: var(--card); min-height: 420px; }
+.film-stage::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background:
+        radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--acid) 12%, transparent), transparent 58%),
+        radial-gradient(ellipse at 50% 108%, rgba(0,0,0,.55), transparent 55%);
+}
+.film-stage::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .35;
+    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+    background-size: 18px 18px;
+}
+.film-stage-frame {
+    position: relative; border: 1px solid color-mix(in srgb, var(--acid) 28%, var(--border));
+    border-radius: 12px; padding: 6px; background: rgba(0,0,0,.22);
+    box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+}
+.film-stage-corner { position: absolute; width: 12px; height: 12px; border-color: var(--acid); border-style: solid; opacity: .75; }
+.film-stage-scan {
+    position: absolute; left: 0; right: 0; height: 32%; pointer-events: none;
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--acid) 16%, transparent), transparent);
+    animation: film-stage-scan 1.8s linear infinite;
+}
+@keyframes film-stage-scan { from { top: -32%; } to { top: 100%; } }
+.film-stage-spot {
+    position: absolute; z-index: 2; display: inline-flex; align-items: center; gap: 4px;
+    border-radius: 999px; border: 1px solid var(--border); background: color-mix(in srgb, var(--card) 88%, transparent);
+    padding: 2px 8px; font-size: 10px; color: var(--muted-foreground); transition: all .15s ease;
+}
+.film-stage-spot:hover { border-color: var(--acid); color: var(--acid); }
+.film-stage-spot[data-active="true"] { border-color: var(--acid); color: var(--acid); background: color-mix(in srgb, var(--acid) 10%, transparent); }
+@media (min-width: 1024px) {
+    .film-character-layout { grid-template-columns: 190px minmax(0, 1fr) 330px; height: 100%; min-height: 0; }
+    .film-character-body { grid-template-columns: 104px minmax(0, 1fr) 104px; flex: 1; min-height: 0; }
+}
+`;
+
+export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
+    const { modal, message } = App.useApp();
+    const characters = project.characters || [];
+    const libraryCharacters = useFilmCastStore((state) => state.characters);
+    const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
+    const { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster } = useFilmCharacterImage(project, onUpdate);
+    const [selectedId, setSelectedId] = useState("");
+    const [selectedPart, setSelectedPart] = useState<FilmCharacterPartKey>("face");
+    const [previewMode, setPreviewMode] = useState<"master" | "part">("master");
+    const [masterPreviewId, setMasterPreviewId] = useState("");
+    const [stageZoom, setStageZoom] = useState(1);
+    const elapsed = useElapsedSeconds(Boolean(generatingKey));
+    const [importOpen, setImportOpen] = useState(false);
+    const uploadRef = useRef<HTMLInputElement>(null);
+    const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
+
+    useEffect(() => {
+        if (selectedId && characters.some((asset) => asset.id === selectedId)) return;
+        setSelectedId(characters[0]?.id || "");
+    }, [characters, selectedId]);
+
+    const selected = characters.find((asset) => asset.id === selectedId) || null;
+    const profile = selected ? ensureCharacterProfile(selected) : null;
+    const part = profile ? profile.parts[selectedPart] : null;
+    const progress = selected ? characterProgress(selected) : null;
+    const masterImages = selected ? characterMasterImages(selected) : [];
+    const partImages = part?.images || [];
+    const previewImages = previewMode === "master" ? masterImages : partImages;
+    const masterPreview = masterImages.find((image) => image.id === masterPreviewId) || masterImages[masterImages.length - 1];
+    const previewImage = previewMode === "master" ? masterPreview : previewImages[previewImages.length - 1];
+    const generatingPart = generatingKey === `part:${selectedPart}`;
+    const generatingMaster = generatingKey === "master";
+
+    const createCharacter = () => {
+        const next = addFilmAsset(characters, "character");
+        const created: FilmAsset = { ...next[next.length - 1], character: createEmptyCharacterProfile() };
+        onUpdate({ characters: [...characters, created] });
+        setSelectedId(created.id);
+        setSelectedPart("face");
+        setPreviewMode("master");
+    };
+
+    const updateCharacter = (patch: Partial<FilmAsset>) => {
+        if (!selected) return;
+        onUpdate({ characters: characters.map((asset) => asset.id === selected.id ? { ...asset, ...patch } : asset) });
+    };
+
+    const patchCharacter = (updater: (asset: FilmAsset) => FilmAsset) => {
+        if (!selected) return;
+        onUpdate({ characters: characters.map((asset) => asset.id === selected.id ? updater(asset) : asset) });
+    };
+
+    const updatePart = (key: FilmCharacterPartKey, patch: Partial<{ prompt: string; notes: string; locked: boolean; images: FilmImageRef[] }>) => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            return {
+                ...asset,
+                character: { ...nextProfile, parts: { ...nextProfile.parts, [key]: { ...nextProfile.parts[key], ...patch } } },
+            };
+        });
+    };
+
+    const updateProp = (propId: string, patch: Partial<FilmCharacterProp>) => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            return {
+                ...asset,
+                character: { ...nextProfile, props: nextProfile.props.map((prop) => prop.id === propId ? { ...prop, ...patch } : prop) },
+            };
+        });
+    };
+
+    const addProp = () => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            const prop: FilmCharacterProp = { id: `prop-${Date.now()}`, name: "新道具", type: "accessory", description: "", images: [], locked: false };
+            return { ...asset, character: { ...nextProfile, props: [...nextProfile.props, prop] } };
+        });
+    };
+
+    const removeProp = (propId: string) => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            return { ...asset, character: { ...nextProfile, props: nextProfile.props.filter((prop) => prop.id !== propId) } };
+        });
+    };
+
+    const saveToLibrary = () => {
+        if (!selected) return;
+        addLibraryAsset("character", selected);
+        message.success("已存入角色库");
+    };
+
+    const importFromLibrary = (asset: FilmAsset) => {
+        const next = importFilmAsset(characters, asset);
+        onUpdate({ characters: next });
+        setSelectedId(next[next.length - 1].id);
+        setImportOpen(false);
+        message.success("已导入当前项目");
+    };
+
+    const removeSelected = () => {
+        if (!selected) return;
+        modal.confirm({
+            title: `删除「${selected.name}」？`,
+            content: "删除后已有分镜里的角色引用会失效，但分镜本身不受影响。",
+            okText: "删除",
+            okButtonProps: { danger: true },
+            cancelText: "取消",
+            onOk: () => {
+                onUpdate({ characters: removeFilmAsset(characters, selected.id) });
+                setSelectedId("");
+            },
+        });
+    };
+
+    const triggerUpload = (target: UploadTarget) => {
+        setUploadTarget(target);
+        uploadRef.current?.click();
+    };
+
+    const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file || !uploadTarget || !selected) return;
+        try {
+            const uploaded = await uploadImage(file, { localOnly: true });
+            const image: FilmImageRef = { id: `img-${Date.now()}`, url: uploaded.url, storageKey: uploaded.storageKey, source: "upload", createdAt: new Date().toISOString() };
+            if (uploadTarget.kind === "part") {
+                const key = uploadTarget.key;
+                const currentImages = ensureCharacterProfile(selected).parts[key].images;
+                updatePart(key, { images: [...currentImages, image] });
+            } else {
+                const prop = ensureCharacterProfile(selected).props.find((item) => item.id === uploadTarget.propId);
+                if (prop) updateProp(prop.id, { images: [...prop.images, image] });
+            }
+        } catch {
+            message.error("图片上传失败");
+        } finally {
+            setUploadTarget(null);
+        }
+    };
+
+    const selectPart = (key: FilmCharacterPartKey) => {
+        setSelectedPart(key);
+        setPreviewMode("part");
+    };
+
+    const confirmGeneratePart = (key: FilmCharacterPartKey) => {
+        if (!selected || batchProgress) return;
+        const currentPart = ensureCharacterProfile(selected).parts[key];
+        if (currentPart.locked) {
+            message.warning("该部位已锁定，先解锁再生成");
+            return;
+        }
+        modal.confirm({
+            title: `生成「${characterPartLabel(key)}」参考图？`,
+            content: "会调用一次图片生成任务，生成时会自动带上面部与全身参考。",
+            okText: "生成",
+            cancelText: "取消",
+            onOk: () => void generatePart(selected.id, key),
+        });
+    };
+
+    const toggleMasterLock = () => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            return { ...asset, character: { ...nextProfile, masterLocked: !nextProfile.masterLocked } };
+        });
+    };
+
+    useEffect(() => {
+        if (previewMode === "part" && !partImages.length && masterImages.length) setPreviewMode("master");
+    }, [previewMode, partImages.length, masterImages.length]);
+
+    useEffect(() => {
+        setMasterPreviewId("");
+    }, [selectedId]);
+
+    return (
+        <>
+            <style>{CHARACTER_LAYOUT_STYLE}</style>
+            <div className="film-character-layout min-h-0">
+                <section className="flex max-h-[80vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                    <div className="flex shrink-0 items-center gap-1 border-b border-border/60 px-3 py-2.5">
+                        <span className="eyebrow">01 角色</span>
+                        <Button size="small" type="text" icon={<Plus className="size-3.5" />} onClick={createCharacter} aria-label="新建角色" />
+                        <Button size="small" type="text" icon={<Library className="size-3.5" />} onClick={() => setImportOpen(true)} aria-label="从角色库导入" />
+                    </div>
+                    <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
+                        {characters.length === 0 ? <p className="px-1 py-2 text-[11px] leading-5 text-muted-foreground/60">还没有角色，点右上角「+」开始。</p> : null}
+                        <div className="grid gap-1.5">
+                            {characters.map((asset) => {
+                                const info = characterProgress(asset);
+                                const ratio = info.done / info.total;
+                                return (
+                                    <button
+                                        key={asset.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedId(asset.id);
+                                            setPreviewMode("master");
+                                        }}
+                                        className={cn("flex items-center gap-2 rounded-lg border p-2 text-left transition-colors", selectedId === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/60 bg-card/50 hover:border-border")}
+                                    >
+                                        <FilmAssetThumbnail asset={asset} className="size-10 shrink-0 rounded-md border border-border/60" />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
+                                            <span className="mt-0.5 block font-mono text-[9px] text-muted-foreground/60">{info.master ? "已合成" : "未合成"}</span>
+                                        </span>
+                                        <span className="relative grid size-8 shrink-0 place-items-center">
+                                            <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90">
+                                                <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border)" strokeWidth="3" />
+                                                <circle cx="18" cy="18" r="15" fill="none" stroke="var(--acid)" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${Math.max(0, Math.min(1, ratio)) * 94} 94`} />
+                                            </svg>
+                                            <span className="font-mono text-[8px] text-muted-foreground/80">{info.done}/6</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-4 flex items-center gap-2">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">道具 / 饰品</span>
+                            <Button size="small" type="text" icon={<Plus className="size-3.5" />} onClick={addProp} disabled={!selected} aria-label="添加道具" />
+                        </div>
+                        {selected && ensureCharacterProfile(selected).props.length === 0 ? <p className="mt-1 text-[10px] leading-4 text-muted-foreground/60">还没有道具，比如发饰、武器、手部饰品。</p> : null}
+                        <div className="mt-2 grid gap-1.5">
+                            {selected ? ensureCharacterProfile(selected).props.map((prop) => (
+                                <div key={prop.id} className="flex items-center gap-1.5 rounded-md border border-border/60 bg-background/30 p-1.5">
+                                    <FilmImageThumbnail url={prop.images[0]?.url} storageKey={prop.images[0]?.storageKey} alt={prop.name} className="size-8 shrink-0 rounded border border-border/60" />
+                                    <input value={prop.name} onChange={(event) => updateProp(prop.id, { name: event.target.value })} className="min-w-0 flex-1 rounded border border-border/60 bg-background/40 px-1.5 py-1 text-[11px] text-foreground" />
+                                    <button type="button" aria-label="上传道具图" className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground" onClick={() => triggerUpload({ kind: "prop", propId: prop.id })}>
+                                        <Upload className="size-3" />
+                                    </button>
+                                    <button type="button" aria-label="删除道具" className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-hot" onClick={() => removeProp(prop.id)}>
+                                        <Trash2 className="size-3" />
+                                    </button>
+                                </div>
+                            )) : null}
+                        </div>
+                    </div>
+                </section>
+
+                <section className="flex min-h-0 flex-col rounded-xl border border-border/70 bg-card/40">
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2.5">
+                        <span className="eyebrow">03 角色舞台</span>
+                        {selected ? <Input size="small" className="h-7 max-w-40" value={selected.name} onChange={(event) => updateCharacter({ name: event.target.value })} /> : null}
+                        {progress ? <span className="ml-auto font-mono text-[10px] text-muted-foreground/60">{progress.master ? "已合成" : "未合成"} · 锁定 {progress.locked}</span> : null}
+                    </div>
+
+                    {!selected ? (
+                        <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+                            <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                                <UserRound className="size-5" />
+                            </div>
+                            <p className="mt-4 text-sm text-foreground">还没有角色</p>
+                            <p className="mt-1.5 text-xs leading-6 text-muted-foreground">新建角色后按「面部 → 发型 → 上身 → 中段 → 下身 → 四肢」逐块补齐参考。</p>
+                        </div>
+                    ) : (
+                        <div className="film-character-body min-h-0 p-3">
+                            <div className="film-slot-column hidden lg:flex">
+                                <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">02 头部</span>
+                                {(["face", "hair"] as FilmCharacterPartKey[]).map((key) => (
+                                    <PartSlot key={key} partKey={key} profile={profile!} selected={selectedPart === key} generating={generatingKey === `part:${key}`} onSelect={() => selectPart(key)} onGenerate={() => confirmGeneratePart(key)} />
+                                ))}
+                                <div className="mt-auto rounded-md border border-border/50 px-2 py-1.5 font-mono text-[9px] text-muted-foreground/50">参考 {progress?.done}/{progress?.total}</div>
+                            </div>
+
+                            <div className="flex min-h-0 flex-col gap-2">
+                                <div className="film-stage flex min-h-[420px] flex-1 flex-col p-3">
+                                    <div className="relative z-10 flex flex-wrap items-center gap-2">
+                                        <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/60 p-0.5 backdrop-blur">
+                                            <button type="button" onClick={() => setPreviewMode("master")} aria-pressed={previewMode === "master"} className={cn("rounded px-2 py-1 text-[11px] transition-colors", previewMode === "master" ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}>全身合成</button>
+                                            <button type="button" onClick={() => setPreviewMode("part")} aria-pressed={previewMode === "part"} className={cn("rounded px-2 py-1 text-[11px] transition-colors", previewMode === "part" ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}>{characterPartLabel(selectedPart)}</button>
+                                        </div>
+                                        <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{previewMode === "master" ? "全身合成图" : "部位参考"}</span>
+                                        <div className="ml-auto flex items-center gap-1">
+                                            <div className="flex items-center gap-0.5 rounded border border-border/60 bg-background/50 px-1 py-0.5">
+                                                <button type="button" aria-label="缩小预览" className="grid size-4 place-items-center rounded text-muted-foreground/70 hover:text-foreground" onClick={() => setStageZoom((value) => Math.max(0.6, Number((value - 0.1).toFixed(2))))}>−</button>
+                                                <span className="w-8 text-center font-mono text-[9px] text-muted-foreground/70">{Math.round(stageZoom * 100)}%</span>
+                                                <button type="button" aria-label="放大预览" className="grid size-4 place-items-center rounded text-muted-foreground/70 hover:text-foreground" onClick={() => setStageZoom((value) => Math.min(1.6, Number((value + 0.1).toFixed(2))))}>+</button>
+                                                <button type="button" aria-label="重置缩放" className="ml-0.5 font-mono text-[8px] text-muted-foreground/50 hover:text-foreground" onClick={() => setStageZoom(1)}>重置</button>
+                                            </div>
+                                            <span className="chip">{previewImages.length} 图</span>
+                                            {profile?.masterLocked ? <span className="chip chip-acid">已锁定</span> : null}
+                                        </div>
+                                    </div>
+
+                                    <div className="relative z-10 flex min-h-[300px] flex-1 items-center justify-center px-2 py-4">
+                                        {previewImage ? (
+                                            <div className="film-stage-frame" style={{ transform: `scale(${stageZoom})`, transition: "transform 150ms ease" }}>
+                                                <Image src={previewImage.url} alt={previewMode === "master" ? "全身合成图" : characterPartLabel(selectedPart)} style={{ maxHeight: 420, width: "auto" }} className="rounded-md" preview={{ mask: "放大预览" }} />
+                                                <span aria-hidden className="film-stage-corner" style={{ left: -1, top: -1, borderWidth: "2px 0 0 2px" }} />
+                                                <span aria-hidden className="film-stage-corner" style={{ right: -1, top: -1, borderWidth: "2px 2px 0 0" }} />
+                                                <span aria-hidden className="film-stage-corner" style={{ left: -1, bottom: -1, borderWidth: "0 0 2px 2px" }} />
+                                                <span aria-hidden className="film-stage-corner" style={{ right: -1, bottom: -1, borderWidth: "0 2px 2px 0" }} />
+                                            </div>
+                                        ) : (
+                                            <EmptyStage selectedPart={selectedPart} onSelectPart={selectPart} />
+                                        )}
+                                        {(previewMode === "master" ? generatingMaster : generatingPart) ? (
+                                            <div className="absolute inset-0 grid place-items-center rounded-lg bg-background/60 backdrop-blur-[2px]">
+                                                <span className="film-stage-scan" aria-hidden />
+                                                <div className="relative z-10 flex flex-col items-center gap-2">
+                                                    <Spin size="small" />
+                                                    <span className="font-mono text-[10px] text-acid">{previewMode === "master" ? "正在合成全身图" : `正在生成${characterPartLabel(selectedPart)}`} · {elapsed}s</span>
+                                                    <span className="text-[10px] text-muted-foreground">生成完成前可以先编辑其他部位</span>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </div>
+
+                                    {masterImages.length > 1 ? (
+                                        <div className="relative z-10 flex items-center gap-1.5 overflow-x-auto pb-1">
+                                            <span className="font-mono text-[9px] text-muted-foreground/50">合成历史</span>
+                                            {masterImages.map((image, index) => (
+                                                <button
+                                                    key={image.id}
+                                                    type="button"
+                                                    onClick={() => { setMasterPreviewId(image.id); setPreviewMode("master"); }}
+                                                    className={cn("relative h-10 w-14 shrink-0 overflow-hidden rounded border transition-colors", masterPreview?.id === image.id ? "border-acid" : "border-border/60 hover:border-acid/50")}
+                                                >
+                                                    <FilmImageThumbnail url={image.url} storageKey={image.storageKey} alt={`合成版本 ${index + 1}`} className="h-10 w-full" />
+                                                    <span className="absolute left-0.5 top-0.5 rounded bg-background/80 px-1 font-mono text-[7px] text-foreground/70">v{index + 1}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border/60 bg-background/70 p-2 backdrop-blur">
+                                    <Button size="small" type="primary" loading={generatingMaster} disabled={Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMaster(selected.id)}>生成全身合成图</Button>
+                                    <Button size="small" loading={generatingPart} disabled={Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => confirmGeneratePart(selectedPart)}>生成{characterPartLabel(selectedPart)}</Button>
+                                    <Button size="small" loading={Boolean(batchProgress)} disabled={generatingMaster || generatingPart} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMissingParts(selected.id)}>
+                                        {batchProgress ? `补齐中 ${batchProgress.done}/${batchProgress.total}` : "补齐缺失部位"}
+                                    </Button>
+                                    <Button size="small" icon={profile?.masterLocked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={toggleMasterLock}>{profile?.masterLocked ? "已锁定" : "锁定合成图"}</Button>
+                                    <Button size="small" icon={<Library className="size-3.5" />} onClick={saveToLibrary}>存入角色库</Button>
+                                    <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={removeSelected}>删除</Button>
+                                </div>
+                            </div>
+
+                            <div className="film-slot-column hidden lg:flex">
+                                <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">02 身体</span>
+                                {(["upper", "middle", "lower", "limbs"] as FilmCharacterPartKey[]).map((key) => (
+                                    <PartSlot key={key} partKey={key} profile={profile!} selected={selectedPart === key} generating={generatingKey === `part:${key}`} onSelect={() => selectPart(key)} onGenerate={() => confirmGeneratePart(key)} />
+                                ))}
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:hidden">
+                                {CHARACTER_PART_DEFINITIONS.map((definition) => (
+                                    <PartSlot key={definition.key} partKey={definition.key} profile={profile!} selected={selectedPart === definition.key} generating={generatingKey === `part:${definition.key}`} onSelect={() => selectPart(definition.key)} onGenerate={() => confirmGeneratePart(definition.key)} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </section>
+
+                <section className="flex max-h-[80vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+                        <span className="eyebrow">04 {characterPartLabel(selectedPart)}参考</span>
+                        {part?.locked ? <span className="chip chip-acid">锁定</span> : null}
+                    </div>
+                    {selected ? (
+                        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+                            <div className="grid gap-3">
+                                <div className="grid grid-cols-4 gap-1.5">
+                                    {partImages.map((image) => (
+                                        <div key={image.id} className="group/image relative overflow-hidden rounded-md border border-border/60">
+                                            <FilmImageThumbnail url={image.url} storageKey={image.storageKey} alt="参考图" className="h-14 w-full" />
+                                            <button
+                                                type="button"
+                                                aria-label="删除参考图"
+                                                className="absolute right-0.5 top-0.5 hidden size-4 place-items-center rounded-full border border-border bg-background text-muted-foreground hover:text-hot group-hover/image:grid"
+                                                onClick={() => updatePart(selectedPart, { images: partImages.filter((item) => item.id !== image.id) })}
+                                            >
+                                                <Trash2 className="size-2.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button type="button" className="grid h-14 place-items-center rounded-md border border-dashed border-border/60 text-muted-foreground/50 transition-colors hover:border-acid/50 hover:text-acid" onClick={() => triggerUpload({ kind: "part", key: selectedPart })}>
+                                        <ImagePlus className="size-4" />
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1">
+                                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">参考来源</span>
+                                    {selectedPart !== "face" && profile && profile.parts.face.images.length ? <span className="chip">面部 ×{profile.parts.face.images.length}</span> : null}
+                                    {masterImages.length ? <span className="chip">全身 ×{masterImages.length}</span> : null}
+                                    {partImages.length ? <span className="chip">本部位 ×{partImages.length}</span> : null}
+                                    {!(selectedPart !== "face" && profile?.parts.face.images.length) && !masterImages.length && !partImages.length ? <span className="text-[10px] text-muted-foreground/60">暂无参考，将按文字描述生成</span> : null}
+                                </div>
+                                <label className="grid gap-1">
+                                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">部位提示词</span>
+                                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} value={part?.prompt || ""} placeholder={CHARACTER_PART_DEFINITIONS.find((item) => item.key === selectedPart)?.hint} onChange={(event) => updatePart(selectedPart, { prompt: event.target.value })} />
+                                </label>
+                                <label className="grid gap-1">
+                                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">备注</span>
+                                    <Input value={part?.notes || ""} placeholder="材质、颜色、细节补充" onChange={(event) => updatePart(selectedPart, { notes: event.target.value })} />
+                                </label>
+                                <p className="text-[11px] leading-5 text-muted-foreground/70">生成时会自动带上面部参考和全身合成图；锁定后的部位不会被后续生成覆盖。</p>
+                            </div>
+                        </div>
+                    ) : null}
+                    {selected ? (
+                        <div className="flex shrink-0 items-center gap-2 border-t border-border/60 bg-background/60 px-4 py-2.5">
+                            <Button size="small" type="primary" loading={generatingPart} disabled={Boolean(part?.locked) || Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void generatePart(selected.id, selectedPart)}>生成本部位</Button>
+                            <Button size="small" icon={part?.locked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={() => updatePart(selectedPart, { locked: !part?.locked })}>{part?.locked ? "解锁" : "锁定"}</Button>
+                        </div>
+                    ) : null}
+                </section>
+            </div>
+
+            <input ref={uploadRef} hidden type="file" accept="image/*" onChange={handleFile} />
+
+            <Modal title="从角色库导入" open={importOpen} onCancel={() => setImportOpen(false)} footer={null} width={680}>
+                {libraryCharacters.length === 0 ? <p className="py-4 text-center text-xs text-muted-foreground">角色库还是空的，先在项目里生成并点「存入角色库」。</p> : null}
+                <div className="thin-scrollbar grid max-h-[60vh] gap-2 overflow-y-auto sm:grid-cols-2">
+                    {libraryCharacters.map((asset) => (
+                        <button key={asset.id} type="button" onClick={() => importFromLibrary(asset)} className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-card/50 p-2 text-left transition-colors hover:border-acid/50">
+                            <FilmImageThumbnail url={asset.imageUrl} storageKey={asset.storageKey} alt={asset.name} className="size-12 shrink-0 rounded-md border border-border/60" />
+                            <span className="min-w-0">
+                                <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
+                                <span className="mt-0.5 line-clamp-1 block text-[10px] leading-4 text-muted-foreground/70">{asset.description || "未填写描述"}</span>
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            </Modal>
+        </>
+    );
+}
+
+function useElapsedSeconds(active: boolean) {
+    const [seconds, setSeconds] = useState(0);
+    useEffect(() => {
+        if (!active) {
+            setSeconds(0);
+            return;
+        }
+        const startedAt = Date.now();
+        setSeconds(0);
+        const timer = setInterval(() => setSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+        return () => clearInterval(timer);
+    }, [active]);
+    return seconds;
+}
+
+function PartSlot({ partKey, profile, selected, generating, onSelect, onGenerate }: {
+    partKey: FilmCharacterPartKey;
+    profile: ReturnType<typeof ensureCharacterProfile>;
+    selected: boolean;
+    generating: boolean;
+    onSelect: () => void;
+    onGenerate: () => void;
+}) {
+    const definition = CHARACTER_PART_DEFINITIONS.find((item) => item.key === partKey)!;
+    const current = profile.parts[partKey];
+    const latest = current.images[current.images.length - 1];
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            title={`${definition.label}：${definition.hint}（双击生成）`}
+            onClick={onSelect}
+            onDoubleClick={onGenerate}
+            onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect();
+                }
+            }}
+            className={cn("group relative cursor-pointer overflow-hidden rounded-lg border transition-colors", selected ? "border-acid/60 bg-acid/[0.06]" : "border-border/60 bg-card/50 hover:border-border")}
+        >
+            <span className="relative block h-16 w-full overflow-hidden">
+                {latest ? <FilmImageThumbnail url={latest.url} storageKey={latest.storageKey} alt={definition.label} className="h-16 w-full" /> : (
+                    <span className="grid h-16 w-full place-items-center text-muted-foreground/35">
+                        <ImageIcon className="size-4" aria-hidden />
+                    </span>
+                )}
+                {current.locked ? <span className="absolute right-1 top-1 grid size-4 place-items-center rounded bg-background/80 text-acid"><Lock className="size-2.5" /></span> : null}
+                {generating ? (
+                    <span className="absolute inset-0 grid place-items-center bg-background/60"><Spin size="small" /></span>
+                ) : (
+                    <button
+                        type="button"
+                        aria-label={`生成${definition.label}`}
+                        className="absolute right-1 top-1 hidden size-4 place-items-center rounded bg-background/80 text-muted-foreground hover:text-acid group-hover:grid"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onGenerate();
+                        }}
+                    >
+                        <Sparkles className="size-2.5" />
+                    </button>
+                )}
+            </span>
+            <span className="flex items-center justify-between gap-1 px-1.5 py-1">
+                <span className="truncate text-[10px] text-foreground/80">{definition.label}</span>
+                <span className="font-mono text-[9px] text-muted-foreground/50">{current.images.length}</span>
+            </span>
+        </div>
+    );
+}
+
+function EmptyStage({ selectedPart, onSelectPart }: { selectedPart: FilmCharacterPartKey; onSelectPart: (key: FilmCharacterPartKey) => void }) {
+    const spots: Array<{ key: FilmCharacterPartKey; label: string; left: string; top: string }> = [
+        { key: "hair", label: "发型", left: "38%", top: "14%" },
+        { key: "face", label: "面部", left: "58%", top: "22%" },
+        { key: "limbs", label: "四肢", left: "28%", top: "48%" },
+        { key: "upper", label: "上身", left: "60%", top: "40%" },
+        { key: "middle", label: "中段", left: "40%", top: "58%" },
+        { key: "lower", label: "下身", left: "60%", top: "72%" },
+    ];
+    return (
+        <div className="relative flex h-full w-full items-center justify-center">
+            <svg viewBox="0 0 120 260" className="h-64 opacity-60" aria-label="人物剪影">
+                <g fill="none" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="4 4">
+                    <circle cx="60" cy="30" r="17" />
+                    <path d="M43 74 C43 54 50 48 60 48 C70 48 77 54 77 74 L82 132 L70 136 L68 214 L75 254 L61 254 L60 190 L59 254 L45 254 L52 214 L50 136 L38 132 Z" />
+                </g>
+            </svg>
+            {spots.map((spot) => (
+                <button key={spot.key} type="button" data-active={selectedPart === spot.key} className="film-stage-spot" style={{ left: spot.left, top: spot.top }} onClick={() => onSelectPart(spot.key)}>
+                    {spot.label}
+                </button>
+            ))}
+            <p className="absolute bottom-2 text-center text-[10px] text-muted-foreground/60">先生成面部，再逐块补齐；也可以直接生成全身合成图</p>
+        </div>
+    );
+}
