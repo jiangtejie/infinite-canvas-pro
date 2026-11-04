@@ -3,6 +3,18 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 图片节点负向提示词
+
+- 图片节点「图像设置」弹层顶部新增「负面提示词」，值保存在节点 metadata.negativePrompt，生成、重试、全景图任务都会读取。
+- OpenAI 图片模型没有 negative_prompt 参数，统一在正向提示词末尾追加 `\n\nAvoid: …`；其他协议也走同一段降级文案。
+- 需验证：填写负向后，请求里的 prompt 末尾带 Avoid 句式且主体提示词不变；重试与批量生成保留该约束；清空负向后恢复原 prompt；视频节点原有的负向提示词行为不受影响。
+
+## AI 渠道出网代理
+
+- AI 渠道请求的 HTTP 客户端优先使用 `HTTPS_PROXY` / `HTTP_PROXY`，Windows 下没有环境变量时自动读取系统代理（WinINET，支持 `127.0.0.1:7890` 和 `http=;https=;socks=` 两种写法），启动时打印 `outbound proxy: env|system|none`，连接失败日志也会带上代理来源。
+- 本机排查记录：系统代理为 Clash `127.0.0.1:7890`，Google / OpenAI 经代理可通，但 `modelflare.dev` 即使隧道建立（CONNECT 200）后 HTTP/TLS 均无响应，属于渠道地址不可达。
+- 需验证：开启系统代理后重启后端，启动日志应显示 system；需要代理的渠道请求正常；设置 `NO_PROXY` 或关闭系统代理后恢复直连；Docker / 非 Windows 仍通过环境变量配置代理。
+
 ## AI 接口失败提示与日志
 
 - 服务端 AI 代理的传输失败、上游 4xx/5xx 日志补充 endpoint、模型、渠道、用户与耗时；画布图片/音频任务失败补充任务 ID、模型、渠道，并记录失败状态落库异常。

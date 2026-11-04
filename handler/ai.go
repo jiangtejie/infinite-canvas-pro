@@ -250,7 +250,7 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 		if !logContext.StartedAt.IsZero() {
 			duration = time.Since(logContext.StartedAt).Round(time.Millisecond)
 		}
-		log.Printf("AI proxy request failed: endpoint=%s model=%s channel=%s user=%s duration=%s url=%s err=%v", logContext.Endpoint, logContext.Model, channel.Name, logContext.UserID, duration, request.URL.String(), err)
+		log.Printf("AI proxy request failed: endpoint=%s model=%s channel=%s user=%s duration=%s proxy=%s url=%s err=%v", logContext.Endpoint, logContext.Model, channel.Name, logContext.UserID, duration, service.OutboundProxyLabel(), request.URL.String(), err)
 		if onFailure != nil {
 			onFailure()
 		}

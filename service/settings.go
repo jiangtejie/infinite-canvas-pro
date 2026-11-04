@@ -429,7 +429,7 @@ func HTTPClientForChannel(channel model.ModelChannel) *http.Client {
 	if timeout <= 0 {
 		timeout = 600
 	}
-	return &http.Client{Timeout: time.Duration(timeout) * time.Second}
+	return &http.Client{Timeout: time.Duration(timeout) * time.Second, Transport: outboundHTTPTransport()}
 }
 
 func BuildModelChannelURL(channel model.ModelChannel, path string) string {

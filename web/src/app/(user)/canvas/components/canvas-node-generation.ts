@@ -8,6 +8,12 @@ import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../t
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import { getGenerationResourceNodes } from "../utils/canvas-resource-references";
 
+/** OpenAI 图片模型没有 negative_prompt 参数，反向约束统一降级成 Avoid 句式追加到正向提示词末尾。 */
+export function appendImageNegativePrompt(prompt: string, negativePrompt: string | null | undefined) {
+    const negative = (negativePrompt || "").trim();
+    return negative ? `${prompt}\n\nAvoid: ${negative}` : prompt;
+}
+
 export type NodeGenerationContext = {
     prompt: string;
     referenceImages: ReferenceImage[];

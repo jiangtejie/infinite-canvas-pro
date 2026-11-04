@@ -69,7 +69,7 @@ import { CanvasNodeCropDialog, type CanvasImageCropRect } from "../components/ca
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "../components/canvas-node-mask-edit-dialog";
 import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "../components/canvas-node-split-dialog";
 import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "../components/canvas-node-upscale-dialog";
-import { buildNodeChatMessages, buildNodeGenerationContext, buildNodeGenerationInputs, hydrateNodeGenerationContext, type NodeGenerationInput } from "../components/canvas-node-generation";
+import { appendImageNegativePrompt, buildNodeChatMessages, buildNodeGenerationContext, buildNodeGenerationInputs, hydrateNodeGenerationContext, type NodeGenerationInput } from "../components/canvas-node-generation";
 import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "../components/canvas-node-hover-toolbar";
 import { InfiniteCanvas } from "../components/infinite-canvas";
 import { Minimap } from "../components/canvas-mini-map";
@@ -2833,10 +2833,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 buildNodeGenerationContext(nodeId, nodesRef.current, connectionsRef.current, editingTextNode ? `请根据要求修改以下文本。\n\n原文：\n${sourceTextContent}\n\n修改要求：\n${prompt}` : prompt),
             );
             const effectivePrompt = generationContext.prompt.trim();
-            const requestPrompt =
+            const imageNegativePrompt = isCanvasImageNodeType(sourceNode?.type) ? (sourceNode?.metadata?.negativePrompt || "").trim() : "";
+            const cameraPrompt =
                 mode === "video" || (mode === "image" && !isPanoramaNodeType(sourceNode?.type))
                     ? applyCameraPrompt(effectivePrompt, sourceNode?.metadata?.cameraControl)
                     : effectivePrompt;
+            const requestPrompt = appendImageNegativePrompt(cameraPrompt, imageNegativePrompt);
             const markSourceStatus = !isCanvasImageNodeType(sourceNode?.type) && !editingTextNode;
             const statusPrompt = sourceNode?.type === CanvasNodeType.Config ? effectivePrompt : prompt;
             if (!effectivePrompt && (mode === "text" || (mode === "audio" && !workflowRef))) {
@@ -2877,6 +2879,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         : [];
                     const referenceImages = [...generationContext.referenceImages, ...sourceReference];
                     const panoramaPrompt = buildPanoramaPrompt(effectivePrompt, referenceImages.length > 0);
+                    const panoramaRequestPrompt = appendImageNegativePrompt(panoramaPrompt, imageNegativePrompt);
                     const panoramaGenerationConfig = { ...generationConfig, size: PANORAMA_IMAGE_SIZE };
                     const count = getGenerationCount(panoramaGenerationConfig.count);
                     const isEmptyPanoramaNode = !sourceNode?.metadata?.content;
@@ -2905,7 +2908,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                             workflowRef,
                             prompt: panoramaSourcePrompt,
                             panoramaSourcePrompt,
-                            panoramaFinalPrompt: panoramaPrompt,
+                            panoramaFinalPrompt: panoramaRequestPrompt,
                             panoramaProjection: undefined,
                             status: NODE_STATUS_LOADING,
                             startedAt: generationStartedAt,
@@ -2934,7 +2937,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                             workflowRef,
                             prompt: panoramaSourcePrompt,
                             panoramaSourcePrompt,
-                            panoramaFinalPrompt: panoramaPrompt,
+                            panoramaFinalPrompt: panoramaRequestPrompt,
                             panoramaProjection: undefined,
                             status: NODE_STATUS_LOADING,
                             startedAt: generationStartedAt,
@@ -2972,8 +2975,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                         targetIds.map(async (targetId) => {
                             try {
                                 const task = await submitNodeTask(targetId, targetTaskIds[targetId], async (signal, onServerTask) => workflowRef
-                                    ? await workflowImageTask(await submitCanvasWorkflowTask(workflowRef, panoramaGenerationConfig, "image", panoramaPrompt, referenceImages, [], [], targetId, projectId, targetTaskIds[targetId], () => onServerTask("workflow"), signal))
-                                    : await createCanvasImageTask({ ...panoramaGenerationConfig, count: "1", quality: panoramaGenerationConfig.quality === "auto" ? "medium" : panoramaGenerationConfig.quality }, panoramaPrompt, referenceImages, { signal, onServerTask, nodeId: targetId, sourceId: projectId, clientTaskId: targetTaskIds[targetId] }));
+                                    ? await workflowImageTask(await submitCanvasWorkflowTask(workflowRef, panoramaGenerationConfig, "image", panoramaRequestPrompt, referenceImages, [], [], targetId, projectId, targetTaskIds[targetId], () => onServerTask("workflow"), signal))
+                                    : await createCanvasImageTask({ ...panoramaGenerationConfig, count: "1", quality: panoramaGenerationConfig.quality === "auto" ? "medium" : panoramaGenerationConfig.quality }, panoramaRequestPrompt, referenceImages, { signal, onServerTask, nodeId: targetId, sourceId: projectId, clientTaskId: targetTaskIds[targetId] }));
                                 if (!isNodeTaskActive(targetId, targetTaskIds[targetId])) return true;
                                 if (task.image_url || task.url) {
                                     setNodes((prev) => {
@@ -3873,7 +3876,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
             const context = hasSavedImageMetadata ? null : await hydrateNodeGenerationContext(buildNodeGenerationContext(sourceNode.id, nodesRef.current, connectionsRef.current, sourceNode.metadata?.prompt || node.metadata?.prompt || ""));
             const prompt = (isPanorama ? savedImageMetadata?.panoramaFinalPrompt || "" : savedImageMetadata?.prompt || context?.prompt || "").trim();
-            const requestPrompt = isPanorama ? prompt : applyCameraPrompt(prompt, savedImageMetadata?.cameraControl || node.metadata?.cameraControl);
+            const retryNegativePrompt = !isPanorama && isCanvasImageNodeType(node.type) ? (savedImageMetadata?.negativePrompt || node.metadata?.negativePrompt || "").trim() : "";
+            const retryCameraPrompt = isPanorama ? prompt : applyCameraPrompt(prompt, savedImageMetadata?.cameraControl || node.metadata?.cameraControl);
+            const requestPrompt = appendImageNegativePrompt(retryCameraPrompt, retryNegativePrompt);
             if (!prompt && !retryWorkflowRef && !(node.type === CanvasNodeType.Video && isAutoDLConfig(generationConfig))) {
                 message.warning("找不到提示词，无法重试");
                 return;

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Settings2 } from "lucide-react";
-import { Button } from "antd";
+import { Button, Input } from "antd";
 
 import { ImageSettingsPanel, imageQualityLabel, imageSizeLabel } from "@/components/image-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -23,9 +23,11 @@ type CanvasImageSettingsPopoverProps = {
     showSize?: boolean;
     showCount?: boolean;
     buttonIcon?: ReactNode;
+    negativePrompt?: string;
+    onNegativePromptChange?: (value: string) => void;
 };
 
-export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft", showSize = true, showCount = true, buttonIcon }: CanvasImageSettingsPopoverProps) {
+export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChange, buttonClassName, placement = "topLeft", showSize = true, showCount = true, buttonIcon, negativePrompt, onNegativePromptChange }: CanvasImageSettingsPopoverProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const buttonRef = useRef<HTMLSpanElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -76,7 +78,7 @@ export function CanvasImageSettingsPopover({ config, onConfigChange, onOpenChang
         };
     }, [onOpenChange, open]);
 
-    const panel = open && buttonRect ? <ImageSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} showSize={effectiveShowSize} showCount={effectiveShowCount} /> : null;
+    const panel = open && buttonRect ? <ImageSettingsPortal buttonRect={buttonRect} panelRef={panelRef} placement={placement} theme={theme} config={config} onConfigChange={onConfigChange} showSize={effectiveShowSize} showCount={effectiveShowCount} negativePrompt={negativePrompt} onNegativePromptChange={onNegativePromptChange} /> : null;
 
     return (
         <>
@@ -111,6 +113,8 @@ function ImageSettingsPortal({
     onConfigChange,
     showSize,
     showCount,
+    negativePrompt,
+    onNegativePromptChange,
 }: {
     buttonRect: DOMRect;
     panelRef: RefObject<HTMLDivElement | null>;
@@ -120,6 +124,8 @@ function ImageSettingsPortal({
     onConfigChange: (key: keyof AiConfig, value: string) => void;
     showSize: boolean;
     showCount: boolean;
+    negativePrompt?: string;
+    onNegativePromptChange?: (value: string) => void;
 }) {
     const width = 356;
     const gap = 8;
@@ -155,6 +161,20 @@ function ImageSettingsPortal({
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
         >
+            {onNegativePromptChange ? (
+                <div className="mb-3 grid gap-1.5 border-b pb-3" style={{ borderColor: theme.toolbar.border }}>
+                    <span className="text-xs font-medium" style={{ color: theme.node.muted }}>负面提示词</span>
+                    <Input.TextArea
+                        value={negativePrompt || ""}
+                        placeholder="不希望出现的内容，OpenAI 生图会以「Avoid: …」追加到提示词末尾"
+                        autoSize={{ minRows: 2, maxRows: 5 }}
+                        className="rounded-xl placeholder:!text-[var(--canvas-placeholder)] placeholder:!opacity-55"
+                        style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text, "--canvas-placeholder": theme.node.placeholder } as CSSProperties}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onChange={(event) => onNegativePromptChange(event.target.value)}
+                    />
+                </div>
+            ) : null}
             <ImageSettingsPanel config={config} onConfigChange={(key, value) => onConfigChange(key, value)} theme={theme} className="space-y-2.5" showSize={showSize} showCount={showCount} />
         </div>,
         document.body,

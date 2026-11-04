@@ -13,6 +13,7 @@ func main() {
 	if err := config.Load(); err != nil {
 		log.Fatal(err)
 	}
+	service.LogOutboundProxy()
 	if err := service.EnsureDefaultAdmin(); err != nil {
 		log.Fatal(err)
 	}

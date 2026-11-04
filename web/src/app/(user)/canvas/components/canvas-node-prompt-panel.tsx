@@ -122,6 +122,8 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                                 config={node.metadata?.workflowRef ? { ...config, model: "" } : config}
                                 placement="topLeft"
                                 buttonClassName="!h-10 !w-[148px] !shrink-0 !justify-start !rounded-full !px-3"
+                                negativePrompt={node.metadata?.negativePrompt || ""}
+                                onNegativePromptChange={(value) => onConfigChange(node.id, { negativePrompt: value })}
                                 onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })}
                                 onMissingConfig={() => openConfigDialog(true)}
                                 onOpenChange={onImageSettingsOpenChange}
