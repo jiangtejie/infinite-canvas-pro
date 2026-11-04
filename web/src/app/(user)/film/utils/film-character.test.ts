@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, characterReferenceImages, createEmptyCharacterProfile } from "./film-character";
+import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, characterReferenceImages, characterShotReferenceImages, createEmptyCharacterProfile } from "./film-character";
 import type { FilmAsset } from "../types";
 
 const asset = (overrides: Partial<FilmAsset> = {}): FilmAsset => ({ id: "c1", name: "沈星晴", description: "", visualPrompt: "", status: "idle", createdAt: "2026-01-01T00:00:00.000Z", ...overrides });
 
-test("空角色档案包含六个部位", () => {
+test("空角色档案包含五个部位", () => {
     const profile = createEmptyCharacterProfile();
-    assert.equal(CHARACTER_PART_DEFINITIONS.length, 6);
-    assert.deepEqual(Object.keys(profile.parts).sort(), ["face", "hair", "limbs", "lower", "middle", "upper"]);
+    assert.equal(CHARACTER_PART_DEFINITIONS.length, 5);
+    assert.deepEqual(Object.keys(profile.parts).sort(), ["face", "hair", "limbs", "lower", "upper"]);
     assert.equal(profile.masterLocked, false);
 });
 
@@ -29,13 +29,30 @@ test("参考图按部位顺序收集，可排除当前部位", () => {
     assert.deepEqual(excluded.map((item) => item.url), ["upper.png"]);
 });
 
+test("分镜默认引用角色卡，特写追加面部参考", () => {
+    const profile = createEmptyCharacterProfile();
+    profile.card = { id: "card", url: "card.png" };
+    profile.parts.face.images = [{ id: "f1", url: "face.png" }];
+    const character = asset({ character: profile });
+    assert.deepEqual(characterShotReferenceImages(character, { shotType: "CU", description: "特写", dialogue: "" }).map((item) => item.url), ["card.png", "face.png"]);
+    assert.deepEqual(characterShotReferenceImages(character, { shotType: "MS", description: "远景", dialogue: "" }).map((item) => item.url), ["card.png"]);
+});
+
+test("手部/道具镜头追加四肢或道具参考", () => {
+    const profile = createEmptyCharacterProfile();
+    profile.card = { id: "card", url: "card.png" };
+    profile.parts.limbs.images = [{ id: "l1", url: "hand.png" }];
+    const character = asset({ character: profile });
+    assert.deepEqual(characterShotReferenceImages(character, { shotType: "MS", description: "手部握剑", dialogue: "" }).map((item) => item.url), ["card.png", "hand.png"]);
+});
+
 test("进度统计包含部位、锁定与合成图", () => {
     const profile = createEmptyCharacterProfile();
     profile.parts.face.images = [{ id: "f1", url: "face.png" }];
     profile.parts.face.locked = true;
     const progress = characterProgress(asset({ character: profile }));
     assert.equal(progress.done, 1);
-    assert.equal(progress.total, 6);
+    assert.equal(progress.total, 5);
     assert.equal(progress.locked, 1);
     assert.equal(progress.master, 0);
 });

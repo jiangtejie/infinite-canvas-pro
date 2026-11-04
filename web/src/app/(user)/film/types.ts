@@ -10,7 +10,7 @@ export type FilmImageRef = {
     createdAt?: string;
 };
 
-export type FilmCharacterPartKey = "face" | "hair" | "upper" | "middle" | "lower" | "limbs";
+export type FilmCharacterPartKey = "face" | "hair" | "upper" | "lower" | "limbs";
 
 export type FilmCharacterPart = {
     images: FilmImageRef[];
@@ -33,6 +33,8 @@ export type FilmCharacterProfile = {
     props: FilmCharacterProp[];
     masterViews: FilmImageRef[];
     masterLocked: boolean;
+    card?: FilmImageRef;
+    cardSignature?: string;
 };
 
 export type FilmVideoMode = "reference" | "frames";

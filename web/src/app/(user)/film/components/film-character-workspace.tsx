@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { App, Button, Image, Input, Modal, Spin } from "antd";
-import { ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
+import { App, Button, Checkbox, Image, Input, Modal, Select, Spin } from "antd";
+import { Download, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { uploadImage } from "@/services/image-storage";
@@ -10,7 +10,8 @@ import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmImageRef, 
 import { useFilmCastStore } from "../stores/use-film-cast-store";
 import { useFilmCharacterImage } from "../hooks/use-film-character-image";
 import { addFilmAsset, importFilmAsset, removeFilmAsset } from "../utils/film-edits";
-import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel } from "../utils/film-character";
+import { CHARACTER_PART_DEFINITIONS, characterCardSignature, characterMasterImages, characterProgress, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel } from "../utils/film-character";
+import type { CharacterCardOptions } from "../utils/film-character-card";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
 
 type FilmCharacterWorkspaceProps = {
@@ -48,13 +49,6 @@ const CHARACTER_LAYOUT_STYLE = `
     animation: film-stage-scan 1.8s linear infinite;
 }
 @keyframes film-stage-scan { from { top: -32%; } to { top: 100%; } }
-.film-stage-spot {
-    position: absolute; z-index: 2; display: inline-flex; align-items: center; gap: 4px;
-    border-radius: 999px; border: 1px solid var(--border); background: color-mix(in srgb, var(--card) 88%, transparent);
-    padding: 2px 8px; font-size: 10px; color: var(--muted-foreground); transition: all .15s ease;
-}
-.film-stage-spot:hover { border-color: var(--acid); color: var(--acid); }
-.film-stage-spot[data-active="true"] { border-color: var(--acid); color: var(--acid); background: color-mix(in srgb, var(--acid) 10%, transparent); }
 @media (min-width: 1024px) {
     .film-character-layout { grid-template-columns: 190px minmax(0, 1fr) 330px; height: 100%; min-height: 0; }
     .film-character-body { grid-template-columns: 104px minmax(0, 1fr) 104px; flex: 1; min-height: 0; }
@@ -66,12 +60,17 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
     const characters = project.characters || [];
     const libraryCharacters = useFilmCastStore((state) => state.characters);
     const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
-    const { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster } = useFilmCharacterImage(project, onUpdate);
+    const { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard: createCard } = useFilmCharacterImage(project, onUpdate);
     const [selectedId, setSelectedId] = useState("");
     const [selectedPart, setSelectedPart] = useState<FilmCharacterPartKey>("face");
     const [previewMode, setPreviewMode] = useState<"master" | "part">("master");
     const [masterPreviewId, setMasterPreviewId] = useState("");
     const [stageZoom, setStageZoom] = useState(1);
+    const [composingCard, setComposingCard] = useState(false);
+    const [cardOpen, setCardOpen] = useState(false);
+    const [cardPreset, setCardPreset] = useState<NonNullable<CharacterCardOptions["preset"]>>("standard");
+    const [cardBackground, setCardBackground] = useState<NonNullable<CharacterCardOptions["background"]>>("white");
+    const [cardIncludeProps, setCardIncludeProps] = useState(true);
     const elapsed = useElapsedSeconds(Boolean(generatingKey));
     const [importOpen, setImportOpen] = useState(false);
     const uploadRef = useRef<HTMLInputElement>(null);
@@ -88,6 +87,8 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
     const progress = selected ? characterProgress(selected) : null;
     const masterImages = selected ? characterMasterImages(selected) : [];
     const partImages = part?.images || [];
+    const cardImage = selected?.character?.card;
+    const cardStale = Boolean(cardImage && profile?.cardSignature && selected && profile.cardSignature !== characterCardSignature(selected));
     const previewImages = previewMode === "master" ? masterImages : partImages;
     const masterPreview = masterImages.find((image) => image.id === masterPreviewId) || masterImages[masterImages.length - 1];
     const previewImage = previewMode === "master" ? masterPreview : previewImages[previewImages.length - 1];
@@ -225,6 +226,29 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         });
     };
 
+    const generateCard = async () => {
+        if (!selected || composingCard) return;
+        setComposingCard(true);
+        try {
+            const ok = await createCard(selected.id, { preset: cardPreset, background: cardBackground, includeProps: cardIncludeProps });
+            if (ok) {
+                setCardOpen(false);
+                setPreviewMode("master");
+                message.success("角色卡已生成，分镜默认引用这一张");
+            }
+        } finally {
+            setComposingCard(false);
+        }
+    };
+
+    const downloadCard = () => {
+        if (!cardImage || !selected) return;
+        const link = document.createElement("a");
+        link.href = cardImage.url;
+        link.download = `${selected.name}-角色卡.png`;
+        link.click();
+    };
+
     const toggleMasterLock = () => {
         patchCharacter((asset) => {
             const nextProfile = ensureCharacterProfile(asset);
@@ -346,7 +370,9 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                                 <button type="button" aria-label="重置缩放" className="ml-0.5 font-mono text-[8px] text-muted-foreground/50 hover:text-foreground" onClick={() => setStageZoom(1)}>重置</button>
                                             </div>
                                             <span className="chip">{previewImages.length} 图</span>
-                                            {profile?.masterLocked ? <span className="chip chip-acid">已锁定</span> : null}
+                                            {cardImage ? <span className="chip chip-acid">角色卡</span> : null}
+                                            {cardStale ? <button type="button" className="chip chip-acid" onClick={() => setCardOpen(true)}>角色卡需更新</button> : null}
+                                            {profile?.masterLocked ? <span className="chip">合成图已锁定</span> : null}
                                         </div>
                                     </div>
 
@@ -360,7 +386,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                                 <span aria-hidden className="film-stage-corner" style={{ right: -1, bottom: -1, borderWidth: "0 2px 2px 0" }} />
                                             </div>
                                         ) : (
-                                            <EmptyStage selectedPart={selectedPart} onSelectPart={selectPart} />
+                                            <EmptyStage />
                                         )}
                                         {(previewMode === "master" ? generatingMaster : generatingPart) ? (
                                             <div className="absolute inset-0 grid place-items-center rounded-lg bg-background/60 backdrop-blur-[2px]">
@@ -398,6 +424,10 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                     <Button size="small" loading={Boolean(batchProgress)} disabled={generatingMaster || generatingPart} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMissingParts(selected.id)}>
                                         {batchProgress ? `补齐中 ${batchProgress.done}/${batchProgress.total}` : "补齐缺失部位"}
                                     </Button>
+                                    <Button size="small" loading={composingCard} icon={<ImageIcon className="size-3.5" />} onClick={() => setCardOpen(true)}>
+                                        生成角色卡
+                                    </Button>
+                                    <Button size="small" disabled={!cardImage} icon={<Download className="size-3.5" />} onClick={downloadCard}>下载角色卡</Button>
                                     <Button size="small" icon={profile?.masterLocked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={toggleMasterLock}>{profile?.masterLocked ? "已锁定" : "锁定合成图"}</Button>
                                     <Button size="small" icon={<Library className="size-3.5" />} onClick={saveToLibrary}>存入角色库</Button>
                                     <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={removeSelected}>删除</Button>
@@ -406,7 +436,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
                             <div className="film-slot-column hidden lg:flex">
                                 <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">02 身体</span>
-                                {(["upper", "middle", "lower", "limbs"] as FilmCharacterPartKey[]).map((key) => (
+                                {(["upper", "lower", "limbs"] as FilmCharacterPartKey[]).map((key) => (
                                     <PartSlot key={key} partKey={key} profile={profile!} selected={selectedPart === key} generating={generatingKey === `part:${key}`} onSelect={() => selectPart(key)} onGenerate={() => confirmGeneratePart(key)} />
                                 ))}
                             </div>
@@ -449,6 +479,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                 <div className="flex flex-wrap items-center gap-1">
                                     <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">参考来源</span>
                                     {selectedPart !== "face" && profile && profile.parts.face.images.length ? <span className="chip">面部 ×{profile.parts.face.images.length}</span> : null}
+                                    {cardImage ? <span className="chip">角色卡</span> : null}
                                     {masterImages.length ? <span className="chip">全身 ×{masterImages.length}</span> : null}
                                     {partImages.length ? <span className="chip">本部位 ×{partImages.length}</span> : null}
                                     {!(selectedPart !== "face" && profile?.parts.face.images.length) && !masterImages.length && !partImages.length ? <span className="text-[10px] text-muted-foreground/60">暂无参考，将按文字描述生成</span> : null}
@@ -475,6 +506,38 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
             </div>
 
             <input ref={uploadRef} hidden type="file" accept="image/*" onChange={handleFile} />
+
+            <Modal title="生成角色卡" open={cardOpen} onCancel={() => setCardOpen(false)} footer={null} width={520}>
+                <div className="grid gap-3">
+                    <label className="grid gap-1">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">版式</span>
+                        <Select
+                            value={cardPreset}
+                            onChange={(value: NonNullable<CharacterCardOptions["preset"]>) => setCardPreset(value)}
+                            options={[
+                                { value: "standard", label: "标准角色卡（全身 + 面部 + 服装细节 + 道具）" },
+                                { value: "threeView", label: "三视图卡（多版全身并排 + 面部）" },
+                            ]}
+                        />
+                    </label>
+                    <label className="grid gap-1">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">背景</span>
+                        <Select
+                            value={cardBackground}
+                            onChange={(value: NonNullable<CharacterCardOptions["background"]>) => setCardBackground(value)}
+                            options={[{ value: "white", label: "纯白" }, { value: "gray", label: "浅灰" }]}
+                        />
+                    </label>
+                    <Checkbox checked={cardIncludeProps} onChange={(event) => setCardIncludeProps(event.target.checked)}>包含道具 / 饰品</Checkbox>
+                    <p className="text-[11px] leading-5 text-muted-foreground/70">
+                        {masterImages.length ? "角色卡由浏览器本地拼合，不额外消耗生成次数；分镜生成默认只引用这一张。" : "还没有全身图，确认后会先生成一张全身三视图（消耗一次生成），再拼成角色卡。"}
+                    </p>
+                    <div className="flex justify-end gap-2">
+                        <Button onClick={() => setCardOpen(false)}>取消</Button>
+                        <Button type="primary" loading={composingCard} onClick={() => void generateCard()}>生成角色卡</Button>
+                    </div>
+                </div>
+            </Modal>
 
             <Modal title="从角色库导入" open={importOpen} onCancel={() => setImportOpen(false)} footer={null} width={680}>
                 {libraryCharacters.length === 0 ? <p className="py-4 text-center text-xs text-muted-foreground">角色库还是空的，先在项目里生成并点「存入角色库」。</p> : null}
@@ -566,15 +629,7 @@ function PartSlot({ partKey, profile, selected, generating, onSelect, onGenerate
     );
 }
 
-function EmptyStage({ selectedPart, onSelectPart }: { selectedPart: FilmCharacterPartKey; onSelectPart: (key: FilmCharacterPartKey) => void }) {
-    const spots: Array<{ key: FilmCharacterPartKey; label: string; left: string; top: string }> = [
-        { key: "hair", label: "发型", left: "38%", top: "14%" },
-        { key: "face", label: "面部", left: "58%", top: "22%" },
-        { key: "limbs", label: "四肢", left: "28%", top: "48%" },
-        { key: "upper", label: "上身", left: "60%", top: "40%" },
-        { key: "middle", label: "中段", left: "40%", top: "58%" },
-        { key: "lower", label: "下身", left: "60%", top: "72%" },
-    ];
+function EmptyStage() {
     return (
         <div className="relative flex h-full w-full items-center justify-center">
             <svg viewBox="0 0 120 260" className="h-64 opacity-60" aria-label="人物剪影">
@@ -583,12 +638,7 @@ function EmptyStage({ selectedPart, onSelectPart }: { selectedPart: FilmCharacte
                     <path d="M43 74 C43 54 50 48 60 48 C70 48 77 54 77 74 L82 132 L70 136 L68 214 L75 254 L61 254 L60 190 L59 254 L45 254 L52 214 L50 136 L38 132 Z" />
                 </g>
             </svg>
-            {spots.map((spot) => (
-                <button key={spot.key} type="button" data-active={selectedPart === spot.key} className="film-stage-spot" style={{ left: spot.left, top: spot.top }} onClick={() => onSelectPart(spot.key)}>
-                    {spot.label}
-                </button>
-            ))}
-            <p className="absolute bottom-2 text-center text-[10px] text-muted-foreground/60">先生成面部，再逐块补齐；也可以直接生成全身合成图</p>
+            <p className="absolute bottom-2 text-center text-[10px] text-muted-foreground/60">可以直接生成全身合成图或角色卡，部位参考按需补充</p>
         </div>
     );
 }

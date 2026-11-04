@@ -9,12 +9,13 @@ import { imageToDataUrl } from "@/services/image-storage";
 import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { FilmAsset, FilmCharacterPartKey, FilmImageRef, FilmProject } from "../types";
+import { composeCharacterCard, type CharacterCardOptions } from "../utils/film-character-card";
 import { normalizeFilmAspect } from "../utils/film-aspects";
 import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterPartLabel, ensureCharacterProfile } from "../utils/film-character";
 import { runImageTask } from "../utils/film-image-task";
 import { resolveFilmStyleText } from "../utils/film-styles";
 
-export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master";
+export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master" | "card";
 
 const MAX_REFERENCES = 10;
 
@@ -116,25 +117,13 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         }
     };
 
-    const generateMaster = async (characterId: string) => {
-        const current = projectRef.current;
-        if (!current || generatingKey) return;
-        const asset = current.characters?.find((item) => item.id === characterId);
-        if (!asset) return;
+    const createMasterImage = async (current: FilmProject, asset: FilmAsset, config: SeedableImageConfig): Promise<FilmImageRef> => {
         const profile = ensureCharacterProfile(asset);
-        if (profile.masterLocked) {
-            message.warning("全身合成图已锁定，先解锁再生成");
-            return;
-        }
-        const config = buildImageConfig(current);
-        if (!config) return;
-
         const refs = [
             ...profile.parts.face.images.slice(0, 2),
             ...profile.masterViews.slice(0, 1),
             ...profile.parts.hair.images.slice(0, 1),
             ...profile.parts.upper.images.slice(0, 1),
-            ...profile.parts.middle.images.slice(0, 1),
             ...profile.parts.lower.images.slice(0, 1),
             ...profile.parts.limbs.images.slice(0, 1),
             ...profile.props.flatMap((prop) => prop.images.slice(0, 1)),
@@ -148,17 +137,32 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
             styleText ? `视觉风格：${styleText}` : "",
             "严格保持与参考图中的脸、发型、服装、腿型与鞋子一致。",
         ].filter(Boolean).join("\n\n");
+        const { imageUrl, storageKey } = await runImageTask(config, prompt, references, `${asset.id}-master`);
+        return { id: nanoid(), url: imageUrl, storageKey, source: "generated", createdAt: new Date().toISOString() };
+    };
+
+    const generateMaster = async (characterId: string) => {
+        const current = projectRef.current;
+        if (!current || generatingKey) return;
+        const asset = current.characters?.find((item) => item.id === characterId);
+        if (!asset) return;
+        const profile = ensureCharacterProfile(asset);
+        if (profile.masterLocked) {
+            message.warning("全身合成图已锁定，先解锁再生成");
+            return;
+        }
+        const config = buildImageConfig(current);
+        if (!config) return;
 
         setGeneratingKey("master");
         try {
-            const { imageUrl, storageKey } = await runImageTask(config, prompt, references, `${characterId}-master`);
-            const image: FilmImageRef = { id: nanoid(), url: imageUrl, storageKey, source: "generated", createdAt: new Date().toISOString() };
+            const image = await createMasterImage(current, asset, config);
             patchCharacter(characterId, (item) => {
                 const nextProfile = ensureCharacterProfile(item);
                 return {
                     ...item,
-                    imageUrl,
-                    storageKey,
+                    imageUrl: image.url,
+                    storageKey: image.storageKey,
                     status: "ready",
                     character: { ...nextProfile, masterViews: [...nextProfile.masterViews, image].slice(-4) },
                 };
@@ -166,6 +170,44 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
             message.success("全身合成图已生成");
         } catch (error) {
             message.error(error instanceof Error ? error.message : "全身合成失败");
+        } finally {
+            setGeneratingKey("");
+        }
+    };
+
+    const generateCard = async (characterId: string, options?: CharacterCardOptions): Promise<boolean> => {
+        const current = projectRef.current;
+        if (!current || generatingKey) return false;
+        const asset = current.characters?.find((item) => item.id === characterId);
+        if (!asset) return false;
+        const config = buildImageConfig(current);
+        if (!config) return false;
+        setGeneratingKey("card");
+        try {
+            const profile = ensureCharacterProfile(asset);
+            let master = characterMasterImages(asset).slice(-1)[0];
+            let nextProfile = profile;
+            if (!master) {
+                master = await createMasterImage(current, asset, config);
+                nextProfile = { ...profile, masterViews: [...profile.masterViews, master].slice(-4) };
+            }
+            const cardAsset: FilmAsset = { ...asset, imageUrl: master.url, storageKey: master.storageKey, status: "ready", character: nextProfile };
+            const { card, signature } = await composeCharacterCard(cardAsset, options);
+            const cardMaster = master;
+            patchCharacter(characterId, (item) => {
+                const itemProfile = ensureCharacterProfile(item);
+                return {
+                    ...item,
+                    imageUrl: cardMaster.url,
+                    storageKey: cardMaster.storageKey,
+                    status: "ready",
+                    character: { ...itemProfile, masterViews: nextProfile.masterViews.length ? nextProfile.masterViews : itemProfile.masterViews, card, cardSignature: signature },
+                };
+            });
+            return true;
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "角色卡生成失败");
+            return false;
         } finally {
             setGeneratingKey("");
         }
@@ -199,5 +241,5 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         message.success(`补齐完成：成功 ${succeeded}/${missing.length}`);
     };
 
-    return { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster };
+    return { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard };
 }
