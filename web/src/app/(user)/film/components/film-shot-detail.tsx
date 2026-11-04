@@ -1,10 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Trash2 } from "lucide-react";
-import { Button, Input, InputNumber, Select } from "antd";
+import { Clapperboard, ImagePlus, Trash2 } from "lucide-react";
+import { Button, Image, Input, InputNumber, Select } from "antd";
 
 import type { FilmShot, FilmShotStatus } from "../types";
+import { useFilmImageUrl, useFilmVideoUrl } from "../hooks/use-film-image-url";
 
 const SHOT_TYPE_OPTIONS = ["ECU", "MCU", "CU", "MS", "WS", "LS", "OTS", "POV"].map((value) => ({ value, label: value }));
 
@@ -19,9 +20,16 @@ type FilmShotDetailProps = {
     shot: FilmShot;
     onChange: (patch: Partial<FilmShot>) => void;
     onDelete: () => void;
+    onGenerate?: () => void;
+    generating?: boolean;
+    onGenerateVideo?: () => void;
+    generatingVideo?: boolean;
+    videoProgress?: number;
 };
 
-export function FilmShotDetail({ shot, onChange, onDelete }: FilmShotDetailProps) {
+export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, generatingVideo, videoProgress }: FilmShotDetailProps) {
+    const imageSrc = useFilmImageUrl(shot.imageUrl, shot.storageKey);
+    const videoSrc = useFilmVideoUrl(shot.videoUrl, shot.videoStorageKey);
     return (
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
             <div className="grid gap-3">
@@ -41,6 +49,43 @@ export function FilmShotDetail({ shot, onChange, onDelete }: FilmShotDetailProps
                         <Select value={shot.status} options={STATUS_OPTIONS} onChange={(value: FilmShotStatus) => onChange({ status: value })} />
                     </Field>
                 </div>
+                {onGenerate ? (
+                    <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜图</span>
+                            <Button type={shot.imageUrl ? "default" : "primary"} size="small" loading={generating} icon={<ImagePlus className="size-3.5" />} onClick={onGenerate}>
+                                {shot.imageUrl ? "重新生成" : "生成分镜图"}
+                            </Button>
+                        </div>
+                        {imageSrc ? (
+                            <Image src={imageSrc} alt={`分镜 ${shot.shotNo}`} className="w-full rounded-md" preview={{ mask: "预览" }} />
+                        ) : (
+                            <p className="text-[11px] leading-5 text-muted-foreground/70">还没有生成，先补全画面描述或生成提示词。</p>
+                        )}
+                    </div>
+                ) : null}
+                {onGenerateVideo ? (
+                    <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜视频</span>
+                            <Button
+                                type={shot.videoUrl ? "default" : "primary"}
+                                size="small"
+                                loading={generatingVideo}
+                                icon={<Clapperboard className="size-3.5" />}
+                                onClick={onGenerateVideo}
+                            >
+                                {shot.videoUrl ? "重新生成" : generatingVideo ? `生成中 ${videoProgress ?? 0}%` : "生成分镜视频"}
+                            </Button>
+                        </div>
+                        {videoSrc ? (
+                            <video src={videoSrc} controls playsInline className="w-full rounded-md border border-border/50" />
+                        ) : (
+                            <p className="text-[11px] leading-5 text-muted-foreground/70">还没有生成；有分镜图时会自动作为首帧。</p>
+                        )}
+                    </div>
+                ) : null}
+                {shot.errorMessage ? <p className="rounded-md border border-hot/30 bg-hot/5 px-2.5 py-2 text-[11px] leading-5 text-hot">{shot.errorMessage}</p> : null}
                 <Field label="画面描述">
                     <Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} value={shot.description} placeholder="这个镜头里发生什么、人物动作、环境、光线" onChange={(event) => onChange({ description: event.target.value })} />
                 </Field>

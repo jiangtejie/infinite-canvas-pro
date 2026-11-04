@@ -4,18 +4,24 @@ import { useEffect, useMemo, useState } from "react";
 import { Clapperboard, ImageIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmProject, FilmShotStatus } from "../types";
+import type { FilmProject, FilmShot, FilmShotStatus } from "../types";
 import { countReadyShots, flattenFilmShots, countFilmScenes } from "../utils/parse-script";
 import { updateFilmShot } from "../utils/film-edits";
 import { FilmShotDetail } from "./film-shot-detail";
+import { FilmShotThumbnail } from "./film-shot-thumbnail";
 
 type FilmStoryboardStageProps = {
     project: FilmProject;
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     onGoScript: () => void;
+    onGenerateImage: (shot: FilmShot) => void;
+    generatingShotId: string;
+    onGenerateVideo: (shot: FilmShot) => void;
+    generatingVideoShotId: string;
+    videoProgress: number;
 };
 
-export function FilmStoryboardStage({ project, onUpdate, onGoScript }: FilmStoryboardStageProps) {
+export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmStoryboardStageProps) {
     const shots = useMemo(() => flattenFilmShots(project.episodes), [project.episodes]);
     const readyCount = countReadyShots(project.episodes);
     const [selectedShotId, setSelectedShotId] = useState("");
@@ -77,6 +83,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript }: FilmStory
                                                     <span className={cn("font-mono text-[10px] tabular-nums", shot.id === selectedShotId ? "text-acid" : "text-muted-foreground/70")}>{shot.shotNo}</span>
                                                     <StatusChip status={shot.status} />
                                                 </span>
+                                                <FilmShotThumbnail shot={shot} className="h-24 w-full rounded-md border border-border/50" />
                                                 <span className={cn("line-clamp-3 text-xs leading-5", shot.description ? "text-foreground/80" : "text-muted-foreground/50")}>
                                                     {shot.description || "未填写画面描述"}
                                                 </span>
@@ -106,6 +113,11 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript }: FilmStory
                         shot={selectedShot}
                         onChange={(patch) => onUpdate({ episodes: updateFilmShot(project.episodes, selectedShot.id, patch) })}
                         onDelete={() => onUpdate({ episodes: project.episodes.map((episode) => ({ ...episode, scenes: episode.scenes.map((scene) => ({ ...scene, shots: scene.shots.filter((shot) => shot.id !== selectedShot.id) })) })) })}
+                        onGenerate={() => onGenerateImage(selectedShot)}
+                        generating={generatingShotId === selectedShot.id}
+                        onGenerateVideo={() => onGenerateVideo(selectedShot)}
+                        generatingVideo={generatingVideoShotId === selectedShot.id}
+                        videoProgress={videoProgress}
                     />
                 ) : (
                     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">

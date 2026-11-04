@@ -12,6 +12,11 @@ export type FilmShot = {
     audio: string;
     prompt: string;
     status: FilmShotStatus;
+    imageUrl?: string;
+    storageKey?: string;
+    videoUrl?: string;
+    videoStorageKey?: string;
+    errorMessage?: string;
 };
 
 export type FilmScene = {

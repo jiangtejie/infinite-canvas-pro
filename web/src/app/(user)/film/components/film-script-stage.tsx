@@ -13,9 +13,14 @@ import { FilmShotDetail } from "./film-shot-detail";
 type FilmScriptStageProps = {
     project: FilmProject;
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
+    onGenerateImage: (shot: FilmShot) => void;
+    generatingShotId: string;
+    onGenerateVideo: (shot: FilmShot) => void;
+    generatingVideoShotId: string;
+    videoProgress: number;
 };
 
-export function FilmScriptStage({ project, onUpdate }: FilmScriptStageProps) {
+export function FilmScriptStage({ project, onUpdate, onGenerateImage, generatingShotId, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
     const { message, modal } = App.useApp();
     const episodes = project.episodes;
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
@@ -168,6 +173,11 @@ export function FilmScriptStage({ project, onUpdate }: FilmScriptStageProps) {
                         shot={selectedShot}
                         onChange={(patch) => onUpdate({ episodes: updateFilmShot(episodes, selectedShot.id, patch) })}
                         onDelete={() => removeShot(selectedShot.id)}
+                        onGenerate={() => onGenerateImage(selectedShot)}
+                        generating={generatingShotId === selectedShot.id}
+                        onGenerateVideo={() => onGenerateVideo(selectedShot)}
+                        generatingVideo={generatingVideoShotId === selectedShot.id}
+                        videoProgress={videoProgress}
                     />
                 ) : (
                     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">

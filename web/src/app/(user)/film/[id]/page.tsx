@@ -9,6 +9,8 @@ import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import { FilmScriptStage } from "../components/film-script-stage";
 import { FilmStoryboardStage } from "../components/film-storyboard-stage";
+import { useFilmShotImage } from "../hooks/use-film-shot-image";
+import { useFilmShotVideo } from "../hooks/use-film-shot-video";
 import { useFilmStore } from "../stores/use-film-store";
 import type { FilmStage } from "../types";
 
@@ -26,6 +28,12 @@ export default function FilmProjectPage() {
     const project = projects.find((item) => item.id === id);
     const [stage, setStage] = useState<FilmStage | null>(null);
     const currentStage = stage ?? project?.stage ?? "script";
+    const { generatingShotId, generate } = useFilmShotImage(project, (patch) => {
+        if (project) updateProject(project.id, patch);
+    });
+    const videoGeneration = useFilmShotVideo(project, (patch) => {
+        if (project) updateProject(project.id, patch);
+    });
 
     const switchStage = (next: FilmStage) => {
         setStage(next);
@@ -92,9 +100,26 @@ export default function FilmProjectPage() {
             <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:overflow-hidden">
                 <div className="mx-auto max-w-[1600px] lg:h-full lg:min-h-0">
                     {currentStage === "script" ? (
-                        <FilmScriptStage project={project} onUpdate={(patch) => updateProject(project.id, patch)} />
+                        <FilmScriptStage
+                            project={project}
+                            onUpdate={(patch) => updateProject(project.id, patch)}
+                            onGenerateImage={generate}
+                            generatingShotId={generatingShotId}
+                            onGenerateVideo={videoGeneration.generateVideo}
+                            generatingVideoShotId={videoGeneration.generatingShotId}
+                            videoProgress={videoGeneration.videoProgress}
+                        />
                     ) : (
-                        <FilmStoryboardStage project={project} onUpdate={(patch) => updateProject(project.id, patch)} onGoScript={() => switchStage("script")} />
+                        <FilmStoryboardStage
+                            project={project}
+                            onUpdate={(patch) => updateProject(project.id, patch)}
+                            onGoScript={() => switchStage("script")}
+                            onGenerateImage={generate}
+                            generatingShotId={generatingShotId}
+                            onGenerateVideo={videoGeneration.generateVideo}
+                            generatingVideoShotId={videoGeneration.generatingShotId}
+                            videoProgress={videoGeneration.videoProgress}
+                        />
                     )}
                 </div>
             </div>
