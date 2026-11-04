@@ -5,6 +5,7 @@ import { Clapperboard, ImageIcon, Maximize2, ZoomIn, ZoomOut } from "lucide-reac
 
 import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "../types";
+import { filmAspectCssRatio } from "../utils/film-aspects";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { FilmShotStatusChip } from "./film-shot-status-chip";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
@@ -85,7 +86,7 @@ export function FilmStoryboardBoard({ project, selectedShotId, onSelect }: { pro
                             </div>
                             <div className="grid gap-3">
                                 {column.scene.shots.map((shot) => (
-                                    <BoardCard key={shot.id} shot={shot} selected={shot.id === selectedShotId} onSelect={() => onSelect(shot.id)} />
+                                    <BoardCard key={shot.id} shot={shot} aspect={project.aspect} selected={shot.id === selectedShotId} onSelect={() => onSelect(shot.id)} />
                                 ))}
                             </div>
                         </div>
@@ -107,7 +108,7 @@ export function FilmStoryboardBoard({ project, selectedShotId, onSelect }: { pro
     );
 }
 
-function BoardCard({ shot, selected, onSelect }: { shot: FilmShot; selected: boolean; onSelect: () => void }) {
+function BoardCard({ shot, aspect, selected, onSelect }: { shot: FilmShot; aspect: string; selected: boolean; onSelect: () => void }) {
     return (
         <button
             type="button"
@@ -118,13 +119,15 @@ function BoardCard({ shot, selected, onSelect }: { shot: FilmShot; selected: boo
                 selected ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/70 hover:border-border",
             )}
         >
-            {shot.imageUrl || shot.storageKey ? (
-                <FilmShotThumbnail shot={shot} className="h-32 w-full rounded-md border border-border/50" />
-            ) : (
-                <span className="grid h-32 w-full place-items-center rounded-md border border-dashed border-border/50 bg-background/30 text-muted-foreground/25">
-                    <ImageIcon className="size-5" aria-hidden />
-                </span>
-            )}
+            <span className="block w-full overflow-hidden rounded-md border border-border/50" style={{ aspectRatio: filmAspectCssRatio(aspect) }}>
+                {shot.imageUrl || shot.storageKey ? (
+                    <FilmShotThumbnail shot={shot} className="h-full w-full" />
+                ) : (
+                    <span className="grid h-full w-full place-items-center border-dashed bg-background/30 text-muted-foreground/25">
+                        <ImageIcon className="size-5" aria-hidden />
+                    </span>
+                )}
+            </span>
             <span className="flex items-center justify-between gap-2">
                 <span className={cn("font-mono text-[10px] tabular-nums", selected ? "text-acid" : "text-muted-foreground/70")}>{shot.shotNo}</span>
                 <FilmShotStatusChip status={shot.status} />

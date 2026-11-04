@@ -11,6 +11,8 @@ import type { FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { withVideoVersion } from "../utils/film-versions";
+import { normalizeFilmAspect } from "../utils/film-aspects";
+import { resolveFilmStyleText } from "../utils/film-styles";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
 
@@ -26,9 +28,9 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     projectRef.current = project;
     const busy = Boolean(generatingShotId) || Boolean(batchProgress);
 
-    const buildVideoConfig = () => {
+    const buildVideoConfig = (current: FilmProject) => {
         const model = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video");
-        const config: AiConfig = { ...effectiveConfig, model };
+        const config: AiConfig = { ...effectiveConfig, model, size: normalizeFilmAspect(current.aspect) };
         if (!isAiConfigReady(config, model)) {
             openConfigDialog(true);
             return null;
@@ -39,7 +41,8 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot) => {
         const promptText = (shot.prompt || shot.description).trim();
         if (!promptText) throw new Error("先填写画面描述或生成提示词");
-        const prompt = current.visualStyle ? `${promptText}\n\n视觉风格：${current.visualStyle}` : promptText;
+        const styleText = resolveFilmStyleText(current);
+        const prompt = styleText ? `${promptText}\n\n视觉风格：${styleText}` : promptText;
         let firstFrame: ReferenceImage | null = null;
         if (shot.imageUrl || shot.storageKey) {
             try {
@@ -59,7 +62,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     const generateVideo = async (shot: FilmShot) => {
         const current = projectRef.current;
         if (!current || busy) return;
-        const config = buildVideoConfig();
+        const config = buildVideoConfig(current);
         if (!config) return;
         setGeneratingShotId(shot.id);
         try {
@@ -91,7 +94,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             message.warning("选中的镜头还没有画面描述或提示词");
             return;
         }
-        const config = buildVideoConfig();
+        const config = buildVideoConfig(current);
         if (!config) return;
         let failed = 0;
         setBatchProgress({ done: 0, total: pending.length });

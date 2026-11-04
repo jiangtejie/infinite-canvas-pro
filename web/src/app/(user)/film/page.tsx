@@ -9,8 +9,9 @@ import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "l
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useFilmStore } from "./stores/use-film-store";
-import type { FilmAspect, FilmProject } from "./types";
+import type { FilmAspect, FilmProject, FilmStylePresetId } from "./types";
 import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel } from "./utils/film-aspects";
+import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel } from "./utils/film-styles";
 import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
 
@@ -34,6 +35,7 @@ export default function FilmListPage() {
     const [title, setTitle] = useState("");
     const [visualStyle, setVisualStyle] = useState("");
     const [aspect, setAspect] = useState<FilmAspect>(DEFAULT_FILM_ASPECT);
+    const [stylePreset, setStylePreset] = useState<FilmStylePresetId>(DEFAULT_FILM_STYLE);
     const [renameTarget, setRenameTarget] = useState<FilmProject | null>(null);
     const [renameTitle, setRenameTitle] = useState("");
     const importInputRef = useRef<HTMLInputElement>(null);
@@ -46,11 +48,12 @@ export default function FilmListPage() {
             message.warning("先给项目起个名字");
             return;
         }
-        const id = createProject(title, visualStyle, aspect);
+        const id = createProject(title, visualStyle, aspect, stylePreset);
         setCreateOpen(false);
         setTitle("");
         setVisualStyle("");
         setAspect(DEFAULT_FILM_ASPECT);
+        setStylePreset(DEFAULT_FILM_STYLE);
         router.push(`/film/${id}`);
     };
 
@@ -175,7 +178,11 @@ export default function FilmListPage() {
                                                 <Clapperboard className="size-[18px]" />
                                             </div>
                                             <span className="chip chip-acid absolute bottom-3 left-4">{STAGE_LABEL[project.stage]}</span>
-                                            {project.visualStyle ? <span className="chip absolute bottom-3 right-3 max-w-[45%] truncate">{project.visualStyle}</span> : null}
+                                            {project.stylePreset && project.stylePreset !== "custom" ? (
+                                                <span className="chip absolute bottom-3 right-3 max-w-[45%] truncate">{filmStyleLabel(project.stylePreset)}</span>
+                                            ) : project.visualStyle ? (
+                                                <span className="chip absolute bottom-3 right-3 max-w-[45%] truncate">{project.visualStyle}</span>
+                                            ) : null}
                                         </div>
                                         <div className="p-5">
                                             <div className="flex items-start justify-between gap-3">
@@ -253,8 +260,16 @@ export default function FilmListPage() {
                         <Select value={aspect} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspect(value)} />
                     </label>
                     <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视觉风格（可选）</span>
-                        <Input value={visualStyle} placeholder="例如：日式 3D 渲染 2D" onChange={(event) => setVisualStyle(event.target.value)} />
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视觉风格预设</span>
+                        <Select
+                            value={stylePreset}
+                            options={FILM_STYLE_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
+                            onChange={(value: FilmStylePresetId) => setStylePreset(value)}
+                        />
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">风格补充（可选）</span>
+                        <Input value={visualStyle} placeholder="例如：低饱和、冷色调、颗粒感" onChange={(event) => setVisualStyle(event.target.value)} />
                     </label>
                 </div>
             </Modal>

@@ -18,3 +18,8 @@ export function filmAspectLabel(value?: string) {
     const aspect = normalizeFilmAspect(value);
     return FILM_ASPECT_OPTIONS.find((option) => option.value === aspect)?.label || aspect;
 }
+
+/** 转成 CSS aspect-ratio 可用的值，例如 "9 / 16"。 */
+export function filmAspectCssRatio(value?: string) {
+    return normalizeFilmAspect(value).replace(":", " / ");
+}

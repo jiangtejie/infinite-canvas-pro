@@ -12,6 +12,7 @@ import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
 import { updateFilmAsset } from "../utils/film-edits";
 import { runImageTask } from "../utils/film-image-task";
 import { normalizeFilmAspect } from "../utils/film-aspects";
+import { resolveFilmStyleText } from "../utils/film-styles";
 import type { FilmViewPreset } from "../utils/film-view-presets";
 
 export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
@@ -40,7 +41,8 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
         if (!config) return;
         const name = asset.name.trim() || (kind === "character" ? "未命名角色" : "未命名场景");
         const basePrompt = asset.visualPrompt.trim() || [name, asset.description.trim()].filter(Boolean).join("，");
-        const style = current.visualStyle ? `，视觉风格：${current.visualStyle}` : "";
+        const styleText = resolveFilmStyleText(current);
+        const style = styleText ? `，视觉风格：${styleText}` : "";
         const prompt = kind === "character" ? `角色设定图：${basePrompt}${style}` : `场景概念图：${basePrompt}${style}`;
         setGeneratingAssetId(asset.id);
         try {
@@ -66,7 +68,8 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
         if (!config) return;
         const name = asset.name.trim() || (kind === "character" ? "未命名角色" : "未命名场景");
         const description = asset.description.trim();
-        const style = current.visualStyle ? `，视觉风格：${current.visualStyle}` : "";
+        const styleText = resolveFilmStyleText(current);
+        const style = styleText ? `，视觉风格：${styleText}` : "";
         const prompt = `${kind === "character" ? "角色设定" : "场景设定"}：${[name, description].filter(Boolean).join("，")}；${preset.prompt}${style}`;
         const references: ReferenceImage[] = [];
         if (asset.imageUrl || asset.storageKey) {

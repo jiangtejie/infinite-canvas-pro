@@ -13,6 +13,7 @@ import { flattenFilmShots } from "../utils/parse-script";
 import { runImageTask } from "../utils/film-image-task";
 import { withImageVersion } from "../utils/film-versions";
 import { normalizeFilmAspect } from "../utils/film-aspects";
+import { resolveFilmStyleText } from "../utils/film-styles";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -40,8 +41,9 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
     const buildShotPrompt = async (current: FilmProject, shot: FilmShot) => {
         const promptText = (shot.prompt || shot.description).trim();
         const { references, hints } = await collectShotReferences(current, shot);
+        const styleText = resolveFilmStyleText(current);
         const prompt = [
-            current.visualStyle ? `${promptText}\n\n视觉风格：${current.visualStyle}` : promptText,
+            styleText ? `${promptText}\n\n视觉风格：${styleText}` : promptText,
             hints ? `参考角色与场景：${hints}` : "",
         ].filter(Boolean).join("\n\n");
         return { prompt, references };

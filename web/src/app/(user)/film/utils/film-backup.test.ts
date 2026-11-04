@@ -9,6 +9,7 @@ const sample: FilmProject = {
     title: "灌篮少女",
     visualStyle: "日式 3D",
     aspect: "16:9",
+    stylePreset: "cinematic",
     stage: "storyboard",
     scriptText: "第1集",
     episodes: [{ id: "e1", title: "第 1 集", scenes: [] }],
@@ -39,4 +40,5 @@ test("缺失字段回退默认值", () => {
     assert.deepEqual(parsed.locations, []);
     assert.equal(parsed.stage, "script");
     assert.equal(parsed.aspect, "16:9");
+    assert.equal(parsed.stylePreset, "custom");
 });

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
 import type { FilmProject, FilmShot } from "../types";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
+import { filmAspectCssRatio, filmAspectLabel } from "../utils/film-aspects";
 import { flattenFilmShots } from "../utils/parse-script";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 
@@ -48,6 +49,7 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                 <span className="eyebrow">剪辑预览</span>
                 <span className="chip chip-acid">{videoShots.length}/{shots.length} 个视频</span>
                 <span className="chip">总时长 {Math.round(totalDuration)}s</span>
+                <span className="chip">{filmAspectLabel(project.aspect)}</span>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                     <Button size="small" icon={<SkipForward className="size-3.5" />} disabled={!videoShots.length} onClick={() => setSelectedShotId(videoShots[0]?.id ?? "")}>
                         从头播放
@@ -65,9 +67,11 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                         <span className="eyebrow">预览</span>
                         {selectedShot ? <span className="font-mono text-[10px] text-muted-foreground/70">{selectedShot.shotNo} · {selectedShot.duration}s</span> : null}
                     </div>
-                    <div className="relative min-h-[260px] flex-1 bg-black/60">
+                    <div className="relative flex min-h-[260px] flex-1 items-center justify-center bg-black/60 p-3">
                         {selectedShot && (selectedShot.videoUrl || selectedShot.videoStorageKey) ? (
-                            <ShotVideoPlayer key={selectedShot.id} shot={selectedShot} autoPlay={autoplay} onEnded={() => autoplay && playNext()} />
+                            <div className="relative h-full max-h-full w-auto max-w-full overflow-hidden rounded-md border border-white/10 bg-black" style={{ aspectRatio: filmAspectCssRatio(project.aspect) }}>
+                                <ShotVideoPlayer key={selectedShot.id} shot={selectedShot} autoPlay={autoplay} onEnded={() => autoplay && playNext()} />
+                            </div>
                         ) : (
                             <div className="absolute inset-0 grid place-items-center px-6 text-center">
                                 <div>

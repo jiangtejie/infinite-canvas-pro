@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "../types";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "../utils/parse-script";
 import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
+import { filmAspectCssRatio, filmAspectLabel } from "../utils/film-aspects";
 import { checkFilmContinuity } from "../utils/film-continuity";
 import { FILM_SHOT_TYPE_OPTIONS, filmShotTypeLabel } from "../utils/film-shot-types";
 import { FilmShotDetail } from "./film-shot-detail";
@@ -150,6 +151,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                 <span className="chip chip-acid">{shots.length} 个分镜</span>
                 <span className="chip">{countFilmScenes(project.episodes)} 场</span>
                 <span className="chip">{readyCount}/{shots.length} 已完成</span>
+                <span className="chip">{filmAspectLabel(project.aspect)}</span>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                     {view === "list" && selectedIds.length > 0 ? (
                         <>
@@ -294,6 +296,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                         key={group.id}
                                         group={group}
                                         groupSize={groupSize}
+                                        aspect={project.aspect}
                                         selectedShotId={selectedShotId}
                                         onSelectShot={setSelectedShotId}
                                         onGenerateImage={onGenerateImageBatch}
@@ -382,7 +385,15 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                             </span>
                                                             <FilmShotStatusChip status={shot.status} />
                                                         </span>
-                                                        <FilmShotThumbnail shot={shot} className="h-24 w-full rounded-md border border-border/50" />
+                                                        <span className="block w-full overflow-hidden rounded-md border border-border/50" style={{ aspectRatio: filmAspectCssRatio(project.aspect) }}>
+                                                            {shot.imageUrl || shot.storageKey ? (
+                                                                <FilmShotThumbnail shot={shot} className="h-full w-full" />
+                                                            ) : (
+                                                                <span className="grid h-full w-full place-items-center bg-background/40 text-muted-foreground/25">
+                                                                    <ImageIcon className="size-4" aria-hidden />
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                         <span className={cn("line-clamp-3 text-xs leading-5", shot.description ? "text-foreground/80" : "text-muted-foreground/50")}>
                                                             {shot.description || "未填写画面描述"}
                                                         </span>
@@ -513,9 +524,10 @@ function ViewButton({ active, onClick, icon, children }: { active: boolean; onCl
     );
 }
 
-function ShotGroupCard({ group, groupSize, selectedShotId, onSelectShot, onGenerateImage, onGenerateVideo, imageLoading, videoLoading }: {
+function ShotGroupCard({ group, groupSize, aspect, selectedShotId, onSelectShot, onGenerateImage, onGenerateVideo, imageLoading, videoLoading }: {
     group: ShotGroup;
     groupSize: 4 | 9;
+    aspect: string;
     selectedShotId: string;
     onSelectShot: (shotId: string) => void;
     onGenerateImage: (shots: FilmShot[]) => void;
@@ -542,13 +554,15 @@ function ShotGroupCard({ group, groupSize, selectedShotId, onSelectShot, onGener
                             shot.id === selectedShotId ? "border-acid/60" : "border-border/60 hover:border-border",
                         )}
                     >
-                        {shot.imageUrl || shot.storageKey ? (
-                            <FilmShotThumbnail shot={shot} className={cn("w-full", groupSize === 9 ? "h-16" : "h-24")} />
-                        ) : (
-                            <span className={cn("grid w-full place-items-center bg-background/40 text-muted-foreground/25", groupSize === 9 ? "h-16" : "h-24")}>
-                                <ImageIcon className="size-4" aria-hidden />
-                            </span>
-                        )}
+                        <span className="block w-full overflow-hidden" style={{ aspectRatio: filmAspectCssRatio(aspect) }}>
+                            {shot.imageUrl || shot.storageKey ? (
+                                <FilmShotThumbnail shot={shot} className="h-full w-full" />
+                            ) : (
+                                <span className="grid h-full w-full place-items-center bg-background/40 text-muted-foreground/25">
+                                    <ImageIcon className="size-4" aria-hidden />
+                                </span>
+                            )}
+                        </span>
                         <span className="absolute left-1 top-1 rounded bg-background/80 px-1 font-mono text-[8px] text-foreground/80">{shot.shotNo}</span>
                         {shot.status === "video_ready" ? <span className="absolute bottom-1 right-1 rounded bg-acid/90 px-1 font-mono text-[8px] text-background">视频</span> : null}
                     </button>

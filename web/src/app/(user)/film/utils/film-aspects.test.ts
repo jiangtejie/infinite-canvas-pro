@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel, normalizeFilmAspect } from "./film-aspects";
+import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectCssRatio, filmAspectLabel, normalizeFilmAspect } from "./film-aspects";
 
 test("画幅选项包含常用的横竖屏", () => {
     const values = FILM_ASPECT_OPTIONS.map((option) => option.value);
@@ -19,4 +19,10 @@ test("非法画幅回退默认值", () => {
 test("画幅显示文案", () => {
     assert.equal(filmAspectLabel("9:16"), "9:16 竖屏");
     assert.equal(filmAspectLabel("16:9"), "16:9 横屏");
+});
+
+test("画幅转 CSS 比例", () => {
+    assert.equal(filmAspectCssRatio("9:16"), "9 / 16");
+    assert.equal(filmAspectCssRatio("2.39:1"), "2.39 / 1");
+    assert.equal(filmAspectCssRatio("bad"), filmAspectCssRatio(DEFAULT_FILM_ASPECT));
 });

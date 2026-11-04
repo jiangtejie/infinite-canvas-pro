@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Modal, Select } from "antd";
+import { Input, Modal, Select } from "antd";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
@@ -16,8 +16,9 @@ import { useFilmAssetImage } from "../hooks/use-film-asset-image";
 import { useFilmShotImage } from "../hooks/use-film-shot-image";
 import { useFilmShotVideo } from "../hooks/use-film-shot-video";
 import { useFilmStore } from "../stores/use-film-store";
-import type { FilmAspect, FilmStage } from "../types";
+import type { FilmAspect, FilmStage, FilmStylePresetId } from "../types";
 import { FILM_ASPECT_OPTIONS, filmAspectLabel, normalizeFilmAspect } from "../utils/film-aspects";
+import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel, normalizeFilmStylePreset } from "../utils/film-styles";
 
 const STAGES: Array<{ key: FilmStage; label: string }> = [
     { key: "script", label: "剧本" },
@@ -36,6 +37,8 @@ export default function FilmProjectPage() {
     const [stage, setStage] = useState<FilmStage | null>(null);
     const [aspectOpen, setAspectOpen] = useState(false);
     const [aspectDraft, setAspectDraft] = useState<FilmAspect>("16:9");
+    const [stylePresetDraft, setStylePresetDraft] = useState<FilmStylePresetId>(DEFAULT_FILM_STYLE);
+    const [visualStyleDraft, setVisualStyleDraft] = useState("");
     const currentStage = stage ?? project?.stage ?? "script";
     const imageGeneration = useFilmShotImage(project, (patch) => {
         if (project) updateProject(project.id, patch);
@@ -99,11 +102,13 @@ export default function FilmProjectPage() {
                         type="button"
                         onClick={() => {
                             setAspectDraft(normalizeFilmAspect(project.aspect));
+                            setStylePresetDraft(normalizeFilmStylePreset(project.stylePreset));
+                            setVisualStyleDraft(project.visualStyle || "");
                             setAspectOpen(true);
                         }}
                         className="ml-auto hidden items-center gap-1.5 rounded-full border border-border/70 px-2.5 py-1 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/80 uppercase transition-colors hover:border-acid/50 hover:text-foreground sm:flex"
                     >
-                        画幅 {filmAspectLabel(project.aspect)}
+                        画幅 {filmAspectLabel(project.aspect)} · {filmStyleLabel(project.stylePreset)}
                     </button>
                     <span className="hidden items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase sm:flex">
                         <Check className="size-3 text-acid" aria-hidden />
@@ -161,19 +166,38 @@ export default function FilmProjectPage() {
             </div>
 
             <Modal
-                title="项目画幅"
+                title="项目设置"
                 open={aspectOpen}
                 okText="保存"
                 cancelText="取消"
                 onOk={() => {
-                    updateProject(project.id, { aspect: normalizeFilmAspect(aspectDraft) });
+                    updateProject(project.id, {
+                        aspect: normalizeFilmAspect(aspectDraft),
+                        stylePreset: normalizeFilmStylePreset(stylePresetDraft),
+                        visualStyle: visualStyleDraft.trim(),
+                    });
                     setAspectOpen(false);
                 }}
                 onCancel={() => setAspectOpen(false)}
             >
                 <div className="grid gap-3 py-2">
-                    <p className="text-xs leading-6 text-muted-foreground">画幅只影响之后生成的图片（分镜图、角色/场景设定图），已经生成的结果不会自动重做。</p>
-                    <Select value={normalizeFilmAspect(aspectDraft)} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspectDraft(value)} />
+                    <p className="text-xs leading-6 text-muted-foreground">画幅和风格只影响之后生成的图片（分镜图、角色/场景设定图），已经生成的结果不会自动重做。</p>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">画幅</span>
+                        <Select value={normalizeFilmAspect(aspectDraft)} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspectDraft(value)} />
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视觉风格预设</span>
+                        <Select
+                            value={normalizeFilmStylePreset(stylePresetDraft)}
+                            options={FILM_STYLE_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
+                            onChange={(value: FilmStylePresetId) => setStylePresetDraft(value)}
+                        />
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">风格补充</span>
+                        <Input value={visualStyleDraft} placeholder="例如：低饱和、冷色调、颗粒感" onChange={(event) => setVisualStyleDraft(event.target.value)} />
+                    </label>
                 </div>
             </Modal>
         </div>

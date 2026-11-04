@@ -2,6 +2,18 @@ export type FilmStage = "script" | "cast" | "storyboard" | "edit";
 
 export type FilmAspect = "9:16" | "16:9" | "2.39:1" | "4:3" | "1:1";
 
+export type FilmStylePresetId =
+    | "custom"
+    | "jp-3d"
+    | "cg"
+    | "dark-real"
+    | "cinematic"
+    | "anime2d"
+    | "guofeng"
+    | "cyberpunk"
+    | "film"
+    | "pixel";
+
 export type FilmAssetKind = "character" | "location";
 
 export type FilmAssetStatus = "idle" | "ready" | "failed";
@@ -77,6 +89,7 @@ export type FilmProject = {
     title: string;
     visualStyle: string;
     aspect: FilmAspect;
+    stylePreset: FilmStylePresetId;
     stage: FilmStage;
     scriptText: string;
     episodes: FilmEpisode[];
