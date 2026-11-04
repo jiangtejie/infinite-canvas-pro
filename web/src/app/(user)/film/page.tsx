@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { App, Button, Input, Modal } from "antd";
-import { Clapperboard, Library, Plus, Trash2 } from "lucide-react";
+import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useFilmStore } from "./stores/use-film-store";
 import type { FilmProject } from "./types";
+import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
 
 const STAGE_LABEL: Record<FilmProject["stage"], string> = {
@@ -25,10 +26,15 @@ export default function FilmListPage() {
     const hydrated = useFilmStore((state) => state.hydrated);
     const projects = useFilmStore((state) => state.projects);
     const createProject = useFilmStore((state) => state.createProject);
+    const importProject = useFilmStore((state) => state.importProject);
+    const updateProject = useFilmStore((state) => state.updateProject);
     const deleteProjects = useFilmStore((state) => state.deleteProjects);
     const [createOpen, setCreateOpen] = useState(false);
     const [title, setTitle] = useState("");
     const [visualStyle, setVisualStyle] = useState("");
+    const [renameTarget, setRenameTarget] = useState<FilmProject | null>(null);
+    const [renameTitle, setRenameTitle] = useState("");
+    const importInputRef = useRef<HTMLInputElement>(null);
 
     const ordered = useMemo(() => [...projects].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
     const totalShots = projects.reduce((total, project) => total + flattenFilmShots(project.episodes).length, 0);
@@ -56,6 +62,46 @@ export default function FilmListPage() {
         });
     };
 
+    const openRename = (project: FilmProject) => {
+        setRenameTarget(project);
+        setRenameTitle(project.title);
+    };
+
+    const saveRename = () => {
+        if (!renameTarget) return;
+        const nextTitle = renameTitle.trim();
+        if (!nextTitle) {
+            message.warning("项目名称不能为空");
+            return;
+        }
+        updateProject(renameTarget.id, { title: nextTitle });
+        setRenameTarget(null);
+    };
+
+    const exportProject = (project: FilmProject) => {
+        const blob = new Blob([serializeFilmProject(project)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${project.title || "影视项目"}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        message.success("项目备份已导出");
+    };
+
+    const onImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+        try {
+            const project = parseFilmProjectBackup(await file.text());
+            importProject(project);
+            message.success(`已导入「${project.title}」`);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "导入失败");
+        }
+    };
+
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
@@ -72,6 +118,9 @@ export default function FilmListPage() {
                         }
                         actions={
                             <>
+                                <Button icon={<Upload className="size-4" />} onClick={() => importInputRef.current?.click()}>
+                                    导入项目
+                                </Button>
                                 <Button icon={<Library className="size-4" />} href="/film/library">
                                     角色与场景库
                                 </Button>
@@ -128,17 +177,41 @@ export default function FilmListPage() {
                                         <div className="p-5">
                                             <div className="flex items-start justify-between gap-3">
                                                 <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight text-foreground">{project.title}</h2>
-                                                <button
-                                                    type="button"
-                                                    aria-label={`删除 ${project.title}`}
-                                                    className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-hot/10 hover:text-hot"
-                                                    onClick={(event) => {
-                                                        event.stopPropagation();
-                                                        confirmDelete(project);
-                                                    }}
-                                                >
-                                                    <Trash2 className="size-3.5" />
-                                                </button>
+                                                <div className="flex shrink-0 items-center gap-0.5">
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`重命名 ${project.title}`}
+                                                        className="grid size-7 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            openRename(project);
+                                                        }}
+                                                    >
+                                                        <Pencil className="size-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`导出 ${project.title}`}
+                                                        className="grid size-7 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            exportProject(project);
+                                                        }}
+                                                    >
+                                                        <Download className="size-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        aria-label={`删除 ${project.title}`}
+                                                        className="grid size-7 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-hot/10 hover:text-hot"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            confirmDelete(project);
+                                                        }}
+                                                    >
+                                                        <Trash2 className="size-3.5" />
+                                                    </button>
+                                                </div>
                                             </div>
                                             <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-muted-foreground/70 uppercase">
                                                 {project.episodes.length} 集 · {countFilmScenes(project.episodes)} 场 · {shots.length} 镜
@@ -159,6 +232,13 @@ export default function FilmListPage() {
                 </div>
             </main>
 
+            <input ref={importInputRef} hidden type="file" accept="application/json,.json" onChange={onImportFile} />
+            <Modal title="重命名项目" open={Boolean(renameTarget)} okText="保存" cancelText="取消" onOk={saveRename} onCancel={() => setRenameTarget(null)} destroyOnHidden>
+                <label className="grid gap-1.5 py-2">
+                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">项目名称</span>
+                    <Input autoFocus value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} onPressEnter={saveRename} />
+                </label>
+            </Modal>
             <Modal title="新建影视项目" open={createOpen} okText="创建" cancelText="取消" onOk={create} onCancel={() => setCreateOpen(false)} destroyOnHidden>
                 <div className="grid gap-4 py-2">
                     <label className="grid gap-1.5">

@@ -12,6 +12,7 @@ type FilmStore = {
     projects: FilmProject[];
     markHydrated: () => void;
     createProject: (title: string, visualStyle?: string) => string;
+    importProject: (project: FilmProject) => string;
     updateProject: (id: string, patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     deleteProjects: (ids: string[]) => void;
 };
@@ -38,6 +39,13 @@ export const useFilmStore = create<FilmStore>()(
                     updatedAt: now,
                 };
                 set((state) => ({ projects: [project, ...state.projects] }));
+                return id;
+            },
+            importProject: (project) => {
+                const id = nanoid();
+                const now = new Date().toISOString();
+                const next: FilmProject = { ...project, id, createdAt: project.createdAt || now, updatedAt: now };
+                set((state) => ({ projects: [next, ...state.projects] }));
                 return id;
             },
             updateProject: (id, patch) => set((state) => ({
