@@ -56,6 +56,7 @@ const HOME_TOOL_COPY: Record<string, string> = {
     workflows: "固定提示词与参数沉淀成模板，批量复用。",
     prompts: "按标题、分类与标签检索灵感，随时收藏。",
     assets: "文本、图片、视频与音频统一归档引用。",
+    film: "剧本、角色、分镜与成片，项目制影视创作台。",
 };
 
 function toPendingAgentAsset(payload: InsertAssetPayload, label: string): PendingAgentAsset {
@@ -250,7 +251,7 @@ export default function IndexPage() {
                     <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <span className="eyebrow">工作台</span>
-                            <h2 id="home-tools-title" className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-foreground sm:text-[28px]">一条链路，六种创作入口</h2>
+                            <h2 id="home-tools-title" className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-foreground sm:text-[28px]">一条链路，七种创作入口</h2>
                         </div>
                         <p className="max-w-sm text-xs leading-6 text-muted-foreground sm:text-right">从灵感到成片，每个环节都独立可编排，也能在画布里串起来。</p>
                     </div>

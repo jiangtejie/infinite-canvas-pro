@@ -34,6 +34,7 @@
 
 - [待测试](progress/pending-test.md)
 - [TODO](progress/todo.md)
+- [AI 影视板块设计](progress/ai-film-plan.md)
 
 ## 说明
 
