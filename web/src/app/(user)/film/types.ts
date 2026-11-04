@@ -1,4 +1,4 @@
-export type FilmStage = "script" | "cast" | "storyboard";
+export type FilmStage = "script" | "cast" | "storyboard" | "edit";
 
 export type FilmAssetKind = "character" | "location";
 

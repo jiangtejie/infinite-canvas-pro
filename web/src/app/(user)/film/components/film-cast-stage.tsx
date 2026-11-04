@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { App, Button, Input, Modal, Select } from "antd";
 import { ImagePlus, Library, Plus, Trash2 } from "lucide-react";
 
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
 import { useFilmCastStore } from "../stores/use-film-cast-store";
 import { addFilmAsset, importFilmAsset, removeFilmAsset, updateFilmAsset } from "../utils/film-edits";
-import { FILM_CHARACTER_VIEW_PRESETS, type FilmViewPreset } from "../utils/film-view-presets";
+import { FILM_CHARACTER_VIEW_PRESETS, FILM_LOCATION_VIEW_PRESETS, type FilmViewPreset } from "../utils/film-view-presets";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
 
 type Selection = { kind: FilmAssetKind; id: string };
@@ -17,7 +17,7 @@ type FilmCastStageProps = {
     project: FilmProject;
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     onGenerateAsset: (asset: FilmAsset, kind: FilmAssetKind) => void;
-    onGenerateView: (asset: FilmAsset, preset: FilmViewPreset) => void;
+    onGenerateView: (asset: FilmAsset, kind: FilmAssetKind, preset: FilmViewPreset) => void;
     generatingAssetId: string;
 };
 
@@ -31,7 +31,13 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
     const [selection, setSelection] = useState<Selection | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [viewPresetKey, setViewPresetKey] = useState(FILM_CHARACTER_VIEW_PRESETS[0].key);
-    const viewPreset = FILM_CHARACTER_VIEW_PRESETS.find((preset) => preset.key === viewPresetKey) || FILM_CHARACTER_VIEW_PRESETS[0];
+    const viewPresets = useMemo(() => selection?.kind === "location" ? FILM_LOCATION_VIEW_PRESETS : FILM_CHARACTER_VIEW_PRESETS, [selection?.kind]);
+    const viewPreset = viewPresets.find((preset) => preset.key === viewPresetKey) || viewPresets[0];
+
+    useEffect(() => {
+        if (viewPresets.some((preset) => preset.key === viewPresetKey)) return;
+        setViewPresetKey(viewPresets[0].key);
+    }, [viewPresetKey, viewPresets]);
 
     useEffect(() => {
         if (selection) {
@@ -176,12 +182,14 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
                             <div className="grid gap-2">
                                 <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">生成视图</span>
                                 <div className="flex items-center gap-2">
-                                    <Select size="small" className="flex-1" value={viewPresetKey} options={FILM_CHARACTER_VIEW_PRESETS.map((preset) => ({ value: preset.key, label: preset.label }))} onChange={setViewPresetKey} />
-                                    <Button size="small" loading={generatingAssetId === selected.id} onClick={() => onGenerateView(selected, viewPreset)}>
+                                    <Select size="small" className="flex-1" value={viewPresetKey} options={viewPresets.map((preset) => ({ value: preset.key, label: preset.label }))} onChange={setViewPresetKey} />
+                                    <Button size="small" loading={generatingAssetId === selected.id} onClick={() => onGenerateView(selected, selection?.kind || "character", viewPreset)}>
                                         生成视图
                                     </Button>
                                 </div>
-                                <p className="text-[11px] leading-5 text-muted-foreground/70">生成视图时会用主设定图作为参考，保持形象一致。</p>
+                                <p className="text-[11px] leading-5 text-muted-foreground/70">
+                                    {selection?.kind === "location" ? "生成视图时会用主概念图作为参考，保持环境一致。" : "生成视图时会用主设定图作为参考，保持形象一致。"}
+                                </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 pt-1">
                                 <Button

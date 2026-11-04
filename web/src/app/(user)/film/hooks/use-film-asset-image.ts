@@ -58,15 +58,15 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
         }
     };
 
-    const generateView = async (asset: FilmAsset, preset: FilmViewPreset) => {
+    const generateView = async (asset: FilmAsset, kind: FilmAssetKind, preset: FilmViewPreset) => {
         const current = projectRef.current;
         if (!current || generatingAssetId) return;
         const config = buildImageConfig();
         if (!config) return;
-        const name = asset.name.trim() || "未命名角色";
+        const name = asset.name.trim() || (kind === "character" ? "未命名角色" : "未命名场景");
         const description = asset.description.trim();
         const style = current.visualStyle ? `，视觉风格：${current.visualStyle}` : "";
-        const prompt = `角色设定：${[name, description].filter(Boolean).join("，")}；${preset.prompt}${style}`;
+        const prompt = `${kind === "character" ? "角色设定" : "场景设定"}：${[name, description].filter(Boolean).join("，")}；${preset.prompt}${style}`;
         const references: ReferenceImage[] = [];
         if (asset.imageUrl || asset.storageKey) {
             try {
@@ -79,10 +79,13 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
         setGeneratingAssetId(asset.id);
         try {
             const { imageUrl, storageKey } = await runImageTask(config, prompt, references, asset.id);
-            const latest = (projectRef.current?.characters || []).find((item) => item.id === asset.id);
+            const list = kind === "character" ? (projectRef.current?.characters || []) : (projectRef.current?.locations || []);
+            const latest = list.find((item) => item.id === asset.id);
             const views = [...(latest?.views || []), { id: nanoid(), label: preset.label, imageUrl, storageKey }];
-            onUpdate({ characters: updateFilmAsset(projectRef.current?.characters || [], asset.id, { views }) });
-            message.success(`${preset.label}已生成`);
+            onUpdate(kind === "character"
+                ? { characters: updateFilmAsset(projectRef.current?.characters || [], asset.id, { views }) }
+                : { locations: updateFilmAsset(projectRef.current?.locations || [], asset.id, { views }) });
+            message.success(`${kind === "character" ? "角色" : "场景"}${preset.label}已生成`);
         } catch (error) {
             message.error(error instanceof Error ? error.message : `${preset.label}生成失败`);
         } finally {

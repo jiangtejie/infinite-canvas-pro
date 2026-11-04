@@ -16,6 +16,7 @@ const STAGE_LABEL: Record<FilmProject["stage"], string> = {
     script: "剧本",
     cast: "角色与场景",
     storyboard: "导演台",
+    edit: "剪辑",
 };
 
 export default function FilmListPage() {

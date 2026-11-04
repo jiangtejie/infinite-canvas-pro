@@ -8,6 +8,7 @@ import { ArrowLeft, Check } from "lucide-react";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import { FilmCastStage } from "../components/film-cast-stage";
+import { FilmEditStage } from "../components/film-edit-stage";
 import { FilmScriptStage } from "../components/film-script-stage";
 import { FilmStoryboardStage } from "../components/film-storyboard-stage";
 import { useFilmAssetImage } from "../hooks/use-film-asset-image";
@@ -20,6 +21,7 @@ const STAGES: Array<{ key: FilmStage; label: string }> = [
     { key: "script", label: "剧本" },
     { key: "cast", label: "角色与场景" },
     { key: "storyboard", label: "导演台" },
+    { key: "edit", label: "剪辑" },
 ];
 
 export default function FilmProjectPage() {
@@ -123,6 +125,8 @@ export default function FilmProjectPage() {
                             onGenerateView={assetGeneration.generateView}
                             generatingAssetId={assetGeneration.generatingAssetId}
                         />
+                    ) : currentStage === "edit" ? (
+                        <FilmEditStage project={project} onGoStoryboard={() => switchStage("storyboard")} />
                     ) : (
                         <FilmStoryboardStage
                             project={project}
