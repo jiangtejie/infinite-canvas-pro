@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { Clapperboard, FileText, GitBranch, ImagePlus, Images, Maximize2, Sparkles, Video } from "lucide-react";
+import { Clapperboard, FileText, GitBranch, ImagePlus, Images, Maximize2, PenLine, Sparkles, Video } from "lucide-react";
 
-export type NavigationToolSlug = "canvas" | "image" | "video" | "workflows" | "prompts" | "film" | "assets";
+export type NavigationToolSlug = "canvas" | "image" | "video" | "workflows" | "prompts" | "film" | "script" | "assets";
 
 export type NavigationTool = {
     slug: NavigationToolSlug;
@@ -11,7 +11,7 @@ export type NavigationTool = {
 
 type NavigationSection = NavigationTool | { label: string; icon: LucideIcon; children: NavigationTool[] };
 
-// 一级导航：画布、影视与素材直接进页面，通用创作工具收进“AI 自媒体”，后续 AI 写作按同样结构并列添加。
+// 一级导航：画布、影剧与素材直接进页面，通用创作工具收进“AI 自媒体”，影视与剧本收进“AI 影剧”。
 export const navigationSections: NavigationSection[] = [
     { slug: "canvas", label: "我的画布", icon: Maximize2 },
     {
@@ -24,7 +24,14 @@ export const navigationSections: NavigationSection[] = [
             { slug: "prompts", label: "提示词库", icon: FileText },
         ],
     },
-    { slug: "film", label: "AI 影视", icon: Clapperboard },
+    {
+        label: "AI 影剧",
+        icon: Clapperboard,
+        children: [
+            { slug: "film", label: "AI 影视", icon: Clapperboard },
+            { slug: "script", label: "AI 剧本创作", icon: PenLine },
+        ],
+    },
     { slug: "assets", label: "我的素材", icon: Images },
 ];
 

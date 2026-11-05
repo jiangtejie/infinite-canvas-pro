@@ -57,6 +57,7 @@ const HOME_TOOL_COPY: Record<string, string> = {
     prompts: "按标题、分类与标签检索灵感，随时收藏。",
     assets: "文本、图片、视频与音频统一归档引用。",
     film: "剧本、角色、分镜与成片，项目制影视创作台。",
+    script: "从想法到分场、人物和对白，先写出一版可拍的剧本。",
 };
 
 function toPendingAgentAsset(payload: InsertAssetPayload, label: string): PendingAgentAsset {

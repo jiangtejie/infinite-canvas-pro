@@ -21,7 +21,7 @@ const navItemClass = "relative flex h-full shrink-0 items-center gap-2 px-3 text
 export function AppTopNav() {
     const pathname = usePathname();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
-    const [sectionOpen, setSectionOpen] = useState(false);
+    const [openSectionKey, setOpenSectionKey] = useState<string | null>(null);
     const sectionRef = useRef<HTMLDivElement>(null);
     const sectionTriggerRef = useRef<HTMLButtonElement>(null);
     const closeTimerRef = useRef<number | null>(null);
@@ -36,18 +36,18 @@ export function AppTopNav() {
     const activeToolSlug = navigationTools.some((tool) => tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
 
     useEffect(() => {
-        setSectionOpen(false);
+        setOpenSectionKey(null);
     }, [pathname]);
 
     // 下拉展开时点击外部或按 Esc 收起，Esc 回到触发按钮。
     useEffect(() => {
-        if (!sectionOpen) return;
+        if (!openSectionKey) return;
         const onPointerDown = (event: PointerEvent) => {
-            if (!sectionRef.current?.contains(event.target as Node)) setSectionOpen(false);
+            if (!sectionRef.current?.contains(event.target as Node)) setOpenSectionKey(null);
         };
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key !== "Escape") return;
-            setSectionOpen(false);
+            setOpenSectionKey(null);
             sectionTriggerRef.current?.focus();
         };
         document.addEventListener("pointerdown", onPointerDown);
@@ -56,17 +56,17 @@ export function AppTopNav() {
             document.removeEventListener("pointerdown", onPointerDown);
             document.removeEventListener("keydown", onKeyDown);
         };
-    }, [sectionOpen]);
+    }, [openSectionKey]);
 
-    const openSection = (focusFirst = false) => {
+    const openSection = (key: string, focusFirst = false) => {
         if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-        setSectionOpen(true);
+        setOpenSectionKey(key);
         if (focusFirst) window.requestAnimationFrame(() => sectionRef.current?.querySelector<HTMLElement>("a")?.focus());
     };
 
     const scheduleCloseSection = () => {
         if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = window.setTimeout(() => setSectionOpen(false), 140);
+        closeTimerRef.current = window.setTimeout(() => setOpenSectionKey(null), 140);
     };
 
     return (
@@ -101,46 +101,48 @@ export function AppTopNav() {
                                 <Menu className="size-5" />
                             </button>
 
-                            <nav className="hidden h-full min-w-0 items-center gap-1 md:flex" aria-label="主站导航">
+                            <nav className="hidden h-full min-w-0 items-center gap-3 md:flex" aria-label="主站导航">
                                 {navigationSections.map((section) => {
                                     if ("children" in section) {
                                         const Icon = section.icon;
                                         const sectionActive = section.children.some((child) => child.slug === activeToolSlug);
+                                        const isOpen = openSectionKey === section.label;
                                         return (
                                             <div
                                                 key={section.label}
-                                                ref={sectionRef}
+                                                ref={isOpen ? sectionRef : undefined}
                                                 className="relative h-full shrink-0"
                                                 onPointerEnter={(event) => {
-                                                    if (event.pointerType === "mouse") openSection();
+                                                    if (event.pointerType === "mouse") openSection(section.label);
                                                 }}
                                                 onPointerLeave={(event) => {
                                                     if (event.pointerType === "mouse") scheduleCloseSection();
                                                 }}
                                                 onBlur={(event) => {
-                                                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSectionOpen(false);
+                                                    if (isOpen && !event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenSectionKey(null);
                                                 }}
                                             >
                                                 <button
-                                                    ref={sectionTriggerRef}
+                                                    ref={isOpen ? sectionTriggerRef : undefined}
                                                     type="button"
-                                                    aria-expanded={sectionOpen}
+                                                    aria-haspopup="true"
+                                                    aria-expanded={isOpen}
                                                     onClick={(event) => {
-                                                        if (sectionOpen) setSectionOpen(false);
-                                                        else openSection(event.detail === 0);
+                                                        if (isOpen) setOpenSectionKey(null);
+                                                        else openSection(section.label, event.detail === 0);
                                                     }}
                                                     className={cn(
                                                         navItemClass,
-                                                        sectionActive || sectionOpen
+                                                        sectionActive || isOpen
                                                             ? "font-medium text-acid! after:bg-acid"
                                                             : "text-acid! after:bg-transparent hover:after:bg-acid/40",
                                                     )}
                                                 >
                                                     <Icon className="size-4" />
                                                     <span className="truncate">{section.label}</span>
-                                                    <ChevronDown className={cn("size-3 shrink-0 transition-transform duration-200", sectionOpen && "rotate-180")} />
+                                                    <ChevronDown className={cn("size-3 shrink-0 transition-transform duration-200", isOpen && "rotate-180")} />
                                                 </button>
-                                                {sectionOpen ? (
+                                                {isOpen ? (
                                                     <div className="absolute left-0 top-full z-40 w-56 rounded-xl border border-border/80 bg-background/95 p-1.5 shadow-[0_28px_60px_-30px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
                                                         {section.children.map((child) => {
                                                             const ChildIcon = child.icon;
@@ -150,7 +152,7 @@ export function AppTopNav() {
                                                                     key={child.slug}
                                                                     href={`/${child.slug}`}
                                                                     aria-current={active ? "page" : undefined}
-                                                                    onClick={() => setSectionOpen(false)}
+                                                                    onClick={() => setOpenSectionKey(null)}
                                                                     className={cn(
                                                                         "flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
                                                                         active
