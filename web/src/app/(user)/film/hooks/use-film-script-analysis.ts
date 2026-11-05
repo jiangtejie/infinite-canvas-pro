@@ -6,11 +6,11 @@ import { App } from "antd";
 import type { FilmScriptAnalysis } from "../types";
 import { requestFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
 import type { FilmScriptDocument } from "../utils/film-script-import";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export function useFilmScriptAnalysis() {
     const { message } = App.useApp();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [analyzing, setAnalyzing] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 

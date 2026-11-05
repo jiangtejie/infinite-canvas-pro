@@ -13,11 +13,11 @@ import { runImageTask } from "../utils/film-image-task";
 import { normalizeFilmAspect } from "../utils/film-aspects";
 import { resolveFilmStyleText } from "../utils/film-styles";
 import type { FilmViewPreset } from "../utils/film-view-presets";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [generatingAssetId, setGeneratingAssetId] = useState("");
     const projectRef = useRef(project);
     projectRef.current = project;

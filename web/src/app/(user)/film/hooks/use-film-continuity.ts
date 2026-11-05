@@ -5,11 +5,11 @@ import { App } from "antd";
 
 import type { FilmContinuitySheet, FilmEpisode } from "../types";
 import { requestFilmContinuity } from "../utils/film-continuity-sheet";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export function useFilmContinuity() {
     const { message } = App.useApp();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [analyzingEpisodeId, setAnalyzingEpisodeId] = useState("");
 
     const analyzeEpisode = async (episode: FilmEpisode): Promise<FilmContinuitySheet[] | null> => {

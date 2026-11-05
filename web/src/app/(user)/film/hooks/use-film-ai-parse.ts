@@ -5,11 +5,11 @@ import { App } from "antd";
 
 import type { FilmEpisode } from "../types";
 import { requestFilmAiStoryboard, type FilmParseOptions } from "../utils/film-ai-parse";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export function useFilmAiParse(onParsed: (episodes: FilmEpisode[]) => void) {
     const { message } = App.useApp();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [parsing, setParsing] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 

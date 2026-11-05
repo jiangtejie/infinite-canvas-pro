@@ -19,7 +19,7 @@ import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from 
 import { formatFilmContinuityPrompt } from "../utils/film-continuity-sheet";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "../utils/film-video-limits";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
 
@@ -46,7 +46,7 @@ async function frameToReference(frame: FilmFrameSource | undefined, name: string
 export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
     const effectiveConfig = useEffectiveConfig();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [generatingShotId, setGeneratingShotId] = useState("");
     const [progress, setProgress] = useState(0);
     const [batchProgress, setBatchProgress] = useState<FilmVideoBatchProgress | null>(null);

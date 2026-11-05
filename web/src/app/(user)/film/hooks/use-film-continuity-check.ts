@@ -6,11 +6,11 @@ import { App } from "antd";
 import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmShot } from "../types";
 import { formatFilmContinuityCheck, requestFilmShotContinuityCheck } from "../utils/film-continuity-check";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export function useFilmContinuityCheck() {
     const { message } = App.useApp();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [checkingShotId, setCheckingShotId] = useState("");
     const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
 

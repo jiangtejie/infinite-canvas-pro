@@ -14,7 +14,7 @@ import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterPartLabel, 
 import { runImageTask } from "../utils/film-image-task";
 import { compressFilmReference } from "../utils/film-image-compress";
 import { resolveFilmStyleText } from "../utils/film-styles";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master" | "card";
 
@@ -22,7 +22,7 @@ const MAX_REFERENCES = 10;
 
 export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [generatingKey, setGeneratingKey] = useState<FilmCharacterGenerationKey>("");
     const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
     const projectRef = useRef(project);

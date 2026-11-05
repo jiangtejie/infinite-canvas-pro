@@ -16,7 +16,7 @@ import { resolveFilmStyleText } from "../utils/film-styles";
 import { collectFilmShotReferences } from "../utils/film-references";
 import { selectFilmBatchShots } from "../utils/film-batch";
 import { formatFilmContinuityPrompt, previousFilmShot } from "../utils/film-continuity-sheet";
-import { useFilmModelConfig } from "./use-film-model-config";
+import { useModelConfig } from "@/hooks/use-model-config";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -29,7 +29,7 @@ export type FilmImageBatchOptions = {
 
 export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
-    const resolveModelConfig = useFilmModelConfig();
+    const resolveModelConfig = useModelConfig();
     const [generatingShotId, setGeneratingShotId] = useState("");
     const [batchProgress, setBatchProgress] = useState<FilmImageBatchProgress | null>(null);
     const projectRef = useRef(project);
