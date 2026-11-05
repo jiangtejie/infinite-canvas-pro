@@ -18,7 +18,7 @@ import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { resolveFilmStyleText } from "../utils/film-styles";
 import { countFilmScenes, flattenFilmShots } from "../utils/parse-script";
-import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFile, type FilmScriptDocument } from "../utils/film-script-import";
+import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFile, scriptTextHash, type FilmScriptDocument } from "../utils/film-script-import";
 import { buildScriptAnalysisAssets, normalizeEntityKey, validateFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
 import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "../types";
 import { FilmShotDetail } from "./film-shot-detail";
@@ -60,6 +60,8 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     const sceneTargets = useMemo(() => filmSceneOptions(episodes), [episodes]);
     const selectedPosition = selectedShot ? filmShotPosition(episodes, selectedShot.id) : null;
+    const currentScriptHash = useMemo(() => scriptTextHash(project.scriptText || ""), [project.scriptText]);
+    const analysisStale = Boolean(project.scriptAnalysis && currentScriptHash !== project.scriptAnalysis.scriptHash);
 
     const checkEpisodeContinuity = (episode: FilmEpisode) => {
         const episodeShots = episode.scenes.flatMap((scene) => scene.shots);
@@ -133,7 +135,10 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const [acceptedCharacters, setAcceptedCharacters] = useState<string[]>([]);
     const [acceptedRelationships, setAcceptedRelationships] = useState<string[]>([]);
     const [analysisEditing, setAnalysisEditing] = useState(false);
+    const [analysisTab, setAnalysisTab] = useState<"characters" | "relationships" | "scenes" | "beats">("characters");
+    const [importTextExpanded, setImportTextExpanded] = useState(false);
     const importFileRef = useRef<HTMLInputElement>(null);
+    const importStep = !importDoc ? 1 : scriptAnalysis ? 3 : 2;
     const [pendingParsed, setPendingParsed] = useState<FilmEpisode[] | null>(null);
     const [episodeHistory, setEpisodeHistory] = useState<FilmEpisode[][]>([]);
 
@@ -152,6 +157,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     const parseImportDocument = (text: string, format: FilmScriptDocument["format"]) => {
         setImportParsing(true);
+        setImportTextExpanded(false);
         setScriptAnalysis(null);
         setAnalysisIssues([]);
         setAcceptedCharacters([]);
@@ -189,6 +195,38 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         } finally {
             setImportParsing(false);
         }
+    };
+
+    const confirmApplyImport = (mode: "replace" | "append") => {
+        if (!importDoc) return;
+        if (mode === "replace" && episodes.length) {
+            modal.confirm({
+                title: "覆盖现有剧集和分镜？",
+                content: "当前项目已有剧集/分镜，覆盖导入会替换现有内容（可用「撤销解析」恢复上一版）。",
+                okText: "覆盖导入",
+                okButtonProps: { danger: true },
+                cancelText: "取消",
+                onOk: () => applyImportDocument("replace"),
+            });
+            return;
+        }
+        applyImportDocument(mode);
+    };
+
+    const confirmApplyAnalysis = (mode: "replace" | "append") => {
+        if (!scriptAnalysis) return;
+        if (mode === "replace" && episodes.length) {
+            modal.confirm({
+                title: "覆盖现有剧集和分镜？",
+                content: "覆盖导入会替换现有剧集/分镜，并把勾选接受的角色、关系应用到项目。",
+                okText: "覆盖导入",
+                okButtonProps: { danger: true },
+                cancelText: "取消",
+                onOk: () => applyAnalysisImport("replace"),
+            });
+            return;
+        }
+        applyAnalysisImport(mode);
     };
 
     const applyImportDocument = (mode: "replace" | "append") => {
@@ -460,6 +498,24 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                         </Button>
                     </div>
                 </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border/60 px-3 py-1.5">
+                    {project.scriptDocument ? <span className="chip" title={`parser v${project.scriptDocument.parserVersion} · ${project.scriptDocument.format}`}>规则快照 #{project.scriptDocument.scriptHash.slice(0, 8)}</span> : null}
+                    {project.scriptAnalysis ? (
+                        <>
+                            <span className="chip">{project.scriptAnalysis.characters.length} 角色</span>
+                            <span className="chip">{project.scriptAnalysis.relationships.length} 关系</span>
+                            <span className="chip">{project.scriptAnalysis.scenes.length} 场</span>
+                            {analysisStale ? (
+                                <span className="rounded border border-hot/40 bg-hot/10 px-1.5 py-0.5 font-mono text-[9px] text-hot">剧本已变更 · 分析可能过期</span>
+                            ) : (
+                                <span className="font-mono text-[9px] text-acid/80">分析已就绪</span>
+                            )}
+                        </>
+                    ) : (
+                        <span className="font-mono text-[10px] text-muted-foreground/60">未做 AI 语义分析</span>
+                    )}
+                    <span className="ml-auto font-mono text-[10px] text-muted-foreground/60 tabular-nums">{episodes.length} 集 · {countFilmScenes(episodes)} 场 · {shots.length} 镜</span>
+                </div>
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
                     {episodes.length === 0 ? (
                         <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
@@ -610,18 +666,19 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                             <Button type="primary" loading={importParsing} onClick={() => parseImportDocument(importText, importFormat)}>解析预览</Button>
                         ) : (
                             <>
+                                <Button type="text" onClick={() => { setImportDoc(null); setScriptAnalysis(null); setAnalysisIssues([]); }}>上一步</Button>
                                 {analyzingScript ? <span className="self-center text-[11px] text-muted-foreground/70">{analysisProgress ? `语义分析 ${analysisProgress.done}/${analysisProgress.total}` : "正在分析…"}</span> : null}
-                                <Button loading={analyzingScript} onClick={() => void analyzeImportSemantics()}>AI 语义解析</Button>
-                                {scriptAnalysis ? (
+                                {!scriptAnalysis ? (
                                     <>
-                                        <Button onClick={() => applyImportDocument("append")}>仅导入分镜</Button>
-                                        <Button onClick={() => applyAnalysisImport("append")}>追加导入并应用</Button>
-                                        <Button type="primary" danger onClick={() => applyAnalysisImport("replace")}>覆盖导入并应用</Button>
+                                        <Button onClick={() => confirmApplyImport("append")}>仅导入分镜</Button>
+                                        <Button type="primary" loading={analyzingScript} onClick={() => void analyzeImportSemantics()}>AI 语义解析</Button>
                                     </>
                                 ) : (
                                     <>
-                                        <Button onClick={() => applyImportDocument("append")}>追加导入</Button>
-                                        <Button type="primary" danger onClick={() => applyImportDocument("replace")}>覆盖导入</Button>
+                                        <span className="self-center text-[11px] text-muted-foreground/70">已接受 {selectedScriptAnalysis?.characters.length ?? 0} 角色 / {selectedScriptAnalysis?.relationships.length ?? 0} 关系</span>
+                                        <Button onClick={() => applyImportDocument("append")}>仅导入分镜</Button>
+                                        <Button onClick={() => confirmApplyAnalysis("append")}>追加导入并应用</Button>
+                                        <Button type="primary" danger onClick={() => confirmApplyAnalysis("replace")}>覆盖导入并应用</Button>
                                     </>
                                 )}
                             </>
@@ -630,13 +687,31 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 }
             >
                 <div className="grid gap-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {["导入原文", "规则切分", "AI 分析 / 确认"].map((label, index) => {
+                            const step = index + 1;
+                            return (
+                                <span key={label} className={cn("rounded-full border px-2 py-0.5 font-mono text-[10px]", importStep === step ? "border-acid/50 bg-acid/10 text-acid" : importStep > step ? "border-acid/25 text-acid/70" : "border-border/60 text-muted-foreground/60")}>
+                                    {importStep > step ? "✓ " : ""}{step}. {label}
+                                </span>
+                            );
+                        })}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <Button size="small" icon={<FileUp className="size-3.5" />} onClick={() => importFileRef.current?.click()}>选择文件</Button>
                         <input ref={importFileRef} hidden type="file" accept=".txt,.md,.markdown,.fountain,.fdx,.docx" onChange={(event) => void handleImportFile(event.target.files?.[0])} />
                         <span className="text-[11px] text-muted-foreground/70">支持 txt / md / docx / fountain / fdx，也可以直接粘贴</span>
                         {importFileName ? <span className="chip">{importFileName}</span> : null}
                     </div>
-                    <Input.TextArea autoSize={{ minRows: 8, maxRows: 16 }} value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="粘贴剧本，或直接选择文件" />
+                    {importDoc ? (
+                        <button type="button" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-background/40 px-2.5 py-1.5 text-left" onClick={() => setImportTextExpanded((value) => !value)}>
+                            <span className="text-[11px] text-muted-foreground/80">已导入原文 · {importText.length} 字{importFileName ? ` · ${importFileName}` : ""}</span>
+                            <span className="font-mono text-[9px] tracking-[0.14em] text-acid/80 uppercase">{importTextExpanded ? "收起原文" : "展开原文"}</span>
+                        </button>
+                    ) : null}
+                    {!importDoc || importTextExpanded ? (
+                        <Input.TextArea autoSize={{ minRows: 8, maxRows: 16 }} value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="粘贴剧本，或直接选择文件" />
+                    ) : null}
                     {importError ? <p className="text-[11px] text-hot">{importError}</p> : null}
                     {importDoc && importStats ? (
                         <div className="grid gap-3">
@@ -707,10 +782,17 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                     <Button size="small" type="text" onClick={acceptAllAnalysis}>全部接受</Button>
                                 </div>
                             </div>
-                            <div className="grid gap-2 sm:grid-cols-2">
-                                <div className="grid gap-1">
-                                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">角色（取消勾选则不导入）</span>
-                                    {scriptAnalysis.characters.slice(0, 12).map((character) => {
+                            <div className="flex flex-wrap items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
+                                {([{ value: "characters", label: `角色 ${scriptAnalysis.characters.length}` }, { value: "relationships", label: `关系 ${scriptAnalysis.relationships.length}` }, { value: "scenes", label: `场次 ${scriptAnalysis.scenes.length}` }, { value: "beats", label: `节拍 ${scriptAnalysis.scenes.reduce((total, scene) => total + scene.beats.length, 0)}` }] as const).map((tab) => (
+                                    <button key={tab.value} type="button" onClick={() => setAnalysisTab(tab.value)} className={cn("rounded px-2 py-0.5 text-[11px] transition-colors", analysisTab === tab.value ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}>
+                                        {tab.label}
+                                    </button>
+                                ))}
+                                <span className="ml-auto pr-1 font-mono text-[9px] text-muted-foreground/50">取消勾选则不导入</span>
+                            </div>
+                            <div className={cn("sm:col-span-2", analysisTab === "characters" ? "" : "hidden")}>
+                                <div className="thin-scrollbar grid max-h-60 gap-1 overflow-y-auto pr-1">
+                                    {scriptAnalysis.characters.map((character) => {
                                         const key = normalizeEntityKey(character.name);
                                         return (
                                             <div key={character.name} className="grid gap-1 rounded border border-border/50 bg-background/30 p-1.5">
@@ -732,9 +814,10 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                         );
                                     })}
                                 </div>
-                                <div className="grid gap-1">
-                                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">关系（两端角色需保留）</span>
-                                    {scriptAnalysis.relationships.slice(0, 12).map((relationship, index) => {
+                            </div>
+                            <div className={cn("sm:col-span-2", analysisTab === "relationships" ? "" : "hidden")}>
+                                <div className="thin-scrollbar grid max-h-60 gap-1 overflow-y-auto pr-1">
+                                    {scriptAnalysis.relationships.map((relationship, index) => {
                                         const key = relationshipSelectionKey(relationship);
                                         return (
                                             <div key={key} className="grid gap-1 rounded border border-border/50 bg-background/30 p-1.5">
@@ -753,6 +836,30 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                         );
                                     })}
                                 </div>
+                            </div>
+                            <div className={cn("thin-scrollbar grid max-h-60 gap-1 overflow-y-auto pr-1", analysisTab === "scenes" ? "" : "hidden")}>
+                                {scriptAnalysis.scenes.map((scene) => (
+                                    <div key={`${scene.sceneIndex}-${scene.heading}`} className="grid gap-1 rounded border border-border/50 bg-background/30 p-1.5">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className="text-[11px] font-medium text-foreground">{scene.heading}</span>
+                                            <span className="font-mono text-[9px] text-muted-foreground/60">{scene.episode} · 第 {scene.sceneIndex + 1} 场</span>
+                                        </div>
+                                        <p className="text-[11px] leading-5 text-muted-foreground/70">{scene.summary || "无摘要"}</p>
+                                        <p className="font-mono text-[9px] text-muted-foreground/50">角色：{scene.characters.join("、") || "—"} · 节拍 {scene.beats.length}</p>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className={cn("thin-scrollbar grid max-h-60 gap-1 overflow-y-auto pr-1", analysisTab === "beats" ? "" : "hidden")}>
+                                {scriptAnalysis.scenes.flatMap((scene) => scene.beats.map((beat, index) => (
+                                    <div key={`${scene.sceneIndex}-${index}-${beat.type}`} className="grid gap-1 rounded border border-border/50 bg-background/30 p-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="chip chip-acid shrink-0">{beat.type}</span>
+                                            <span className="min-w-0 truncate font-mono text-[9px] text-muted-foreground/60">{scene.episode} / {scene.heading}</span>
+                                        </div>
+                                        <p className="text-[11px] leading-5 text-foreground/80">{beat.summary}</p>
+                                    </div>
+                                )))}
+                                {!scriptAnalysis.scenes.some((scene) => scene.beats.length) ? <p className="py-3 text-center text-[11px] text-muted-foreground/60">还没有分析出剧情节拍</p> : null}
                             </div>
                         </div>
                     ) : null}
