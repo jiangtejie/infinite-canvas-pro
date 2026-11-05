@@ -2,7 +2,8 @@
 
 import { Copy, Download, FileUp, LayoutGrid, Package, PencilLine, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { App, Button, Drawer, Image, Input, Modal, Pagination, Space, Tag, Typography } from "antd";
+import dayjs from "dayjs";
+import { App, Button, Drawer, Image, Input, Modal, Pagination, Tag } from "antd";
 import { saveAs } from "file-saver";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -289,65 +290,97 @@ function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { as
 }
 
 function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | null; onClose: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
+    const copyText = useCopyText();
     const cover = asset ? asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "") : "";
+    const prompt = asset ? assetPrompt(asset) : "";
     return (
-        <Drawer title="素材详情" open={Boolean(asset)} size="large" onClose={onClose}>
+        <Drawer title="素材详情" open={Boolean(asset)} size="large" onClose={onClose} destroyOnHidden>
             {asset ? (
-                <div className="space-y-5">
-                    {cover ? (
-                        <Image src={cover} alt={asset.title} className="rounded-lg" style={{ maxHeight: "46vh", width: "auto", maxWidth: "100%", objectFit: "contain" }} preview={{ getContainer: () => document.body }} />
-                    ) : (
-                        <div className="rounded-lg border border-border bg-muted p-5 text-sm leading-6 text-muted-foreground">{asset.kind === "text" ? asset.data.content : "暂无封面"}</div>
-                    )}
-                    <div>
-                        <Typography.Title level={4} className="!mb-2">
-                            {asset.title}
-                        </Typography.Title>
-                        <Space size={[4, 4]} wrap>
-                            <Tag>{assetKindLabel(asset.kind)}</Tag>
-                            {(asset.tags || []).map((tag) => (
-                                <Tag key={tag}>{tag}</Tag>
-                            ))}
-                        </Space>
-                    </div>
-                    <div className="rounded-lg border border-border p-4">
-                        <Typography.Text type="secondary" className="block text-xs">
-                            内容
-                        </Typography.Text>
-                        {asset.kind === "text" ? (
-                            <Typography.Paragraph className="mt-2 whitespace-pre-wrap">{asset.data.content}</Typography.Paragraph>
-                        ) : asset.kind === "video" ? (
-                            <video src={asset.data.url} controls className="mt-2 aspect-video w-full rounded-lg bg-black" />
-                        ) : asset.kind === "audio" ? (
-                            <audio src={asset.data.url} controls className="mt-2 w-full" />
-                        ) : (
-                            <Typography.Text className="mt-2 block">
-                                {asset.data.width}x{asset.data.height} · {formatBytes(asset.data.bytes)} · {asset.data.mimeType}
-                            </Typography.Text>
-                        )}
-                    </div>
-                    {asset.category ? (
-                        <div>
-                            <Typography.Text type="secondary">分类</Typography.Text>
-                            <Typography.Paragraph className="mt-1">{asset.category}</Typography.Paragraph>
-                        </div>
+                <div className="grid gap-4">
+                    {asset.kind === "image" && cover ? (
+                        <Image src={cover} alt={asset.title} className="rounded-xl border border-border/60" style={{ maxHeight: "42vh", width: "auto", maxWidth: "100%", objectFit: "contain" }} preview={{ getContainer: () => document.body }} />
                     ) : null}
-                    <Space>
+                    {asset.kind === "video" ? <video src={asset.data.url} controls className="aspect-video w-full rounded-xl border border-border/60 bg-black" /> : null}
+                    {asset.kind === "audio" ? <div className="rounded-xl border border-border/60 bg-card/40 p-4"><audio src={asset.data.url} controls className="w-full" /></div> : null}
+
+                    <div>
+                        <h2 className="break-words text-lg font-semibold leading-7 text-foreground">{asset.title || "未命名素材"}</h2>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <Tag className="!m-0">{assetKindLabel(asset.kind)}</Tag>
+                            {asset.category ? <Tag className="!m-0" color="processing">{asset.category}</Tag> : null}
+                            {(asset.tags || []).map((tag) => <Tag key={tag} className="!m-0">{tag}</Tag>)}
+                        </div>
+                    </div>
+
+                    {asset.kind === "text" ? (
+                        <section className="grid gap-2 rounded-xl border border-border/60 bg-card/40 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">内容</span>
+                                <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => onCopy(asset)}>复制文本</Button>
+                            </div>
+                            <p className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-6 text-foreground/85">{asset.data.content}</p>
+                        </section>
+                    ) : null}
+
+                    {prompt ? (
+                        <section className="grid gap-2 rounded-xl border border-border/60 bg-card/40 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">提示词</span>
+                                <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => copyText(prompt, "提示词已复制")}>复制提示词</Button>
+                            </div>
+                            <p className="max-h-52 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-background/40 px-2.5 py-2 font-mono text-[11px] leading-6 text-foreground/80">{prompt}</p>
+                        </section>
+                    ) : null}
+
+                    <section className="grid gap-2 rounded-xl border border-border/60 bg-card/40 p-3">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">文件信息</span>
+                        <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+                            {assetMetaLines(asset).map(([label, value]) => (
+                                <div key={label} className="grid gap-0.5">
+                                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{label}</span>
+                                    <span className="break-words text-[11px] leading-5 text-foreground/80">{value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <div className="flex flex-wrap gap-2 pt-1">
                         {asset.kind === "text" ? (
-                            <Button type="primary" icon={<Copy className="size-4" />} onClick={() => onCopy(asset)}>
-                                复制文本
-                            </Button>
-                        ) : null}
-                        {asset.kind === "image" || asset.kind === "video" || asset.kind === "audio" ? (
+                            <Button type="primary" icon={<Copy className="size-4" />} onClick={() => onCopy(asset)}>复制文本</Button>
+                        ) : (
                             <Button type="primary" icon={<Download className="size-4" />} onClick={() => onDownload(asset)}>
                                 {asset.kind === "video" ? "下载视频" : asset.kind === "audio" ? "下载音频" : "下载图片"}
                             </Button>
-                        ) : null}
-                    </Space>
+                        )}
+                    </div>
                 </div>
             ) : null}
         </Drawer>
     );
+}
+
+function assetPrompt(asset: Asset) {
+    const prompt = asset.metadata?.prompt;
+    return typeof prompt === "string" ? prompt.trim() : "";
+}
+
+function assetMetaLines(asset: Asset): Array<[string, string]> {
+    const metadataSource = asset.metadata?.source;
+    const source = asset.source || (typeof metadataSource === "string" ? metadataSource : "");
+    const lines: Array<[string, string]> = [["类型", assetKindLabel(asset.kind)]];
+    if (asset.kind === "text") {
+        lines.push(["字数", `${asset.data.content.length} 字`]);
+    } else {
+        if ("width" in asset.data && "height" in asset.data && asset.data.width && asset.data.height) lines.push(["尺寸", `${asset.data.width} × ${asset.data.height}`]);
+        if ("bytes" in asset.data && asset.data.bytes) lines.push(["大小", formatBytes(asset.data.bytes)]);
+        lines.push(["格式", asset.data.mimeType]);
+        if (asset.kind === "audio" && asset.data.durationMs) lines.push(["时长", `${(asset.data.durationMs / 1000).toFixed(1)} 秒`]);
+    }
+    if (source) lines.push(["来源", source]);
+    if (asset.category) lines.push(["分类", asset.category]);
+    lines.push(["创建时间", dayjs(asset.createdAt).format("YYYY-MM-DD HH:mm")]);
+    lines.push(["更新时间", dayjs(asset.updatedAt).format("YYYY-MM-DD HH:mm")]);
+    return lines;
 }
 
 function assetSummary(asset: Asset) {
