@@ -1,39 +1,12 @@
 import { unzipSync, strFromU8 } from "fflate";
 import { nanoid } from "nanoid";
 
-import type { FilmEpisode, FilmScene, FilmShot } from "../types";
+import type { FilmEpisode, FilmScene, FilmScriptBlock, FilmScriptDocument, FilmScriptEpisode, FilmScriptScene, FilmShot } from "../types";
+
+export type { FilmScriptBlock, FilmScriptDocument, FilmScriptEpisode, FilmScriptScene };
 
 export const FILM_SCRIPT_PARSER_VERSION = "1.0.0";
 export const FILM_SCRIPT_SCHEMA_VERSION = 1;
-
-export type FilmScriptBlock =
-    | { type: "action"; text: string; line: number }
-    | { type: "dialogue"; character: string; parenthetical: string; text: string; line: number }
-    | { type: "transition"; text: string; line: number };
-
-export type FilmScriptScene = {
-    heading: string;
-    interiorExterior: "内景" | "外景" | "";
-    location: string;
-    timeOfDay: string;
-    characters: string[];
-    blocks: FilmScriptBlock[];
-    lineStart: number;
-    lineEnd: number;
-};
-
-export type FilmScriptEpisode = {
-    title: string;
-    scenes: FilmScriptScene[];
-};
-
-export type FilmScriptDocument = {
-    schemaVersion: number;
-    parserVersion: string;
-    scriptHash: string;
-    format: "plain" | "fountain" | "fdx" | "docx";
-    episodes: FilmScriptEpisode[];
-};
 
 const EPISODE_RE = /^(?:第\s*[0-9零一二三四五六七八九十百]+\s*集|EP(?:ISODE)?\s*\d+|Episode\s+\d+)/i;
 const SCENE_HEADING_RE = /^(?:第?\s*\d+(?:[.-]\d+)?\s*场[次]?|场次?\s*\d+|\d+[.-]\d+\s|(?:INT|EXT|I\/E)\.|[内外]景)/i;
@@ -96,6 +69,7 @@ export function parseFilmScriptDocument(text: string, format: FilmScriptDocument
                 blocks: [],
                 lineStart: index + 1,
                 lineEnd: index + 1,
+                hash: "",
             };
             currentScene = scene;
             ensureEpisode().scenes.push(scene);
@@ -113,6 +87,7 @@ export function parseFilmScriptDocument(text: string, format: FilmScriptDocument
                 blocks: [],
                 lineStart: index + 1,
                 lineEnd: index + 1,
+                hash: "",
             };
             episode.scenes.push(currentScene);
         }
@@ -145,8 +120,18 @@ export function parseFilmScriptDocument(text: string, format: FilmScriptDocument
         parserVersion: FILM_SCRIPT_PARSER_VERSION,
         scriptHash: scriptTextHash(source),
         format,
-        episodes: episodes.length ? episodes : [{ title: "第 1 集", scenes: [{ heading: "场景 1", interiorExterior: "", location: "", timeOfDay: "", characters: [], blocks: [], lineStart: 1, lineEnd: 1 }] }],
+        episodes: finalizeScriptEpisodes(episodes.length ? episodes : [{ title: "第 1 集", scenes: [{ heading: "场景 1", interiorExterior: "", location: "", timeOfDay: "", characters: [], blocks: [], lineStart: 1, lineEnd: 1, hash: "" }] }]),
     };
+}
+
+function finalizeScriptEpisodes(episodes: FilmScriptEpisode[]): FilmScriptEpisode[] {
+    return episodes.map((episode) => ({
+        ...episode,
+        scenes: episode.scenes.map((scene) => ({
+            ...scene,
+            hash: scriptTextHash(`${scene.heading}\n${scene.blocks.map((block) => block.type === "dialogue" ? `${block.character}：${block.text}` : block.text).join("\n")}`),
+        })),
+    }));
 }
 
 function parseSceneHeading(line: string): { interiorExterior: FilmScriptScene["interiorExterior"]; location: string; timeOfDay: string } {

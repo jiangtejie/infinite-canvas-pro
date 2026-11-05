@@ -132,6 +132,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const [analysisIssues, setAnalysisIssues] = useState<FilmScriptAnalysisIssue[]>([]);
     const [acceptedCharacters, setAcceptedCharacters] = useState<string[]>([]);
     const [acceptedRelationships, setAcceptedRelationships] = useState<string[]>([]);
+    const [analysisEditing, setAnalysisEditing] = useState(false);
     const importFileRef = useRef<HTMLInputElement>(null);
     const [pendingParsed, setPendingParsed] = useState<FilmEpisode[] | null>(null);
     const [episodeHistory, setEpisodeHistory] = useState<FilmEpisode[][]>([]);
@@ -193,6 +194,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const applyImportDocument = (mode: "replace" | "append") => {
         if (!importDoc) return;
         commitParsed(filmScriptDocumentToEpisodes(importDoc), mode);
+        onUpdate({ scriptDocument: importDoc });
         setImportOpen(false);
     };
 
@@ -214,6 +216,21 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         setAcceptedRelationships(scriptAnalysis.relationships.map((relationship) => relationshipSelectionKey(relationship)));
     };
 
+    const mutateAnalysis = (updater: (analysis: FilmScriptAnalysis) => FilmScriptAnalysis) => {
+        if (!scriptAnalysis) return;
+        const next = updater(scriptAnalysis);
+        setScriptAnalysis(next);
+        setAnalysisIssues(validateFilmScriptAnalysis(next));
+    };
+
+    const updateAnalysisCharacter = (name: string, patch: Partial<FilmScriptAnalysis["characters"][number]>) => {
+        mutateAnalysis((analysis) => ({ ...analysis, characters: analysis.characters.map((character) => character.name === name ? { ...character, ...patch } : character) }));
+    };
+
+    const updateAnalysisRelationship = (index: number, patch: Partial<FilmScriptRelationshipAnalysis>) => {
+        mutateAnalysis((analysis) => ({ ...analysis, relationships: analysis.relationships.map((relationship, itemIndex) => itemIndex === index ? { ...relationship, ...patch } : relationship) }));
+    };
+
     const toggleAcceptedCharacter = (key: string, checked: boolean) => {
         setAcceptedCharacters((current) => checked ? [...current, key] : current.filter((item) => item !== key));
     };
@@ -224,10 +241,12 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     const analyzeImportSemantics = async () => {
         if (!importDoc) return;
-        const result = await analyzeDocument(importDoc);
+        const previousAnalysis = project.scriptAnalysis && project.scriptAnalysis.scriptHash !== importDoc.scriptHash ? project.scriptAnalysis : undefined;
+        const result = await analyzeDocument(importDoc, previousAnalysis);
         if (!result) return;
         setScriptAnalysis(result.analysis);
         setAnalysisIssues(result.issues);
+        setAnalysisEditing(false);
         setAcceptedCharacters(result.analysis.characters.map((character) => normalizeEntityKey(character.name)));
         setAcceptedRelationships(result.analysis.relationships.map((relationship) => relationshipSelectionKey(relationship)));
     };
@@ -240,6 +259,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         }
         setScriptAnalysis(project.scriptAnalysis);
         setAnalysisIssues(validateFilmScriptAnalysis(project.scriptAnalysis));
+        setAnalysisEditing(false);
         setAcceptedCharacters(project.scriptAnalysis.characters.map((character) => normalizeEntityKey(character.name)));
         setAcceptedRelationships(project.scriptAnalysis.relationships.map((relationship) => relationshipSelectionKey(relationship)));
     };
@@ -266,7 +286,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         if (selectedScriptAnalysis) {
             const locationNames = [...new Set(importDoc.episodes.flatMap((episode) => episode.scenes.map((scene) => scene.location)).filter(Boolean))];
             const assets = buildScriptAnalysisAssets(project, selectedScriptAnalysis, locationNames);
-            onUpdate({ characters: assets.characters, locations: assets.locations, scriptAnalysis: selectedScriptAnalysis });
+            onUpdate({ characters: assets.characters, locations: assets.locations, scriptAnalysis: selectedScriptAnalysis, scriptDocument: importDoc });
         }
         setImportOpen(false);
     };
@@ -637,6 +657,9 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                     <Button size="small" onClick={reuseAnalysisSnapshot}>复用分析</Button>
                                 </div>
                             ) : null}
+                            {importDoc && project.scriptAnalysis && project.scriptAnalysis.scriptHash !== importDoc.scriptHash ? (
+                                <p className="text-[11px] leading-5 text-muted-foreground/70">检测到剧本内容有变化：AI 语义解析会复用未变化的场次，只重新分析改动过的场次。</p>
+                            ) : null}
                             <div className="thin-scrollbar grid max-h-64 gap-2 overflow-y-auto rounded-lg border border-border/60 bg-background/30 p-2">
                                 {importDoc.episodes.map((episode, episodeIndex) => (
                                     <div key={`${episode.title}-${episodeIndex}`} className="grid gap-1">
@@ -679,7 +702,10 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                             ) : <p className="text-[11px] text-acid">自动校验通过</p>}
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <span className="text-[11px] text-muted-foreground/70">已接受 {selectedScriptAnalysis?.characters.length ?? 0} 个角色、{selectedScriptAnalysis?.relationships.length ?? 0} 条关系</span>
-                                <Button size="small" type="text" onClick={acceptAllAnalysis}>全部接受</Button>
+                                <div className="flex items-center gap-1">
+                                    <Button size="small" type="text" onClick={() => setAnalysisEditing((value) => !value)}>{analysisEditing ? "完成" : "编辑"}</Button>
+                                    <Button size="small" type="text" onClick={acceptAllAnalysis}>全部接受</Button>
+                                </div>
                             </div>
                             <div className="grid gap-2 sm:grid-cols-2">
                                 <div className="grid gap-1">
@@ -687,24 +713,43 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                     {scriptAnalysis.characters.slice(0, 12).map((character) => {
                                         const key = normalizeEntityKey(character.name);
                                         return (
-                                            <Checkbox key={character.name} checked={acceptedCharacters.includes(key)} onChange={(event) => toggleAcceptedCharacter(key, event.target.checked)}>
-                                                <span className="text-[11px] leading-5 text-foreground/80">
-                                                    {character.name}{character.role ? `（${character.role}）` : ""}{character.description ? `：${character.description}` : ""}
-                                                </span>
-                                            </Checkbox>
+                                            <div key={character.name} className="grid gap-1 rounded border border-border/50 bg-background/30 p-1.5">
+                                                <Checkbox checked={acceptedCharacters.includes(key)} onChange={(event) => toggleAcceptedCharacter(key, event.target.checked)}>
+                                                    <span className="text-[11px] font-medium leading-5 text-foreground/80">{character.name}</span>
+                                                </Checkbox>
+                                                {analysisEditing ? (
+                                                    <div className="grid gap-1">
+                                                        <Input size="small" value={character.role} placeholder="定位，如主角/配角" onChange={(event) => updateAnalysisCharacter(character.name, { role: event.target.value })} />
+                                                        <Input size="small" value={character.aliases.join("、")} placeholder="别名，用、分隔" onChange={(event) => updateAnalysisCharacter(character.name, { aliases: event.target.value.split(/[、,，\s]+/).map((item) => item.trim()).filter(Boolean) })} />
+                                                        <Input size="small" value={character.description} placeholder="角色描述" onChange={(event) => updateAnalysisCharacter(character.name, { description: event.target.value })} />
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[11px] leading-5 text-muted-foreground/70">
+                                                        {character.role ? `${character.role}` : ""}{character.description ? `：${character.description}` : ""}{character.aliases.length ? `（别名：${character.aliases.join("、")}）` : ""}
+                                                    </span>
+                                                )}
+                                            </div>
                                         );
                                     })}
                                 </div>
                                 <div className="grid gap-1">
                                     <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">关系（两端角色需保留）</span>
-                                    {scriptAnalysis.relationships.slice(0, 12).map((relationship) => {
+                                    {scriptAnalysis.relationships.slice(0, 12).map((relationship, index) => {
                                         const key = relationshipSelectionKey(relationship);
                                         return (
-                                            <Checkbox key={key} checked={acceptedRelationships.includes(key)} onChange={(event) => toggleAcceptedRelationship(key, event.target.checked)}>
-                                                <span className="text-[11px] leading-5 text-foreground/80">
-                                                    {relationship.from} → {relationship.to} · {relationship.type} · 第 {relationship.sceneRange.start + 1}-{relationship.sceneRange.end + 1} 场
-                                                </span>
-                                            </Checkbox>
+                                            <div key={key} className="grid gap-1 rounded border border-border/50 bg-background/30 p-1.5">
+                                                <Checkbox checked={acceptedRelationships.includes(key)} onChange={(event) => toggleAcceptedRelationship(key, event.target.checked)}>
+                                                    <span className="text-[11px] font-medium leading-5 text-foreground/80">{relationship.from} → {relationship.to}</span>
+                                                </Checkbox>
+                                                {analysisEditing ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <Input size="small" value={relationship.type} placeholder="关系类型" onChange={(event) => updateAnalysisRelationship(index, { type: event.target.value })} />
+                                                        <InputNumber size="small" min={1} max={5} value={relationship.strength} onChange={(value) => updateAnalysisRelationship(index, { strength: Number(value) || 1 })} />
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[11px] leading-5 text-muted-foreground/70">{relationship.type} · 第 {relationship.sceneRange.start + 1}-{relationship.sceneRange.end + 1} 场 · 强度 {relationship.strength}</span>
+                                                )}
+                                            </div>
                                         );
                                     })}
                                 </div>

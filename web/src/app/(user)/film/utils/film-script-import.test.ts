@@ -62,6 +62,13 @@ test("docx 正文 XML 提取段落", () => {
     assert.equal(scriptTextFromDocxXml(xml), "第1集\n1-1 内景 咖啡馆 日");
 });
 
+test("场次级 hash：内容变化只影响对应场", () => {
+    const first = parseFilmScriptDocument("1-1 内景 咖啡馆 日\n阿健：你好。\n1-2 外景 街道 夜\n阿健：走吧。");
+    const second = parseFilmScriptDocument("1-1 内景 咖啡馆 日\n阿健：你好。\n1-2 外景 街道 夜\n阿健：快走！");
+    assert.equal(first.episodes[0].scenes[0].hash, second.episodes[0].scenes[0].hash);
+    assert.notEqual(first.episodes[0].scenes[1].hash, second.episodes[0].scenes[1].hash);
+  });
+
 test("hash 对相同文本稳定", () => {
     assert.equal(scriptTextHash("第一场\n阿健：你好"), scriptTextHash("第一场\r\n阿健：你好"));
 });

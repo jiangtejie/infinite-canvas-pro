@@ -1,7 +1,7 @@
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
-import type { FilmAsset, FilmProject, FilmScriptAnalysis, FilmScriptCharacterAnalysis, FilmScriptRelationshipAnalysis, FilmScriptSceneAnalysis } from "../types";
+import type { FilmAsset, FilmProject, FilmScriptAnalysis, FilmScriptCharacterAnalysis, FilmScriptRelationshipAnalysis, FilmScriptSceneAnalysis, FilmScriptSceneRelationship } from "../types";
 import type { FilmScriptDocument } from "./film-script-import";
 
 export type FilmScriptAnalysisIssue = {
@@ -66,10 +66,45 @@ export function buildSceneSemanticPrompt(document: FilmScriptDocument) {
     });
 }
 
-export async function requestFilmScriptAnalysis(config: AiConfig, document: FilmScriptDocument, onProgress?: (done: number, total: number) => void): Promise<{ analysis: FilmScriptAnalysis; issues: FilmScriptAnalysisIssue[] }> {
+export function sceneSemanticPayloadFromAnalysis(analysis: FilmScriptAnalysis, scene: FilmScriptSceneAnalysis): FilmSceneSemanticPayload {
+    const characters = new Map(analysis.characters.map((character) => [normalizeEntityKey(character.name), character]));
+    return {
+        summary: scene.summary,
+        mood: scene.mood,
+        props: scene.props,
+        productionNotes: scene.productionNotes,
+        characters: scene.characters.map((name) => {
+            const character = characters.get(normalizeEntityKey(name));
+            return { name, aliases: character?.aliases || [], role: character?.role || "", description: character?.description || "" };
+        }),
+        relationships: scene.relationships.map((relationship) => ({ ...relationship })),
+        beats: scene.beats,
+    };
+}
+
+/** 用场次 hash 找出上一版分析里可以直接复用的场次。 */
+export function collectReusableScenePayloads(document: FilmScriptDocument, previousAnalysis?: FilmScriptAnalysis | null) {
+    const reusable = new Map<number, FilmSceneSemanticPayload>();
+    if (!previousAnalysis) return reusable;
+    const previousByHash = new Map(previousAnalysis.scenes.filter((scene) => scene.sourceHash).map((scene) => [scene.sourceHash, scene]));
+    flattenFilmScriptScenes(document).forEach(({ scene }, index) => {
+        const previousScene = scene.hash ? previousByHash.get(scene.hash) : undefined;
+        if (previousScene) reusable.set(index, sceneSemanticPayloadFromAnalysis(previousAnalysis, previousScene));
+    });
+    return reusable;
+}
+
+export async function requestFilmScriptAnalysis(config: AiConfig, document: FilmScriptDocument, onProgress?: (done: number, total: number) => void, previousAnalysis?: FilmScriptAnalysis | null): Promise<{ analysis: FilmScriptAnalysis; issues: FilmScriptAnalysisIssue[]; reusedScenes: number }> {
     const scenes = buildSceneSemanticPrompt(document);
+    const reusable = collectReusableScenePayloads(document, previousAnalysis);
     const entries: FilmSceneSemanticEntry[] = [];
     for (const [index, scene] of scenes.entries()) {
+        const cached = reusable.get(index);
+        if (cached) {
+            entries.push({ sceneIndex: index, episode: scene.episode, heading: scene.heading, payload: cached });
+            onProgress?.(index + 1, scenes.length);
+            continue;
+        }
         const turn = await requestCanvasAgentTurn({
             config,
             systemPrompt: SYSTEM_PROMPT,
@@ -82,7 +117,7 @@ export async function requestFilmScriptAnalysis(config: AiConfig, document: Film
         onProgress?.(index + 1, scenes.length);
     }
     const analysis = mergeFilmSceneSemantics(document, entries);
-    return { analysis, issues: validateFilmScriptAnalysis(analysis) };
+    return { analysis, issues: validateFilmScriptAnalysis(analysis), reusedScenes: reusable.size };
 }
 
 export function parseSceneSemanticPayload(content: string): FilmSceneSemanticPayload {
@@ -152,19 +187,31 @@ export function mergeFilmSceneSemantics(document: FilmScriptDocument, entries: F
         const payload = entry.payload;
         for (const character of payload.characters) ensureCharacter(character.name, { role: character.role, description: character.description, aliases: character.aliases });
         for (const name of flattenFilmScriptScenes(document)[entry.sceneIndex]?.scene.characters || []) ensureCharacter(name);
-        const sceneCharacters = [...new Set([...payload.characters.map((character) => character.name), ...(flattenFilmScriptScenes(document)[entry.sceneIndex]?.scene.characters || [])])];
+        const sourceScene = flattenFilmScriptScenes(document)[entry.sceneIndex]?.scene;
+        const sceneCharacters = [...new Set([...payload.characters.map((character) => character.name), ...(sourceScene?.characters || [])])];
+        const sceneRelationships: FilmScriptSceneRelationship[] = payload.relationships.map((relationship) => ({
+            from: relationship.from,
+            to: relationship.to,
+            type: relationship.type,
+            direction: normalizeDirection(relationship.direction || ""),
+            strength: clampStrength(relationship.strength ?? 3),
+            note: relationship.note || "",
+            event: relationship.event || "",
+        }));
         scenes.push({
             sceneIndex: entry.sceneIndex,
             episode: entry.episode,
             heading: entry.heading,
+            sourceHash: sourceScene?.hash || "",
             characters: sceneCharacters,
             summary: payload.summary,
             mood: payload.mood,
             props: payload.props,
             productionNotes: payload.productionNotes,
             beats: payload.beats,
+            relationships: sceneRelationships,
         });
-        for (const relationship of payload.relationships) {
+        for (const relationship of sceneRelationships) {
             const fromKey = normalizeEntityKey(relationship.from);
             const toKey = normalizeEntityKey(relationship.to);
             if (!fromKey || !toKey || fromKey === toKey) continue;
@@ -174,7 +221,7 @@ export function mergeFilmSceneSemantics(document: FilmScriptDocument, entries: F
             const current = relationships.get(key);
             if (current) {
                 current.sceneRange = { start: Math.min(current.sceneRange.start, entry.sceneIndex), end: Math.max(current.sceneRange.end, entry.sceneIndex) };
-                current.strength = Math.max(current.strength, clampStrength(relationship.strength ?? 3));
+                current.strength = Math.max(current.strength, relationship.strength);
                 if (relationship.event) current.evolution.push({ sceneIndex: entry.sceneIndex, event: relationship.event, typeBefore: current.type, typeAfter: relationship.type });
                 continue;
             }
@@ -182,11 +229,11 @@ export function mergeFilmSceneSemantics(document: FilmScriptDocument, entries: F
                 from: relationship.from,
                 to: relationship.to,
                 type: relationship.type,
-                direction: normalizeDirection(relationship.direction || ""),
-                strength: clampStrength(relationship.strength ?? 3),
+                direction: relationship.direction,
+                strength: relationship.strength,
                 sceneRange: { start: entry.sceneIndex, end: entry.sceneIndex },
                 evolution: relationship.event ? [{ sceneIndex: entry.sceneIndex, event: relationship.event, typeBefore: "", typeAfter: relationship.type }] : [],
-                note: relationship.note || "",
+                note: relationship.note,
             });
         }
     }

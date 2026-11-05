@@ -96,16 +96,58 @@ export type FilmScriptRelationshipAnalysis = {
     note: string;
 };
 
+export type FilmScriptSceneRelationship = {
+    from: string;
+    to: string;
+    type: string;
+    direction: "bilateral" | "from-to" | "to-from";
+    strength: number;
+    note: string;
+    event: string;
+};
+
 export type FilmScriptSceneAnalysis = {
     sceneIndex: number;
     episode: string;
     heading: string;
+    sourceHash: string;
     characters: string[];
     summary: string;
     mood: string;
     props: string[];
     productionNotes: string[];
     beats: Array<{ type: string; summary: string }>;
+    relationships: FilmScriptSceneRelationship[];
+};
+
+export type FilmScriptBlock =
+    | { type: "action"; text: string; line: number }
+    | { type: "dialogue"; character: string; parenthetical: string; text: string; line: number }
+    | { type: "transition"; text: string; line: number };
+
+export type FilmScriptScene = {
+    heading: string;
+    interiorExterior: "内景" | "外景" | "";
+    location: string;
+    timeOfDay: string;
+    characters: string[];
+    blocks: FilmScriptBlock[];
+    lineStart: number;
+    lineEnd: number;
+    hash: string;
+};
+
+export type FilmScriptEpisode = {
+    title: string;
+    scenes: FilmScriptScene[];
+};
+
+export type FilmScriptDocument = {
+    schemaVersion: number;
+    parserVersion: string;
+    scriptHash: string;
+    format: "plain" | "fountain" | "fdx" | "docx";
+    episodes: FilmScriptEpisode[];
 };
 
 export type FilmScriptAnalysis = {
@@ -209,6 +251,7 @@ export type FilmProject = {
     episodes: FilmEpisode[];
     characters: FilmAsset[];
     locations: FilmAsset[];
+    scriptDocument?: FilmScriptDocument;
     scriptAnalysis?: FilmScriptAnalysis;
     createdAt: string;
     updatedAt: string;

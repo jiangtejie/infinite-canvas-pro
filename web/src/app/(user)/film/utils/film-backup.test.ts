@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { parseFilmProjectBackup, serializeFilmProject } from "./film-backup";
+import { parseFilmScriptDocument } from "./film-script-import";
 import type { FilmProject } from "../types";
 
 const sample: FilmProject = {
@@ -22,6 +23,14 @@ const sample: FilmProject = {
 test("导出后可以原样解析回来", () => {
     const parsed = parseFilmProjectBackup(serializeFilmProject(sample));
     assert.deepEqual(parsed, sample);
+});
+
+test("保留规则快照和语义分析", () => {
+    const document = parseFilmScriptDocument("1-1 内景 咖啡馆 日\n阿健：你好。");
+    const project = { ...sample, scriptDocument: document, scriptAnalysis: { schemaVersion: 1, parserVersion: "1.0.0", scriptHash: document.scriptHash, characters: [], relationships: [], scenes: [{ sceneIndex: 0, episode: "第1集", heading: "1-1 内景 咖啡馆 日", sourceHash: document.episodes[0].scenes[0].hash, characters: [], summary: "", mood: "", props: [], productionNotes: [], beats: [], relationships: [] }] } };
+    const parsed = parseFilmProjectBackup(serializeFilmProject(project));
+    assert.equal(parsed.scriptDocument?.scriptHash, document.scriptHash);
+    assert.equal(parsed.scriptAnalysis?.scenes[0].sourceHash, document.episodes[0].scenes[0].hash);
 });
 
 test("兼容直接传入项目对象", () => {

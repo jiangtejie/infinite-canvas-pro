@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mergeFilmSceneSemantics, parseSceneSemanticPayload, validateFilmScriptAnalysis } from "./film-script-analysis";
+import { collectReusableScenePayloads, mergeFilmSceneSemantics, parseSceneSemanticPayload, validateFilmScriptAnalysis } from "./film-script-analysis";
 import { parseFilmScriptDocument } from "./film-script-import";
 import type { FilmSceneSemanticEntry } from "./film-script-analysis";
 
@@ -50,6 +50,37 @@ test("合并多场语义：角色去重、关系时间区间与演变", () => {
     assert.equal(relationship.evolution.length, 2);
     assert.equal(analysis.scenes.length, 2);
     assert.deepEqual(analysis.scenes[0].characters.sort(), ["阿健", "阿琳"]);
+    assert.equal(analysis.scenes[0].sourceHash, document.episodes[0].scenes[0].hash);
+});
+
+test("按场次 hash 复用未变化场次", () => {
+    const original = parseFilmScriptDocument(`1-1 内景 咖啡馆 日
+阿健：你好。
+1-2 外景 街道 夜
+阿健：走吧。
+`);
+    const previous = mergeFilmSceneSemantics(original, [
+        entry(0, {
+            summary: "重逢", mood: "", props: [], productionNotes: [],
+            characters: [{ name: "阿健", aliases: ["健哥"], role: "主角", description: "" }],
+            relationships: [{ from: "阿健", to: "阿琳", type: "旧识", direction: "bilateral", strength: 3, note: "", event: "" }],
+            beats: [],
+        }),
+        entry(1, {
+            summary: "离开", mood: "", props: [], productionNotes: [],
+            characters: [{ name: "阿健", role: "", description: "" }],
+            relationships: [],
+            beats: [],
+        }),
+    ]);
+    const updated = parseFilmScriptDocument(`1-1 内景 咖啡馆 日
+阿健：你好。
+1-2 外景 街道 夜
+阿健：快走吧！
+`);
+    const reusable = collectReusableScenePayloads(updated, previous);
+    assert.deepEqual([...reusable.keys()], [0]);
+    assert.equal(reusable.get(0)?.characters[0]?.aliases?.[0], "健哥");
 });
 
 test("校验未知关系端点和重复别名", () => {

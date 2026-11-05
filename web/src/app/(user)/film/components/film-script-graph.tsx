@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Modal } from "antd";
+import { Button, Input, Modal, Select } from "antd";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -22,9 +22,11 @@ const MAX_RELATION_NODES = 24;
 const MAX_SCENES = 16;
 
 export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: FilmScriptGraphProps) {
-    const [mode, setMode] = useState<"relations" | "scenes" | "beats">("relations");
+    const [mode, setMode] = useState<"relations" | "scenes" | "beats" | "network">("relations");
     const [zoom, setZoom] = useState(1);
     const [minStrength, setMinStrength] = useState(1);
+    const [keyword, setKeyword] = useState("");
+    const [episodeFilter, setEpisodeFilter] = useState("");
     const [selectedCharacter, setSelectedCharacter] = useState("");
     const [selectedScene, setSelectedScene] = useState<number | null>(null);
 
@@ -47,7 +49,21 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
     }), [analysis, minStrength, nodeMap]);
     const selectedCharacterInfo = analysis?.characters.find((character) => character.name === selectedCharacter) || null;
     const selectedSceneInfo = selectedScene !== null ? analysis?.scenes[selectedScene] : null;
-    const scenes = useMemo(() => (analysis?.scenes || []).slice(0, MAX_SCENES), [analysis]);
+    const episodes = useMemo(() => [...new Set((analysis?.scenes || []).map((scene) => scene.episode))], [analysis]);
+    const filteredScenes = useMemo(() => (analysis?.scenes || []).filter((scene) => {
+        if (episodeFilter && scene.episode !== episodeFilter) return false;
+        if (!keyword) return true;
+        const text = `${scene.heading} ${scene.summary} ${scene.characters.join(" ")} ${scene.mood}`;
+        return text.includes(keyword);
+    }), [analysis, episodeFilter, keyword]);
+    const scenes = useMemo(() => filteredScenes.slice(0, MAX_SCENES), [filteredScenes]);
+    const networkCharacters = useMemo(() => {
+        const matched = (analysis?.characters || []).filter((character) => !keyword || [character.name, character.role, ...character.aliases].join(" ").includes(keyword));
+        return matched.slice(0, 10);
+    }, [analysis, keyword]);
+    const networkScenes = useMemo(() => filteredScenes.slice(0, 10), [filteredScenes]);
+    const networkCharPositions = useMemo(() => new Map(networkCharacters.map((character, index) => [character.name, { x: 130, y: 70 + index * (460 / Math.max(1, networkCharacters.length - 1)) }])), [networkCharacters]);
+    const networkScenePositions = useMemo(() => new Map(networkScenes.map((scene, index) => [scene.sceneIndex, { x: 740, y: 70 + index * (460 / Math.max(1, networkScenes.length - 1)) }])), [networkScenes]);
     const beatCount = useMemo(() => (analysis?.scenes || []).reduce((total, scene) => total + scene.beats.length, 0), [analysis]);
     const beatTypeCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -70,7 +86,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
             <div className="grid gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
-                        {([{ value: "relations", label: "人物关系" }, { value: "scenes", label: "场次剧情" }, { value: "beats", label: "剧情节拍" }] as const).map((item) => (
+                        {([{ value: "relations", label: "人物关系" }, { value: "scenes", label: "场次剧情" }, { value: "network", label: "人物场景" }, { value: "beats", label: "剧情节拍" }] as const).map((item) => (
                             <button key={item.value} type="button" onClick={() => setMode(item.value)} className={cn("rounded px-2.5 py-1 text-[11px] transition-colors", mode === item.value ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}>
                                 {item.label}
                             </button>
@@ -86,6 +102,8 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                             ))}
                         </div>
                     ) : null}
+                    <Select size="small" className="w-28" value={episodeFilter} onChange={(value: string) => setEpisodeFilter(value)} options={[{ value: "", label: "全部集" }, ...episodes.map((episode) => ({ value: episode, label: episode }))]} />
+                    <Input size="small" style={{ width: 170 }} allowClear value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索角色/场次" />
                     <div className="ml-auto flex items-center gap-1">
                         {onApplyAssets ? <Button size="small" onClick={onApplyAssets}>应用角色/场景</Button> : null}
                         <button type="button" aria-label="缩小" className="grid size-6 place-items-center rounded border border-border/60 text-muted-foreground/70 hover:text-foreground" onClick={() => setZoom((value) => Math.max(0.6, Number((value - 0.1).toFixed(2))))}><Minus className="size-3" /></button>
@@ -135,8 +153,9 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                     })}
                                     {nodes.map((node) => {
                                         const selected = selectedCharacter === node.name;
+                                        const matched = !keyword || [node.name, node.role, ...node.aliases].join(" ").includes(keyword);
                                         return (
-                                            <g key={node.name} className="cursor-pointer" onClick={() => setSelectedCharacter(node.name)}>
+                                            <g key={node.name} className="cursor-pointer" opacity={matched ? 1 : 0.25} onClick={() => { setSelectedCharacter(node.name); setSelectedScene(null); }}>
                                                 <circle cx={node.x} cy={node.y} r={selected ? 30 : 26} fill="var(--card)" stroke={selected ? "var(--acid)" : "var(--border)"} strokeWidth={selected ? 2 : 1.2} />
                                                 <text x={node.x} y={node.y - 2} textAnchor="middle" className="fill-foreground" style={{ fontSize: 11, fontWeight: 600 }}>{truncate(node.name, 5)}</text>
                                                 <text x={node.x} y={node.y + 11} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncate(node.role || "角色", 6)}</text>
@@ -144,16 +163,16 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                         );
                                     })}
                                 </>
-                            ) : (
+                            ) : mode === "scenes" ? (
                                 <>
                                     {scenes.map((scene, index) => {
                                         const column = index % 4;
                                         const row = Math.floor(index / 4);
                                         const x = 50 + column * 210;
                                         const y = 45 + row * 145;
-                                        const selected = selectedScene === index;
+                                        const selected = selectedScene === scene.sceneIndex;
                                         return (
-                                            <g key={`${scene.heading}-${index}`} className="cursor-pointer" onClick={() => setSelectedScene(index)}>
+                                            <g key={`${scene.heading}-${scene.sceneIndex}`} className="cursor-pointer" onClick={() => { setSelectedScene(scene.sceneIndex); setSelectedCharacter(""); }}>
                                                 {index < scenes.length - 1 ? (
                                                     <>
                                                         {column < 3 ? <line x1={x + 180} y1={y + 50} x2={x + 210} y2={y + 50} stroke="var(--border)" strokeWidth={1.5} markerEnd="url(#film-graph-arrow)" /> : <line x1={x + 80} y1={y + 100} x2={x + 80} y2={y + 145} stroke="var(--border)" strokeWidth={1.5} markerEnd="url(#film-graph-arrow)" />}
@@ -169,10 +188,40 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                         );
                                     })}
                                 </>
+                            ) : (
+                                <>
+                                    {networkCharacters.map((character) => {
+                                        const position = networkCharPositions.get(character.name)!;
+                                        return (
+                                            <g key={`network-char-${character.name}`} className="cursor-pointer" onClick={() => { setSelectedCharacter(character.name); setSelectedScene(null); }}>
+                                                <circle cx={position.x} cy={position.y} r={20} fill="var(--card)" stroke={selectedCharacter === character.name ? "var(--acid)" : "var(--border)"} strokeWidth={selectedCharacter === character.name ? 2 : 1.2} />
+                                                <text x={position.x} y={position.y + 3} textAnchor="middle" className="fill-foreground" style={{ fontSize: 10, fontWeight: 600 }}>{truncate(character.name, 5)}</text>
+                                            </g>
+                                        );
+                                    })}
+                                    {networkCharacters.flatMap((character) => {
+                                        const from = networkCharPositions.get(character.name)!;
+                                        return networkScenes.filter((scene) => scene.characters.includes(character.name)).map((scene) => {
+                                            const to = networkScenePositions.get(scene.sceneIndex)!;
+                                            return <line key={`network-link-${character.name}-${scene.sceneIndex}`} x1={from.x + 20} y1={from.y} x2={to.x - 92} y2={to.y} stroke="var(--border)" strokeWidth={1} opacity={0.55} />;
+                                        });
+                                    })}
+                                    {networkScenes.map((scene) => {
+                                        const position = networkScenePositions.get(scene.sceneIndex)!;
+                                        return (
+                                            <g key={`network-scene-${scene.sceneIndex}`} className="cursor-pointer" onClick={() => { setSelectedScene(scene.sceneIndex); setSelectedCharacter(""); }}>
+                                                <rect x={position.x - 92} y={position.y - 26} width={184} height={52} rx={7} fill="var(--card)" stroke={selectedScene === scene.sceneIndex ? "var(--acid)" : "var(--border)"} strokeWidth={selectedScene === scene.sceneIndex ? 2 : 1.2} />
+                                                <text x={position.x} y={position.y - 6} textAnchor="middle" className="fill-foreground" style={{ fontSize: 9, fontWeight: 600 }}>{truncate(scene.heading, 18)}</text>
+                                                <text x={position.x} y={position.y + 9} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncate(scene.episode, 14)}</text>
+                                            </g>
+                                        );
+                                    })}
+                                </>
                             )}
                         </svg>
                         {mode === "relations" && !nodes.length ? <p className="absolute inset-0 grid place-items-center text-xs text-muted-foreground">分析里还没有角色数据</p> : null}
                         {mode === "scenes" && !scenes.length ? <p className="absolute inset-0 grid place-items-center text-xs text-muted-foreground">分析里还没有场次数据</p> : null}
+                        {mode === "network" && (!networkCharacters.length || !networkScenes.length) ? <p className="absolute inset-0 grid place-items-center text-xs text-muted-foreground">没有匹配的人物或场次</p> : null}
                     </div>
                     )}
 
@@ -188,7 +237,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                 ) : null}
                                 <p className="text-[11px] leading-5 text-muted-foreground/60">节拍来自 AI 语义分析，可用来检查这一集的叙事节奏（目标、冲突、转折、高潮）。</p>
                             </>
-                        ) : mode === "relations" ? (
+                        ) : mode === "relations" || (mode === "network" && selectedCharacterInfo) ? (
                             selectedCharacterInfo ? (
                                 <>
                                     <span className="text-sm font-medium text-foreground">{selectedCharacterInfo.name}</span>

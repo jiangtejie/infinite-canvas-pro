@@ -16,7 +16,7 @@ export function useFilmScriptAnalysis() {
     const [analyzing, setAnalyzing] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
-    const analyzeDocument = async (document: FilmScriptDocument): Promise<{ analysis: FilmScriptAnalysis; issues: FilmScriptAnalysisIssue[] } | null> => {
+    const analyzeDocument = async (document: FilmScriptDocument, previousAnalysis?: FilmScriptAnalysis | null): Promise<{ analysis: FilmScriptAnalysis; issues: FilmScriptAnalysisIssue[]; reusedScenes: number } | null> => {
         if (analyzing) return null;
         const model = resolveModelForCapability(effectiveConfig, effectiveConfig.textModel, "text");
         const config = { ...effectiveConfig, model } as AiConfig;
@@ -26,8 +26,8 @@ export function useFilmScriptAnalysis() {
         }
         setAnalyzing(true);
         try {
-            const result = await requestFilmScriptAnalysis(config, document, (done, total) => setProgress({ done, total }));
-            message.success(`AI 语义分析完成：${result.analysis.characters.length} 个角色、${result.analysis.relationships.length} 条关系`);
+            const result = await requestFilmScriptAnalysis(config, document, (done, total) => setProgress({ done, total }), previousAnalysis);
+            message.success(`AI 语义分析完成：${result.analysis.characters.length} 个角色、${result.analysis.relationships.length} 条关系${result.reusedScenes ? `（复用 ${result.reusedScenes} 场未变化内容）` : ""}`);
             return result;
         } catch (error) {
             message.error(error instanceof Error ? error.message : "AI 语义分析失败");
