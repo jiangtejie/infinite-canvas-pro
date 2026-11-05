@@ -1,5 +1,6 @@
 import { imageToDataUrl } from "@/services/image-storage";
 import type { ReferenceImage } from "@/types/image";
+import { compressFilmReference } from "./film-image-compress";
 import type { FilmAsset, FilmImageRef, FilmProject, FilmShot } from "../types";
 import { characterShotReferenceImages } from "./film-character";
 
@@ -21,7 +22,10 @@ export async function collectFilmShotReferences(project: FilmProject, shot: Film
         if (references.length >= MAX_SHOT_REFERENCES) return;
         try {
             const dataUrl = await imageToDataUrl({ url: ref.url, storageKey: ref.storageKey });
-            if (dataUrl) references.push({ id: ref.id, name: `${name}.png`, type: "image/png", dataUrl, storageKey: ref.storageKey });
+            if (dataUrl) {
+                const compressed = await compressFilmReference(dataUrl);
+                references.push({ id: ref.id, name: `${name}.jpg`, type: compressed.startsWith("data:image/jpeg") ? "image/jpeg" : "image/png", dataUrl: compressed, storageKey: ref.storageKey });
+            }
         } catch {
             // 单张参考图读取失败时跳过
         }
@@ -44,5 +48,12 @@ export async function collectFilmShotReferences(project: FilmProject, shot: Film
         }
     }
 
+    if (typeof window !== "undefined" && references.length) {
+        console.info("[film-image] 分镜参考图", {
+            count: references.length,
+            totalKb: Math.round(references.reduce((total, item) => total + item.dataUrl.length, 0) / 1024),
+            sizesKb: references.map((item) => Math.round(item.dataUrl.length / 1024)),
+        });
+    }
     return { references, hints };
 }

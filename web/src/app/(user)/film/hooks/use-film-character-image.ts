@@ -13,6 +13,7 @@ import { composeCharacterCard, type CharacterCardOptions } from "../utils/film-c
 import { normalizeFilmAspect } from "../utils/film-aspects";
 import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterPartLabel, ensureCharacterProfile } from "../utils/film-character";
 import { runImageTask } from "../utils/film-image-task";
+import { compressFilmReference } from "../utils/film-image-compress";
 import { resolveFilmStyleText } from "../utils/film-styles";
 
 export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master" | "card";
@@ -51,7 +52,10 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
             if (!ref.url && !ref.storageKey) continue;
             try {
                 const dataUrl = await imageToDataUrl({ url: ref.url, storageKey: ref.storageKey });
-                if (dataUrl) references.push({ id: ref.id, name: `${ref.id}.png`, type: "image/png", dataUrl, storageKey: ref.storageKey });
+                if (dataUrl) {
+                    const compressed = await compressFilmReference(dataUrl);
+                    references.push({ id: ref.id, name: `${ref.id}.jpg`, type: compressed.startsWith("data:image/jpeg") ? "image/jpeg" : "image/png", dataUrl: compressed, storageKey: ref.storageKey });
+                }
             } catch {
                 // 单张参考图读取失败时跳过
             }

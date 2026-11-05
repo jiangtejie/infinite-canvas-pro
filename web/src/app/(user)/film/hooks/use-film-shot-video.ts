@@ -14,6 +14,7 @@ import { withVideoVersion } from "../utils/film-versions";
 
 import { resolveFilmStyleText } from "../utils/film-styles";
 import { collectFilmShotReferences } from "../utils/film-references";
+import { compressFilmReference } from "../utils/film-image-compress";
 import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from "../utils/film-video-segments";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "../utils/film-video-limits";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
@@ -33,7 +34,8 @@ async function frameToReference(frame: FilmFrameSource | undefined, name: string
     try {
         const dataUrl = await imageToDataUrl({ url: frame.url, storageKey: frame.storageKey });
         if (!dataUrl) return null;
-        return { id: name, name: `${name}.png`, type: "image/png", dataUrl, storageKey: frame.storageKey };
+        const compressed = await compressFilmReference(dataUrl);
+        return { id: name, name: `${name}.jpg`, type: compressed.startsWith("data:image/jpeg") ? "image/jpeg" : "image/png", dataUrl: compressed, storageKey: frame.storageKey };
     } catch {
         return null;
     }

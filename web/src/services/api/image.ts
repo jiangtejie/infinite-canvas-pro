@@ -776,24 +776,48 @@ async function requestGrokImageEditSingle(config: AiConfig, prompt: string, refe
     );
 }
 
+/** 云端渠道的编辑接口要求标准尺寸，按项目画幅折算，避免发送 1280x720 等非标准值。 */
+function normalizeCloudEditSize(config: AiConfig) {
+    const value = (config.size || "").trim();
+    if (/^\d+x\d+$/.test(value)) return value;
+    const [width, height] = value.split(":").map(Number);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return undefined;
+    const ratio = width / height;
+    if (ratio > 1.1) return "1536x1024";
+    if (ratio < 0.9) return "1024x1536";
+    return "1024x1024";
+}
+
 async function requestImageEditSingle(config: AiConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams): Promise<GeneratedImage[]> {
     if (isGeminiConfig(config)) return requestGeminiImageSingle(config, prompt, references, params);
     if (isGrok2APIImageConfig(config)) return requestGrokImageEditSingle(config, prompt, references, params);
 
     const mime = IMAGE_MIME;
+    const cloudOpenAI = config.channelMode === "remote" && channelProtocolForConfig(config) === "openai";
     const formData = new FormData();
     formData.set("model", config.model);
     formData.set("prompt", withPromptGuard(config, withSystemPrompt(config, prompt)));
     if (params.n > 1) formData.set("n", String(params.n));
-    if (params.size) formData.set("size", params.size);
+    const cloudSize = cloudOpenAI ? normalizeCloudEditSize(config) : undefined;
+    if (cloudSize) formData.set("size", cloudSize);
+    else if (params.size) formData.set("size", params.size);
     if (params.quality && !config.codexCli) formData.set("quality", params.quality);
-    if (config.responseFormatB64Json) formData.set("response_format", "b64_json");
-    if (config.streamImages) {
+    if (!cloudOpenAI && config.responseFormatB64Json) formData.set("response_format", "b64_json");
+    if (!cloudOpenAI && config.streamImages) {
         formData.set("stream", "true");
         formData.set("partial_images", String(params.streamPartialImages));
     }
     const files = await Promise.all(references.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
-    files.forEach((file) => formData.append("image", file));
+    files.forEach((file) => formData.append(cloudOpenAI ? "image[]" : "image", file));
+    if (cloudOpenAI && typeof window !== "undefined") {
+        console.info("[image] 云端编辑请求", {
+            model: config.model,
+            size: cloudSize || params.size,
+            quality: params.quality,
+            imageCount: files.length,
+            totalKb: Math.round(files.reduce((total, file) => total + file.size, 0) / 1024),
+        });
+    }
 
     const directProvider = !usesAccountProxy(config) ? directAIProviderForConfig(config) : null;
     if (directProvider) {

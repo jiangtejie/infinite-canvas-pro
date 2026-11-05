@@ -96,7 +96,7 @@ export async function composeCharacterCard(asset: FilmAsset, options: CharacterC
         });
     }
 
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((value) => resolve(value), "image/png"));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((value) => resolve(value), "image/jpeg", 0.9));
     if (!blob) throw new Error("角色卡导出失败");
     const uploaded = await uploadImage(blob, { localOnly: true });
     const card: FilmImageRef = { id: nanoid(), url: uploaded.url, storageKey: uploaded.storageKey, source: "generated", createdAt: new Date().toISOString() };
