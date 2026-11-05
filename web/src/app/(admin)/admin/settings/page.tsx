@@ -755,12 +755,14 @@ export default function AdminSettingsPage() {
                                     <Form.List name={["private", "storage", "providers"]}>
                                         {(fields, { add, remove }) => (
                                             <Flex vertical gap={12}>
-                                                <Button icon={<PlusOutlined />} onClick={() => add(newAdminStorageProvider("s3", storageProviders))}>
-                                                    新增 S3/R2 配置
-                                                </Button>
-                                                <Button icon={<PlusOutlined />} onClick={() => add(newAdminStorageProvider("webdav", storageProviders))}>
-                                                    新增 WebDAV 配置
-                                                </Button>
+                                                <Flex gap={8} wrap>
+                                                    <Button icon={<PlusOutlined />} onClick={() => add(newAdminStorageProvider("s3", storageProviders))}>
+                                                        新增 S3/R2 配置
+                                                    </Button>
+                                                    <Button icon={<PlusOutlined />} onClick={() => add(newAdminStorageProvider("webdav", storageProviders))}>
+                                                        新增 WebDAV 配置
+                                                    </Button>
+                                                </Flex>
                                                 {fields.map((field) => {
                                                     const provider = storageProviders[field.name] || emptyS3StorageProvider;
                                                     const isWebDAV = provider.type === "webdav";
@@ -904,9 +906,12 @@ export default function AdminSettingsPage() {
                                         )}
                                     </Form.List>
                                 </Card>
-                                <Button type="primary" icon={<PlusOutlined />} onClick={() => openChannelDrawer(null)}>
-                                    新增渠道
-                                </Button>
+                                <Flex justify="space-between" align="center" gap={12} wrap>
+                                    <Typography.Text strong>渠道配置</Typography.Text>
+                                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openChannelDrawer(null)}>
+                                        新增渠道
+                                    </Button>
+                                </Flex>
                                 <Table
                                     rowKey="_rowKey"
                                     pagination={false}

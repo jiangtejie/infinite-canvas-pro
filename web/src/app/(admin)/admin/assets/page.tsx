@@ -257,9 +257,11 @@ export default function AdminAssetsPage() {
                             </Typography.Paragraph>
                         ) : null}
                         <Input.TextArea value={detailAsset.type === "text" ? detailAsset.content : detailAsset.url || detailAsset.coverUrl} rows={7} readOnly />
-                        <Button icon={<CopyOutlined />} onClick={() => copyText(detailAsset.type === "text" ? detailAsset.content : detailAsset.url || detailAsset.coverUrl)}>
-                            复制内容
-                        </Button>
+                        <Flex gap={8} wrap>
+                            <Button icon={<CopyOutlined />} onClick={() => copyText(detailAsset.type === "text" ? detailAsset.content : detailAsset.url || detailAsset.coverUrl)}>
+                                复制内容
+                            </Button>
+                        </Flex>
                     </Flex>
                 ) : null}
             </Modal>

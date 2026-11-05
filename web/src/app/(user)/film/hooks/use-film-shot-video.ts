@@ -20,6 +20,14 @@ import { filmShotTypeLabel } from "../utils/film-shot-types";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
 
+function friendlyVideoError(error: unknown) {
+    const message = error instanceof Error ? error.message : "分镜视频生成失败";
+    if (/unknown video model|video catalogue|not accepted/i.test(message)) {
+        return `${message}。请在 AI 配置里使用该渠道「视频模型目录」中的完整模型 ID（通常是带厂商前缀的 ID），不要填简写或显示名。`;
+    }
+    return message;
+}
+
 async function frameToReference(frame: FilmFrameSource | undefined, name: string): Promise<ReferenceImage | null> {
     if (!frame?.url && !frame?.storageKey) return null;
     try {
@@ -98,10 +106,18 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
 
     const generateVideo = async (shot: FilmShot) => {
         const current = projectRef.current;
-        if (!current || busy) return;
+        if (!current) return;
+        if (busy) {
+            message.warning("正在生成其他镜头，请稍候");
+            return;
+        }
         const config = buildVideoConfig(current);
-        if (!config) return;
+        if (!config) {
+            message.info("请先配置可用的视频模型");
+            return;
+        }
         setGeneratingShotId(shot.id);
+        message.info("已提交视频生成，等待模型返回…");
         try {
             const { videoUrl, storageKey } = await runShotVideo(current, config, shot);
             const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
@@ -110,13 +126,14 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             });
             message.success("分镜视频已生成");
         } catch (error) {
+            const reason = friendlyVideoError(error);
             onUpdate({
                 episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
-                    errorMessage: error instanceof Error ? error.message : "分镜视频生成失败",
+                    errorMessage: reason,
                     status: shot.imageUrl ? "image_ready" : "failed",
                 }),
             });
-            message.error(error instanceof Error ? error.message : "分镜视频生成失败");
+            message.error(reason);
         } finally {
             setGeneratingShotId("");
             setProgress(0);
@@ -125,9 +142,16 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
 
     const generateVideoBatch = async (targets: FilmShot[]) => {
         const current = projectRef.current;
-        if (!current || busy || !targets.length) return;
+        if (!current || !targets.length) return;
+        if (busy) {
+            message.warning("正在生成其他镜头，请稍候");
+            return;
+        }
         const config = buildVideoConfig(current);
-        if (!config) return;
+        if (!config) {
+            message.info("请先配置可用的视频模型");
+            return;
+        }
         let failed = 0;
         setBatchProgress({ done: 0, total: targets.length });
         try {
@@ -143,7 +167,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                     failed += 1;
                     onUpdate({
                         episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
-                            errorMessage: error instanceof Error ? error.message : "分镜视频生成失败",
+                            errorMessage: friendlyVideoError(error),
                             status: shot.imageUrl ? "image_ready" : "failed",
                         }),
                     });

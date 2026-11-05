@@ -46,6 +46,9 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
     const selectedSegment = segments.find((segment) => segment.id === selectedSegmentId) ?? segments[0] ?? null;
     const segmentError = validateSegments(segments, shot.duration);
     const frameError = mode === "frames" && !shot.firstFrame ? "首尾帧模式需要先选择首帧" : "";
+    const generateBlockReason = segmentError
+        || frameError
+        || (durationIssue ? `镜头时长 ${shot.duration}s 超出${limits.label}范围（${limits.min}-${limits.max}s），请先调整时长` : "");
     const characterNames = (shot.characterIds || []).map((id) => characters.find((asset) => asset.id === id)?.name).filter((name): name is string => Boolean(name));
     const locationName = locations.find((asset) => asset.id === shot.locationId)?.name || "";
 
@@ -148,7 +151,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
                 </p>
                 {limits.isSeedance ? (
                     <p className="text-[11px] leading-5 text-muted-foreground/70">
-                        当前视频模型：{limits.label}，支持 {limits.min}-{limits.max} 秒，参考图最多 {filmVideoReferenceLimit(videoModel)} 张；宽银幕会按 21:9 发送。
+                        当前视频模型：{limits.label}（{videoModel || "未选择"}），支持 {limits.min}-{limits.max} 秒，参考图最多 {filmVideoReferenceLimit(videoModel)} 张；宽银幕会按 21:9 发送。
                     </p>
                 ) : null}
                 {durationIssue ? (
@@ -173,7 +176,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
                         {!characterNames.length && !locationName && !shot.imageUrl ? <span className="text-[11px] text-muted-foreground/60">还没有可用的参考图</span> : null}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <FrameSlot title="首帧" frame={shot.firstFrame} shot={shot} onSet={(frame) => setFrame("first", frame)} onUpload={() => triggerUpload("first")} />
                         <FrameSlot title="尾帧（可选）" frame={shot.lastFrame} shot={shot} onSet={(frame) => setFrame("last", frame)} onUpload={() => triggerUpload("last")} />
                     </div>
@@ -245,21 +248,38 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
                 <Button size="small" className="mt-2" onClick={() => copyText(composedPrompt, "提示词已复制")}>复制提示词</Button>
             </details>
 
-            <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+            <div className="sticky bottom-0 z-10 grid gap-2 rounded-lg border border-border/60 bg-background/95 p-3 backdrop-blur">
                 <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜视频</span>
                     <Button
                         type={shot.videoUrl ? "default" : "primary"}
                         size="small"
                         loading={generating}
-                        disabled={Boolean(segmentError || frameError || durationIssue)}
                         icon={<Clapperboard className="size-3.5" />}
-                        onClick={onGenerate}
+                        onClick={() => {
+                            if (generating) return;
+                            if (generateBlockReason) {
+                                message.warning(generateBlockReason);
+                                return;
+                            }
+                            onGenerate();
+                        }}
                     >
-                        {shot.videoUrl ? "重新生成" : "生成分镜视频"}
+                        {generating ? `生成中 ${progress}%` : shot.videoUrl ? "重新生成" : "生成分镜视频"}
                     </Button>
                 </div>
-                {frameError ? <p className="text-[11px] text-hot">{frameError}</p> : null}
+                {shot.errorMessage && !generating ? <p className="text-[11px] leading-5 text-hot">上次生成失败：{shot.errorMessage}</p> : null}
+                {generateBlockReason ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-[11px] leading-5 text-hot">暂不能生成：{generateBlockReason}</p>
+                        {durationIssue ? (
+                            <Button size="small" onClick={() => onChange({ duration: adjustedDuration, videoSegments: createDefaultSegments(adjustedDuration) })}>调整为 {adjustedDuration}s</Button>
+                        ) : null}
+                        {segmentError ? (
+                            <Button size="small" onClick={() => onChange({ videoSegments: createDefaultSegments(shot.duration) })}>重置分段</Button>
+                        ) : null}
+                    </div>
+                ) : null}
                 <div className="relative overflow-hidden rounded-md">
                     {videoSrc ? <video src={videoSrc} controls playsInline className={cn("w-full rounded-md border border-border/50 transition-opacity", generating && "opacity-60")} /> : null}
                     {generating ? (
@@ -309,49 +329,57 @@ function FrameSlot({ title, frame, shot, onSet, onUpload }: {
     onUpload: () => void;
 }) {
     const versions = shot.imageVersions || [];
+    const options = [
+        ...(shot.imageUrl ? [{ value: "storyboard", label: "当前分镜图" }] : []),
+        ...versions.map((version, index) => ({ value: version.id, label: `历史 v${index + 1}` })),
+    ];
+    const value = frame?.kind === "storyboard" ? "storyboard" : frame?.versionId;
+    const handleSelect = (id?: string) => {
+        if (!id) {
+            onSet(null);
+            return;
+        }
+        if (id === "storyboard") {
+            onSet({ kind: "storyboard", url: shot.imageUrl || "", storageKey: shot.storageKey });
+            return;
+        }
+        const version = versions.find((item) => item.id === id);
+        if (version) onSet({ kind: "version", url: version.url, storageKey: version.storageKey, versionId: version.id });
+    };
     return (
-        <div className="grid gap-1.5 rounded-md border border-border/60 bg-card/40 p-2">
-            <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/60 uppercase">{title}</span>
-            <div className="flex items-center gap-2">
-                <span className="h-14 w-20 shrink-0 overflow-hidden rounded border border-border/60">
-                    {frame ? (
-                        <FilmImageThumbnail url={frame.url} storageKey={frame.storageKey} className="h-14 w-full" />
-                    ) : (
-                        <span className="grid h-14 w-full place-items-center text-muted-foreground/40">
-                            <ImageIcon className="size-4" aria-hidden />
-                        </span>
-                    )}
-                </span>
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-1">
-                        {shot.imageUrl ? (
-                            <button type="button" className="rounded border border-border/60 px-1.5 py-0.5 text-[9px] text-muted-foreground/80 transition-colors hover:border-acid/50 hover:text-foreground" onClick={() => onSet({ kind: "storyboard", url: shot.imageUrl || "", storageKey: shot.storageKey })}>
-                                当前分镜图
-                            </button>
-                        ) : null}
-                        {versions.length ? (
-                            <Select
-                                size="small"
-                                className="w-20"
-                                placeholder="版本"
-                                value={frame?.versionId}
-                                options={versions.map((version, index) => ({ value: version.id, label: `v${index + 1}` }))}
-                                onChange={(id: string) => {
-                                    const version = versions.find((item) => item.id === id);
-                                    if (version) onSet({ kind: "version", url: version.url, storageKey: version.storageKey, versionId: version.id });
-                                }}
-                            />
-                        ) : null}
-                        <button type="button" className="inline-flex items-center gap-0.5 rounded border border-border/60 px-1.5 py-0.5 text-[9px] text-muted-foreground/80 transition-colors hover:border-acid/50 hover:text-foreground" onClick={onUpload}>
-                            <Upload className="size-2.5" /> 上传
-                        </button>
-                    </div>
-                    {frame ? (
-                        <button type="button" className="w-fit text-left font-mono text-[9px] text-muted-foreground/60 transition-colors hover:text-hot" onClick={() => onSet(null)}>
-                            清除
-                        </button>
-                    ) : null}
-                </div>
+        <div className="grid gap-2 overflow-hidden rounded-md border border-border/60 bg-card/40 p-2">
+            <div className="flex items-center justify-between gap-2">
+                <span className="truncate font-mono text-[9px] tracking-[0.14em] text-muted-foreground/60 uppercase">{title}</span>
+                {frame ? (
+                    <button type="button" className="shrink-0 font-mono text-[9px] text-muted-foreground/60 transition-colors hover:text-hot" onClick={() => onSet(null)}>
+                        清除
+                    </button>
+                ) : null}
+            </div>
+            <button type="button" className="relative block h-20 w-full overflow-hidden rounded border border-border/60 bg-background/40" onClick={frame ? undefined : onUpload} title={frame ? undefined : "上传图片"}>
+                {frame ? (
+                    <FilmImageThumbnail url={frame.url} storageKey={frame.storageKey} className="h-20 w-full" />
+                ) : (
+                    <span className="flex h-full flex-col items-center justify-center gap-1 text-muted-foreground/40">
+                        <ImageIcon className="size-4" aria-hidden />
+                        <span className="text-[9px]">点击上传或选择分镜图</span>
+                    </span>
+                )}
+            </button>
+            <div className="flex items-center gap-1">
+                <Select
+                    size="small"
+                    className="min-w-0 flex-1"
+                    placeholder={options.length ? "选择参考帧" : "暂无分镜图"}
+                    value={value}
+                    options={options}
+                    disabled={!options.length}
+                    onChange={handleSelect}
+                    allowClear={Boolean(frame)}
+                />
+                <button type="button" aria-label="上传图片" className="grid size-6 shrink-0 place-items-center rounded border border-border/60 text-muted-foreground/70 transition-colors hover:border-acid/50 hover:text-foreground" onClick={onUpload}>
+                    <Upload className="size-3" />
+                </button>
             </div>
         </div>
     );
