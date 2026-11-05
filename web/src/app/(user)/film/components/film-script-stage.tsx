@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, Input, InputNumber, Modal, Select } from "antd";
-import { Clapperboard, ClipboardList, FileUp, Link2, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
+import { Clapperboard, ClipboardList, FileUp, Link2, Network, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmEpisode, FilmProject, FilmShot } from "../types";
@@ -22,6 +22,7 @@ import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFi
 import { buildScriptAnalysisAssets, normalizeEntityKey, validateFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
 import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "../types";
 import { FilmShotDetail } from "./film-shot-detail";
+import { FilmScriptGraph } from "./film-script-graph";
 
 type FilmScriptStageProps = {
     project: FilmProject;
@@ -45,6 +46,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
     const [selectedShotId, setSelectedShotId] = useState("");
     const [continuityPreviewEpisodeId, setContinuityPreviewEpisodeId] = useState("");
+    const [graphOpen, setGraphOpen] = useState(false);
     const selectedShot = shots.find((shot) => shot.id === selectedShotId) ?? null;
     const previewEpisode = episodes.find((episode) => episode.id === continuityPreviewEpisodeId) || null;
     const previewSheets = previewEpisode
@@ -244,6 +246,20 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     const sameHashSnapshot = Boolean(importDoc && project.scriptAnalysis && project.scriptAnalysis.scriptHash === importDoc.scriptHash);
 
+    const applyGraphAssets = () => {
+        if (!project.scriptAnalysis) return;
+        const locationNames = [...new Set((project.episodes || []).flatMap((episode) => episode.scenes.map((scene) => scene.location)).filter(Boolean))];
+        const assets = buildScriptAnalysisAssets(project, project.scriptAnalysis, locationNames);
+        const addedCharacters = assets.characters.length - project.characters.length;
+        const addedLocations = assets.locations.length - project.locations.length;
+        if (!addedCharacters && !addedLocations) {
+            message.info("分析里的角色和场景都已经在项目里了");
+            return;
+        }
+        onUpdate({ characters: assets.characters, locations: assets.locations });
+        message.success(`已补 ${addedCharacters} 个角色、${addedLocations} 个场景`);
+    };
+
     const applyAnalysisImport = (mode: "replace" | "append") => {
         if (!importDoc) return;
         commitParsed(filmScriptDocumentToEpisodes(importDoc), mode);
@@ -392,6 +408,17 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                     <span className="eyebrow">剧集结构</span>
                     <div className="flex items-center gap-1">
+                        <Button
+                            type="text"
+                            size="small"
+                            aria-label="剧情图谱"
+                            title={project.scriptAnalysis ? "查看剧情图谱" : "先在导入剧本里完成 AI 语义解析"}
+                            disabled={!project.scriptAnalysis}
+                            icon={<Network className="size-3.5" />}
+                            onClick={() => setGraphOpen(true)}
+                        >
+                            剧情图谱
+                        </Button>
                         {batchProgress ? (
                             <>
                                 <span className="font-mono text-[10px] text-acid tabular-nums">批量生成 {batchProgress.done}/{batchProgress.total}</span>
@@ -547,6 +574,8 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                     </div>
                 )}
             </section>
+
+            <FilmScriptGraph analysis={project.scriptAnalysis || null} open={graphOpen} onClose={() => setGraphOpen(false)} onApplyAssets={applyGraphAssets} />
 
             <Modal
                 title="导入剧本"

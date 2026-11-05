@@ -33,6 +33,7 @@ export function parseFilmProjectBackup(text: string): FilmProject {
         episodes: project.episodes,
         characters: Array.isArray(project.characters) ? project.characters : [],
         locations: Array.isArray(project.locations) ? project.locations : [],
+        ...(project.scriptAnalysis && typeof project.scriptAnalysis === "object" && Array.isArray(project.scriptAnalysis.characters) ? { scriptAnalysis: project.scriptAnalysis } : {}),
         createdAt: project.createdAt || new Date().toISOString(),
         updatedAt: project.updatedAt || new Date().toISOString(),
     };
