@@ -10,8 +10,9 @@ import { addFilmEpisode, addFilmScene, addFilmShot, filmSceneOptions, filmShotPo
 import { useFilmAiParse } from "../hooks/use-film-ai-parse";
 import { useFilmContinuity } from "../hooks/use-film-continuity";
 import { useFilmScriptAnalysis } from "../hooks/use-film-script-analysis";
+import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
 import type { FilmImageBatchOptions, FilmImageBatchProgress } from "../hooks/use-film-shot-image";
-import { applyFilmContinuity, applyFilmContinuityValidation } from "../utils/film-continuity-sheet";
+import { applyFilmContinuity, applyFilmContinuityChecks } from "../utils/film-continuity-sheet";
 import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
 import { bindFilmCast } from "../utils/film-cast-bind";
 import { mergeFilmEpisodes } from "../utils/film-ai-parse";
@@ -23,6 +24,7 @@ import { buildScriptAnalysisAssets, normalizeEntityKey, validateFilmScriptAnalys
 import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "../types";
 import { FilmShotDetail } from "./film-shot-detail";
 import { FilmScriptGraph } from "./film-script-graph";
+import { FilmContinuityNotebook } from "./film-continuity-notebook";
 
 type FilmScriptStageProps = {
     project: FilmProject;
@@ -39,6 +41,7 @@ type FilmScriptStageProps = {
 
 export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerateImageBatch, generatingShotId, batchProgress, onStopBatch, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
     const { message, modal } = App.useApp();
+    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const { analyzingEpisodeId, analyzeEpisode } = useFilmContinuity();
     const { batchProgress: checkingBatchProgress, checkShots } = useFilmContinuityCheck();
     const { analyzing: analyzingScript, progress: analysisProgress, analyzeDocument } = useFilmScriptAnalysis();
@@ -50,7 +53,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const selectedShot = shots.find((shot) => shot.id === selectedShotId) ?? null;
     const previewEpisode = episodes.find((episode) => episode.id === continuityPreviewEpisodeId) || null;
     const previewSheets = previewEpisode
-        ? flattenFilmShots([previewEpisode]).filter((shot) => Boolean(shot.continuity)).map((shot) => ({ shot, sheet: shot.continuity! }))
+        ? flattenFilmShots([previewEpisode]).filter((shot) => Boolean(shot.continuity || shot.continuityCheck)).map((shot) => ({ shot, sheet: shot.continuity }))
         : [];
 
     useEffect(() => {
@@ -78,7 +81,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
             onOk: async () => {
                 const results = await checkShots(episodeShots);
                 if (!results || !Object.keys(results).length) return;
-                onUpdate({ episodes: episodes.map((item) => item.id === episode.id ? applyFilmContinuityValidation(item, results) : item) });
+                onUpdate({ episodes: episodes.map((item) => item.id === episode.id ? applyFilmContinuityChecks(item, results) : item) });
             },
         });
     };
@@ -390,13 +393,12 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     };
 
     const clearScript = () => {
-        modal.confirm({
+        confirmDelete({
             title: "清空剧本和分镜？",
-            content: "剧本文本与已解析的剧集、分镜都会被清空，无法恢复。",
-            okText: "清空",
-            okButtonProps: { danger: true },
-            cancelText: "取消",
-            onOk: () => {
+            description: "剧本文本与已解析的剧集、分镜都会被清空，无法恢复。",
+            detail: `${episodes.length} 集 · ${countFilmScenes(episodes)} 场 · ${shots.length} 镜`,
+            confirmText: "清空",
+            onConfirm: () => {
                 onUpdate({ scriptText: "", episodes: [] });
                 setSelectedShotId("");
             },
@@ -554,7 +556,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                 />
                                 {checkingBatchProgress ? <span className="font-mono text-[9px] text-acid tabular-nums">{checkingBatchProgress.done}/{checkingBatchProgress.total}</span> : null}
                                 {(() => {
-                                    const count = episode.scenes.reduce((total, scene) => total + scene.shots.filter((shot) => shot.continuity).length, 0);
+                                    const count = episode.scenes.reduce((total, scene) => total + scene.shots.filter((shot) => shot.continuity || shot.continuityCheck).length, 0);
                                     return count ? (
                                         <button type="button" className="chip chip-acid" title="查看场记交接单" onClick={() => setContinuityPreviewEpisodeId(episode.id)}>
                                             场记 {count}
@@ -871,52 +873,17 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 open={Boolean(previewEpisode)}
                 onCancel={() => setContinuityPreviewEpisodeId("")}
                 footer={null}
-                width={760}
+                width={1080}
+                destroyOnHidden
             >
-                {previewSheets.length ? (
-                    <div className="thin-scrollbar grid max-h-[65vh] gap-2 overflow-y-auto pr-1">
-                        {previewSheets.map(({ shot, sheet }) => (
-                            <div key={shot.id} className="grid gap-2 rounded-lg border border-border/70 bg-card/40 p-3">
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        className="min-w-0 flex-1 truncate text-left text-xs font-medium text-foreground transition-colors hover:text-acid"
-                                        onClick={() => {
-                                            setSelectedShotId(shot.id);
-                                            setContinuityPreviewEpisodeId("");
-                                        }}
-                                    >
-                                        {shot.shotNo} · {shot.description || "未填写描述"}
-                                    </button>
-                                    <span className={cn("shrink-0 font-mono text-[9px]", sheet.validation.startsWith("通过") ? "text-acid" : sheet.validation ? "text-hot" : "text-muted-foreground/50")}>
-                                        {sheet.validation || "未校验"}
-                                    </span>
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2">
-                                    {([
-                                        ["上一镜末帧", sheet.prevFrameSummary],
-                                        ["本镜要求", sheet.nextFrameRequirement],
-                                        ["角色状态", sheet.characterState],
-                                        ["道具状态", sheet.propState],
-                                        ["环境光线", sheet.environment],
-                                        ["镜头参数", sheet.cameraParams],
-                                        ["声音", sheet.audioState],
-                                        ["情绪叙事", sheet.emotionNarrative],
-                                        ["连续性风险", sheet.risks],
-                                        ["禁项", sheet.forbidden],
-                                    ] as Array<[string, string]>).filter(([, value]) => value).map(([label, value]) => (
-                                        <div key={label} className="grid gap-0.5">
-                                            <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{label}</span>
-                                            <span className="text-[11px] leading-5 text-foreground/80">{value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="py-6 text-center text-xs text-muted-foreground">这一集还没有场记交接单，先点「AI 场记分析」。</p>
-                )}
+                <FilmContinuityNotebook
+                    episodeTitle={previewEpisode?.title || ""}
+                    sheets={previewSheets}
+                    onJumpToShot={(shotId) => {
+                        setSelectedShotId(shotId);
+                        setContinuityPreviewEpisodeId("");
+                    }}
+                />
             </Modal>
 
             <Modal
@@ -933,6 +900,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                     当前已有 {shots.length} 个分镜，本次解析出 {pendingParsed ? flattenFilmShots(pendingParsed).length : 0} 个。覆盖会替换现有分镜，追加会按集/场合并到现有分镜后面。
                 </p>
             </Modal>
+            {deleteConfirmNode}
         </div>
     );
 }

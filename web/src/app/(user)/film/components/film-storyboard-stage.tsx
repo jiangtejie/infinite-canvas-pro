@@ -10,7 +10,7 @@ import { countFilmScenes, countReadyShots, flattenFilmShots } from "../utils/par
 import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { filmAspectCssRatio, filmAspectLabel } from "../utils/film-aspects";
 import { resolveFilmStyleText } from "../utils/film-styles";
-import { checkFilmContinuity } from "../utils/film-continuity";
+import { checkFilmBindingIssues } from "../utils/film-binding-check";
 import { FILM_SHOT_TYPE_OPTIONS, filmShotTypeLabel } from "../utils/film-shot-types";
 import { FilmShotDetail } from "./film-shot-detail";
 import { FilmShotStatusChip } from "./film-shot-status-chip";
@@ -45,8 +45,8 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [selectedShotId, setSelectedShotId] = useState("");
     const [batchEditOpen, setBatchEditOpen] = useState(false);
-    const [continuityOpen, setContinuityOpen] = useState(false);
-    const continuityIssues = useMemo(() => checkFilmContinuity(project.episodes, project.characters || [], project.locations || []), [project.episodes, project.characters, project.locations]);
+    const [continuityOpen, setBindingOpen] = useState(false);
+    const bindingIssues = useMemo(() => checkFilmBindingIssues(project.episodes, project.characters || [], project.locations || []), [project.episodes, project.characters, project.locations]);
     const [batchDuration, setBatchDuration] = useState<number | undefined>(undefined);
     const [batchShotType, setBatchShotType] = useState("");
     const [batchStatus, setBatchStatus] = useState<"" | FilmShot["status"]>("");
@@ -195,8 +195,8 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                             onChange={(value: 4 | 9) => setGroupSize(value)}
                         />
                     ) : null}
-                    <Button size="small" icon={<ShieldAlert className="size-3.5" />} onClick={() => setContinuityOpen(true)}>
-                        连戏检查{continuityIssues.length ? ` (${continuityIssues.length})` : ""}
+                    <Button size="small" icon={<ShieldAlert className="size-3.5" />} onClick={() => setBindingOpen(true)}>
+                        绑定检查{bindingIssues.length ? ` (${bindingIssues.length})` : ""}
                     </Button>
                     <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
                         <ViewButton active={view === "list"} onClick={() => setView("list")} icon={<List className="size-3.5" />}>列表</ViewButton>
@@ -452,18 +452,18 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                 </section>
             </div>
 
-            <Modal title={`连戏检查（${continuityIssues.length}）`} open={continuityOpen} onCancel={() => setContinuityOpen(false)} footer={null} width={640}>
-                {continuityIssues.length === 0 ? (
+            <Modal title={`绑定检查（${bindingIssues.length}）`} open={continuityOpen} onCancel={() => setBindingOpen(false)} footer={null} width={640}>
+                {bindingIssues.length === 0 ? (
                     <p className="py-6 text-center text-xs leading-6 text-muted-foreground">没有发现明显的连戏问题。</p>
                 ) : (
                     <div className="thin-scrollbar grid max-h-[60vh] gap-2 overflow-y-auto">
-                        {continuityIssues.map((issue) => (
+                        {bindingIssues.map((issue) => (
                             <button
                                 key={issue.id}
                                 type="button"
                                 onClick={() => {
                                     if (issue.shotId) setSelectedShotId(issue.shotId);
-                                    setContinuityOpen(false);
+                                    setBindingOpen(false);
                                 }}
                                 className={cn("flex items-start gap-2 rounded-lg border p-2.5 text-left transition-colors", issue.level === "warning" ? "border-hot/40 bg-hot/[0.04]" : "border-border/60 bg-card/40", issue.shotId ? "hover:border-acid/50" : "")}
                             >

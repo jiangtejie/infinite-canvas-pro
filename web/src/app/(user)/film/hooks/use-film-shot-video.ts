@@ -5,7 +5,7 @@ import { App } from "antd";
 
 import { requestVideoGeneration } from "@/services/api/video";
 import { imageToDataUrl } from "@/services/image-storage";
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { FilmFrameSource, FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
@@ -19,6 +19,7 @@ import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from 
 import { formatFilmContinuityPrompt } from "../utils/film-continuity-sheet";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "../utils/film-video-limits";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
 
@@ -45,8 +46,7 @@ async function frameToReference(frame: FilmFrameSource | undefined, name: string
 export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
     const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [generatingShotId, setGeneratingShotId] = useState("");
     const [progress, setProgress] = useState(0);
     const [batchProgress, setBatchProgress] = useState<FilmVideoBatchProgress | null>(null);
@@ -55,7 +55,9 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     const busy = Boolean(generatingShotId) || Boolean(batchProgress);
 
     const buildVideoConfig = (current: FilmProject) => {
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video");
+        const config = resolveModelConfig("video");
+        if (!config) return null;
+        const model = config.model || "";
         if (typeof window !== "undefined") {
             console.info("[film-video] 解析视频模型", {
                 channelMode: effectiveConfig.channelMode,
@@ -76,12 +78,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                 })),
             });
         }
-        const config: AiConfig = { ...effectiveConfig, model, size: filmVideoAspect(current.aspect, model) };
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return null;
-        }
-        return config;
+        return { ...config, size: filmVideoAspect(current.aspect, model) } as AiConfig;
     };
 
     const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot) => {

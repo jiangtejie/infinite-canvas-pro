@@ -3,26 +3,20 @@
 import { useState } from "react";
 import { App } from "antd";
 
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmShot } from "../types";
-import { formatFilmContinuityValidation, requestFilmShotContinuityCheck } from "../utils/film-continuity-check";
+import { formatFilmContinuityCheck, requestFilmShotContinuityCheck } from "../utils/film-continuity-check";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export function useFilmContinuityCheck() {
     const { message } = App.useApp();
-    const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [checkingShotId, setCheckingShotId] = useState("");
     const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
 
-    const buildConfig = () => {
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.textModel, "text");
-        const config = { ...effectiveConfig, model } as AiConfig;
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return null;
-        }
-        return config;
+    const runShotCheck = async (config: AiConfig, shot: FilmShot) => {
+        const result = await requestFilmShotContinuityCheck(config, shot);
+        return { result, check: formatFilmContinuityCheck(result) };
     };
 
     const checkShot = async (shot: FilmShot): Promise<string | null> => {
@@ -31,15 +25,14 @@ export function useFilmContinuityCheck() {
             message.warning("先生成分镜图，再做场记校验");
             return null;
         }
-        const config = buildConfig();
+        const config = resolveModelConfig("text");
         if (!config) return null;
         setCheckingShotId(shot.id);
         try {
-            const result = await requestFilmShotContinuityCheck(config, shot);
-            const validation = formatFilmContinuityValidation(result);
+            const { result, check } = await runShotCheck(config, shot);
             if (result.passed) message.success("场记校验通过");
             else message.warning(`场记校验发现问题：${result.issues.slice(0, 2).join("；") || result.summary}`);
-            return validation;
+            return check;
         } catch (error) {
             message.error(error instanceof Error ? error.message : "场记校验失败");
             return null;
@@ -55,7 +48,7 @@ export function useFilmContinuityCheck() {
             message.warning("本集还没有可校验的分镜图");
             return null;
         }
-        const config = buildConfig();
+        const config = resolveModelConfig("text");
         if (!config) return null;
         setBatchProgress({ done: 0, total: pending.length });
         const results: Record<string, string> = {};
@@ -64,8 +57,8 @@ export function useFilmContinuityCheck() {
             for (const [index, shot] of pending.entries()) {
                 setCheckingShotId(shot.id);
                 try {
-                    const result = await requestFilmShotContinuityCheck(config, shot);
-                    results[shot.id] = formatFilmContinuityValidation(result);
+                    const { check } = await runShotCheck(config, shot);
+                    results[shot.id] = check;
                 } catch {
                     failed += 1;
                 } finally {

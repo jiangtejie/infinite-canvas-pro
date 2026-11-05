@@ -9,6 +9,7 @@ import { uploadImage } from "@/services/image-storage";
 import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmImageRef, FilmProject } from "../types";
 import { useFilmCastStore } from "../stores/use-film-cast-store";
 import { useFilmCharacterImage } from "../hooks/use-film-character-image";
+import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
 import { addFilmAsset, importFilmAsset, removeFilmAsset } from "../utils/film-edits";
 import { CHARACTER_PART_DEFINITIONS, characterCardSignature, characterMasterImages, characterProgress, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel } from "../utils/film-character";
 import type { CharacterCardOptions } from "../utils/film-character-card";
@@ -57,6 +58,7 @@ const CHARACTER_LAYOUT_STYLE = `
 
 export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
     const { modal, message } = App.useApp();
+    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const characters = project.characters || [];
     const libraryCharacters = useFilmCastStore((state) => state.characters);
     const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
@@ -165,13 +167,12 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
     const removeSelected = () => {
         if (!selected) return;
-        modal.confirm({
+        confirmDelete({
             title: `删除「${selected.name}」？`,
-            content: "删除后已有分镜里的角色引用会失效，但分镜本身不受影响。",
-            okText: "删除",
-            okButtonProps: { danger: true },
-            cancelText: "取消",
-            onOk: () => {
+            description: "删除后已有分镜里的角色引用会失效，但分镜本身不受影响。",
+            detail: selected.description || "角色 · 未填写描述",
+            confirmText: "删除角色",
+            onConfirm: () => {
                 onUpdate({ characters: removeFilmAsset(characters, selected.id) });
                 setSelectedId("");
             },
@@ -553,6 +554,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     ))}
                 </div>
             </Modal>
+            {deleteConfirmNode}
         </>
     );
 }

@@ -66,7 +66,7 @@ export function parseFilmContinuityCheck(content: string): FilmContinuityCheckRe
     };
 }
 
-/** 把校验结果写成交接单里的 validation 文本。 */
-export function formatFilmContinuityValidation(result: FilmContinuityCheckResult) {
+/** 把校验结果格式化成镜头上的 continuityCheck 文本。 */
+export function formatFilmContinuityCheck(result: FilmContinuityCheckResult) {
     return result.passed ? `通过：${result.summary || "画面与交接单一致"}` : `不通过：${result.issues.join("；") || result.summary || "与交接单不一致"}`;
 }

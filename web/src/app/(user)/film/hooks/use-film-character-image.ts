@@ -6,7 +6,6 @@ import { nanoid } from "nanoid";
 
 import type { SeedableImageConfig } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { FilmAsset, FilmCharacterPartKey, FilmImageRef, FilmProject } from "../types";
 import { composeCharacterCard, type CharacterCardOptions } from "../utils/film-character-card";
@@ -15,6 +14,7 @@ import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterPartLabel, 
 import { runImageTask } from "../utils/film-image-task";
 import { compressFilmReference } from "../utils/film-image-compress";
 import { resolveFilmStyleText } from "../utils/film-styles";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master" | "card";
 
@@ -22,9 +22,7 @@ const MAX_REFERENCES = 10;
 
 export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
-    const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [generatingKey, setGeneratingKey] = useState<FilmCharacterGenerationKey>("");
     const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
     const projectRef = useRef(project);
@@ -37,13 +35,8 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
     };
 
     const buildImageConfig = (current: FilmProject) => {
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.imageModel, "image");
-        const config = { ...effectiveConfig, model, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig;
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return null;
-        }
-        return config;
+        const config = resolveModelConfig("image");
+        return config ? { ...config, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig : null;
     };
 
     const resolveReferences = async (refs: FilmImageRef[]): Promise<ReferenceImage[]> => {

@@ -1,6 +1,6 @@
 import type { FilmAsset, FilmEpisode } from "../types";
 
-export type FilmContinuityIssue = {
+export type FilmBindingIssue = {
     id: string;
     level: "warning" | "info";
     message: string;
@@ -9,13 +9,13 @@ export type FilmContinuityIssue = {
 
 const MAX_ISSUES = 30;
 
-/** 检查同场引用、角色提及未绑定、场名与场景引用不一致等连戏问题。 */
-export function checkFilmContinuity(episodes: FilmEpisode[], characters: FilmAsset[], locations: FilmAsset[]): FilmContinuityIssue[] {
-    const issues: FilmContinuityIssue[] = [];
+/** 检查同场引用、角色提及未绑定、场名与场景引用不一致等绑定问题（快速静态检查，不调用 AI）。 */
+export function checkFilmBindingIssues(episodes: FilmEpisode[], characters: FilmAsset[], locations: FilmAsset[]): FilmBindingIssue[] {
+    const issues: FilmBindingIssue[] = [];
     const namedCharacters = characters.filter((asset) => asset.name.trim().length >= 2);
     const namedLocations = locations.filter((asset) => asset.name.trim().length >= 2);
 
-    const push = (issue: FilmContinuityIssue) => {
+    const push = (issue: FilmBindingIssue) => {
         if (issues.length >= MAX_ISSUES) return;
         if (issues.some((item) => item.message === issue.message)) return;
         issues.push(issue);

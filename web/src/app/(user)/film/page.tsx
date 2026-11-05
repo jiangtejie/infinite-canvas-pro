@@ -9,6 +9,7 @@ import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "l
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useFilmStore } from "./stores/use-film-store";
+import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
 import type { FilmAspect, FilmProject, FilmStylePresetId } from "./types";
 import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel } from "./utils/film-aspects";
 import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel } from "./utils/film-styles";
@@ -24,13 +25,14 @@ const STAGE_LABEL: Record<FilmProject["stage"], string> = {
 
 export default function FilmListPage() {
     const router = useRouter();
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
     const hydrated = useFilmStore((state) => state.hydrated);
     const projects = useFilmStore((state) => state.projects);
     const createProject = useFilmStore((state) => state.createProject);
     const importProject = useFilmStore((state) => state.importProject);
     const updateProject = useFilmStore((state) => state.updateProject);
     const deleteProjects = useFilmStore((state) => state.deleteProjects);
+    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const [createOpen, setCreateOpen] = useState(false);
     const [title, setTitle] = useState("");
     const [visualStyle, setVisualStyle] = useState("");
@@ -57,14 +59,17 @@ export default function FilmListPage() {
         router.push(`/film/${id}`);
     };
 
-    const confirmDelete = (project: FilmProject) => {
-        modal.confirm({
+    const confirmDeleteProject = (project: FilmProject) => {
+        const shots = flattenFilmShots(project.episodes);
+        confirmDelete({
             title: `删除「${project.title}」？`,
-            content: "剧本、角色和分镜数据会一起删除，无法恢复。",
-            okText: "删除",
-            okButtonProps: { danger: true },
-            cancelText: "取消",
-            onOk: () => deleteProjects([project.id]),
+            description: "剧本、角色和分镜数据会一起删除，无法恢复。",
+            detail: `${project.episodes.length} 集 · ${countFilmScenes(project.episodes)} 场 · ${shots.length} 镜 · ${(project.characters || []).length} 角色 · ${(project.locations || []).length} 场景`,
+            confirmText: "删除项目",
+            onConfirm: () => {
+                deleteProjects([project.id]);
+                message.success(`已删除「${project.title}」`);
+            },
         });
     };
 
@@ -216,7 +221,7 @@ export default function FilmListPage() {
                                                         className="grid size-7 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-hot/10 hover:text-hot"
                                                         onClick={(event) => {
                                                             event.stopPropagation();
-                                                            confirmDelete(project);
+                                                            confirmDeleteProject(project);
                                                         }}
                                                     >
                                                         <Trash2 className="size-3.5" />
@@ -273,6 +278,7 @@ export default function FilmListPage() {
                     </label>
                 </div>
             </Modal>
+            {deleteConfirmNode}
         </div>
     );
 }

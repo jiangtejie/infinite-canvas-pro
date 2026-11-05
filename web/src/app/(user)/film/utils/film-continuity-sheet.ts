@@ -18,8 +18,7 @@ const SYSTEM_PROMPT = `你是一名影视场记（continuity supervisor），负
 - emotionNarrative：情绪与叙事功能（这一镜承担的信息点）；
 - risks：连续性风险（最容易被模型画错的地方）；
 - forbidden：禁项（本镜不能出现的变化或错误）；
-- referenceAssets：建议参考资产（角色卡、场景图、上一镜画面等）；
-- validation：校验结果，先输出空字符串。
+- referenceAssets：建议参考资产（角色卡、场景图、上一镜画面等）。
 要求：
 1. 后续镜头的 prevFrameSummary 必须承接前一镜的 nextFrameRequirement；
 2. 道具状态要跨镜连续，例如鱼从水里到岸上后，特写里鱼必须在岸上/手中，不能回到水里；
@@ -27,7 +26,41 @@ const SYSTEM_PROMPT = `你是一名影视场记（continuity supervisor），负
 4. 禁项要具体，例如"螺栓不能变完整、标识不能清晰可读"；
 5. 只输出 JSON 数组，长度与输入镜头数一致。`;
 
-export function buildFilmContinuityInput(episode: FilmEpisode) {
+type FilmContinuityFieldKey =
+    | "prevFrameSummary"
+    | "nextFrameRequirement"
+    | "characterState"
+    | "propState"
+    | "environment"
+    | "cameraParams"
+    | "audioState"
+    | "emotionNarrative"
+    | "risks"
+    | "forbidden"
+    | "referenceAssets";
+
+export const FILM_CONTINUITY_FIELDS: Array<{ key: FilmContinuityFieldKey; label: string; promptLabel: string; group: string }> = [
+    { key: "prevFrameSummary", label: "上一镜末帧", promptLabel: "上一镜末帧", group: "承接" },
+    { key: "nextFrameRequirement", label: "本镜要求", promptLabel: "本镜画面要求", group: "承接" },
+    { key: "characterState", label: "角色状态", promptLabel: "角色状态", group: "人物与道具" },
+    { key: "propState", label: "道具状态", promptLabel: "道具状态", group: "人物与道具" },
+    { key: "environment", label: "环境 / 光线", promptLabel: "环境光线", group: "环境与镜头" },
+    { key: "cameraParams", label: "镜头参数", promptLabel: "镜头参数", group: "环境与镜头" },
+    { key: "audioState", label: "声音状态", promptLabel: "声音", group: "声音与叙事" },
+    { key: "emotionNarrative", label: "情绪 / 叙事", promptLabel: "情绪与叙事", group: "声音与叙事" },
+    { key: "risks", label: "连续性风险", promptLabel: "连续性风险", group: "风险与禁项" },
+    { key: "forbidden", label: "禁项", promptLabel: "禁项（必须避免）", group: "风险与禁项" },
+    { key: "referenceAssets", label: "参考资产", promptLabel: "参考资产", group: "参考资产" },
+];
+
+export const FILM_CONTINUITY_GROUPS = FILM_CONTINUITY_FIELDS.reduce<Array<{ title: string; fields: typeof FILM_CONTINUITY_FIELDS }>>((groups, field) => {
+    const group = groups.find((item) => item.title === field.group);
+    if (group) group.fields.push(field);
+    else groups.push({ title: field.group, fields: [field] });
+    return groups;
+}, []);
+
+function buildFilmContinuityInput(episode: FilmEpisode) {
     const shots = flattenFilmShots([episode]);
     return {
         episode: episode.title,
@@ -88,7 +121,6 @@ export function parseFilmContinuitySheets(content: string): FilmContinuitySheet[
             risks: toStringValue(item.risks),
             forbidden: toStringValue(item.forbidden),
             referenceAssets: toStringValue(item.referenceAssets),
-            validation: toStringValue(item.validation),
         }))
         .filter((sheet) => sheet.shotNo);
 }
@@ -119,42 +151,21 @@ export function applyFilmContinuity(episode: FilmEpisode, sheets: FilmContinuity
             ...scene,
             shots: scene.shots.map((shot) => {
                 const sheet = byShotId.get(shot.id);
-                return sheet ? { ...shot, continuity: sheet } : shot;
+                return sheet ? { ...shot, continuity: sheet, continuityCheck: "" } : shot;
             }),
         })),
     };
 }
 
-const EMPTY_SHEET_FIELDS = {
-    version: "v1",
-    prevFrameSummary: "",
-    nextFrameRequirement: "",
-    characterState: "",
-    propState: "",
-    environment: "",
-    cameraParams: "",
-    audioState: "",
-    emotionNarrative: "",
-    risks: "",
-    forbidden: "",
-    referenceAssets: "",
-    validation: "",
-};
-
-export function emptyFilmContinuitySheet(shotNo: string): FilmContinuitySheet {
-    return { shotNo, ...EMPTY_SHEET_FIELDS };
-}
-
-/** 把批量校验结果写回镜头；没有交接单的镜头补一份最小交接单。 */
-export function applyFilmContinuityValidation(episode: FilmEpisode, results: Record<string, string>): FilmEpisode {
+/** 把批量校验结果写回镜头，校验不再塞进交接单，避免产生「空壳交接单」。 */
+export function applyFilmContinuityChecks(episode: FilmEpisode, results: Record<string, string>): FilmEpisode {
     return {
         ...episode,
         scenes: episode.scenes.map((scene) => ({
             ...scene,
             shots: scene.shots.map((shot) => {
-                const validation = results[shot.id];
-                if (!validation) return shot;
-                return { ...shot, continuity: { ...(shot.continuity || emptyFilmContinuitySheet(shot.shotNo)), validation } };
+                const check = results[shot.id];
+                return check ? { ...shot, continuityCheck: check } : shot;
             }),
         })),
     };
@@ -162,16 +173,9 @@ export function applyFilmContinuityValidation(episode: FilmEpisode, results: Rec
 
 /** 拼接到生图/生视频提示词里的场记约束。 */
 export function formatFilmContinuityPrompt(sheet: FilmContinuitySheet) {
-    const rows = [
-        sheet.prevFrameSummary ? `上一镜末帧：${sheet.prevFrameSummary}` : "",
-        sheet.nextFrameRequirement ? `本镜画面要求：${sheet.nextFrameRequirement}` : "",
-        sheet.characterState ? `角色状态：${sheet.characterState}` : "",
-        sheet.propState ? `道具状态：${sheet.propState}` : "",
-        sheet.environment ? `环境光线：${sheet.environment}` : "",
-        sheet.audioState ? `声音：${sheet.audioState}` : "",
-        sheet.emotionNarrative ? `情绪与叙事：${sheet.emotionNarrative}` : "",
-        sheet.forbidden ? `禁项（必须避免）：${sheet.forbidden}` : "",
-    ].filter(Boolean);
+    const rows = FILM_CONTINUITY_FIELDS
+        .map((field) => sheet[field.key].trim() ? `${field.promptLabel}：${sheet[field.key]}` : "")
+        .filter(Boolean);
     return rows.length ? `【场记交接·${sheet.shotNo}】\n${rows.join("\n")}` : "";
 }
 

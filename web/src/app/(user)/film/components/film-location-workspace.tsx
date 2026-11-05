@@ -9,6 +9,7 @@ import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
 import { useFilmCastStore } from "../stores/use-film-cast-store";
 import { addFilmAsset, importFilmAsset, removeFilmAsset, updateFilmAsset } from "../utils/film-edits";
 import { FILM_LOCATION_VIEW_PRESETS, type FilmViewPreset } from "../utils/film-view-presets";
+import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
 
 type FilmLocationWorkspaceProps = {
@@ -20,7 +21,8 @@ type FilmLocationWorkspaceProps = {
 };
 
 export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGenerateView, generatingAssetId }: FilmLocationWorkspaceProps) {
-    const { modal, message } = App.useApp();
+    const { message } = App.useApp();
+    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const locations = project.locations || [];
     const libraryLocations = useFilmCastStore((state) => state.locations);
     const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
@@ -63,13 +65,12 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
 
     const removeSelected = () => {
         if (!selected) return;
-        modal.confirm({
+        confirmDelete({
             title: `删除「${selected.name}」？`,
-            content: "删除后已有分镜里的场景引用会失效，但分镜本身不受影响。",
-            okText: "删除",
-            okButtonProps: { danger: true },
-            cancelText: "取消",
-            onOk: () => {
+            description: "删除后已有分镜里的场景引用会失效，但分镜本身不受影响。",
+            detail: selected.description || "场景 · 未填写描述",
+            confirmText: "删除场景",
+            onConfirm: () => {
                 onUpdate({ locations: removeFilmAsset(locations, selected.id) });
                 setSelectedId("");
             },
@@ -176,6 +177,7 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                     ))}
                 </div>
             </Modal>
+            {deleteConfirmNode}
         </div>
     );
 }

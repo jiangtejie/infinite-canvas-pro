@@ -6,7 +6,6 @@ import { nanoid } from "nanoid";
 
 import type { SeedableImageConfig } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
 import { updateFilmAsset } from "../utils/film-edits";
@@ -14,24 +13,18 @@ import { runImageTask } from "../utils/film-image-task";
 import { normalizeFilmAspect } from "../utils/film-aspects";
 import { resolveFilmStyleText } from "../utils/film-styles";
 import type { FilmViewPreset } from "../utils/film-view-presets";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
-    const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [generatingAssetId, setGeneratingAssetId] = useState("");
     const projectRef = useRef(project);
     projectRef.current = project;
 
     const buildImageConfig = (current: FilmProject) => {
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.imageModel, "image");
-        const config = { ...effectiveConfig, model, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig;
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return null;
-        }
-        return config;
+        const config = resolveModelConfig("image");
+        return config ? { ...config, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig : null;
     };
 
     const generateAsset = async (asset: FilmAsset, kind: FilmAssetKind) => {

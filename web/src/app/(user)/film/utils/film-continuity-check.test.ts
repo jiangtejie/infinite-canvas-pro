@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { formatFilmContinuityValidation, parseFilmContinuityCheck } from "./film-continuity-check";
+import { formatFilmContinuityCheck, parseFilmContinuityCheck } from "./film-continuity-check";
 
 test("解析带 Markdown 的校验结果", () => {
     const result = parseFilmContinuityCheck(`\`\`\`json
@@ -19,6 +19,6 @@ test("通过时 issues 允许为空", () => {
 });
 
 test("校验文本带通过/不通过前缀", () => {
-    assert.match(formatFilmContinuityValidation({ passed: true, issues: [], summary: "一致" }), /^通过/);
-    assert.match(formatFilmContinuityValidation({ passed: false, issues: ["鱼回水里"], summary: "" }), /^不通过/);
+    assert.match(formatFilmContinuityCheck({ passed: true, issues: [], summary: "一致" }), /^通过/);
+    assert.match(formatFilmContinuityCheck({ passed: false, issues: ["鱼回水里"], summary: "" }), /^不通过/);
 });

@@ -5,7 +5,6 @@ import { App } from "antd";
 
 import type { SeedableImageConfig } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { FilmProject, FilmShot } from "../types";
 import { updateFilmShot } from "../utils/film-edits";
@@ -17,6 +16,7 @@ import { resolveFilmStyleText } from "../utils/film-styles";
 import { collectFilmShotReferences } from "../utils/film-references";
 import { selectFilmBatchShots } from "../utils/film-batch";
 import { formatFilmContinuityPrompt, previousFilmShot } from "../utils/film-continuity-sheet";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -29,9 +29,7 @@ export type FilmImageBatchOptions = {
 
 export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
-    const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [generatingShotId, setGeneratingShotId] = useState("");
     const [batchProgress, setBatchProgress] = useState<FilmImageBatchProgress | null>(null);
     const projectRef = useRef(project);
@@ -40,13 +38,8 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
     const busy = Boolean(generatingShotId) || Boolean(batchProgress);
 
     const buildImageConfig = (current: FilmProject) => {
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.imageModel, "image");
-        const config = { ...effectiveConfig, model, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig;
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return null;
-        }
-        return config;
+        const config = resolveModelConfig("image");
+        return config ? { ...config, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig : null;
     };
 
     const buildShotPrompt = async (current: FilmProject, shot: FilmShot, extraReferences: ReferenceImage[] = [], anchor?: ReferenceImage | null) => {

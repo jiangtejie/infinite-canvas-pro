@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { App, Button, Input } from "antd";
+import { Button, Input } from "antd";
 import { ArrowLeft, Library, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -9,12 +9,13 @@ import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "../components/film-asset-thumbnail";
 import { useFilmCastStore } from "../stores/use-film-cast-store";
+import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
 import type { FilmAsset, FilmAssetKind } from "../types";
 
 type Selection = { kind: FilmAssetKind; id: string };
 
 export default function FilmLibraryPage() {
-    const { modal } = App.useApp();
+    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const hydrated = useFilmCastStore((state) => state.hydrated);
     const characters = useFilmCastStore((state) => state.characters);
     const locations = useFilmCastStore((state) => state.locations);
@@ -50,13 +51,12 @@ export default function FilmLibraryPage() {
 
     const removeSelected = () => {
         if (!selection || !selected) return;
-        modal.confirm({
+        confirmDelete({
             title: `从库中删除「${selected.name}」？`,
-            content: "删除后已导入到项目里的副本不受影响。",
-            okText: "删除",
-            okButtonProps: { danger: true },
-            cancelText: "取消",
-            onOk: () => {
+            description: "删除后已导入到项目里的副本不受影响。",
+            detail: `${selection.kind === "character" ? "角色" : "场景"} · ${selected.views?.length || 0} 张视图`,
+            confirmText: "从库中删除",
+            onConfirm: () => {
                 removeAsset(selection.kind, selection.id);
                 setSelection(null);
             },
@@ -151,6 +151,7 @@ export default function FilmLibraryPage() {
                     ) : null}
                 </div>
             </main>
+            {deleteConfirmNode}
         </div>
     );
 }

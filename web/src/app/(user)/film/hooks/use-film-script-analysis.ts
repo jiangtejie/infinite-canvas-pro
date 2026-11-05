@@ -3,27 +3,21 @@
 import { useState } from "react";
 import { App } from "antd";
 
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { FilmScriptAnalysis } from "../types";
 import { requestFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
 import type { FilmScriptDocument } from "../utils/film-script-import";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export function useFilmScriptAnalysis() {
     const { message } = App.useApp();
-    const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [analyzing, setAnalyzing] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
     const analyzeDocument = async (document: FilmScriptDocument, previousAnalysis?: FilmScriptAnalysis | null): Promise<{ analysis: FilmScriptAnalysis; issues: FilmScriptAnalysisIssue[]; reusedScenes: number } | null> => {
         if (analyzing) return null;
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.textModel, "text");
-        const config = { ...effectiveConfig, model } as AiConfig;
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return null;
-        }
+        const config = resolveModelConfig("text");
+        if (!config) return null;
         setAnalyzing(true);
         try {
             const result = await requestFilmScriptAnalysis(config, document, (done, total) => setProgress({ done, total }), previousAnalysis);

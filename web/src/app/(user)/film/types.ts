@@ -173,7 +173,6 @@ export type FilmContinuitySheet = {
     risks: string;
     forbidden: string;
     referenceAssets: string;
-    validation: string;
 };
 
 export type FilmShot = {
@@ -202,6 +201,7 @@ export type FilmShot = {
     imageVersions?: FilmMediaVersion[];
     videoVersions?: FilmMediaVersion[];
     continuity?: FilmContinuitySheet;
+    continuityCheck?: string;
 };
 
 export type FilmScene = {

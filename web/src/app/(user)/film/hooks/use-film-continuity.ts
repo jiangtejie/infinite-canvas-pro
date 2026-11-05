@@ -3,25 +3,19 @@
 import { useState } from "react";
 import { App } from "antd";
 
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { FilmContinuitySheet, FilmEpisode } from "../types";
 import { requestFilmContinuity } from "../utils/film-continuity-sheet";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export function useFilmContinuity() {
     const { message } = App.useApp();
-    const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [analyzingEpisodeId, setAnalyzingEpisodeId] = useState("");
 
     const analyzeEpisode = async (episode: FilmEpisode): Promise<FilmContinuitySheet[] | null> => {
         if (analyzingEpisodeId) return null;
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.textModel, "text");
-        const config = { ...effectiveConfig, model } as AiConfig;
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return null;
-        }
+        const config = resolveModelConfig("text");
+        if (!config) return null;
         setAnalyzingEpisodeId(episode.id);
         try {
             const sheets = await requestFilmContinuity(config, episode);

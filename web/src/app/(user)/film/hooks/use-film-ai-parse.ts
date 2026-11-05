@@ -3,16 +3,13 @@
 import { useState } from "react";
 import { App } from "antd";
 
-import { resolveModelForCapability, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmEpisode } from "../types";
 import { requestFilmAiStoryboard, type FilmParseOptions } from "../utils/film-ai-parse";
+import { useFilmModelConfig } from "./use-film-model-config";
 
 export function useFilmAiParse(onParsed: (episodes: FilmEpisode[]) => void) {
     const { message } = App.useApp();
-    const effectiveConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
+    const resolveModelConfig = useFilmModelConfig();
     const [parsing, setParsing] = useState(false);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -22,12 +19,8 @@ export function useFilmAiParse(onParsed: (episodes: FilmEpisode[]) => void) {
             message.warning("先粘贴剧本内容");
             return;
         }
-        const model = resolveModelForCapability(effectiveConfig, effectiveConfig.textModel, "text");
-        const config = { ...effectiveConfig, model } as AiConfig;
-        if (!isAiConfigReady(config, model)) {
-            openConfigDialog(true);
-            return;
-        }
+        const config = resolveModelConfig("text");
+        if (!config) return;
         setParsing(true);
         setProgress(null);
         try {
