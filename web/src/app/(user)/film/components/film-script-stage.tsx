@@ -39,7 +39,12 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const episodes = project.episodes;
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
     const [selectedShotId, setSelectedShotId] = useState("");
+    const [continuityPreviewEpisodeId, setContinuityPreviewEpisodeId] = useState("");
     const selectedShot = shots.find((shot) => shot.id === selectedShotId) ?? null;
+    const previewEpisode = episodes.find((episode) => episode.id === continuityPreviewEpisodeId) || null;
+    const previewSheets = previewEpisode
+        ? flattenFilmShots([previewEpisode]).filter((shot) => Boolean(shot.continuity)).map((shot) => ({ shot, sheet: shot.continuity! }))
+        : [];
 
     useEffect(() => {
         if (selectedShotId && shots.some((shot) => shot.id === selectedShotId)) return;
@@ -73,6 +78,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         const sheets = await analyzeEpisode(episode);
         if (!sheets?.length) return;
         onUpdate({ episodes: episodes.map((item) => item.id === episode.id ? applyFilmContinuity(item, sheets) : item) });
+        setContinuityPreviewEpisodeId(episode.id);
     };
 
     const generateSceneImages = (sceneShots: FilmShot[]) => {
@@ -294,6 +300,14 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                     onClick={() => checkEpisodeContinuity(episode)}
                                 />
                                 {checkingBatchProgress ? <span className="font-mono text-[9px] text-acid tabular-nums">{checkingBatchProgress.done}/{checkingBatchProgress.total}</span> : null}
+                                {(() => {
+                                    const count = episode.scenes.reduce((total, scene) => total + scene.shots.filter((shot) => shot.continuity).length, 0);
+                                    return count ? (
+                                        <button type="button" className="chip chip-acid" title="查看场记交接单" onClick={() => setContinuityPreviewEpisodeId(episode.id)}>
+                                            场记 {count}
+                                        </button>
+                                    ) : null;
+                                })()}
                                 <Button type="text" size="small" aria-label="添加场景" title="添加场景" icon={<Plus className="size-3.5" />} onClick={() => onUpdate({ episodes: addFilmScene(episodes, episode.id) })} />
                             </div>
                             {episode.scenes.map((scene, sceneIndex) => (
@@ -335,6 +349,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                             <span className={cn("font-mono text-[10px] tabular-nums", shot.id === selectedShotId ? "text-acid" : "text-muted-foreground/70")}>{shot.shotNo}</span>
                                             <span className="w-12 shrink-0 font-mono text-[9px] tracking-wide text-muted-foreground/70">{shot.shotType ? filmShotTypeLabel(shot.shotType) : "—"}</span>
                                             <span className="min-w-0 flex-1 truncate text-xs text-foreground/80">{shot.description || "未填写描述"}</span>
+                                            {shot.continuity ? <span className="shrink-0 font-mono text-[9px] text-acid/80">场记</span> : null}
                                             <StatusDot status={shot.status} />
                                         </button>
                                     ))}
@@ -382,6 +397,59 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                     </div>
                 )}
             </section>
+
+            <Modal
+                title={previewEpisode ? `${previewEpisode.title} · 场记交接单` : "场记交接单"}
+                open={Boolean(previewEpisode)}
+                onCancel={() => setContinuityPreviewEpisodeId("")}
+                footer={null}
+                width={760}
+            >
+                {previewSheets.length ? (
+                    <div className="thin-scrollbar grid max-h-[65vh] gap-2 overflow-y-auto pr-1">
+                        {previewSheets.map(({ shot, sheet }) => (
+                            <div key={shot.id} className="grid gap-2 rounded-lg border border-border/70 bg-card/40 p-3">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        className="min-w-0 flex-1 truncate text-left text-xs font-medium text-foreground transition-colors hover:text-acid"
+                                        onClick={() => {
+                                            setSelectedShotId(shot.id);
+                                            setContinuityPreviewEpisodeId("");
+                                        }}
+                                    >
+                                        {shot.shotNo} · {shot.description || "未填写描述"}
+                                    </button>
+                                    <span className={cn("shrink-0 font-mono text-[9px]", sheet.validation.startsWith("通过") ? "text-acid" : sheet.validation ? "text-hot" : "text-muted-foreground/50")}>
+                                        {sheet.validation || "未校验"}
+                                    </span>
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {([
+                                        ["上一镜末帧", sheet.prevFrameSummary],
+                                        ["本镜要求", sheet.nextFrameRequirement],
+                                        ["角色状态", sheet.characterState],
+                                        ["道具状态", sheet.propState],
+                                        ["环境光线", sheet.environment],
+                                        ["镜头参数", sheet.cameraParams],
+                                        ["声音", sheet.audioState],
+                                        ["情绪叙事", sheet.emotionNarrative],
+                                        ["连续性风险", sheet.risks],
+                                        ["禁项", sheet.forbidden],
+                                    ] as Array<[string, string]>).filter(([, value]) => value).map(([label, value]) => (
+                                        <div key={label} className="grid gap-0.5">
+                                            <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{label}</span>
+                                            <span className="text-[11px] leading-5 text-foreground/80">{value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="py-6 text-center text-xs text-muted-foreground">这一集还没有场记交接单，先点「AI 场记分析」。</p>
+                )}
+            </Modal>
 
             <Modal
                 title="已有分镜，如何处理？"

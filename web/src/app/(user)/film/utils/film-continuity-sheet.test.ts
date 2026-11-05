@@ -64,6 +64,19 @@ test("提示词包含承接、道具与禁项", () => {
     assert.match(prompt, /禁项/);
 });
 
+test("兼容 01 与 1 两种镜号写法", () => {
+    const input = episode();
+    input.scenes[0].shots[1].shotNo = "1";
+    const updated = applyFilmContinuity(input, [sheet("01", { propState: "鱼在岸上" })]);
+    assert.equal(updated.scenes[0].shots[0].continuity?.propState, "鱼在岸上");
+  });
+
+test("镜号完全对不上时按顺序兜底", () => {
+    const updated = applyFilmContinuity(episode(), [sheet("甲", { propState: "第一镜" }), sheet("乙", { propState: "第二镜" })]);
+    assert.equal(updated.scenes[0].shots[0].continuity?.propState, "第一镜");
+    assert.equal(updated.scenes[0].shots[1].continuity?.propState, "第二镜");
+});
+
 test("批量校验结果写回，缺失交接单时补最小单", () => {
     const updated = applyFilmContinuityValidation(episode(), { s2: "不通过：鱼回到了水里" });
     assert.equal(updated.scenes[0].shots[0].continuity, undefined);

@@ -99,15 +99,26 @@ function toStringValue(value: unknown) {
     return String(value).trim();
 }
 
-/** 按镜号把交接单写回对应镜头。 */
+function normalizeContinuityShotNo(value: string) {
+    return value.trim().replace(/^0+(?=\d)/, "");
+}
+
+/** 按镜号把交接单写回对应镜头；兼容 01/1 两种写法，镜号完全对不上时按顺序兜底。 */
 export function applyFilmContinuity(episode: FilmEpisode, sheets: FilmContinuitySheet[]): FilmEpisode {
-    const byShotNo = new Map(sheets.map((sheet) => [sheet.shotNo.trim(), sheet]));
+    const flat = episode.scenes.flatMap((scene) => scene.shots);
+    const byShotNo = new Map(sheets.map((sheet) => [normalizeContinuityShotNo(sheet.shotNo), sheet]));
+    const anyMatch = flat.some((shot) => byShotNo.has(normalizeContinuityShotNo(shot.shotNo)));
+    const byShotId = new Map<string, FilmContinuitySheet>();
+    flat.forEach((shot, index) => {
+        const sheet = byShotNo.get(normalizeContinuityShotNo(shot.shotNo)) || (!anyMatch && sheets.length === flat.length ? sheets[index] : undefined);
+        if (sheet) byShotId.set(shot.id, sheet);
+    });
     return {
         ...episode,
         scenes: episode.scenes.map((scene) => ({
             ...scene,
             shots: scene.shots.map((shot) => {
-                const sheet = byShotNo.get(shot.shotNo.trim());
+                const sheet = byShotId.get(shot.id);
                 return sheet ? { ...shot, continuity: sheet } : shot;
             }),
         })),
