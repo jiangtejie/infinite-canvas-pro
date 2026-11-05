@@ -78,6 +78,23 @@ export type FilmMediaVersion = {
     createdAt: string;
 };
 
+export type FilmContinuitySheet = {
+    shotNo: string;
+    version: string;
+    prevFrameSummary: string;
+    nextFrameRequirement: string;
+    characterState: string;
+    propState: string;
+    environment: string;
+    cameraParams: string;
+    audioState: string;
+    emotionNarrative: string;
+    risks: string;
+    forbidden: string;
+    referenceAssets: string;
+    validation: string;
+};
+
 export type FilmShot = {
     id: string;
     shotNo: string;
@@ -103,6 +120,7 @@ export type FilmShot = {
     errorMessage?: string;
     imageVersions?: FilmMediaVersion[];
     videoVersions?: FilmMediaVersion[];
+    continuity?: FilmContinuitySheet;
 };
 
 export type FilmScene = {

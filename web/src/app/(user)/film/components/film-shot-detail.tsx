@@ -5,8 +5,9 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ImagePlus, Trash2, X } f
 import { AutoComplete, Button, Image, Input, InputNumber, Select, Spin } from "antd";
 
 import { cn } from "@/lib/utils";
-import type { FilmAsset, FilmShot, FilmShotStatus } from "../types";
+import type { FilmAsset, FilmContinuitySheet, FilmShot, FilmShotStatus } from "../types";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
+import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
 import { filmAspectCssRatio } from "../utils/film-aspects";
 import { FILM_CAMERA_MOVEMENT_OPTIONS, FILM_SHOT_TYPE_OPTIONS } from "../utils/film-shot-types";
 import { FilmImageThumbnail } from "./film-asset-thumbnail";
@@ -41,10 +42,26 @@ type FilmShotDetailProps = {
 
 export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, generatingVideo, videoProgress, characters = [], locations = [], onMove, canMoveUp, canMoveDown, onMoveToScene, sceneTargets = [], aspect, styleText = "" }: FilmShotDetailProps) {
     const imageSrc = useFilmImageUrl(shot.imageUrl, shot.storageKey);
+    const { checkingShotId, checkShot } = useFilmContinuityCheck();
     const [tab, setTab] = useState<"basic" | "image" | "video">("basic");
+    const [continuityEditing, setContinuityEditing] = useState(false);
     const imageVersionsRef = useRef<HTMLDivElement>(null);
     const imageElapsed = useElapsedSeconds(Boolean(generating));
     const frameStyle = { aspectRatio: aspect ? filmAspectCssRatio(aspect) : "16 / 9" };
+
+    useEffect(() => {
+        setContinuityEditing(false);
+    }, [shot.id]);
+
+    const updateContinuity = (patch: Partial<FilmContinuitySheet>) => {
+        if (!shot.continuity) return;
+        onChange({ continuity: { ...shot.continuity, ...patch } });
+    };
+
+    const handleContinuityCheck = async () => {
+        const validation = await checkShot(shot);
+        if (validation && shot.continuity) updateContinuity({ validation });
+    };
 
     const scrollImageVersions = (direction: -1 | 1) => {
         imageVersionsRef.current?.scrollBy({ left: direction * 150, behavior: "smooth" });
@@ -224,7 +241,41 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                 {tab === "basic" ? (
                 <>
                 {shot.errorMessage ? <p className="rounded-md border border-hot/30 bg-hot/5 px-2.5 py-2 text-[11px] leading-5 text-hot">{shot.errorMessage}</p> : null}
-                {shot.errorMessage ? <p className="rounded-md border border-hot/30 bg-hot/5 px-2.5 py-2 text-[11px] leading-5 text-hot">{shot.errorMessage}</p> : null}
+                {shot.continuity ? (
+                    <div className="grid gap-2 rounded-lg border border-acid/25 bg-acid/[0.04] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-acid uppercase">场记交接单 {shot.continuity.version}</span>
+                            <div className="flex items-center gap-1">
+                                <Button size="small" type="text" title="使用当前文本模型对生成图做视觉校验，需要模型支持图片输入" loading={checkingShotId === shot.id} disabled={!shot.imageUrl} onClick={() => void handleContinuityCheck()}>
+                                    AI 校验
+                                </Button>
+                                <Button size="small" type="text" onClick={() => setContinuityEditing((value) => !value)}>
+                                    {continuityEditing ? "完成" : "编辑"}
+                                </Button>
+                                <Button size="small" type="text" danger onClick={() => onChange({ continuity: undefined })}>
+                                    清除
+                                </Button>
+                            </div>
+                        </div>
+                        {shot.continuity.validation ? (
+                            <p className={cn("text-[11px] leading-5", shot.continuity.validation.startsWith("通过") ? "text-acid" : "text-hot")}>校验结果：{shot.continuity.validation}</p>
+                        ) : null}
+                        {continuityEditing ? (
+                            <div className="grid gap-2">
+                                {CONTINUITY_FIELDS.map((field) => (
+                                    <label key={field.key} className="grid gap-1">
+                                        <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{field.label}</span>
+                                        <Input.TextArea autoSize={{ minRows: 1, maxRows: 4 }} value={shot.continuity?.[field.key] || ""} onChange={(event) => updateContinuity({ [field.key]: event.target.value } as Partial<FilmContinuitySheet>)} />
+                                    </label>
+                                ))}
+                            </div>
+                        ) : (
+                            <>
+                                {CONTINUITY_FIELDS.map((field) => <ContinuityRow key={field.key} label={field.label} value={shot.continuity?.[field.key] || ""} />)}
+                            </>
+                        )}
+                    </div>
+                ) : null}
                 <Field label="画面描述">
                     <Input.TextArea autoSize={{ minRows: 4, maxRows: 8 }} value={shot.description} placeholder="这个镜头里发生什么、人物动作、环境、光线" onChange={(event) => onChange({ description: event.target.value })} />
                 </Field>
@@ -281,6 +332,30 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
         >
             {children}
         </button>
+    );
+}
+
+const CONTINUITY_FIELDS: Array<{ key: keyof FilmContinuitySheet; label: string }> = [
+    { key: "prevFrameSummary", label: "上一镜末帧" },
+    { key: "nextFrameRequirement", label: "本镜要求 / 下一镜首帧" },
+    { key: "characterState", label: "角色状态" },
+    { key: "propState", label: "道具状态" },
+    { key: "environment", label: "环境 / 光线" },
+    { key: "cameraParams", label: "镜头参数" },
+    { key: "audioState", label: "声音状态" },
+    { key: "emotionNarrative", label: "情绪 / 叙事功能" },
+    { key: "risks", label: "连续性风险" },
+    { key: "forbidden", label: "禁项" },
+    { key: "referenceAssets", label: "参考资产" },
+];
+
+function ContinuityRow({ label, value }: { label: string; value: string }) {
+    if (!value) return null;
+    return (
+        <div className="grid gap-0.5">
+            <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{label}</span>
+            <span className="text-[11px] leading-5 text-foreground/80">{value}</span>
+        </div>
     );
 }
 

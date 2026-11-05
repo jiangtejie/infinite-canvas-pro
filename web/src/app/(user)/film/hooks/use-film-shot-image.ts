@@ -16,6 +16,7 @@ import { normalizeFilmAspect } from "../utils/film-aspects";
 import { resolveFilmStyleText } from "../utils/film-styles";
 import { collectFilmShotReferences } from "../utils/film-references";
 import { selectFilmBatchShots } from "../utils/film-batch";
+import { formatFilmContinuityPrompt, previousFilmShot } from "../utils/film-continuity-sheet";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -48,16 +49,26 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         return config;
     };
 
-    const buildShotPrompt = async (current: FilmProject, shot: FilmShot, anchor?: ReferenceImage | null) => {
+    const buildShotPrompt = async (current: FilmProject, shot: FilmShot, extraReferences: ReferenceImage[] = [], anchor?: ReferenceImage | null) => {
         const promptText = (shot.prompt || shot.description).trim();
         const { references, hints } = await collectFilmShotReferences(current, shot);
         const styleText = resolveFilmStyleText(current);
+        const continuityText = shot.continuity ? formatFilmContinuityPrompt(shot.continuity) : "";
         const prompt = [
+            continuityText,
             styleText ? `${promptText}\n\n视觉风格：${styleText}` : promptText,
             hints ? `参考角色与场景：${hints}` : "",
+            extraReferences.length ? "参考图中的上一镜画面用于衔接本镜，保持人物位置、道具状态和环境光线一致。" : "",
             anchor ? "与参考图中的锚点帧保持相同的色调、光线、材质与画风，角色和场景设定不要改变。" : "",
         ].filter(Boolean).join("\n\n");
-        return { prompt, references: anchor ? [...references.slice(0, 5), anchor] : references };
+        const merged = [...references.slice(0, 4), ...extraReferences].slice(0, 5);
+        return { prompt, references: anchor ? [...merged, anchor].slice(0, 6) : merged };
+    };
+
+    const previousReference = async (current: FilmProject, shot: FilmShot) => {
+        const previous = previousFilmShot(current.episodes || [], shot.id);
+        if (!previous?.imageUrl) return null;
+        return imageReference(previous.imageUrl, previous.storageKey, `prev-${previous.id}`);
     };
 
     const imageReference = async (imageUrl: string, storageKey: string | undefined, id: string): Promise<ReferenceImage | null> => {
@@ -80,7 +91,8 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         if (!config) return;
         setGeneratingShotId(shot.id);
         try {
-            const { prompt, references } = await buildShotPrompt(current, shot);
+            const previous = await previousReference(current, shot);
+            const { prompt, references } = await buildShotPrompt(current, shot, previous ? [previous] : []);
             const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id);
             const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
             onUpdate({
@@ -119,7 +131,9 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
                 setGeneratingShotId(shot.id);
                 try {
                     const isAnchor = shot.id === anchorShot?.id;
-                    const { prompt, references } = await buildShotPrompt(projectRef.current || current, shot, isAnchor ? null : anchorReference);
+                    const latestProject = projectRef.current || current;
+                    const previous = await previousReference(latestProject, shot);
+                    const { prompt, references } = await buildShotPrompt(latestProject, shot, previous ? [previous] : [], isAnchor ? null : anchorReference);
                     const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id);
                     const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
                     onUpdate({

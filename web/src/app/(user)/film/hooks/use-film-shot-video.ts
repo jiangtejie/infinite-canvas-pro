@@ -16,6 +16,7 @@ import { resolveFilmStyleText } from "../utils/film-styles";
 import { collectFilmShotReferences } from "../utils/film-references";
 import { compressFilmReference } from "../utils/film-image-compress";
 import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from "../utils/film-video-segments";
+import { formatFilmContinuityPrompt } from "../utils/film-continuity-sheet";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "../utils/film-video-limits";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
 
@@ -107,7 +108,8 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             hints = collected.hints;
         }
 
-        const prompt = composeFilmVideoPrompt({
+        const continuityText = shot.continuity ? formatFilmContinuityPrompt(shot.continuity) : "";
+        const composedPrompt = composeFilmVideoPrompt({
             segments,
             shotTypeLabel: filmShotTypeLabel(shot.shotType),
             cameraMovement: shot.cameraMovement || "",
@@ -118,6 +120,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             hasFirstFrame: mode === "frames" && Boolean(shot.firstFrame),
             hints,
         });
+        const prompt = continuityText ? `${continuityText}\n\n${composedPrompt}` : composedPrompt;
 
         setProgress(0);
         const result = await requestVideoGeneration(shotConfig, prompt, input, (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))));

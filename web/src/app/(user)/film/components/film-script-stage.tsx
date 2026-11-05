@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { App, Button, Input, InputNumber, Modal, Select } from "antd";
-import { Clapperboard, Link2, Plus, Sparkles, Trash2, Undo2 } from "lucide-react";
+import { Clapperboard, ClipboardList, Link2, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmEpisode, FilmProject, FilmShot } from "../types";
 import { addFilmEpisode, addFilmScene, addFilmShot, filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { useFilmAiParse } from "../hooks/use-film-ai-parse";
+import { useFilmContinuity } from "../hooks/use-film-continuity";
 import type { FilmImageBatchOptions, FilmImageBatchProgress } from "../hooks/use-film-shot-image";
+import { applyFilmContinuity, applyFilmContinuityValidation } from "../utils/film-continuity-sheet";
+import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
 import { bindFilmCast } from "../utils/film-cast-bind";
 import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
@@ -31,6 +34,8 @@ type FilmScriptStageProps = {
 
 export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerateImageBatch, generatingShotId, batchProgress, onStopBatch, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
     const { message, modal } = App.useApp();
+    const { analyzingEpisodeId, analyzeEpisode } = useFilmContinuity();
+    const { batchProgress: checkingBatchProgress, checkShots } = useFilmContinuityCheck();
     const episodes = project.episodes;
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
     const [selectedShotId, setSelectedShotId] = useState("");
@@ -43,6 +48,32 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     const sceneTargets = useMemo(() => filmSceneOptions(episodes), [episodes]);
     const selectedPosition = selectedShot ? filmShotPosition(episodes, selectedShot.id) : null;
+
+    const checkEpisodeContinuity = (episode: FilmEpisode) => {
+        const episodeShots = episode.scenes.flatMap((scene) => scene.shots);
+        const checkable = episodeShots.filter((shot) => shot.imageUrl || shot.storageKey);
+        if (!checkable.length) {
+            message.warning("本集还没有可校验的分镜图");
+            return;
+        }
+        modal.confirm({
+            title: `校验本集 ${checkable.length} 张分镜图？`,
+            content: "会逐张用多模态模型对照场记交接单检查，消耗相应次数的模型调用；校验结果会写回每个镜头的交接单。",
+            okText: "开始校验",
+            cancelText: "取消",
+            onOk: async () => {
+                const results = await checkShots(episodeShots);
+                if (!results || !Object.keys(results).length) return;
+                onUpdate({ episodes: episodes.map((item) => item.id === episode.id ? applyFilmContinuityValidation(item, results) : item) });
+            },
+        });
+    };
+
+    const analyzeContinuity = async (episode: FilmEpisode) => {
+        const sheets = await analyzeEpisode(episode);
+        if (!sheets?.length) return;
+        onUpdate({ episodes: episodes.map((item) => item.id === episode.id ? applyFilmContinuity(item, sheets) : item) });
+    };
 
     const generateSceneImages = (sceneShots: FilmShot[]) => {
         if (batchProgress) return;
@@ -242,6 +273,27 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                 <span className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">{String(episodeIndex + 1).padStart(2, "0")}</span>
                                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{episode.title}</span>
                                 <span className="font-mono text-[10px] text-muted-foreground tabular-nums">{episode.scenes.length} 场</span>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    aria-label="AI 场记分析"
+                                    title="AI 场记分析（生成场记交接单）"
+                                    loading={analyzingEpisodeId === episode.id}
+                                    disabled={Boolean(analyzingEpisodeId)}
+                                    icon={<ClipboardList className="size-3.5" />}
+                                    onClick={() => void analyzeContinuity(episode)}
+                                />
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    aria-label="AI 场记校验"
+                                    title="AI 场记校验（逐张检查本集分镜图）"
+                                    loading={Boolean(checkingBatchProgress)}
+                                    disabled={Boolean(analyzingEpisodeId) || Boolean(checkingBatchProgress)}
+                                    icon={<ShieldCheck className="size-3.5" />}
+                                    onClick={() => checkEpisodeContinuity(episode)}
+                                />
+                                {checkingBatchProgress ? <span className="font-mono text-[9px] text-acid tabular-nums">{checkingBatchProgress.done}/{checkingBatchProgress.total}</span> : null}
                                 <Button type="text" size="small" aria-label="添加场景" title="添加场景" icon={<Plus className="size-3.5" />} onClick={() => onUpdate({ episodes: addFilmScene(episodes, episode.id) })} />
                             </div>
                             {episode.scenes.map((scene, sceneIndex) => (
