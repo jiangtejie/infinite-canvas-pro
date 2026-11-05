@@ -7,7 +7,7 @@ import { Clapperboard, ImageIcon, Upload } from "lucide-react";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { cn } from "@/lib/utils";
 import { uploadImage } from "@/services/image-storage";
-import { useEffectiveConfig } from "@/stores/use-config-store";
+import { resolveModelForCapability, useEffectiveConfig } from "@/stores/use-config-store";
 import type { FilmAsset, FilmFrameSource, FilmShot, FilmVideoSegment } from "../types";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
 import { filmAspectCssRatio } from "../utils/film-aspects";
@@ -32,6 +32,9 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
     const copyText = useCopyText();
     const effectiveConfig = useEffectiveConfig();
     const videoModel = effectiveConfig.videoModel || effectiveConfig.model;
+    const resolvedVideoModel = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video") || "未选择";
+    const configuredVideoModel = effectiveConfig.videoModel;
+    const videoModelMismatch = Boolean(configuredVideoModel && resolvedVideoModel !== "未选择" && configuredVideoModel !== resolvedVideoModel);
     const limits = filmVideoLimits(videoModel);
     const adjustedDuration = clampFilmVideoDuration(shot.duration, videoModel);
     const durationIssue = limits.isSeedance && shot.duration !== adjustedDuration;
@@ -151,7 +154,12 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
                 </p>
                 {limits.isSeedance ? (
                     <p className="text-[11px] leading-5 text-muted-foreground/70">
-                        当前视频模型：{limits.label}（{videoModel || "未选择"}），支持 {limits.min}-{limits.max} 秒，参考图最多 {filmVideoReferenceLimit(videoModel)} 张；宽银幕会按 21:9 发送。
+                        当前视频模型：{limits.label}（实际发送 {resolvedVideoModel}）· {effectiveConfig.channelMode === "remote" ? "云端渠道" : "本地渠道"}，支持 {limits.min}-{limits.max} 秒，参考图最多 {filmVideoReferenceLimit(videoModel)} 张；宽银幕会按 21:9 发送。
+                    </p>
+                ) : null}
+                {videoModelMismatch ? (
+                    <p className="rounded-md border border-hot/30 bg-hot/5 px-2.5 py-2 text-[11px] leading-5 text-hot">
+                        配置的视频模型「{configuredVideoModel}」不在当前渠道的视频模型列表里，实际会发送「{resolvedVideoModel}」。请到 AI 配置重新选择当前渠道的视频模型。
                     </p>
                 ) : null}
                 {durationIssue ? (

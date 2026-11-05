@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { FilmEpisode, FilmProject, FilmShot } from "../types";
 import { addFilmEpisode, addFilmScene, addFilmShot, filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { useFilmAiParse } from "../hooks/use-film-ai-parse";
+import type { FilmImageBatchOptions, FilmImageBatchProgress } from "../hooks/use-film-shot-image";
 import { bindFilmCast } from "../utils/film-cast-bind";
 import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
@@ -19,13 +20,16 @@ type FilmScriptStageProps = {
     project: FilmProject;
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     onGenerateImage: (shot: FilmShot) => void;
+    onGenerateImageBatch: (shots: FilmShot[], options?: FilmImageBatchOptions) => void;
     generatingShotId: string;
+    batchProgress: FilmImageBatchProgress | null;
+    onStopBatch: () => void;
     onGenerateVideo: (shot: FilmShot) => void;
     generatingVideoShotId: string;
     videoProgress: number;
 };
 
-export function FilmScriptStage({ project, onUpdate, onGenerateImage, generatingShotId, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
+export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerateImageBatch, generatingShotId, batchProgress, onStopBatch, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
     const { message, modal } = App.useApp();
     const episodes = project.episodes;
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
@@ -39,6 +43,27 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, generating
 
     const sceneTargets = useMemo(() => filmSceneOptions(episodes), [episodes]);
     const selectedPosition = selectedShot ? filmShotPosition(episodes, selectedShot.id) : null;
+
+    const generateSceneImages = (sceneShots: FilmShot[]) => {
+        if (batchProgress) return;
+        const describable = sceneShots.filter((shot) => (shot.prompt || shot.description).trim());
+        if (!describable.length) {
+            message.warning("本场镜头还没有画面描述或提示词");
+            return;
+        }
+        const pending = describable.filter((shot) => !shot.imageUrl);
+        if (!pending.length) {
+            message.info("本场镜头都已有分镜图");
+            return;
+        }
+        modal.confirm({
+            title: `生成本场 ${pending.length} 张分镜图？`,
+            content: "已有分镜图的镜头会跳过；会用本场第一个镜头做锚点，后续镜头引用它保持色调与画风，按顺序生成。",
+            okText: "开始生成",
+            cancelText: "取消",
+            onOk: () => onGenerateImageBatch(sceneShots, { anchorShotId: sceneShots[0]?.id, skipExisting: true }),
+        });
+    };
 
     const moveSelectedShot = (direction: "up" | "down") => {
         if (!selectedShot) return;
@@ -180,6 +205,14 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, generating
                 <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                     <span className="eyebrow">剧集结构</span>
                     <div className="flex items-center gap-1">
+                        {batchProgress ? (
+                            <>
+                                <span className="font-mono text-[10px] text-acid tabular-nums">批量生成 {batchProgress.done}/{batchProgress.total}</span>
+                                <Button type="text" size="small" danger onClick={onStopBatch}>
+                                    停止
+                                </Button>
+                            </>
+                        ) : null}
                         {episodeHistory.length ? (
                             <Button type="text" size="small" icon={<Undo2 className="size-3.5" />} onClick={undoParse}>
                                 撤销解析
@@ -217,6 +250,15 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, generating
                                         <span className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">{episodeIndex + 1}-{sceneIndex + 1}</span>
                                         <span className="min-w-0 flex-1 truncate text-xs text-foreground/85">{scene.name}</span>
                                         <span className="font-mono text-[10px] text-muted-foreground/70 tabular-nums">{scene.shots.length} 镜</span>
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            aria-label="生成本场分镜图"
+                                            title="生成本场分镜图（首镜锚定）"
+                                            disabled={Boolean(batchProgress)}
+                                            icon={<Sparkles className="size-3.5" />}
+                                            onClick={() => generateSceneImages(scene.shots)}
+                                        />
                                         <Button type="text" size="small" aria-label="添加分镜" title="添加分镜" icon={<Plus className="size-3.5" />} onClick={() => onUpdate({ episodes: addFilmShot(episodes, scene.id) })} />
                                         <Button
                                             type="text"

@@ -134,6 +134,17 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
                 ? miniMaxApiUrl(config, "/v2/video_generation")
                 : aiApiUrl(config, !accountProxy && (isGrok2APIVideoConfig(config, model) || isCogVideoX3Model(model)) ? "/videos/generations" : "/videos");
         const requestBody = !accountProxy && isGeminiConfig(config, model) ? withoutVideoModel(body) : body;
+        if (typeof window !== "undefined") {
+            console.info("[video] 发起视频任务", {
+                model,
+                videoModel: config.videoModel,
+                channelMode: config.channelMode,
+                accountProxy,
+                createUrl,
+                protocol: videoChannelProtocol(config, model),
+                requestModel: (requestBody as Record<string, unknown>).model,
+            });
+        }
         createOptions.signal?.throwIfAborted();
         if (accountProxy) createOptions.onServerTask?.();
         const created = directProvider
@@ -392,6 +403,40 @@ async function createAgnesVideoV25RequestBody(config: AiConfig, model: string, p
     return body;
 }
 
+async function createOpenAICloudVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
+    const content: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
+    const pushImage = async (image: ReferenceImage, role: string) => {
+        try {
+            const dataUrl = image.dataUrl || await imageToDataUrl(image);
+            if (dataUrl) content.push({ type: "image_url", image_url: { url: dataUrl }, role });
+        } catch {
+            // 单张参考图读取失败时跳过
+        }
+    };
+    for (const image of input.references) await pushImage(image, "reference_image");
+    if (input.firstFrame) await pushImage(input.firstFrame, "first_frame");
+    if (input.lastFrame) await pushImage(input.lastFrame, "last_frame");
+    for (const video of input.videoReferences) {
+        if (video.url) content.push({ type: "video_url", video_url: { url: video.url }, role: "reference_video" });
+    }
+    for (const audio of input.audioReferences) {
+        if (audio.url) content.push({ type: "audio_url", audio_url: { url: audio.url }, role: "reference_audio" });
+    }
+    const seconds = normalizeSeedanceDuration(config.videoSeconds, (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5")) ? 30 : 15);
+    const ratio = normalizeSeedanceRatio(config.size);
+    return {
+        model,
+        prompt,
+        content,
+        seconds: String(seconds),
+        duration: seconds,
+        resolution: normalizeVideoResolution(config.vquality),
+        ...(ratio !== "adaptive" ? { ratio, aspect_ratio: ratio } : {}),
+        generate_audio: boolConfig(config.videoGenerateAudio, false),
+        watermark: boolConfig(config.videoWatermark, false),
+    };
+}
+
 async function createVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     if (videoChannelProtocol(config, model) === "autodl") {
         const capabilities = getAutoDLCapabilities(await fetchAutoDLWorkflow(autoDLBaseUrl(config, model), model));
@@ -412,6 +457,7 @@ async function createVideoRequestBody(config: AiConfig, model: string, prompt: s
         };
     }
     const tokenDance = videoChannelProtocol(config, model) === "tokendance";
+    if (config.channelMode === "remote" && videoChannelProtocol(config, model) === "openai") return createOpenAICloudVideoRequestBody(config, model, prompt, input);
     if (videoChannelProtocol(config, model) === "ark") return createArkSeedanceVideoRequestBody(config, model, prompt, input);
     const size = normalizeVideoSize(config.size);
     if (isGeminiVideoModel(model) && isGeminiConfig(config, model)) return createGeminiVeoRequestBody(config, model, prompt, input);

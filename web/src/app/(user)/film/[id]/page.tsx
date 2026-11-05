@@ -131,7 +131,10 @@ export default function FilmProjectPage() {
                             project={project}
                             onUpdate={(patch) => updateProject(project.id, patch)}
                             onGenerateImage={imageGeneration.generate}
+                            onGenerateImageBatch={imageGeneration.generateBatch}
                             generatingShotId={imageGeneration.generatingShotId}
+                            batchProgress={imageGeneration.batchProgress}
+                            onStopBatch={imageGeneration.stopBatch}
                             onGenerateVideo={videoGeneration.generateVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}

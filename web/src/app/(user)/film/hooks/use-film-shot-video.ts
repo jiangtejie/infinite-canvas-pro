@@ -53,6 +53,26 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
 
     const buildVideoConfig = (current: FilmProject) => {
         const model = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video");
+        if (typeof window !== "undefined") {
+            console.info("[film-video] 解析视频模型", {
+                channelMode: effectiveConfig.channelMode,
+                configuredVideoModel: effectiveConfig.videoModel,
+                configuredModel: effectiveConfig.model,
+                resolvedModel: model,
+                videoModels: (effectiveConfig.videoModels || []).slice(0, 10),
+                publicChannels: (effectiveConfig.publicChannels || []).map((channel) => ({
+                    id: channel.id,
+                    modelCount: channel.models?.length || 0,
+                    hasResolvedModel: Boolean(model && channel.models?.includes(model)),
+                })),
+                localChannels: (effectiveConfig.localChannels || []).map((channel) => ({
+                    id: channel.id,
+                    protocol: channel.protocol,
+                    modelCount: channel.models?.length || 0,
+                    hasResolvedModel: Boolean(model && channel.models?.includes(model)),
+                })),
+            });
+        }
         const config: AiConfig = { ...effectiveConfig, model, size: filmVideoAspect(current.aspect, model) };
         if (!isAiConfigReady(config, model)) {
             openConfigDialog(true);
@@ -116,6 +136,19 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             message.info("请先配置可用的视频模型");
             return;
         }
+        if (typeof window !== "undefined") {
+            console.info("[film-video] 开始生成分镜视频", {
+                shotId: shot.id,
+                shotNo: shot.shotNo,
+                mode: shot.videoMode === "frames" ? "frames" : "reference",
+                duration: shot.duration,
+                model: config.model,
+                videoModel: config.videoModel,
+                channelMode: config.channelMode,
+                size: config.size,
+                videoSeconds: config.videoSeconds,
+            });
+        }
         setGeneratingShotId(shot.id);
         message.info("已提交视频生成，等待模型返回…");
         try {
@@ -127,6 +160,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             message.success("分镜视频已生成");
         } catch (error) {
             const reason = friendlyVideoError(error);
+            if (typeof window !== "undefined") console.warn("[film-video] 生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, channelMode: config.channelMode, reason });
             onUpdate({
                 episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
                     errorMessage: reason,
@@ -165,6 +199,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                     });
                 } catch (error) {
                     failed += 1;
+                    if (typeof window !== "undefined") console.warn("[film-video] 批量生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, channelMode: config.channelMode, reason: friendlyVideoError(error) });
                     onUpdate({
                         episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
                             errorMessage: friendlyVideoError(error),

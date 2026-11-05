@@ -2,7 +2,7 @@
 
 import { CheckCircleOutlined, DeleteOutlined, FormatPainterOutlined, LoadingOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
 import { json } from "@codemirror/lang-json";
-import { App, Button, Card, Col, Drawer, Flex, Form, Input, InputNumber, Modal, Row, Segmented, Select, Space, Switch, Table, Tabs, Tag, Typography } from "antd";
+import { App, Button, Card, Col, Drawer, Flex, Form, Input, InputNumber, Modal, Row, Segmented, Select, Space, Switch, Table, Tag, Typography } from "antd";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EditorView } from "@uiw/react-codemirror";
@@ -11,6 +11,7 @@ import { ChannelModelSelectorModal } from "@/components/channel-model-selector-m
 import { videoResolutionOptions } from "@/components/video-settings-panel";
 import type { WorkflowChannelSettings } from "@/components/workflow/workflow-channel-pane";
 import { useAutoDLWorkflowNames } from "@/hooks/use-autodl-workflow";
+import { cn } from "@/lib/utils";
 import { isWorkflowProtocol, modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions } from "@/lib/model-channel";
 import { startTokenDanceOAuth } from "@/lib/tokendance-oauth";
 import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, saveAdminSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings, type AdminStorageProvider } from "@/services/api/admin";
@@ -396,58 +397,61 @@ export default function AdminSettingsPage() {
 
     return (
         <main className="p-3 md:p-6">
-            <Flex vertical gap={16}>
-                <div className="sticky top-0 z-10 border-b border-[var(--ant-color-border-secondary)] bg-background/90 pt-1 backdrop-blur-xl">
-                    <Flex justify="space-between" align="flex-start" gap={16} wrap>
-                        <Typography.Text type="secondary">公开配置会暴露给前端读取，私有配置只在服务端生效。</Typography.Text>
-                        <Space wrap>
-                            <Segmented
-                                value={activeMode}
-                                onChange={(value) => toggleMode(activeTab, value as EditorMode)}
-                                options={[
-                                    { label: "可视化编辑", value: "visual" },
-                                    { label: "手动编辑 JSON", value: "json" },
-                                ]}
-                            />
-                            <Button icon={<ReloadOutlined />} loading={isLoading} onClick={() => void loadSettings()}>
-                                刷新
+            <Flex vertical gap={12}>
+                <div className="sticky top-0 z-10 -mx-3 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-background/90 px-3 py-2.5 backdrop-blur-xl md:-mx-6 md:px-6">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-1">
+                            {([{ key: "public", label: "公开配置" }, { key: "private", label: "私有配置" }] as const).map((item) => (
+                                <button
+                                    key={item.key}
+                                    type="button"
+                                    onClick={() => changeTab(item.key)}
+                                    className={cn(
+                                        "relative rounded px-2.5 py-1.5 text-sm transition-colors",
+                                        activeTab === item.key ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    {item.label}
+                                    {activeTab === item.key ? <span className="absolute inset-x-1 h-0.5 rounded-full bg-acid" style={{ bottom: -3 }} /> : null}
+                                </button>
+                            ))}
+                        </div>
+                        <Typography.Text type="secondary" className="text-xs">公开配置会暴露给前端读取，私有配置只在服务端生效。</Typography.Text>
+                    </div>
+                    <Space wrap size={8}>
+                        {activeMode === "json" ? (
+                            jsonError ? (
+                                <Tag color="error">{jsonError}</Tag>
+                            ) : (
+                                <Tag color="success" icon={<CheckCircleOutlined />}>
+                                    JSON 格式正确
+                                </Tag>
+                            )
+                        ) : null}
+                        {activeMode === "json" ? (
+                            <Button size="small" icon={<FormatPainterOutlined />} onClick={() => formatJson(activeTab)}>
+                                格式化
                             </Button>
-                            <Button type="primary" icon={<SaveOutlined />} loading={isSaving} onClick={() => void saveSettings()}>
-                                保存设置
-                            </Button>
-                        </Space>
-                    </Flex>
-                    <Tabs
-                        className="settings-tabs"
-                        activeKey={activeTab}
-                        onChange={(key) => changeTab(key as SettingsTabKey)}
-                        items={[
-                            { key: "public", label: "公开配置" },
-                            { key: "private", label: "私有配置" },
-                        ]}
-                        style={{ marginBottom: -16 }}
-                    />
+                        ) : null}
+                        <Segmented
+                            size="small"
+                            value={activeMode}
+                            onChange={(value) => toggleMode(activeTab, value as EditorMode)}
+                            options={[
+                                { label: "可视化编辑", value: "visual" },
+                                { label: "手动编辑 JSON", value: "json" },
+                            ]}
+                        />
+                        <Button size="small" icon={<ReloadOutlined />} loading={isLoading} onClick={() => void loadSettings()}>
+                            刷新
+                        </Button>
+                        <Button size="small" type="primary" icon={<SaveOutlined />} loading={isSaving} onClick={() => void saveSettings()}>
+                            保存设置
+                        </Button>
+                    </Space>
                 </div>
 
-                <Card variant="borderless">
-                    <Flex justify="space-between" align="center" gap={16} wrap style={{ marginBottom: 16 }}>
-                        <Typography.Text type="secondary">{activeTab === "public" ? "这些配置会暴露给前端读取" : "这些配置只会在后台保存，不会返回给前端"}</Typography.Text>
-                        {activeMode === "json" ? (
-                            <Space>
-                                {jsonError ? (
-                                    <Tag color="error">{jsonError}</Tag>
-                                ) : (
-                                    <Tag color="success" icon={<CheckCircleOutlined />}>
-                                        JSON 格式正确
-                                    </Tag>
-                                )}
-                                <Button icon={<FormatPainterOutlined />} onClick={() => formatJson(activeTab)}>
-                                    格式化
-                                </Button>
-                            </Space>
-                        ) : null}
-                    </Flex>
-
+                <div className="pt-1">
                     {activeTab === "public" ? (
                         activeMode === "visual" ? (
                             <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false}>
@@ -971,7 +975,7 @@ export default function AdminSettingsPage() {
                             />
                         </div>
                     )}
-                </Card>
+                </div>
                 <Drawer
                     title={editingChannelIndex === null ? "新增渠道" : "编辑渠道"}
                     open={isChannelDrawerOpen}
