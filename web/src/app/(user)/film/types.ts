@@ -78,6 +78,45 @@ export type FilmMediaVersion = {
     createdAt: string;
 };
 
+export type FilmScriptCharacterAnalysis = {
+    name: string;
+    aliases: string[];
+    role: string;
+    description: string;
+};
+
+export type FilmScriptRelationshipAnalysis = {
+    from: string;
+    to: string;
+    type: string;
+    direction: "bilateral" | "from-to" | "to-from";
+    strength: number;
+    sceneRange: { start: number; end: number };
+    evolution: Array<{ sceneIndex: number; event: string; typeBefore: string; typeAfter: string }>;
+    note: string;
+};
+
+export type FilmScriptSceneAnalysis = {
+    sceneIndex: number;
+    episode: string;
+    heading: string;
+    characters: string[];
+    summary: string;
+    mood: string;
+    props: string[];
+    productionNotes: string[];
+    beats: Array<{ type: string; summary: string }>;
+};
+
+export type FilmScriptAnalysis = {
+    schemaVersion: number;
+    parserVersion: string;
+    scriptHash: string;
+    characters: FilmScriptCharacterAnalysis[];
+    relationships: FilmScriptRelationshipAnalysis[];
+    scenes: FilmScriptSceneAnalysis[];
+};
+
 export type FilmContinuitySheet = {
     shotNo: string;
     version: string;
@@ -170,6 +209,7 @@ export type FilmProject = {
     episodes: FilmEpisode[];
     characters: FilmAsset[];
     locations: FilmAsset[];
+    scriptAnalysis?: FilmScriptAnalysis;
     createdAt: string;
     updatedAt: string;
 };

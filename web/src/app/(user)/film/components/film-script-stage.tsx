@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { App, Button, Input, InputNumber, Modal, Select } from "antd";
-import { Clapperboard, ClipboardList, Link2, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { App, Button, Checkbox, Input, InputNumber, Modal, Select } from "antd";
+import { Clapperboard, ClipboardList, FileUp, Link2, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmEpisode, FilmProject, FilmShot } from "../types";
 import { addFilmEpisode, addFilmScene, addFilmShot, filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { useFilmAiParse } from "../hooks/use-film-ai-parse";
 import { useFilmContinuity } from "../hooks/use-film-continuity";
+import { useFilmScriptAnalysis } from "../hooks/use-film-script-analysis";
 import type { FilmImageBatchOptions, FilmImageBatchProgress } from "../hooks/use-film-shot-image";
 import { applyFilmContinuity, applyFilmContinuityValidation } from "../utils/film-continuity-sheet";
 import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
@@ -17,6 +18,9 @@ import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { resolveFilmStyleText } from "../utils/film-styles";
 import { countFilmScenes, flattenFilmShots } from "../utils/parse-script";
+import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFile, type FilmScriptDocument } from "../utils/film-script-import";
+import { buildScriptAnalysisAssets, normalizeEntityKey, validateFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
+import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "../types";
 import { FilmShotDetail } from "./film-shot-detail";
 
 type FilmScriptStageProps = {
@@ -36,6 +40,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const { message, modal } = App.useApp();
     const { analyzingEpisodeId, analyzeEpisode } = useFilmContinuity();
     const { batchProgress: checkingBatchProgress, checkShots } = useFilmContinuityCheck();
+    const { analyzing: analyzingScript, progress: analysisProgress, analyzeDocument } = useFilmScriptAnalysis();
     const episodes = project.episodes;
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
     const [selectedShotId, setSelectedShotId] = useState("");
@@ -114,8 +119,150 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     const [pacing, setPacing] = useState<"fast" | "normal" | "slow">("normal");
     const [targetDuration, setTargetDuration] = useState<number | undefined>(undefined);
+    const [importOpen, setImportOpen] = useState(false);
+    const [importText, setImportText] = useState("");
+    const [importFormat, setImportFormat] = useState<FilmScriptDocument["format"]>("plain");
+    const [importFileName, setImportFileName] = useState("");
+    const [importDoc, setImportDoc] = useState<FilmScriptDocument | null>(null);
+    const [importError, setImportError] = useState("");
+    const [importParsing, setImportParsing] = useState(false);
+    const [scriptAnalysis, setScriptAnalysis] = useState<FilmScriptAnalysis | null>(null);
+    const [analysisIssues, setAnalysisIssues] = useState<FilmScriptAnalysisIssue[]>([]);
+    const [acceptedCharacters, setAcceptedCharacters] = useState<string[]>([]);
+    const [acceptedRelationships, setAcceptedRelationships] = useState<string[]>([]);
+    const importFileRef = useRef<HTMLInputElement>(null);
     const [pendingParsed, setPendingParsed] = useState<FilmEpisode[] | null>(null);
     const [episodeHistory, setEpisodeHistory] = useState<FilmEpisode[][]>([]);
+
+    const openImport = () => {
+        setImportOpen(true);
+        setImportText(project.scriptText || "");
+        setImportFileName("");
+        setImportFormat("plain");
+        setImportDoc(null);
+        setImportError("");
+        setScriptAnalysis(null);
+        setAnalysisIssues([]);
+        setAcceptedCharacters([]);
+        setAcceptedRelationships([]);
+    };
+
+    const parseImportDocument = (text: string, format: FilmScriptDocument["format"]) => {
+        setImportParsing(true);
+        setScriptAnalysis(null);
+        setAnalysisIssues([]);
+        setAcceptedCharacters([]);
+        setAcceptedRelationships([]);
+        try {
+            const doc = parseFilmScriptDocument(text, format);
+            setImportDoc(doc);
+            setImportError("");
+        } catch (error) {
+            setImportDoc(null);
+            setImportError(error instanceof Error ? error.message : "剧本解析失败");
+        } finally {
+            setImportParsing(false);
+        }
+    };
+
+    const handleImportFile = async (file: File | undefined) => {
+        if (!file) return;
+        setImportParsing(true);
+        try {
+            const { text, format } = await readFilmScriptFile(file);
+            setImportText(text);
+            setImportFormat(format);
+            setImportFileName(file.name);
+            setScriptAnalysis(null);
+            setAnalysisIssues([]);
+            setAcceptedCharacters([]);
+            setAcceptedRelationships([]);
+            const doc = parseFilmScriptDocument(text, format);
+            setImportDoc(doc);
+            setImportError("");
+        } catch (error) {
+            setImportDoc(null);
+            setImportError(error instanceof Error ? error.message : "文件读取失败");
+        } finally {
+            setImportParsing(false);
+        }
+    };
+
+    const applyImportDocument = (mode: "replace" | "append") => {
+        if (!importDoc) return;
+        commitParsed(filmScriptDocumentToEpisodes(importDoc), mode);
+        setImportOpen(false);
+    };
+
+    const relationshipSelectionKey = (relationship: FilmScriptRelationshipAnalysis) => `${normalizeEntityKey(relationship.from)}->${normalizeEntityKey(relationship.to)}|${relationship.type}`;
+
+    const selectedScriptAnalysis = useMemo(() => {
+        if (!scriptAnalysis) return null;
+        const characters = scriptAnalysis.characters.filter((character) => acceptedCharacters.includes(normalizeEntityKey(character.name)));
+        const characterKeys = new Set(characters.map((character) => normalizeEntityKey(character.name)));
+        const relationships = scriptAnalysis.relationships.filter((relationship) => acceptedRelationships.includes(relationshipSelectionKey(relationship))
+            && characterKeys.has(normalizeEntityKey(relationship.from))
+            && characterKeys.has(normalizeEntityKey(relationship.to)));
+        return { ...scriptAnalysis, characters, relationships };
+    }, [scriptAnalysis, acceptedCharacters, acceptedRelationships]);
+
+    const acceptAllAnalysis = () => {
+        if (!scriptAnalysis) return;
+        setAcceptedCharacters(scriptAnalysis.characters.map((character) => normalizeEntityKey(character.name)));
+        setAcceptedRelationships(scriptAnalysis.relationships.map((relationship) => relationshipSelectionKey(relationship)));
+    };
+
+    const toggleAcceptedCharacter = (key: string, checked: boolean) => {
+        setAcceptedCharacters((current) => checked ? [...current, key] : current.filter((item) => item !== key));
+    };
+
+    const toggleAcceptedRelationship = (key: string, checked: boolean) => {
+        setAcceptedRelationships((current) => checked ? [...current, key] : current.filter((item) => item !== key));
+    };
+
+    const analyzeImportSemantics = async () => {
+        if (!importDoc) return;
+        const result = await analyzeDocument(importDoc);
+        if (!result) return;
+        setScriptAnalysis(result.analysis);
+        setAnalysisIssues(result.issues);
+        setAcceptedCharacters(result.analysis.characters.map((character) => normalizeEntityKey(character.name)));
+        setAcceptedRelationships(result.analysis.relationships.map((relationship) => relationshipSelectionKey(relationship)));
+    };
+
+    const reuseAnalysisSnapshot = () => {
+        if (!project.scriptAnalysis || !importDoc) return;
+        if (project.scriptAnalysis.scriptHash !== importDoc.scriptHash) {
+            message.warning("剧本内容已变化，旧分析快照不能直接复用");
+            return;
+        }
+        setScriptAnalysis(project.scriptAnalysis);
+        setAnalysisIssues(validateFilmScriptAnalysis(project.scriptAnalysis));
+        setAcceptedCharacters(project.scriptAnalysis.characters.map((character) => normalizeEntityKey(character.name)));
+        setAcceptedRelationships(project.scriptAnalysis.relationships.map((relationship) => relationshipSelectionKey(relationship)));
+    };
+
+    const sameHashSnapshot = Boolean(importDoc && project.scriptAnalysis && project.scriptAnalysis.scriptHash === importDoc.scriptHash);
+
+    const applyAnalysisImport = (mode: "replace" | "append") => {
+        if (!importDoc) return;
+        commitParsed(filmScriptDocumentToEpisodes(importDoc), mode);
+        if (selectedScriptAnalysis) {
+            const locationNames = [...new Set(importDoc.episodes.flatMap((episode) => episode.scenes.map((scene) => scene.location)).filter(Boolean))];
+            const assets = buildScriptAnalysisAssets(project, selectedScriptAnalysis, locationNames);
+            onUpdate({ characters: assets.characters, locations: assets.locations, scriptAnalysis: selectedScriptAnalysis });
+        }
+        setImportOpen(false);
+    };
+
+    const importStats = importDoc
+        ? {
+            episodes: importDoc.episodes.length,
+            scenes: importDoc.episodes.reduce((total, episode) => total + episode.scenes.length, 0),
+            characters: [...new Set(importDoc.episodes.flatMap((episode) => episode.scenes.flatMap((scene) => scene.characters)))],
+            blocks: importDoc.episodes.reduce((total, episode) => total + episode.scenes.reduce((sum, scene) => sum + scene.blocks.length, 0), 0),
+        }
+        : null;
 
     const commitParsed = (parsed: FilmEpisode[], mode: "replace" | "append") => {
         setEpisodeHistory((prev) => [...prev, episodes].slice(-3));
@@ -226,6 +373,9 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                             onClick={() => void parseWithAi(project.scriptText, { pacing, targetDuration })}
                         >
                             {parsing ? `AI 解析中 ${progress?.done ?? 0}/${progress?.total ?? 1}` : "AI 解析"}
+                        </Button>
+                        <Button size="small" icon={<FileUp className="size-3.5" />} onClick={openImport}>
+                            导入剧本
                         </Button>
                         <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={clearScript}>
                             清空
@@ -397,6 +547,143 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                     </div>
                 )}
             </section>
+
+            <Modal
+                title="导入剧本"
+                open={importOpen}
+                onCancel={() => setImportOpen(false)}
+                width={860}
+                destroyOnHidden
+                footer={
+                    <div className="flex flex-wrap justify-end gap-2">
+                        <Button onClick={() => setImportOpen(false)}>取消</Button>
+                        {!importDoc ? (
+                            <Button type="primary" loading={importParsing} onClick={() => parseImportDocument(importText, importFormat)}>解析预览</Button>
+                        ) : (
+                            <>
+                                {analyzingScript ? <span className="self-center text-[11px] text-muted-foreground/70">{analysisProgress ? `语义分析 ${analysisProgress.done}/${analysisProgress.total}` : "正在分析…"}</span> : null}
+                                <Button loading={analyzingScript} onClick={() => void analyzeImportSemantics()}>AI 语义解析</Button>
+                                {scriptAnalysis ? (
+                                    <>
+                                        <Button onClick={() => applyImportDocument("append")}>仅导入分镜</Button>
+                                        <Button onClick={() => applyAnalysisImport("append")}>追加导入并应用</Button>
+                                        <Button type="primary" danger onClick={() => applyAnalysisImport("replace")}>覆盖导入并应用</Button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Button onClick={() => applyImportDocument("append")}>追加导入</Button>
+                                        <Button type="primary" danger onClick={() => applyImportDocument("replace")}>覆盖导入</Button>
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
+                }
+            >
+                <div className="grid gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button size="small" icon={<FileUp className="size-3.5" />} onClick={() => importFileRef.current?.click()}>选择文件</Button>
+                        <input ref={importFileRef} hidden type="file" accept=".txt,.md,.markdown,.fountain,.fdx,.docx" onChange={(event) => void handleImportFile(event.target.files?.[0])} />
+                        <span className="text-[11px] text-muted-foreground/70">支持 txt / md / docx / fountain / fdx，也可以直接粘贴</span>
+                        {importFileName ? <span className="chip">{importFileName}</span> : null}
+                    </div>
+                    <Input.TextArea autoSize={{ minRows: 8, maxRows: 16 }} value={importText} onChange={(event) => setImportText(event.target.value)} placeholder="粘贴剧本，或直接选择文件" />
+                    {importError ? <p className="text-[11px] text-hot">{importError}</p> : null}
+                    {importDoc && importStats ? (
+                        <div className="grid gap-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="chip">{importStats.episodes} 集</span>
+                                <span className="chip">{importStats.scenes} 场</span>
+                                <span className="chip">{importStats.blocks} 段内容</span>
+                                <span className="chip">{importStats.characters.length} 个对白角色</span>
+                                <span className="font-mono text-[9px] text-muted-foreground/60">v{importDoc.parserVersion} · #{importDoc.scriptHash}</span>
+                            </div>
+                            {importStats.scenes === 1 && importStats.blocks > 6 ? (
+                                <p className="rounded-md border border-hot/30 bg-hot/5 px-2.5 py-2 text-[11px] leading-5 text-hot">没有识别到场次标题，当前会作为单个场景导入；建议使用「1-1 内景 咖啡馆 日」这类场次行。</p>
+                            ) : null}
+                            {importStats.characters.length ? <p className="text-[11px] text-muted-foreground/70">对白角色：{importStats.characters.join("、")}</p> : null}
+                            {sameHashSnapshot && !scriptAnalysis ? (
+                                <div className="flex flex-wrap items-center gap-2 rounded-md border border-acid/25 bg-acid/[0.04] px-2.5 py-2">
+                                    <span className="text-[11px] text-acid">已有同版本分析快照（{project.scriptAnalysis?.characters.length} 角色 / {project.scriptAnalysis?.relationships.length} 关系），可以直接复用。</span>
+                                    <Button size="small" onClick={reuseAnalysisSnapshot}>复用分析</Button>
+                                </div>
+                            ) : null}
+                            <div className="thin-scrollbar grid max-h-64 gap-2 overflow-y-auto rounded-lg border border-border/60 bg-background/30 p-2">
+                                {importDoc.episodes.map((episode, episodeIndex) => (
+                                    <div key={`${episode.title}-${episodeIndex}`} className="grid gap-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="eyebrow">{episode.title}</span>
+                                            <span className="font-mono text-[9px] text-muted-foreground/60">{episode.scenes.length} 场</span>
+                                        </div>
+                                        {episode.scenes.map((scene, sceneIndex) => (
+                                            <div key={`${scene.heading}-${sceneIndex}`} className="grid gap-1 rounded border border-border/50 bg-card/40 p-2">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <span className="text-xs font-medium text-foreground">{scene.heading}</span>
+                                                    {scene.interiorExterior ? <span className="chip">{scene.interiorExterior}</span> : null}
+                                                    {scene.timeOfDay ? <span className="chip">{scene.timeOfDay}</span> : null}
+                                                    {scene.characters.length ? <span className="font-mono text-[9px] text-muted-foreground/60">{scene.characters.join("、")}</span> : null}
+                                                </div>
+                                                <p className="line-clamp-2 text-[10px] leading-4 text-muted-foreground/70">
+                                                    {scene.blocks.slice(0, 4).map((block) => block.type === "dialogue" ? `${block.character}：${block.text}` : block.text).join(" / ") || "（空场）"}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-[11px] leading-5 text-muted-foreground/60">导入后先做规则切分（场次、对白、出场角色），确认预览后再写入项目；此步骤不调用 AI。</p>
+                    )}
+                    {scriptAnalysis ? (
+                        <div className="grid gap-2 rounded-lg border border-acid/25 bg-acid/[0.04] p-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="chip chip-acid">{scriptAnalysis.characters.length} 个角色</span>
+                                <span className="chip chip-acid">{scriptAnalysis.relationships.length} 条关系</span>
+                                <span className="chip chip-acid">{scriptAnalysis.scenes.reduce((total, scene) => total + scene.beats.length, 0)} 个节拍</span>
+                                <span className={cn("chip", analysisIssues.length ? "border-hot/40 text-hot" : "")}>{analysisIssues.length} 条警告</span>
+                            </div>
+                            {analysisIssues.length ? (
+                                <div className="grid gap-1">
+                                    {analysisIssues.slice(0, 5).map((issue, index) => <p key={`${issue.message}-${index}`} className="text-[11px] leading-5 text-hot">· {issue.message}</p>)}
+                                </div>
+                            ) : <p className="text-[11px] text-acid">自动校验通过</p>}
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-[11px] text-muted-foreground/70">已接受 {selectedScriptAnalysis?.characters.length ?? 0} 个角色、{selectedScriptAnalysis?.relationships.length ?? 0} 条关系</span>
+                                <Button size="small" type="text" onClick={acceptAllAnalysis}>全部接受</Button>
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                <div className="grid gap-1">
+                                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">角色（取消勾选则不导入）</span>
+                                    {scriptAnalysis.characters.slice(0, 12).map((character) => {
+                                        const key = normalizeEntityKey(character.name);
+                                        return (
+                                            <Checkbox key={character.name} checked={acceptedCharacters.includes(key)} onChange={(event) => toggleAcceptedCharacter(key, event.target.checked)}>
+                                                <span className="text-[11px] leading-5 text-foreground/80">
+                                                    {character.name}{character.role ? `（${character.role}）` : ""}{character.description ? `：${character.description}` : ""}
+                                                </span>
+                                            </Checkbox>
+                                        );
+                                    })}
+                                </div>
+                                <div className="grid gap-1">
+                                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">关系（两端角色需保留）</span>
+                                    {scriptAnalysis.relationships.slice(0, 12).map((relationship) => {
+                                        const key = relationshipSelectionKey(relationship);
+                                        return (
+                                            <Checkbox key={key} checked={acceptedRelationships.includes(key)} onChange={(event) => toggleAcceptedRelationship(key, event.target.checked)}>
+                                                <span className="text-[11px] leading-5 text-foreground/80">
+                                                    {relationship.from} → {relationship.to} · {relationship.type} · 第 {relationship.sceneRange.start + 1}-{relationship.sceneRange.end + 1} 场
+                                                </span>
+                                            </Checkbox>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+            </Modal>
 
             <Modal
                 title={previewEpisode ? `${previewEpisode.title} · 场记交接单` : "场记交接单"}
