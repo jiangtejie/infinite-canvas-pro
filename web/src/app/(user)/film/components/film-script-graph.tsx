@@ -6,6 +6,7 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { FilmScriptAnalysis } from "../types";
+import { FilmAmbient } from "./film-ambient";
 
 type FilmScriptGraphProps = {
     analysis: FilmScriptAnalysis | null;
@@ -120,11 +121,12 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
 
     return (
         <Modal open={open} onCancel={onClose} footer={null} width={1180} title={`剧情图谱 · ${analysis.characters.length} 角色 / ${analysis.relationships.length} 关系 / ${analysis.scenes.length} 场`} destroyOnHidden>
-            <div className="grid gap-3">
-                <div className="flex flex-wrap items-center gap-2">
+            <div className="relative isolate grid gap-3">
+                <FilmAmbient className="-top-16 h-44 opacity-60" />
+                <div className="relative flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
                         {([{ value: "relations", label: "人物关系" }, { value: "scenes", label: "场次剧情" }, { value: "network", label: "人物场景" }, { value: "beats", label: "剧情节拍" }] as const).map((item) => (
-                            <button key={item.value} type="button" onClick={() => setMode(item.value)} className={cn("rounded px-2.5 py-1 text-[11px] transition-colors", mode === item.value ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}>
+                            <button key={item.value} type="button" onClick={() => setMode(item.value)} className={cn("rounded px-2.5 py-1 text-[11px] transition-all", mode === item.value ? "bg-acid/15 text-acid shadow-[inset_0_-1px_0_color-mix(in_oklch,var(--acid)_35%,transparent)]" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground")}>
                                 {item.label}
                             </button>
                         ))}
@@ -167,7 +169,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                             {!beatCount ? <p className="col-span-full py-6 text-center text-xs text-muted-foreground">还没有分析出剧情节拍</p> : null}
                         </div>
                     ) : (
-                    <div key={mode} className="film-stage-enter relative h-[560px] overflow-hidden rounded-lg border border-border/60 bg-background/40">
+                    <div key={mode} className="film-stage-enter relative h-[560px] overflow-hidden rounded-lg border border-border/60 bg-background/40" style={{ backgroundImage: "radial-gradient(ellipse at 45% 30%, color-mix(in oklch, var(--acid) 4%, transparent), transparent 62%)" }}>
                         <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} className="h-full w-full transition-transform" style={{ transform: `scale(${zoom})` }}>
                             <defs>
                                 <marker id="film-graph-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -297,7 +299,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                     </div>
                     )}
 
-                    <div className="thin-scrollbar grid max-h-[560px] content-start gap-2 overflow-y-auto rounded-lg border border-border/60 bg-card/40 p-3">
+                    <div className="punk-panel thin-scrollbar grid max-h-[560px] content-start gap-2 overflow-y-auto rounded-lg p-3">
                         {mode === "beats" ? (
                             <>
                                 <span className="text-sm font-medium text-foreground">剧情节拍</span>
@@ -330,7 +332,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                     </div>
                                 </>
                             ) : (
-                                <p className="text-[11px] leading-5 text-muted-foreground/60">点左侧人物节点，查看角色、关系和出场场次。</p>
+                                <GraphOverview analysis={analysis} mode={mode} beatCount={beatCount} />
                             )
                         ) : selectedSceneInfo ? (
                             <>
@@ -348,7 +350,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                 ) : null}
                             </>
                         ) : (
-                            <p className="text-[11px] leading-5 text-muted-foreground/60">点左侧场次节点，查看该场摘要、角色、道具和剧情节拍。</p>
+                            <GraphOverview analysis={analysis} mode={mode} beatCount={beatCount} />
                         )}
                     </div>
                 </div>
@@ -360,4 +362,40 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
 function truncate(value: string, max: number) {
     const text = (value || "").trim();
     return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function GraphOverview({ analysis, mode, beatCount }: { analysis: FilmScriptAnalysis; mode: "relations" | "scenes" | "beats" | "network"; beatCount: number }) {
+    return (
+        <div className="grid gap-3">
+            <span className="font-mono text-[9px] tracking-[0.16em] text-acid/70 uppercase">概览</span>
+            <div className="grid grid-cols-2 gap-2">
+                {[
+                    ["角色", analysis.characters.length],
+                    ["关系", analysis.relationships.length],
+                    ["场次", analysis.scenes.length],
+                    ["节拍", beatCount],
+                ].map(([label, value]) => (
+                    <div key={label} className="rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
+                        <span className="font-mono text-[9px] text-muted-foreground/50">{label}</span>
+                        <p className="mt-0.5 font-mono text-sm text-foreground">{value}</p>
+                    </div>
+                ))}
+            </div>
+            {mode === "scenes" ? (
+                <div className="grid gap-1">
+                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">场次</span>
+                    {analysis.scenes.slice(0, 8).map((scene) => <p key={scene.sceneIndex} className="truncate text-[11px] leading-5 text-foreground/75">· {scene.heading}</p>)}
+                </div>
+            ) : (
+                <div className="grid gap-1">
+                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">关系</span>
+                    {[...analysis.relationships].sort((left, right) => right.strength - left.strength).slice(0, 8).map((relationship) => (
+                        <p key={`${relationship.from}-${relationship.to}-${relationship.type}`} className="truncate text-[11px] leading-5 text-foreground/75">· {relationship.from} → {relationship.to} · {relationship.type}</p>
+                    ))}
+                    {!analysis.relationships.length ? <p className="text-[11px] text-muted-foreground/60">还没有分析出关系</p> : null}
+                </div>
+            )}
+            <p className="text-[10px] leading-5 text-muted-foreground/50">点击图中节点查看详情；悬停会高亮关联。</p>
+        </div>
+    );
 }
