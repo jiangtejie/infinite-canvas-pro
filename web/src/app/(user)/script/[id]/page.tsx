@@ -7,6 +7,7 @@ import { App, Button, Input, Modal } from "antd";
 import { ArrowLeft, Check, Clapperboard, Download, History, Lock, PencilLine } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { FilmAmbient } from "../../film/components/film-ambient";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import type { ScriptProject } from "../types";
 import { useScriptStore } from "../stores/use-script-store";
@@ -138,8 +139,9 @@ export default function ScriptProjectPage() {
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent text-foreground">
-            <header className="shrink-0 border-b border-border/70 bg-background/40">
-                <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-2 px-4 sm:gap-3 sm:px-6">
+            <header className="relative shrink-0 overflow-hidden border-b border-border/70 bg-background/40">
+                <FilmAmbient className="-top-24 h-44 opacity-60" />
+                <div className="relative z-10 mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-4 sm:gap-3 sm:px-6">
                     <Link href="/script" aria-label="返回剧本列表" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
                         <ArrowLeft className="size-4" />
                     </Link>
@@ -153,18 +155,19 @@ export default function ScriptProjectPage() {
                         </div>
                     </div>
 
-                    <nav className="ml-2 hidden h-14 items-center gap-1 md:flex" aria-label="剧本工作流">
-                        {TABS.map((item) => (
+                    <nav className="ml-2 hidden h-16 items-center gap-1 md:flex" aria-label="剧本工作流">
+                        {TABS.map((item, index) => (
                             <button
                                 key={item.key}
                                 type="button"
                                 onClick={() => setTab(item.key)}
                                 aria-current={tab === item.key ? "page" : undefined}
                                 className={cn(
-                                    "relative h-14 px-3 text-[13px] transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[2px] after:rounded-t-full after:transition-colors",
-                                    tab === item.key ? "font-medium text-foreground after:bg-acid" : "text-muted-foreground after:bg-transparent hover:text-foreground",
+                                    "relative flex h-16 items-center gap-1.5 px-3 text-[13px] transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[2px] after:rounded-t-full after:transition-all after:duration-300",
+                                    tab === item.key ? "font-medium text-foreground after:bg-acid after:shadow-[0_0_14px_var(--acid)]" : "text-muted-foreground after:bg-transparent hover:text-foreground",
                                 )}
                             >
+                                <span className={cn("font-mono text-[9px] tabular-nums", tab === item.key ? "text-acid/80" : "text-muted-foreground/35")}>{String(index + 1).padStart(2, "0")}</span>
                                 {item.label}
                             </button>
                         ))}
@@ -191,7 +194,7 @@ export default function ScriptProjectPage() {
                         <Button size="small" icon={<Download className="size-3.5" />} onClick={exportScript}>导出</Button>
                     </div>
                 </div>
-                <div className="flex gap-1 overflow-x-auto border-t border-border/50 px-4 md:hidden">
+                <div className="relative z-10 flex gap-1 overflow-x-auto border-t border-border/50 px-4 md:hidden">
                     {TABS.map((item) => (
                         <button key={item.key} type="button" onClick={() => setTab(item.key)} className={cn("relative shrink-0 px-3 py-2 text-xs", tab === item.key ? "text-acid" : "text-muted-foreground")}>
                             {item.label}
@@ -201,7 +204,7 @@ export default function ScriptProjectPage() {
             </header>
 
             <main className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
+                <div key={tab} className="film-stage-enter mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
                     {tab === "story" ? <ScriptStoryPanel project={project} onUpdate={update} /> : null}
                     {tab === "characters" ? <ScriptCharactersPanel project={project} onUpdate={update} /> : null}
                     {tab === "structure" ? <ScriptStructurePanel project={project} onUpdate={update} /> : null}

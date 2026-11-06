@@ -97,8 +97,8 @@ export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onU
 
     return (
         <>
-        <div className="grid gap-3 lg:grid-cols-4">
-            <aside className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40">
+        <div className="script-editor-shell grid gap-3 lg:grid-cols-4" style={{ minHeight: "calc(100vh - 240px)" }}>
+            <aside className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl">
                 <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2">
                     <span className="font-mono text-[9px] tracking-[0.16em] text-muted-foreground/60 uppercase">场次</span>
                     <Button size="small" type="text" aria-label="添加场景" icon={<Plus className="size-3.5" />} onClick={addScene} />
@@ -124,7 +124,7 @@ export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onU
                 <div className="shrink-0 border-t border-border/60 px-3 py-2 font-mono text-[9px] text-muted-foreground/50">共 {project.scenes.length} 场</div>
             </aside>
 
-            <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:col-span-3">
+            <section className="punk-panel flex min-h-0 flex-col overflow-hidden rounded-xl lg:col-span-3">
                 <div className="grid shrink-0 gap-2 border-b border-border/60 bg-background/25 p-3">
                     <div className="flex flex-wrap items-center gap-2">
                         <Select size="small" className="w-24" value={scene.interiorExterior || undefined} placeholder="内景" options={[{ value: "内景" }, { value: "外景" }, { value: "内外景" }]} onChange={(value: ScriptScene["interiorExterior"]) => updateScene({ interiorExterior: value })} />

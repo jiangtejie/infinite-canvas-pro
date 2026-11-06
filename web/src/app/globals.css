@@ -728,6 +728,14 @@
         pointer-events: none;
     }
 
+
+    /* 剧本工作区：桌面端编辑器撑满剩余高度，保持写作专注 */
+    @media (min-width: 1024px) {
+        .script-editor-shell {
+            height: calc(100vh - 230px);
+        }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .film-beam::after,
         .film-stage-enter,

@@ -36,7 +36,7 @@ export function ScriptCharactersPanel({ project, onUpdate }: ScriptCharactersPan
             ) : (
                 <div className="grid gap-3 xl:grid-cols-2">
                     {project.characters.map((character, index) => (
-                        <section key={character.id} className="grid gap-3 rounded-xl border border-border/70 bg-card/40 p-4">
+                        <section key={character.id} style={{ "--enter-index": Math.min(index, 8) } as React.CSSProperties} className="punk-card enter-up grid gap-3 rounded-xl border border-border/70 bg-card/40 p-4">
                             <div className="flex items-center gap-2">
                                 <span className="grid size-7 place-items-center rounded-full border border-acid/30 bg-acid/10 font-mono text-[10px] text-acid">{index + 1}</span>
                                 <Input variant="borderless" className="!px-0 text-sm font-semibold" value={character.name} placeholder="角色名" onChange={(event) => updateCharacter(character.id, { name: event.target.value })} />

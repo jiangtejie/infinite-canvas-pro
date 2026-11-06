@@ -23,7 +23,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
     return (
         <div className="grid gap-4 xl:grid-cols-3">
             <div className="grid gap-4 lg:col-span-2">
-                <section className="rounded-xl border border-border/70 bg-card/40 p-4">
+                <section className="punk-panel rounded-xl p-4">
                     <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">一句话故事 / LOGLINE</span>
                         <span className="font-mono text-[9px] text-muted-foreground/50">{project.logline.length} 字</span>
@@ -37,7 +37,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                     />
                 </section>
 
-                <section className="rounded-xl border border-border/70 bg-card/40 p-4">
+                <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">主题</span>
                     <textarea
                         style={{ minHeight: 120 }}
@@ -48,7 +48,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                     />
                 </section>
 
-                <section className="rounded-xl border border-border/70 bg-card/40 p-4">
+                <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">故事梗概</span>
                     <textarea
                         style={{ minHeight: 180 }}
@@ -61,7 +61,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
             </div>
 
             <aside className="grid gap-3 self-start">
-                <section className="rounded-xl border border-border/70 bg-card/40 p-4">
+                <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">当前进度</span>
                     <div className="mt-3 grid grid-cols-2 gap-2">
                         {[
@@ -77,7 +77,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                         ))}
                     </div>
                 </section>
-                <section className="rounded-xl border border-acid/25 bg-acid/[0.04] p-4">
+                <section className="rounded-xl border border-acid/25 bg-acid/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">下一步</span>
                     <div className="mt-3 grid gap-2">
                         {hints.length ? hints.map((hint) => <p key={hint} className="text-[11px] leading-5 text-muted-foreground/80">· {hint}</p>) : <p className="text-[11px] leading-5 text-acid/90">故事骨架已经齐了，继续把场景卡写扎实。</p>}

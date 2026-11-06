@@ -16,7 +16,7 @@ type ScriptScenesPanelProps = {
 const INTERIOR_OPTIONS = [{ value: "内景" }, { value: "外景" }, { value: "内外景" }];
 
 export function ScriptScenesPanel({ project, onUpdate, onOpenEditor }: ScriptScenesPanelProps) {
-    const [expandedId, setExpandedId] = useState("");
+    const [expandedId, setExpandedId] = useState(project.scenes[0]?.id || "");
     const characterOptions = collectScriptCharacterNames(project).map((name) => ({ value: name, label: name }));
     const incomplete = project.scenes.filter((scene) => scriptSceneMissingFields(scene).length > 0).length;
 
@@ -60,7 +60,7 @@ export function ScriptScenesPanel({ project, onUpdate, onOpenEditor }: ScriptSce
                         const expanded = expandedId === scene.id;
                         const missing = scriptSceneMissingFields(scene);
                         return (
-                            <section key={scene.id} className="overflow-hidden rounded-xl border border-border/70 bg-card/40">
+                            <section key={scene.id} style={{ "--enter-index": Math.min(index, 12) } as React.CSSProperties} className="punk-card enter-up overflow-hidden rounded-xl border border-border/70 bg-card/40">
                                 <div className="flex items-center gap-1 px-2 py-2">
                                     <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border/60 bg-background/40 font-mono text-[10px] text-muted-foreground/70">{String(scene.no).padStart(2, "0")}</span>
                                     <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setExpandedId(expanded ? "" : scene.id)} aria-expanded={expanded}>

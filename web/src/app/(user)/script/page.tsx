@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { App, Button, Input, Modal, Select } from "antd";
 import { ArrowUpRight, Download, FileUp, Plus, ScrollText, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { FilmAmbient } from "../film/components/film-ambient";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import type { ScriptFormat, ScriptProject } from "./types";
 import { useScriptStore } from "./stores/use-script-store";
@@ -114,6 +115,9 @@ export default function ScriptListPage() {
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
                 <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
+                    <div className="relative">
+                        <FilmAmbient className="-inset-x-6 -top-10 h-[340px] opacity-80 sm:-inset-x-10" />
+                        <div className="relative">
                     <PageHeader
                         eyebrow="SCRIPT / 剧本"
                         title="AI 剧本创作"
@@ -132,6 +136,8 @@ export default function ScriptListPage() {
                             </>
                         }
                     />
+                        </div>
+                    </div>
 
                     {!hydrated ? <LoadingState label="正在加载剧本" /> : null}
 
@@ -147,13 +153,14 @@ export default function ScriptListPage() {
                     {hydrated && projects.length > 0 ? (
                         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             {ordered.map((project, index) => (
-                                <article key={project.id} className="punk-card group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-                                    <Link href={`/script/${project.id}`} className="flex flex-1 flex-col p-4">
+                                <article key={project.id} style={{ "--enter-index": Math.min(index, 12) } as CSSProperties} className="punk-card enter-up group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+                                    <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-acid/50 via-border/60 to-transparent" />
+                                    <Link href={`/script/${project.id}`} className="flex flex-1 flex-col p-5">
                                         <div className="flex items-center gap-2">
                                             <span className="font-mono text-[10px] text-muted-foreground/50 tabular-nums">{String(index + 1).padStart(2, "0")}</span>
                                             <span className="chip">{formatLabel(project.format)}</span>
                                             {project.genre ? <span className="chip">{project.genre}</span> : null}
-                                            <ArrowUpRight className="ml-auto size-3.5 text-muted-foreground/40 transition-colors group-hover:text-acid" />
+                                            <ArrowUpRight className="ml-auto size-3.5 text-muted-foreground/30 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-acid" />
                                         </div>
                                         <h2 className="mt-4 line-clamp-1 text-base font-semibold text-foreground">{project.title}</h2>
                                         <p className="mt-1.5 line-clamp-2 min-h-10 text-[11px] leading-5 text-muted-foreground">
@@ -170,7 +177,7 @@ export default function ScriptListPage() {
                                             <span>{dayjs(project.updatedAt).format("MM-DD HH:mm")}</span>
                                         </div>
                                     </Link>
-                                    <div className="absolute right-3 top-3 flex items-center gap-0.5">
+                                    <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
                                         <button type="button" aria-label="导出剧本" title="导出剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-foreground/5 hover:text-foreground" onClick={(event) => { event.preventDefault(); exportProject(project); }}>
                                             <Download className="size-3" />
                                         </button>

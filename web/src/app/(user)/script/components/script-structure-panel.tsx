@@ -22,7 +22,7 @@ export function ScriptStructurePanel({ project, onUpdate }: ScriptStructurePanel
         <div className="grid gap-4 xl:grid-cols-3">
             <div className="grid gap-3 lg:col-span-2">
                 {ACTS.map((act, index) => (
-                    <section key={act.key} className="rounded-xl border border-border/70 bg-card/40 p-4">
+                    <section key={act.key} className="punk-panel rounded-xl p-4">
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">{act.label}</span>
                             <span className="text-[10px] text-muted-foreground/50">{act.hint}</span>
@@ -40,7 +40,7 @@ export function ScriptStructurePanel({ project, onUpdate }: ScriptStructurePanel
             </div>
 
             <aside className="grid gap-3 self-start">
-                <section className="rounded-xl border border-border/70 bg-card/40 p-4">
+                <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">结构诊断</span>
                     <div className="mt-3 grid gap-2 text-[11px] leading-5">
                         <p className="text-muted-foreground/80">共 {project.scenes.length} 场</p>
@@ -49,7 +49,7 @@ export function ScriptStructurePanel({ project, onUpdate }: ScriptStructurePanel
                         <p className="text-muted-foreground/60">结构诊断是规则提示，不替你做判断。</p>
                     </div>
                 </section>
-                <section className="rounded-xl border border-border/70 bg-card/40 p-4">
+                <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">场次序列</span>
                     <div className="thin-scrollbar mt-3 grid max-h-[420px] gap-1 overflow-y-auto pr-1">
                         {project.scenes.length ? project.scenes.map((scene) => {
