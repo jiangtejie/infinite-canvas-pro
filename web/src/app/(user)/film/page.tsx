@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { App, Button, Input, Modal, Select } from "antd";
 import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { FilmAmbient } from "./components/film-ambient";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useFilmStore } from "./stores/use-film-store";
 import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
@@ -44,6 +45,9 @@ export default function FilmListPage() {
 
     const ordered = useMemo(() => [...projects].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
     const totalShots = projects.reduce((total, project) => total + flattenFilmShots(project.episodes).length, 0);
+    const totalScenes = projects.reduce((total, project) => total + countFilmScenes(project.episodes), 0);
+    const totalReady = projects.reduce((total, project) => total + countReadyShots(project.episodes), 0);
+    const readyRate = totalShots ? Math.round((totalReady / totalShots) * 100) : 0;
 
     const create = () => {
         if (!title.trim()) {
@@ -117,30 +121,55 @@ export default function FilmListPage() {
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
                 <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
-                    <PageHeader
-                        eyebrow="FILM / 影视"
-                        title="我的影视项目"
-                        description="剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台。"
-                        meta={
-                            <>
-                                <span className="chip chip-acid">{projects.length} 个项目</span>
-                                <span className="chip">{totalShots} 个分镜</span>
-                            </>
-                        }
-                        actions={
-                            <>
-                                <Button icon={<Upload className="size-4" />} onClick={() => importInputRef.current?.click()}>
-                                    导入项目
-                                </Button>
-                                <Button icon={<Library className="size-4" />} href="/film/library">
-                                    角色与场景库
-                                </Button>
-                                <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setCreateOpen(true)}>
-                                    新建项目
-                                </Button>
-                            </>
-                        }
-                    />
+                    <div className="relative">
+                        <FilmAmbient className="-inset-x-6 -top-10 h-[380px] opacity-90 sm:-inset-x-10" />
+                        <div className="relative">
+                            <PageHeader
+                                eyebrow="FILM / 影视"
+                                title="我的影视项目"
+                                description="剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台。"
+                                meta={
+                                    <>
+                                        <span className="chip chip-acid inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{projects.length} 个项目</span>
+                                        <span className="chip">{totalShots} 个分镜</span>
+                                        <span className="chip">{readyRate}% 完成</span>
+                                    </>
+                                }
+                                actions={
+                                    <>
+                                        <Button icon={<Upload className="size-4" />} onClick={() => importInputRef.current?.click()}>
+                                            导入项目
+                                        </Button>
+                                        <Button icon={<Library className="size-4" />} href="/film/library">
+                                            角色与场景库
+                                        </Button>
+                                        <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setCreateOpen(true)}>
+                                            新建项目
+                                        </Button>
+                                    </>
+                                }
+                            />
+                        </div>
+                    </div>
+
+                    {hydrated && ordered.length > 0 ? (
+                        <section className="grid gap-3 sm:grid-cols-3">
+                            {[
+                                { label: "项目", value: String(projects.length), hint: "进行中的影视项目" },
+                                { label: "场次", value: String(totalScenes), hint: "已拆解的场景" },
+                                { label: "分镜完成", value: `${readyRate}%`, hint: `${totalReady} / ${totalShots} 镜已出图或视频` },
+                            ].map((item, index) => (
+                                <div key={item.label} className="punk-card enter-up relative overflow-hidden rounded-xl border border-border/70 bg-card/40 px-4 py-3.5" style={{ "--enter-index": index } as CSSProperties}>
+                                    <div className="flex items-baseline justify-between gap-2">
+                                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">{item.label}</span>
+                                        <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">{item.value}</span>
+                                    </div>
+                                    <p className="mt-1 text-[10px] leading-5 text-muted-foreground/60">{item.hint}</p>
+                                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/50 via-acid/15 to-transparent" />
+                                </div>
+                            ))}
+                        </section>
+                    ) : null}
 
                     {!hydrated ? <LoadingState label="正在加载影视项目" /> : null}
 
@@ -175,14 +204,16 @@ export default function FilmListPage() {
                                                 router.push(`/film/${project.id}`);
                                             }
                                         }}
-                                        className="punk-card brackets group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card/60 transition-colors hover:border-acid/40"
+                                        className="punk-card brackets enter-up group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card/60 transition-colors hover:border-acid/40"
+                                        style={{ "--enter-index": Math.min(index, 12) } as CSSProperties}
                                     >
-                                        <div className="relative h-28 overflow-hidden border-b border-border/60 bg-background/40">
-                                            <span aria-hidden className="absolute -right-2 -top-6 font-mono text-[96px] font-bold leading-none text-foreground/[0.04] tabular-nums">{String(index + 1).padStart(2, "0")}</span>
+                                        <div className="relative h-32 overflow-hidden border-b border-border/60 bg-background/40">
+                                            <div aria-hidden className="absolute inset-0" style={{ backgroundImage: "radial-gradient(ellipse at 20% 0%, color-mix(in oklch, var(--acid) 8%, transparent), transparent 62%)" }} />
+                                            <span aria-hidden className="absolute font-mono font-bold tabular-nums" style={{ right: -8, top: -32, fontSize: 112, lineHeight: 1, color: "color-mix(in oklch, var(--foreground) 5%, transparent)" }}>{String(index + 1).padStart(2, "0")}</span>
                                             <div className="absolute left-4 top-4 grid size-10 place-items-center rounded-[6px] border border-border bg-card text-foreground/70">
                                                 <Clapperboard className="size-[18px]" />
                                             </div>
-                                            <span className="chip chip-acid absolute bottom-3 left-4">{STAGE_LABEL[project.stage]}</span>
+                                            <span className="chip chip-acid absolute bottom-3 left-4 inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{STAGE_LABEL[project.stage]}</span>
                                             {project.stylePreset && project.stylePreset !== "custom" ? (
                                                 <span className="chip absolute bottom-3 right-3 max-w-[45%] truncate">{filmStyleLabel(project.stylePreset)}</span>
                                             ) : project.visualStyle ? (
@@ -192,7 +223,7 @@ export default function FilmListPage() {
                                         <div className="p-5">
                                             <div className="flex items-start justify-between gap-3">
                                                 <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight text-foreground">{project.title}</h2>
-                                                <div className="flex shrink-0 items-center gap-0.5">
+                                                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
                                                     <button
                                                         type="button"
                                                         aria-label={`重命名 ${project.title}`}
@@ -232,7 +263,7 @@ export default function FilmListPage() {
                                                 {project.episodes.length} 集 · {countFilmScenes(project.episodes)} 场 · {shots.length} 镜 · {filmAspectLabel(project.aspect)}
                                             </p>
                                             <div className="mt-4 h-1 overflow-hidden rounded-full bg-border/60">
-                                                <span className="block h-full rounded-full bg-acid transition-[width]" style={{ width: `${progress}%` }} />
+                                                <span className={`block h-full rounded-full bg-acid transition-[width] ${progress > 0 && progress < 100 ? "film-shimmer" : ""}`} style={{ width: `${progress}%` }} />
                                             </div>
                                             <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground/70">
                                                 <span>{ready}/{shots.length} 个分镜完成</span>

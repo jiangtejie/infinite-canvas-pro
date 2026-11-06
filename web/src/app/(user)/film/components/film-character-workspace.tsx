@@ -269,7 +269,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         <>
             <style>{CHARACTER_LAYOUT_STYLE}</style>
             <div className="film-character-layout min-h-0">
-                <section className="flex max-h-[80vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                <section className="punk-panel flex max-h-[80vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                     <div className="flex shrink-0 items-center gap-1 border-b border-border/60 px-3 py-2.5">
                         <span className="eyebrow">01 角色</span>
                         <Button size="small" type="text" icon={<Plus className="size-3.5" />} onClick={createCharacter} aria-label="新建角色" />
@@ -289,7 +289,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                             setSelectedId(asset.id);
                                             setPreviewMode("master");
                                         }}
-                                        className={cn("flex items-center gap-2 rounded-lg border p-2 text-left transition-colors", selectedId === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/60 bg-card/50 hover:border-border")}
+                                        className={cn("group flex items-center gap-2 rounded-lg border p-2 text-left transition-all hover:-translate-y-0.5", selectedId === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/60 bg-card/50 hover:border-acid/40")}
                                     >
                                         <FilmAssetThumbnail asset={asset} className="size-10 shrink-0 rounded-md border border-border/60" />
                                         <span className="min-w-0 flex-1">
@@ -330,7 +330,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     </div>
                 </section>
 
-                <section className="flex min-h-0 flex-col rounded-xl border border-border/70 bg-card/40">
+                <section className="punk-panel flex min-h-0 flex-col overflow-hidden rounded-xl">
                     <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2.5">
                         <span className="eyebrow">03 角色舞台</span>
                         {selected ? <Input size="small" className="h-7 max-w-40" value={selected.name} onChange={(event) => updateCharacter({ name: event.target.value })} /> : null}
@@ -339,11 +339,12 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
                     {!selected ? (
                         <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                            <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                            <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                                 <UserRound className="size-5" />
                             </div>
                             <p className="mt-4 text-sm text-foreground">还没有角色</p>
                             <p className="mt-1.5 text-xs leading-6 text-muted-foreground">新建角色后按「面部 → 发型 → 上身 → 中段 → 下身 → 四肢」逐块补齐参考。</p>
+                            <Button className="mt-4" size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createCharacter}>新建第一个角色</Button>
                         </div>
                     ) : (
                         <div className="film-character-body min-h-0 p-3">
@@ -451,8 +452,9 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     )}
                 </section>
 
-                <section className="flex max-h-[80vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
-                    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+                <section className="punk-panel flex max-h-[80vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                    <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
+                        <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                         <span className="eyebrow">04 {characterPartLabel(selectedPart)}参考</span>
                         {part?.locked ? <span className="chip chip-acid">锁定</span> : null}
                     </div>
@@ -502,7 +504,15 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                             <Button size="small" type="primary" loading={generatingPart} disabled={Boolean(part?.locked) || Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void generatePart(selected.id, selectedPart)}>生成本部位</Button>
                             <Button size="small" icon={part?.locked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={() => updatePart(selectedPart, { locked: !part?.locked })}>{part?.locked ? "解锁" : "锁定"}</Button>
                         </div>
-                    ) : null}
+                    ) : (
+                        <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+                            <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground/50">
+                                <ImagePlus className="size-5" />
+                            </div>
+                            <p className="mt-4 text-sm text-foreground">选择一个角色</p>
+                            <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">左侧选择角色后，这里会显示面部、身体和道具参考图。</p>
+                        </div>
+                    )}
                 </section>
             </div>
 
@@ -633,14 +643,20 @@ function PartSlot({ partKey, profile, selected, generating, onSelect, onGenerate
 
 function EmptyStage() {
     return (
-        <div className="relative flex h-full w-full items-center justify-center">
-            <svg viewBox="0 0 120 260" className="h-64 opacity-60" aria-label="人物剪影">
-                <g fill="none" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="4 4">
-                    <circle cx="60" cy="30" r="17" />
-                    <path d="M43 74 C43 54 50 48 60 48 C70 48 77 54 77 74 L82 132 L70 136 L68 214 L75 254 L61 254 L60 190 L59 254 L45 254 L52 214 L50 136 L38 132 Z" />
-                </g>
-            </svg>
-            <p className="absolute bottom-2 text-center text-[10px] text-muted-foreground/60">可以直接生成全身合成图或角色卡，部位参考按需补充</p>
+        <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
+            <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(ellipse at 50% 42%, color-mix(in oklab, var(--acid) 7%, transparent), transparent 62%)" }} />
+            <div aria-hidden className="film-scan pointer-events-none absolute inset-0" />
+            <div className="film-float relative flex flex-col items-center">
+                <span aria-hidden className="absolute -inset-8 rounded-full border border-acid/10" />
+                <span aria-hidden className="absolute -inset-16 rounded-full border border-dashed border-border/40" />
+                <svg viewBox="0 0 120 260" className="relative h-64 opacity-70" aria-label="人物剪影">
+                    <g fill="none" stroke="var(--border)" strokeWidth="1.5" strokeDasharray="4 4">
+                        <circle cx="60" cy="30" r="17" />
+                        <path d="M43 74 C43 54 50 48 60 48 C70 48 77 54 77 74 L82 132 L70 136 L68 214 L75 254 L61 254 L60 190 L59 254 L45 254 L52 214 L50 136 L38 132 Z" />
+                    </g>
+                </svg>
+                <p className="relative mt-2 text-center text-[10px] leading-5 text-muted-foreground/60">可以直接生成全身合成图或角色卡，<br />部位参考按需补充</p>
+            </div>
         </div>
     );
 }

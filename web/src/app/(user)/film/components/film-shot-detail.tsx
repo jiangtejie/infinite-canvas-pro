@@ -83,7 +83,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
 
     return (
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-            <div className="mb-3 flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
+            <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-3 flex items-center gap-0.5 border-b border-border/50 bg-background/85 px-4 py-2.5 backdrop-blur-xl">
                 <TabButton active={tab === "basic"} onClick={() => setTab("basic")}>基础</TabButton>
                 <TabButton active={tab === "image"} onClick={() => setTab("image")}>
                     画面{shot.imageVersions && shot.imageVersions.length > 1 ? ` ${shot.imageVersions.length}` : ""}
@@ -92,7 +92,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                     视频{shot.videoVersions && shot.videoVersions.length > 1 ? ` ${shot.videoVersions.length}` : ""}
                 </TabButton>
             </div>
-            <div className="grid gap-3">
+            <div key={tab} className="film-stage-enter grid gap-3">
                 {tab === "basic" ? (
                 <>
                 <div className="grid grid-cols-2 gap-3">

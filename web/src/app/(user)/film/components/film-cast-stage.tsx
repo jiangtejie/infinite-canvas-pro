@@ -24,7 +24,9 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
 
     return (
         <div className="flex flex-col gap-3 lg:h-full lg:min-h-0">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/40 px-4 py-2.5">
+            <div className="punk-panel relative flex shrink-0 flex-wrap items-center gap-2 overflow-hidden px-4 py-2.5">
+                <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
+                <span aria-hidden className="pointer-events-none absolute -left-8 top-1/2 size-24 -translate-y-1/2 rounded-full bg-acid/[0.06] blur-2xl" />
                 <span className="eyebrow">角色与场景</span>
                 <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
                     {([{ value: "character", label: `角色 ${characters.length}` }, { value: "location", label: `场景 ${locations.length}` }] as const).map((item) => (
@@ -44,7 +46,7 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
                     {tab === "character" ? "部位参考包 + 全身合成" : "场景概念图 + 视图设定"}
                 </span>
             </div>
-            <div className="min-h-0 flex-1">
+            <div key={tab} className="film-stage-enter min-h-0 flex-1">
                 {tab === "character" ? (
                     <FilmCharacterWorkspace project={project} onUpdate={onUpdate} />
                 ) : (

@@ -90,6 +90,7 @@ export function FilmContinuityNotebook({ episodeTitle, sheets, onJumpToShot }: F
                     className="thin-scrollbar h-full overflow-y-auto py-5"
                     style={{ paddingLeft: 88, paddingRight: 24, backgroundImage: "repeating-linear-gradient(transparent, transparent 27px, color-mix(in srgb, var(--border) 28%, transparent) 28px)" }}
                 >
+                    <div key={shot.id} className="film-stage-enter">
                     <div className="flex flex-wrap items-start gap-2 border-b border-border/50 pb-3">
                         <div className="flex items-center gap-2">
                             <span className="grid size-9 place-items-center rounded-full border border-acid/40 bg-acid/10 font-mono text-[11px] font-semibold text-acid">{shot.shotNo}</span>
@@ -141,6 +142,7 @@ export function FilmContinuityNotebook({ episodeTitle, sheets, onJumpToShot }: F
                             <p className="text-[11px] leading-5 text-muted-foreground/60">可以回到剧情页重新点「AI 场记分析」生成完整交接单，或在分镜详情里手动编辑。</p>
                         </div>
                     )}
+                    </div>
                 </div>
             </div>
 

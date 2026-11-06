@@ -30,7 +30,7 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
         return (
             <div className="grid h-full place-items-center">
                 <div className="flex flex-col items-center px-6 py-16 text-center">
-                    <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                         <Clapperboard className="size-5" />
                     </div>
                     <p className="mt-4 text-sm text-foreground">还没有分镜</p>
@@ -45,7 +45,8 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
 
     return (
         <div className="flex flex-col gap-3 lg:h-full lg:min-h-0">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/40 px-4 py-2.5">
+            <div className="punk-panel relative flex shrink-0 flex-wrap items-center gap-2 overflow-hidden px-4 py-2.5">
+                <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                 <span className="eyebrow">剪辑预览</span>
                 <span className="chip chip-acid">{videoShots.length}/{shots.length} 个视频</span>
                 <span className="chip">总时长 {Math.round(totalDuration)}s</span>
@@ -62,12 +63,14 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
             </div>
 
             <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40">
-                    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+                <section className="punk-panel flex min-h-0 flex-col overflow-hidden rounded-xl">
+                    <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
+                        <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                         <span className="eyebrow">预览</span>
                         {selectedShot ? <span className="font-mono text-[10px] text-muted-foreground/70">{selectedShot.shotNo} · {selectedShot.duration}s</span> : null}
                     </div>
-                    <div className="relative flex min-h-[260px] flex-1 items-center justify-center bg-black/60 p-3">
+                    <div className="film-scan relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden bg-black/60 p-3">
+                        <span aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(ellipse at 50% 46%, color-mix(in oklab, var(--acid) 5%, transparent), transparent 66%)" }} />
                         {selectedShot && (selectedShot.videoUrl || selectedShot.videoStorageKey) ? (
                             <div className="relative h-full max-h-full w-auto max-w-full overflow-hidden rounded-md border border-white/10 bg-black" style={{ aspectRatio: filmAspectCssRatio(project.aspect) }}>
                                 <ShotVideoPlayer key={selectedShot.id} shot={selectedShot} autoPlay={autoplay} onEnded={() => autoplay && playNext()} />
@@ -75,7 +78,8 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                         ) : (
                             <div className="absolute inset-0 grid place-items-center px-6 text-center">
                                 <div>
-                                    <div className="mx-auto grid size-12 place-items-center rounded-[10px] border border-dashed border-white/20 text-white/50">
+                                    <div className="film-float relative mx-auto grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/35 bg-acid/[0.06] text-acid/80">
+                                        <span aria-hidden className="absolute -inset-3 rounded-xl border border-acid/10" />
                                         <Play className="size-5" />
                                     </div>
                                     <p className="mt-4 text-sm text-white/80">这个镜头还没有生成视频</p>
@@ -86,7 +90,7 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                     </div>
                 </section>
 
-                <section className="thin-scrollbar flex min-h-0 flex-col overflow-y-auto rounded-xl border border-border/70 bg-card/40 p-4">
+                <section className="punk-panel thin-scrollbar flex min-h-0 flex-col overflow-y-auto rounded-xl p-4">
                     <div className="mb-2 flex items-center gap-2">
                         <span className="eyebrow">片段</span>
                         <span aria-hidden className="h-px flex-1 bg-border/50" />
@@ -101,7 +105,8 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                                     key={shot.id}
                                     type="button"
                                     onClick={() => setSelectedShotId(shot.id)}
-                                    className={cn("flex items-center gap-2.5 rounded-lg border p-2 text-left transition-colors", active ? "border-acid/60 bg-acid/[0.05]" : "border-border/60 bg-card/50 hover:border-border")}
+                                    style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}
+                                    className={cn("enter-up group flex items-center gap-2.5 rounded-lg border p-2 text-left transition-all hover:-translate-y-0.5", active ? "border-acid/60 bg-acid/[0.05]" : "border-border/60 bg-card/50 hover:border-acid/40")}
                                 >
                                     <span className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md border border-border/50 bg-background/40">
                                         <FilmShotThumbnail shot={shot} className="h-12 w-full" />

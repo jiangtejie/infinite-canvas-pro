@@ -167,7 +167,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                             {!beatCount ? <p className="col-span-full py-6 text-center text-xs text-muted-foreground">还没有分析出剧情节拍</p> : null}
                         </div>
                     ) : (
-                    <div className="relative h-[560px] overflow-hidden rounded-lg border border-border/60 bg-background/40">
+                    <div key={mode} className="film-stage-enter relative h-[560px] overflow-hidden rounded-lg border border-border/60 bg-background/40">
                         <svg viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`} className="h-full w-full transition-transform" style={{ transform: `scale(${zoom})` }}>
                             <defs>
                                 <marker id="film-graph-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">

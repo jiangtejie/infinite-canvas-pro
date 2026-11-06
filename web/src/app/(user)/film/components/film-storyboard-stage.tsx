@@ -147,7 +147,8 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
 
     return (
         <div className="flex flex-col gap-3 lg:h-full lg:min-h-0">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/40 px-4 py-2.5">
+            <div className="punk-panel relative flex shrink-0 flex-wrap items-center gap-2 overflow-hidden px-4 py-2.5">
+                <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                 <span className="eyebrow">导演台</span>
                 <span className="chip chip-acid">{shots.length} 个分镜</span>
                 <span className="chip">{countFilmScenes(project.episodes)} 场</span>
@@ -211,7 +212,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                 {view === "board" ? (
                     <FilmStoryboardBoard project={project} selectedShotId={selectedShotId} onSelect={setSelectedShotId} />
                 ) : view === "table" ? (
-                    <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                    <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                             <span className="eyebrow">分镜表</span>
                             <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">点击行编辑</span>
@@ -219,7 +220,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-auto">
                             {shots.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                                    <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                                         <Clapperboard className="size-5" />
                                     </div>
                                     <p className="mt-4 text-sm text-foreground">还没有分镜</p>
@@ -273,7 +274,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         </div>
                     </section>
                 ) : view === "groups" ? (
-                    <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                    <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                             <span className="eyebrow">分组板</span>
                             <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">每 {groupSize} 镜一组</span>
@@ -281,7 +282,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                             {shots.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                                    <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                                         <Clapperboard className="size-5" />
                                     </div>
                                     <p className="mt-4 text-sm text-foreground">还没有分镜</p>
@@ -310,7 +311,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         </div>
                     </section>
                 ) : (
-                    <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                    <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                             <span className="eyebrow">分镜板</span>
                             <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">点击镜头卡编辑</span>
@@ -318,7 +319,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                             {shots.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                                    <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                                         <Clapperboard className="size-5" />
                                     </div>
                                     <p className="mt-4 text-sm text-foreground">还没有分镜</p>
@@ -355,8 +356,8 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                             }
                                                         }}
                                                         className={cn(
-                                                            "group flex cursor-pointer flex-col gap-2 rounded-lg border p-3 text-left transition-colors",
-                                                            shot.id === selectedShotId ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-border",
+                                                            "group flex cursor-pointer flex-col gap-2 rounded-lg border p-3 text-left transition-all hover:-translate-y-0.5",
+                                                            shot.id === selectedShotId ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-acid/40",
                                                             selectedIds.includes(shot.id) ? "ring-1 ring-acid/50 ring-inset" : "",
                                                         )}
                                                     >
@@ -386,7 +387,8 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                             </span>
                                                             <FilmShotStatusChip status={shot.status} />
                                                         </span>
-                                                        <span className="block w-full overflow-hidden rounded-md border border-border/50" style={{ aspectRatio: filmAspectCssRatio(project.aspect) }}>
+                                                        <span className="relative block w-full overflow-hidden rounded-md border border-border/50 bg-background/30" style={{ aspectRatio: filmAspectCssRatio(project.aspect) }}>
+                                                            <span aria-hidden className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-background/30 via-transparent to-transparent" />
                                                             {shot.imageUrl || shot.storageKey ? (
                                                                 <FilmShotThumbnail shot={shot} className="h-full w-full" />
                                                             ) : (
@@ -415,7 +417,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                     </section>
                 )}
 
-                <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+                <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                         <span className="eyebrow">分镜详情</span>
                         {selectedShot ? <span className="font-mono text-[10px] text-muted-foreground/70">{selectedShot.shotNo}</span> : null}
@@ -540,7 +542,7 @@ function ShotGroupCard({ group, groupSize, aspect, selectedShotId, onSelectShot,
 }) {
     const totalDuration = group.shots.reduce((sum, shot) => sum + shot.duration, 0);
     return (
-        <article className="rounded-xl border border-border/70 bg-card/40 p-3">
+        <article className="punk-card rounded-xl border border-border/70 bg-card/40 p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
                 <span className="truncate text-xs font-medium text-foreground/85">{group.sceneName}</span>
                 <span className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">第 {group.startIndex + 1}-{group.startIndex + group.shots.length} 镜</span>

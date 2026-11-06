@@ -81,8 +81,9 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
 
     return (
         <div className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px]">
-            <section className="flex max-h-[75vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
-                <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-4 py-3">
+            <section className="punk-panel flex max-h-[75vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                <div className="relative flex shrink-0 flex-wrap items-center gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
+                    <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">场景库</span>
                     <Button size="small" icon={<Plus className="size-3.5" />} onClick={createLocation}>新建场景</Button>
                     <Button size="small" icon={<Library className="size-3.5" />} onClick={() => setImportOpen(true)}>从库导入</Button>
@@ -91,14 +92,17 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                     {cards.length === 0 ? <p className="px-1 py-2 text-[11px] leading-5 text-muted-foreground/60">还没有场景。新建一个并生成概念图，分镜生成时就能保持环境一致。</p> : null}
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        {cards.map((asset) => (
+                        {cards.map((asset, index) => (
                             <button
                                 key={asset.id}
                                 type="button"
                                 onClick={() => setSelectedId(asset.id)}
-                                className={cn("group flex flex-col overflow-hidden rounded-lg border text-left transition-colors", selectedId === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-border")}
+                                style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}
+                                className={cn("punk-card enter-up group flex flex-col overflow-hidden rounded-lg border text-left", selectedId === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-acid/40")}
                             >
-                                <FilmAssetThumbnail asset={asset} className="h-20 w-full" />
+                                <div className="relative w-full overflow-hidden">
+                                    <FilmAssetThumbnail asset={asset} className="h-24 w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                                </div>
                                 <span className="p-2.5">
                                     <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
                                     <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-muted-foreground/70">{asset.description || "未填写描述"}</span>
@@ -109,8 +113,9 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                 </div>
             </section>
 
-            <section className="flex max-h-[75vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+            <section className="punk-panel flex max-h-[75vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
+                    <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">场景详情</span>
                     {selected ? <span className="font-mono text-[10px] text-muted-foreground/70">{selected.status === "ready" ? "已有概念图" : "未生成"}</span> : null}
                 </div>
@@ -154,11 +159,12 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                     </div>
                 ) : (
                     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                        <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                        <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                             <MapPin className="size-5" />
                         </div>
                         <p className="mt-4 text-sm text-foreground">还没有场景</p>
-                        <p className="mt-1.5 text-xs leading-6 text-muted-foreground">点「新建场景」开始。</p>
+                        <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先新建场景，再生成概念图。</p>
+                        <Button className="mt-4" size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createLocation}>新建第一个场景</Button>
                     </div>
                 )}
             </section>

@@ -410,8 +410,8 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     };
 
     return (
-        <div className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[320px_minmax(0,1fr)_380px]">
-            <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
+        <div className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[320px_minmax(0,1fr)_380px] xl:gap-5">
+            <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                 <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                     <span className="eyebrow">剧本导入</span>
                     <span className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">{project.episodes.length} 集</span>
@@ -464,8 +464,9 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 </div>
             </section>
 
-            <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+            <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
+                    <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">剧集结构</span>
                     <div className="flex items-center gap-1">
                         <Button
@@ -521,7 +522,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
                     {episodes.length === 0 ? (
                         <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                            <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                            <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                                 <Clapperboard className="size-5" />
                             </div>
                             <p className="mt-4 text-sm text-foreground">还没有剧集</p>
@@ -597,7 +598,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                             type="button"
                                             onClick={() => setSelectedShotId(shot.id)}
                                             className={cn(
-                                                "flex w-full items-center gap-2 border-t border-border/30 px-3 py-2 pl-9 text-left transition-colors",
+                                                "group flex w-full items-center gap-2 border-t border-border/30 px-3 py-2 pl-9 text-left transition-colors",
                                                 shot.id === selectedShotId ? "bg-acid/[0.06]" : "hover:bg-foreground/[0.03]",
                                             )}
                                         >
@@ -617,8 +618,9 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 </div>
             </section>
 
-            <section className="flex max-h-[70vh] flex-col overflow-hidden rounded-xl border border-border/70 bg-card/40 lg:max-h-none lg:min-h-0">
-                <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
+            <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
+                    <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">分镜详情</span>
                     {selectedShot ? <span className="font-mono text-[10px] text-muted-foreground/70">{selectedShot.shotNo}</span> : null}
                 </div>

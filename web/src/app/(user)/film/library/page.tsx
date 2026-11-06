@@ -5,6 +5,7 @@ import { Button, Input } from "antd";
 import { ArrowLeft, Library, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { FilmAmbient } from "../components/film-ambient";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "../components/film-asset-thumbnail";
@@ -67,6 +68,9 @@ export default function FilmLibraryPage() {
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
                 <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
+                    <div className="relative">
+                        <FilmAmbient className="-inset-x-6 -top-10 h-[320px] opacity-80 sm:-inset-x-10" />
+                        <div className="relative">
                     <PageHeader
                         eyebrow="FILM / LIBRARY"
                         title="角色与场景库"
@@ -83,6 +87,8 @@ export default function FilmLibraryPage() {
                             </Button>
                         }
                     />
+                        </div>
+                    </div>
 
                     {!hydrated ? <LoadingState label="正在加载角色与场景库" /> : null}
 
@@ -97,12 +103,12 @@ export default function FilmLibraryPage() {
 
                     {hydrated && (characters.length > 0 || locations.length > 0) ? (
                         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
-                            <section className="flex flex-col gap-6 rounded-xl border border-border/70 bg-card/40 p-4">
+                            <section className="punk-panel flex flex-col gap-6 rounded-xl p-4">
                                 <LibrarySection title="角色库" kind="character" assets={characters} selection={selection} onSelect={(id) => setSelection({ kind: "character", id })} />
                                 <LibrarySection title="场景库" kind="location" assets={locations} selection={selection} onSelect={(id) => setSelection({ kind: "location", id })} />
                             </section>
 
-                            <section className="flex flex-col rounded-xl border border-border/70 bg-card/40">
+                            <section className="punk-panel flex flex-col overflow-hidden rounded-xl">
                                 <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                                     <span className="eyebrow">{selection?.kind === "location" ? "场景详情" : "角色详情"}</span>
                                     {selected ? <span className="font-mono text-[10px] text-muted-foreground/70">{selected.views?.length || 0} 张视图</span> : null}
@@ -172,17 +178,21 @@ function LibrarySection({ title, kind, assets, selection, onSelect }: {
             </div>
             {assets.length === 0 ? <p className="px-1 py-2 text-[11px] text-muted-foreground/60">还没有资产，去影视项目里生成并存入。</p> : null}
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {assets.map((asset) => (
+                {assets.map((asset, index) => (
                     <button
                         key={asset.id}
                         type="button"
                         onClick={() => onSelect(asset.id)}
+                        style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}
                         className={cn(
-                            "group flex flex-col overflow-hidden rounded-lg border text-left transition-colors",
-                            selection?.kind === kind && selection.id === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-border",
+                            "punk-card enter-up group flex flex-col overflow-hidden rounded-lg border text-left",
+                            selection?.kind === kind && selection.id === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-acid/40",
                         )}
                     >
-                        <FilmAssetThumbnail asset={asset} className="h-20 w-full" />
+                        <div className="relative w-full overflow-hidden">
+                            <FilmAssetThumbnail asset={asset} className="h-24 w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-background/50 via-transparent to-transparent" />
+                        </div>
                         <span className="p-2.5">
                             <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
                             <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-muted-foreground/70">{asset.description || "未填写描述"}</span>

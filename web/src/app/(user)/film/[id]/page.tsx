@@ -7,6 +7,7 @@ import { Input, Modal, Select } from "antd";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
+import { FilmAmbient } from "../components/film-ambient";
 import { cn } from "@/lib/utils";
 import { FilmCastStage } from "../components/film-cast-stage";
 import { FilmEditStage } from "../components/film-edit-stage";
@@ -73,8 +74,9 @@ export default function FilmProjectPage() {
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent text-foreground">
-            <header className="shrink-0 border-b border-border/70 bg-background/40">
-                <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
+            <header className="relative shrink-0 overflow-hidden border-b border-border/70 bg-background/40">
+                <FilmAmbient className="-top-24 h-44 opacity-60" />
+                <div className="relative z-10 mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
                     <Link href="/film" aria-label="返回影视项目" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
                         <ArrowLeft className="size-4" />
                     </Link>
@@ -82,18 +84,19 @@ export default function FilmProjectPage() {
                         <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">FILM / PROJECT</p>
                         <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{project.title}</h1>
                     </div>
-                    <nav className="ml-3 hidden h-14 items-center gap-1 sm:flex" aria-label="影视阶段">
-                        {STAGES.map((item) => (
+                    <nav className="ml-3 hidden h-16 items-center gap-1 sm:flex" aria-label="影视阶段">
+                        {STAGES.map((item, index) => (
                             <button
                                 key={item.key}
                                 type="button"
                                 onClick={() => switchStage(item.key)}
                                 aria-current={currentStage === item.key ? "page" : undefined}
                                 className={cn(
-                                    "relative h-14 px-3 text-[13px] transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[2px] after:rounded-t-full after:transition-colors",
-                                    currentStage === item.key ? "font-medium text-foreground after:bg-acid" : "text-muted-foreground after:bg-transparent hover:text-foreground",
+                                    "relative flex h-16 items-center gap-1.5 px-3 text-[13px] transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[2px] after:rounded-t-full after:transition-all after:duration-300",
+                                    currentStage === item.key ? "font-medium text-foreground after:bg-acid after:shadow-[0_0_14px_var(--acid)]" : "text-muted-foreground after:bg-transparent hover:text-foreground",
                                 )}
                             >
+                                <span className={cn("font-mono text-[9px] tabular-nums", currentStage === item.key ? "text-acid/80" : "text-muted-foreground/35")}>{String(index + 1).padStart(2, "0")}</span>
                                 {item.label}
                             </button>
                         ))}
@@ -115,7 +118,7 @@ export default function FilmProjectPage() {
                         已自动保存
                     </span>
                 </div>
-                <div className="flex gap-1 border-t border-border/50 px-4 sm:hidden">
+                <div className="relative z-10 flex gap-1 overflow-x-auto border-t border-border/50 px-4 sm:hidden">
                     {STAGES.map((item) => (
                         <button key={item.key} type="button" onClick={() => switchStage(item.key)} className={cn("relative px-3 py-2 text-xs", currentStage === item.key ? "text-acid" : "text-muted-foreground")}>
                             {item.label}
@@ -124,8 +127,8 @@ export default function FilmProjectPage() {
                 </div>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:overflow-hidden">
-                <div className="mx-auto max-w-[1600px] lg:h-full lg:min-h-0">
+            <div className="relative min-h-0 flex-1 overflow-y-auto p-4 lg:overflow-hidden">
+                <div key={currentStage} className="film-stage-enter mx-auto max-w-[1600px] lg:h-full lg:min-h-0">
                     {currentStage === "script" ? (
                         <FilmScriptStage
                             project={project}

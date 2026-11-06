@@ -46,8 +46,9 @@ export function FilmStoryboardBoard({ project, selectedShotId, onSelect }: { pro
     };
 
     return (
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-background/30">
-            <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2">
+        <section className="punk-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">
+            <div className="relative flex shrink-0 items-center gap-2 overflow-hidden border-b border-border/60 px-3 py-2">
+                <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                 <span className="eyebrow">无限画布</span>
                 <span className="hidden font-mono text-[10px] text-muted-foreground/50 sm:inline">拖拽移动 · 滚轮缩放</span>
                 <div className="ml-auto flex items-center gap-1">
@@ -60,9 +61,10 @@ export function FilmStoryboardBoard({ project, selectedShotId, onSelect }: { pro
             <div
                 className="relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
                 style={{
-                    backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px)",
-                    backgroundSize: "22px 22px",
-                    backgroundPosition: `${transform.x}px ${transform.y}px`,
+                    backgroundColor: "color-mix(in oklch, var(--background) 55%, transparent)",
+                    backgroundImage: "radial-gradient(circle, var(--border) 1px, transparent 1px), radial-gradient(ellipse at 45% 0%, color-mix(in oklch, var(--acid) 5%, transparent), transparent 60%)",
+                    backgroundSize: "22px 22px, 100% 100%",
+                    backgroundPosition: `${transform.x}px ${transform.y}px, 0 0`,
                 }}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -80,7 +82,7 @@ export function FilmStoryboardBoard({ project, selectedShotId, onSelect }: { pro
                                 <span className="truncate font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">{column.episodeTitle}</span>
                                 <span aria-hidden className="h-px flex-1 bg-border/50" />
                             </div>
-                            <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-border/60 bg-card/50 px-2.5 py-2">
+                            <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-border/60 bg-card/50 px-2.5 py-2 transition-colors hover:border-acid/35">
                                 <span className="truncate text-xs font-medium text-foreground/85">{column.scene.name}</span>
                                 <span className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">{column.scene.shots.length} 镜</span>
                             </div>
@@ -95,7 +97,7 @@ export function FilmStoryboardBoard({ project, selectedShotId, onSelect }: { pro
                 {columns.length === 0 ? (
                     <div className="absolute inset-0 grid place-items-center">
                         <div className="text-center">
-                            <div className="mx-auto grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
+                            <div className="film-float mx-auto grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
                                 <Clapperboard className="size-5" />
                             </div>
                             <p className="mt-4 text-sm text-foreground">还没有分镜</p>
@@ -115,11 +117,12 @@ function BoardCard({ shot, aspect, selected, onSelect }: { shot: FilmShot; aspec
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onSelect}
             className={cn(
-                "group flex w-full flex-col gap-2 rounded-lg border p-2.5 text-left transition-colors",
-                selected ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/70 hover:border-border",
+                "group flex w-full flex-col gap-2 rounded-lg border p-2.5 text-left transition-all hover:-translate-y-0.5",
+                selected ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/70 hover:border-acid/40",
             )}
         >
-            <span className="block w-full overflow-hidden rounded-md border border-border/50" style={{ aspectRatio: filmAspectCssRatio(aspect) }}>
+            <span className="relative block w-full overflow-hidden rounded-md border border-border/50 bg-background/30" style={{ aspectRatio: filmAspectCssRatio(aspect) }}>
+                <span aria-hidden className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-background/35 via-transparent to-transparent" />
                 {shot.imageUrl || shot.storageKey ? (
                     <FilmShotThumbnail shot={shot} className="h-full w-full" />
                 ) : (
