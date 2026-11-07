@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Input, Popconfirm, Select } from "antd";
+import { Button, Input, Select } from "antd";
 import { ChevronDown, ChevronRight, ChevronUp, PenLine, Plus, Trash2 } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { ScriptProject, ScriptScene } from "../types";
 import { collectScriptCharacterNames, createScriptScene, normalizeScriptCharacters, scriptSceneCompleteness, scriptSceneHeading, scriptSceneMissingFields } from "../utils/script-project";
 
@@ -16,6 +17,7 @@ type ScriptScenesPanelProps = {
 const INTERIOR_OPTIONS = [{ value: "内景" }, { value: "外景" }, { value: "内外景" }];
 
 export function ScriptScenesPanel({ project, onUpdate, onOpenEditor }: ScriptScenesPanelProps) {
+    const confirm = useConfirm();
     const [expandedId, setExpandedId] = useState(project.scenes[0]?.id || "");
     const characterOptions = collectScriptCharacterNames(project).map((name) => ({ value: name, label: name }));
     const incomplete = project.scenes.filter((scene) => scriptSceneMissingFields(scene).length > 0).length;
@@ -73,9 +75,17 @@ export function ScriptScenesPanel({ project, onUpdate, onOpenEditor }: ScriptSce
                                     <span className={missing.length ? "chip border-hot/30 text-hot/70" : "chip border-acid/30 text-acid/80"}>{missing.length ? `缺${missing.join("/")}` : `${scriptSceneCompleteness(scene)}%`}</span>
                                     <Button size="small" type="text" aria-label="上移场景" disabled={index === 0} icon={<ChevronUp className="size-3.5" />} onClick={() => moveScene(index, -1)} />
                                     <Button size="small" type="text" aria-label="下移场景" disabled={index === project.scenes.length - 1} icon={<ChevronDown className="size-3.5" />} onClick={() => moveScene(index, 1)} />
-                                    <Popconfirm title="删除这场？" okText="删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => removeScene(scene.id)}>
-                                        <Button size="small" type="text" danger aria-label="删除场景" icon={<Trash2 className="size-3.5" />} />
-                                    </Popconfirm>
+                                    <Button
+                                        size="small"
+                                        type="text"
+                                        danger
+                                        aria-label="删除场景"
+                                        icon={<Trash2 className="size-3.5" />}
+                                        onClick={async () => {
+                                            const ok = await confirm({ title: "删除场景", description: `确定删除「${scriptSceneHeading(scene)}」这场吗？删除后无法恢复。`, confirmText: "删除", tone: "danger" });
+                                            if (ok) removeScene(scene.id);
+                                        }}
+                                    />
                                 </div>
 
                                 {expanded ? (

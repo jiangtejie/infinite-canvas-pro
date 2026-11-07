@@ -8,6 +8,7 @@ import { App, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 
 import { ClientRootInit } from "@/components/layout/client-root-init";
+import { ConfirmProvider, PromptProvider } from "@/components/ui/confirm-dialog";
 import { getAntThemeConfig } from "@/lib/app-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 
@@ -33,9 +34,13 @@ export function AppProviders({ children }: { children: ReactNode }) {
     return (
         <ConfigProvider locale={zhCN} theme={getAntThemeConfig(dark)} button={{ autoInsertSpace: false }}>
             <App>
-                <QueryClientProvider client={queryClient}>
-                    <ClientRootInit>{children}</ClientRootInit>
-                </QueryClientProvider>
+                <ConfirmProvider>
+                    <PromptProvider>
+                        <QueryClientProvider client={queryClient}>
+                            <ClientRootInit>{children}</ClientRootInit>
+                        </QueryClientProvider>
+                    </PromptProvider>
+                </ConfirmProvider>
             </App>
         </ConfigProvider>
     );

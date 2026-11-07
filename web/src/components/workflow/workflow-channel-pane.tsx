@@ -1,8 +1,9 @@
 "use client";
 
-import { App, AutoComplete, Button, Form, Input, Popconfirm, Segmented, Select, Switch, Tag } from "antd";
+import { App, AutoComplete, Button, Form, Input, Segmented, Select, Switch, Tag } from "antd";
 import { useEffect, useRef, useState } from "react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { WorkflowFieldMappingEditor } from "@/components/workflow/workflow-field-mapping-editor";
 import { WorkflowGraphEditor } from "@/components/workflow/workflow-graph-editor";
 import { WorkflowTestWorkbench } from "@/components/workflow/workflow-test-workbench";
@@ -40,6 +41,7 @@ const entryKey = (item: WorkflowEntry) => `${item.kind}:${item.workflowId}`;
 
 export function WorkflowChannelPane({ channel, workflows, token, admin, onChannelChange, onBridgeDeleted, onWorkflowsChange, onBeforeTest }: Props) {
     const { message } = App.useApp();
+    const confirm = useConfirm();
     const [selectedKey, setSelectedKey] = useState("");
     const [kind, setKind] = useState<WorkflowKind>("workflow");
     const [workflowId, setWorkflowId] = useState("");
@@ -174,7 +176,9 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
         </div> : <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
                 <Form.Item label="Bridge 设备" className="!mb-0"><Select value={channel.bridgeId || undefined} options={bridges.map((item) => ({ value: item.id, label: `${item.name} · ${item.online ? "在线" : "离线"}` }))} onChange={(bridgeId) => { onChannelChange({ bridgeId }); if (bridgeId !== newTokenBridgeId) setNewToken(""); }} /></Form.Item>
-                <Form.Item label="设备状态" className="!mb-0"><div className="flex items-center gap-2 pt-1"><Tag color={bridge?.online ? "success" : "default"}>{bridge?.online ? "在线" : "未连接"}</Tag><Button size="small" onClick={() => void refreshBridges()}>刷新发现</Button>{bridge ? <Popconfirm title="删除此 Bridge 设备？" onConfirm={async () => {
+                <Form.Item label="设备状态" className="!mb-0"><div className="flex items-center gap-2 pt-1"><Tag color={bridge?.online ? "success" : "default"}>{bridge?.online ? "在线" : "未连接"}</Tag><Button size="small" onClick={() => void refreshBridges()}>刷新发现</Button>{bridge ? <Button size="small" danger onClick={async () => {
+                    const confirmed = await confirm({ title: "删除 Bridge 设备", description: "删除后该设备需要重新注册才能继续使用。", confirmText: "删除设备", tone: "danger" });
+                    if (!confirmed) return;
                     const bridgeId = bridge.id;
                     try {
                         await deleteComfyBridge(token, bridgeId, Boolean(admin));
@@ -186,7 +190,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
                     setBridges((current) => current.filter((item) => item.id !== bridgeId));
                     if (newTokenBridgeId === bridgeId) setNewToken("");
                     void refreshBridges().catch(() => {});
-                }}><Button size="small" danger>删除设备</Button></Popconfirm> : null}</div></Form.Item>
+                }}>删除设备</Button> : null}</div></Form.Item>
                 <Form.Item label="ComfyUI 地址" className="!mb-0"><Input value={channel.comfyUrl || bridge?.capabilities?.comfyUrl || ""} onChange={(event) => onChannelChange({ comfyUrl: event.target.value })} placeholder="http://127.0.0.1:8188" /></Form.Item>
                 <Form.Item label="工作流目录" className="!mb-0"><Input value={channel.workflowDir || bridge?.capabilities?.workflowDir || ""} onChange={(event) => onChannelChange({ workflowDir: event.target.value })} placeholder="workflows" /></Form.Item>
             </div>
@@ -204,7 +208,13 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
             <Form.Item label={kind === "app" ? "webappId" : "workflowId"} className={`!mb-0 ${channel.protocol === "runninghub" ? "md:col-span-3" : "md:col-span-6"}`}><Input value={workflowId} onChange={(event) => setWorkflowId(event.target.value)} /></Form.Item>
             <Form.Item label="显示名称" className="!mb-0 md:col-span-6"><Input value={title} onChange={(event) => setTitle(event.target.value)} onBlur={() => selected && saveEntry({ ...selected, title: title.trim() || selected.workflowId })} /></Form.Item>
             {channel.protocol === "comfyui" && bridge?.capabilities?.workflows?.length ? <Form.Item label="Bridge 发现的工作流" className="!mb-0 md:col-span-6"><Select showSearch options={bridge.capabilities.workflows.map((item) => ({ value: item.workflowId, label: item.title || item.workflowId }))} onChange={(id) => { setWorkflowId(id); setJsonText(""); }} /></Form.Item> : null}
-            <Form.Item label="操作" className="!mb-0 md:col-span-12"><div className="flex flex-wrap items-center gap-2"><Button type="primary" loading={busy} onClick={() => void pull()}>{selected ? "重新拉取参数" : "拉取参数"}</Button><Switch checked={selected?.enabled === true} disabled={!selected} checkedChildren="启用" unCheckedChildren="停用" onChange={(enabled) => selected && saveEntry({ ...selected, enabled })} /><Popconfirm title="删除当前工作流？" onConfirm={() => { if (!selected) return; onWorkflowsChange(workflows.filter((item) => entryKey(item) !== selectedKey)); choose(); }}><Button danger disabled={!selected}>删除</Button></Popconfirm></div></Form.Item>
+            <Form.Item label="操作" className="!mb-0 md:col-span-12"><div className="flex flex-wrap items-center gap-2"><Button type="primary" loading={busy} onClick={() => void pull()}>{selected ? "重新拉取参数" : "拉取参数"}</Button><Switch checked={selected?.enabled === true} disabled={!selected} checkedChildren="启用" unCheckedChildren="停用" onChange={(enabled) => selected && saveEntry({ ...selected, enabled })} /><Button danger disabled={!selected} onClick={async () => {
+                if (!selected) return;
+                const confirmed = await confirm({ title: "删除当前工作流", description: `确定删除「${selected.title || selected.workflowId}」吗？`, confirmText: "删除", tone: "danger" });
+                if (!confirmed) return;
+                onWorkflowsChange(workflows.filter((item) => entryKey(item) !== selectedKey));
+                choose();
+            }}>删除</Button></div></Form.Item>
         </div>
         <Segmented block value={mode} options={[{ label: "字段配置", value: "fields" }, { label: "测试画布", value: "test" }]} onChange={(value) => setMode(value as "fields" | "test")} />
         {mode === "fields" ? <>

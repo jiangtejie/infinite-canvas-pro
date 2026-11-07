@@ -3,12 +3,13 @@
 import { ClipboardPaste, FolderPlus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { App, Button, Modal } from "antd";
+import { App, Button } from "antd";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
 
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import type { WorkbenchLayout } from "@/components/workbench-header";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LoadingState } from "@/components/ui/state-panel";
 import { WORKBENCH_BOTTOM_RESULTS_CLASS, WorkbenchShell } from "@/components/workbench/workbench-shell";
 import { VideoWorkbenchPanel } from "./components/workbench-panel";
@@ -1110,9 +1111,18 @@ export default function VideoPage() {
             />
             <PromptSelectDialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen} onSelect={setPrompt} />
             <AssetPickerModal open={assetPickerOpen} defaultTab="my-assets" onInsert={(payload) => void insertPickedAsset(payload)} onClose={() => setAssetPickerOpen(false)} />
-            <Modal title="删除生成记录" open={deleteConfirmOpen} onCancel={() => setDeleteConfirmOpen(false)} onOk={deleteSelectedLogs} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
-                确定删除选中的 {selectedLogIds.length} 条生成记录吗？
-            </Modal>
+            <ConfirmDialog
+                open={deleteConfirmOpen}
+                title="删除生成记录"
+                description={`确定删除选中的 ${selectedLogIds.length} 条生成记录吗？删除后无法恢复。`}
+                confirmText="删除"
+                tone="danger"
+                onConfirm={() => {
+                    setDeleteConfirmOpen(false);
+                    deleteSelectedLogs();
+                }}
+                onCancel={() => setDeleteConfirmOpen(false)}
+            />
         </div>
     );
 }

@@ -31,6 +31,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { ImageGenerationPending } from "@/components/image-generation-pending";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
@@ -791,31 +792,21 @@ export function CanvasAssistantPanel({
                     </div>
                 </Modal>
 
-                <Modal
-                    title="删除对话记录？"
+                <ConfirmDialog
                     open={deleteChatIds.length > 0}
-                    centered
+                    title="删除对话记录？"
+                    description={`将删除 ${deleteChatIds.length} 条对话记录，此操作不可撤销`}
+                    confirmText="删除"
+                    cancelText="取消"
+                    tone="danger"
+                    onConfirm={async () => {
+                        try {
+                            await removeSessions(deleteChatIds);
+                            setDeleteChatIds((current) => current === deleteChatIds ? [] : current);
+                        } catch (error) { appMessage.error(error instanceof Error ? error.message : "删除会话失败"); }
+                    }}
                     onCancel={() => setDeleteChatIds([])}
-                    footer={
-                        <>
-                            <Button onClick={() => setDeleteChatIds([])}>取消</Button>
-                            <Button
-                                danger
-                                type="primary"
-                                onClick={async () => {
-                                    try {
-                                        await removeSessions(deleteChatIds);
-                                        setDeleteChatIds((current) => current === deleteChatIds ? [] : current);
-                                    } catch (error) { appMessage.error(error instanceof Error ? error.message : "删除会话失败"); }
-                                }}
-                            >
-                                删除
-                            </Button>
-                        </>
-                    }
-                >
-                    <p className="text-sm opacity-60">将删除 {deleteChatIds.length} 条对话记录，此操作不可撤销</p>
-                </Modal>
+                />
             </motion.aside>
             </motion.div>
         </>

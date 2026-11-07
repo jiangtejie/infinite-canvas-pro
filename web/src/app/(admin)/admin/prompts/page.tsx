@@ -2,10 +2,12 @@
 
 import { DeleteOutlined, PlusOutlined, SyncOutlined } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
-import { Button, Flex, Form, Modal, Space, Tag, Typography } from "antd";
+import { Button, Flex, Form, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import type { Prompt } from "@/services/api/prompts";
+
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { PromptFilterBar } from "./components/prompt-filter-bar";
 import { PromptDetailModal, PromptEditorModal, PromptSyncModal } from "./components/prompt-modals";
@@ -144,25 +146,29 @@ export default function AdminPromptsPage() {
             <PromptDetailModal detailPrompt={detailPrompt} categories={categories} onClose={() => setDetailPrompt(null)} />
             <PromptSyncModal open={isSyncOpen} syncing={isSyncing} categories={categories} onClose={() => setIsSyncOpen(false)} onSync={syncCategory} />
 
-            <Modal
-                title="删除提示词"
+            <ConfirmDialog
                 open={Boolean(deletingPrompt)}
+                title="删除提示词"
+                description={`确定删除「${deletingPrompt?.title}」吗？删除后会从当前分类中删除。`}
+                confirmText="删除"
+                tone="danger"
                 onCancel={() => setDeletingPrompt(null)}
-                onOk={async () => {
+                onConfirm={async () => {
                     if (!deletingPrompt) return;
                     await deletePrompt(deletingPrompt.id);
                     setDeletingPrompt(null);
                 }}
-                okText="删除"
-                okButtonProps={{ danger: true }}
-                cancelText="取消"
-            >
-                确定删除「{deletingPrompt?.title}」吗？删除后会从当前分类中删除。
-            </Modal>
+            />
 
-            <Modal title="批量删除提示词" open={isBatchDeleteOpen} onCancel={() => setIsBatchDeleteOpen(false)} onOk={() => void batchDeletePrompts()} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
-                确定删除已选中的 {selectedPromptIds.length} 条提示词吗？删除后会从当前分类中删除。
-            </Modal>
+            <ConfirmDialog
+                open={isBatchDeleteOpen}
+                title="批量删除提示词"
+                description={`确定删除已选中的 ${selectedPromptIds.length} 条提示词吗？删除后会从当前分类中删除。`}
+                confirmText="删除"
+                tone="danger"
+                onCancel={() => setIsBatchDeleteOpen(false)}
+                onConfirm={batchDeletePrompts}
+            />
         </main>
     );
 }

@@ -2,6 +2,7 @@
 
 import { CopyOutlined } from "@ant-design/icons";
 import { Button, Flex, Form, Image, Input, Modal, Select, Space, Tag, Typography, type FormInstance } from "antd";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { useCopyText } from "@/hooks/use-copy-text";
 import type { AdminAsset } from "@/services/api/admin";
@@ -103,16 +104,14 @@ export function AssetDeleteModal({
     onOk: () => Promise<void> | void;
 }) {
     return (
-            <Modal
-                title="删除素材"
-                open={Boolean(deletingAsset)}
-                onCancel={onCancel}
-                onOk={onOk}
-                okText="删除"
-                okButtonProps={{ danger: true }}
-                cancelText="取消"
-            >
-                确定删除「{deletingAsset?.title}」吗？删除后会从服务器素材库中移除。
-            </Modal>
+        <ConfirmDialog
+            open={Boolean(deletingAsset)}
+            title="删除素材"
+            description={`确定删除「${deletingAsset?.title}」吗？删除后会从服务器素材库中移除。`}
+            confirmText="删除"
+            tone="danger"
+            onCancel={onCancel}
+            onConfirm={onOk}
+        />
     );
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { App, Button, InputNumber, Modal, Select } from "antd";
 import { Check, Clapperboard, ImageIcon, LayoutGrid, Link2, List, Maximize2, Pencil, ShieldAlert, Table2, Trash2 } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "../utils/parse-script";
@@ -44,7 +45,8 @@ type FilmStoryboardStageProps = {
 };
 
 export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateImageBatch, onStopImageBatch, batchProgress, onGenerateVideo, onStopVideo, generatingVideoShotId, videoProgress, onGenerateVideoBatch, onStopVideoBatch, videoBatchProgress }: FilmStoryboardStageProps) {
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirm = useConfirm();
     const shots = useMemo(() => flattenFilmShots(project.episodes), [project.episodes]);
     const readyCount = countReadyShots(project.episodes);
     const [view, setView] = useState<ViewMode>("list");
@@ -74,14 +76,14 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
         return result;
     }, [project.episodes, groupSize]);
 
-    const confirmGroupVideo = (targets: FilmShot[]) => {
-        modal.confirm({
+    const confirmGroupVideo = async (targets: FilmShot[]) => {
+        const confirmed = await confirm({
             title: `生成本组 ${targets.length} 个分镜视频？`,
-            content: `将生成 ${targets.length} 条视频，预计耗时约 ${estimateFilmVideoMinutes(targets.length)} 分钟（按每条 1.5 分钟估算）；已有分镜图会自动作为首帧。生成过程中可随时停止。`,
-            okText: "开始生成",
-            cancelText: "取消",
-            onOk: () => onGenerateVideoBatch(targets),
+            description: `将生成 ${targets.length} 条视频，预计耗时约 ${estimateFilmVideoMinutes(targets.length)} 分钟（按每条 1.5 分钟估算）；已有分镜图会自动作为首帧。生成过程中可随时停止。`,
+            confirmText: "开始生成",
         });
+        if (!confirmed) return;
+        onGenerateVideoBatch(targets);
     };
 
     const toggleSelect = (shotId: string) => {
@@ -126,23 +128,22 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
         message.success(`已更新 ${selectedIds.length} 个镜头`);
     };
 
-    const deleteSelected = () => {
+    const deleteSelected = async () => {
         if (!selectedIds.length) return;
-        modal.confirm({
-            title: `删除选中的 ${selectedIds.length} 个镜头？`,
-            content: "删除后已生成的分镜图和视频引用也会一起移除。",
-            okText: "删除",
-            okButtonProps: { danger: true },
-            cancelText: "取消",
-            onOk: () => {
-                let episodes = project.episodes;
-                selectedIds.forEach((id) => {
-                    episodes = removeFilmShot(episodes, id);
-                });
-                onUpdate({ episodes });
-                setSelectedIds([]);
-            },
+        const targets = [...selectedIds];
+        const confirmed = await confirm({
+            title: `删除选中的 ${targets.length} 个镜头？`,
+            description: "删除后已生成的分镜图和视频引用也会一起移除。",
+            confirmText: "删除",
+            tone: "danger",
         });
+        if (!confirmed) return;
+        let episodes = project.episodes;
+        targets.forEach((id) => {
+            episodes = removeFilmShot(episodes, id);
+        });
+        onUpdate({ episodes });
+        setSelectedIds([]);
     };
 
     useEffect(() => {
@@ -184,15 +185,15 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                             <Button
                                 size="small"
                                 loading={Boolean(videoBatchProgress)}
-                                onClick={() => {
+                                onClick={async () => {
                                     const targets = shots.filter((shot) => selectedIds.includes(shot.id));
-                                    modal.confirm({
+                                    const confirmed = await confirm({
                                         title: `批量生成 ${targets.length} 个分镜视频？`,
-                                        content: `将生成 ${targets.length} 条视频，预计耗时约 ${estimateFilmVideoMinutes(targets.length)} 分钟（按每条 1.5 分钟估算）；已有分镜图会自动作为首帧。生成过程中可随时停止。`,
-                                        okText: "开始生成",
-                                        cancelText: "取消",
-                                        onOk: () => onGenerateVideoBatch(targets),
+                                        description: `将生成 ${targets.length} 条视频，预计耗时约 ${estimateFilmVideoMinutes(targets.length)} 分钟（按每条 1.5 分钟估算）；已有分镜图会自动作为首帧。生成过程中可随时停止。`,
+                                        confirmText: "开始生成",
                                     });
+                                    if (!confirmed) return;
+                                    onGenerateVideoBatch(targets);
                                 }}
                             >
                                 {videoBatchProgress ? `批量视频 ${videoBatchProgress.done}/${videoBatchProgress.total}` : "批量生成视频"}

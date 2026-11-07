@@ -4,6 +4,7 @@ import { PlusOutlined } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
 import { Button, Card, Space, Tag, Typography } from "antd";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { AdminRechargePackage } from "@/services/api/admin";
 
 import { RechargePackageModal } from "./components/recharge-package-modal";
@@ -13,7 +14,17 @@ import { DEFAULT_PACKAGE_VALUES } from "./recharge-package-utils";
 
 export default function AdminRechargePackagesPage() {
     const { items, isLoading, editing, setEditing, saving, form, reload, save, remove, toggleEnabled } = useAdminRechargePackages();
-    const columns = buildRechargePackageColumns({ onEdit: setEditing, onDelete: remove, onToggle: toggleEnabled });
+    const confirm = useConfirm();
+    const confirmDelete = async (item: AdminRechargePackage) => {
+        const confirmed = await confirm({
+            title: `删除套餐「${item.name}」？`,
+            description: "删除后用户端不再展示该套餐，已生成的订单不受影响。",
+            confirmText: "删除",
+            tone: "danger",
+        });
+        if (confirmed) await remove(item);
+    };
+    const columns = buildRechargePackageColumns({ onEdit: setEditing, onDelete: (item) => void confirmDelete(item), onToggle: toggleEnabled });
 
     return (
         <main style={{ padding: 24 }}>

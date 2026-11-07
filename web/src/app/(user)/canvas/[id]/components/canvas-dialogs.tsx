@@ -3,6 +3,7 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { Pause, Play } from "lucide-react";
 import { App, Button, Modal, Slider } from "antd";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CanvasNodeAngleDialog } from "../../components/canvas-node-angle-dialog";
 import { CanvasNodeCropDialog } from "../../components/canvas-node-crop-dialog";
 import { CanvasNodeMaskEditDialog } from "../../components/canvas-node-mask-edit-dialog";
@@ -271,39 +272,27 @@ export function CanvasDialogs({ model }: { model: CanvasDialogModel }) {
                     );
                 })() : null}
 
-                <Modal
-                    title="删除当前画布？"
+                <ConfirmDialog
                     open={deleteProjectConfirmOpen}
-                    centered
+                    title="删除当前画布？"
+                    description={`将永久删除「${currentProject?.title || "未命名画布"}」及其中所有节点、连线与生成记录，删除后无法恢复。`}
+                    confirmText="删除画布"
+                    cancelText="取消"
+                    tone="danger"
+                    onConfirm={() => { setDeleteProjectConfirmOpen(false); deleteCurrentProject(); }}
                     onCancel={() => setDeleteProjectConfirmOpen(false)}
-                    footer={
-                        <>
-                            <Button onClick={() => setDeleteProjectConfirmOpen(false)}>取消</Button>
-                            <Button danger type="primary" onClick={() => { setDeleteProjectConfirmOpen(false); deleteCurrentProject(); }}>
-                                删除画布
-                            </Button>
-                        </>
-                    }
-                >
-                    <p className="text-sm opacity-60">将永久删除「{currentProject?.title || "未命名画布"}」及其中所有节点、连线与生成记录，删除后无法恢复。</p>
-                </Modal>
+                />
 
-                <Modal
-                    title="清空画布？"
+                <ConfirmDialog
                     open={clearConfirmOpen}
-                    centered
+                    title="清空画布？"
+                    description="这会删除当前画布上的所有节点和连线。"
+                    confirmText="清空"
+                    cancelText="取消"
+                    tone="danger"
+                    onConfirm={() => { setClearConfirmOpen(false); clearCanvas(); }}
                     onCancel={() => setClearConfirmOpen(false)}
-                    footer={
-                        <>
-                            <Button onClick={() => setClearConfirmOpen(false)}>取消</Button>
-                            <Button danger type="primary" onClick={clearCanvas}>
-                                清空
-                            </Button>
-                        </>
-                    }
-                >
-                    <p className="text-sm opacity-60">这会删除当前画布上的所有节点和连线。</p>
-                </Modal>
+                />
 
                 <AssetPickerModal open={assetPickerOpen} defaultTab={assetPickerTab} onInsert={handleAssetInsert} onClose={() => { assetInsertPositionRef.current = null; setAssetPickerOpen(false); }} />
         </>

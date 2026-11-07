@@ -6,6 +6,7 @@ import { App, Button, Empty, Form, Input, Modal, Spin } from "antd";
 import { createPortal } from "react-dom";
 
 import { AgentSkillCover, AgentSkillCoverEditor } from "@/components/agent-skill-cover";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { AGENT_SKILL_CONTENT_MAX_LENGTH, type AgentSkill } from "@/services/api/agent-skills";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
@@ -29,7 +30,8 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const importSkill = useAgentSkillStore((state) => state.importSkill);
     const updateSkill = useAgentSkillStore((state) => state.updateSkill);
     const deleteSkill = useAgentSkillStore((state) => state.deleteSkill);
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirm = useConfirm();
     const [form] = Form.useForm<Pick<AgentSkill, "name" | "description" | "coverUrl" | "coverStorageKey" | "content">>();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
@@ -110,19 +112,22 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
         setOpen(false);
     };
 
-    const removeSkill = (skill: AgentSkill) => {
-        modal.confirm({
+    const removeSkill = async (skill: AgentSkill) => {
+        const confirmed = await confirm({
             title: `删除「${skill.name}」？`,
-            content: "删除后无法恢复，已发送的历史消息不会被删除。",
-            okText: "删除",
-            okButtonProps: { danger: true },
+            description: "删除后无法恢复，已发送的历史消息不会被删除。",
+            confirmText: "删除",
             cancelText: "取消",
-            onOk: async () => {
-                await deleteSkill(skill.id);
-                if (selectedSkills?.some((selected) => selected.id === skill.id && selected.source === skill.source)) onDeleteSelected(skill.id, skill.source);
-                message.success("Skill 已删除");
-            },
+            tone: "danger",
         });
+        if (!confirmed) return;
+        try {
+            await deleteSkill(skill.id);
+            if (selectedSkills?.some((selected) => selected.id === skill.id && selected.source === skill.source)) onDeleteSelected(skill.id, skill.source);
+            message.success("Skill 已删除");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "Skill 删除失败");
+        }
     };
 
     const editSkill = (skill: AgentSkill) => {

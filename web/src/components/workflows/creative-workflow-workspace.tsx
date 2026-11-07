@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/state-panel";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
@@ -378,7 +379,8 @@ export function CreativeWorkflowWorkspace({
     onWorkflowTaskFailure?: (task: WorkflowExternalTaskFailure) => void;
 } = {}) {
     useScreenLoadTiming(embedded ? "工作流（嵌入）" : "工作流");
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirm = useConfirm();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const effectiveConfig = useEffectiveConfig();
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
@@ -714,29 +716,27 @@ export function CreativeWorkflowWorkspace({
         }
     };
 
-    const deleteWorkflow = (workflow: CreativeWorkflow) => {
-        modal.confirm({
+    const deleteWorkflow = async (workflow: CreativeWorkflow) => {
+        const confirmed = await confirm({
             title: "删除工作流",
-            content: `确定删除「${workflow.name}」吗？本地模板会被移除，已生成的图片历史不受影响。`,
-            okText: "删除",
-            cancelText: "取消",
-            okButtonProps: { danger: true },
-            onOk: async () => {
-                try {
-                    if (token && workflowSyncEnabledRef.current) {
-                        await deleteUserWorkflow(token, workflow.id);
-                        await refreshWorkflows();
-                    } else {
-                        await saveWorkflows(workflows.filter((item) => item.id !== workflow.id));
-                    }
-                } catch (error) {
-                    await saveWorkflows(workflows.filter((item) => item.id !== workflow.id));
-                    message.warning(error instanceof Error && error.message === "接口不存在" ? "工作流同步接口不可用，已先从本地移除。请重启后端。" : "远端删除失败，已先从本地移除");
-                }
-                void workflowStore.removeItem(seriesDraftStorageKey(workflow.id, ownerId)).catch(() => undefined);
-                if (runningWorkflow?.id === workflow.id) setRunningWorkflow(null);
-            },
+            description: `确定删除「${workflow.name}」吗？本地模板会被移除，已生成的图片历史不受影响。`,
+            confirmText: "删除",
+            tone: "danger",
         });
+        if (!confirmed) return;
+        try {
+            if (token && workflowSyncEnabledRef.current) {
+                await deleteUserWorkflow(token, workflow.id);
+                await refreshWorkflows();
+            } else {
+                await saveWorkflows(workflows.filter((item) => item.id !== workflow.id));
+            }
+        } catch (error) {
+            await saveWorkflows(workflows.filter((item) => item.id !== workflow.id));
+            message.warning(error instanceof Error && error.message === "接口不存在" ? "工作流同步接口不可用，已先从本地移除。请重启后端。" : "远端删除失败，已先从本地移除");
+        }
+        void workflowStore.removeItem(seriesDraftStorageKey(workflow.id, ownerId)).catch(() => undefined);
+        if (runningWorkflow?.id === workflow.id) setRunningWorkflow(null);
     };
 
     const runWorkflowAgent = async () => {
@@ -1500,7 +1500,7 @@ export function CreativeWorkflowWorkspace({
 
                 <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {visibleWorkflows.map((workflow) => (
-                        <WorkflowCard key={workflow.id} workflow={workflow} onRun={() => openRunner(workflow)} onEdit={() => setEditingWorkflow(workflow)} onCopy={() => void duplicateWorkflow(workflow)} onDelete={() => deleteWorkflow(workflow)} />
+                        <WorkflowCard key={workflow.id} workflow={workflow} onRun={() => openRunner(workflow)} onEdit={() => setEditingWorkflow(workflow)} onCopy={() => void duplicateWorkflow(workflow)} onDelete={() => void deleteWorkflow(workflow)} />
                     ))}
                     {!filteredWorkflows.length ? (
                         <div className="col-span-full rounded-xl border border-dashed border-border bg-card/40">

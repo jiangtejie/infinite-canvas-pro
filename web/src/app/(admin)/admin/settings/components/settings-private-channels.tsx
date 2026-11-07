@@ -3,13 +3,15 @@
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { App, Button, Flex, Space, Table, Tag, Typography } from "antd";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { isWorkflowProtocol } from "@/lib/model-channel";
 
 import { modelSummary } from "../settings-utils";
 import type { AdminSettingsController } from "../use-admin-settings";
 
 export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSettingsController }) {
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirm = useConfirm();
     const { channels, channelTableData, openChannelDrawer, openTestDialog, persistChannels } = settings;
     return (
         <>
@@ -52,24 +54,21 @@ export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSett
                                                         danger
                                                         size="small"
                                                         icon={<DeleteOutlined />}
-                                                        onClick={() => {
-                                                            modal.confirm({
+                                                        onClick={async () => {
+                                                            const confirmed = await confirm({
                                                                 title: `删除渠道「${item.name || "未命名渠道"}」？`,
-                                                                content: "删除后会立即保存当前表单的全部设置（含其它页签未保存的编辑），该操作不可撤销。",
-                                                                okText: "删除",
-                                                                cancelText: "取消",
-                                                                okButtonProps: { danger: true },
-                                                                onOk: async () => {
-                                                                    const nextChannels = [...channels];
-                                                                    nextChannels.splice(item._index, 1);
-                                                                    try {
-                                                                        await persistChannels(nextChannels);
-                                                                    } catch (error) {
-                                                                        message.error(error instanceof Error ? error.message : "删除渠道失败");
-                                                                        throw error;
-                                                                    }
-                                                                },
+                                                                description: "删除后会立即保存当前表单的全部设置（含其它页签未保存的编辑），该操作不可撤销。",
+                                                                confirmText: "删除",
+                                                                tone: "danger",
                                                             });
+                                                            if (!confirmed) return;
+                                                            const nextChannels = [...channels];
+                                                            nextChannels.splice(item._index, 1);
+                                                            try {
+                                                                await persistChannels(nextChannels);
+                                                            } catch (error) {
+                                                                message.error(error instanceof Error ? error.message : "删除渠道失败");
+                                                            }
                                                         }}
                                                     />
                                                 </Space>

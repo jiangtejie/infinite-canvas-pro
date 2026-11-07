@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Col, Divider, Form, Input, InputNumber, Modal, Row, Select, Space, Typography, type FormInstance } from "antd";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import type { AdminUser } from "@/services/api/admin";
 
@@ -98,16 +99,14 @@ export function UserDeleteModal({
     onOk: () => Promise<void> | void;
 }) {
     return (
-            <Modal
-                title="删除用户"
-                open={Boolean(deletingUser)}
-                onCancel={onCancel}
-                onOk={onOk}
-                okText="删除"
-                okButtonProps={{ danger: true }}
-                cancelText="取消"
-            >
-                确定删除「{deletingUser?.displayName || deletingUser?.username}」吗？删除后该账号将无法继续登录。
-            </Modal>
+        <ConfirmDialog
+            open={Boolean(deletingUser)}
+            title="删除用户"
+            description={`确定删除「${deletingUser?.displayName || deletingUser?.username}」吗？删除后该账号将无法继续登录。`}
+            confirmText="删除"
+            tone="danger"
+            onCancel={onCancel}
+            onConfirm={onOk}
+        />
     );
 }

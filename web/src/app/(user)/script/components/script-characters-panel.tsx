@@ -1,8 +1,9 @@
 "use client";
 
-import { Button, Input, Popconfirm } from "antd";
+import { Button, Input } from "antd";
 import { Plus, Trash2 } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { ScriptCharacter, ScriptProject } from "../types";
 import { createScriptCharacter } from "../utils/script-project";
 
@@ -12,6 +13,7 @@ type ScriptCharactersPanelProps = {
 };
 
 export function ScriptCharactersPanel({ project, onUpdate }: ScriptCharactersPanelProps) {
+    const confirm = useConfirm();
     const updateCharacter = (id: string, patch: Partial<ScriptCharacter>) => {
         onUpdate({ characters: project.characters.map((character) => character.id === id ? { ...character, ...patch } : character) });
     };
@@ -41,9 +43,17 @@ export function ScriptCharactersPanel({ project, onUpdate }: ScriptCharactersPan
                                 <span className="grid size-7 place-items-center rounded-full border border-acid/30 bg-acid/10 font-mono text-[10px] text-acid">{index + 1}</span>
                                 <Input variant="borderless" className="!px-0 text-sm font-semibold" value={character.name} placeholder="角色名" onChange={(event) => updateCharacter(character.id, { name: event.target.value })} />
                                 <Input variant="borderless" className="!w-24 !px-0 text-right text-[11px]" value={character.role} placeholder="定位" onChange={(event) => updateCharacter(character.id, { role: event.target.value })} />
-                                <Popconfirm title="删除这个角色？" okText="删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => removeCharacter(character.id)}>
-                                    <Button size="small" type="text" danger aria-label="删除角色" icon={<Trash2 className="size-3.5" />} />
-                                </Popconfirm>
+                                <Button
+                                    size="small"
+                                    type="text"
+                                    danger
+                                    aria-label="删除角色"
+                                    icon={<Trash2 className="size-3.5" />}
+                                    onClick={async () => {
+                                        const ok = await confirm({ title: "删除角色", description: `确定删除「${character.name || "未命名角色"}」吗？删除后无法恢复。`, confirmText: "删除", tone: "danger" });
+                                        if (ok) removeCharacter(character.id);
+                                    }}
+                                />
                             </div>
                             <div className="grid gap-2 sm:grid-cols-2">
                                 <Field label="Want / 外在目标"><Input value={character.want} placeholder="他想要什么" onChange={(event) => updateCharacter(character.id, { want: event.target.value })} /></Field>

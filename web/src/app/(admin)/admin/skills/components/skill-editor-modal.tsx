@@ -6,6 +6,7 @@ import { App, Button, ConfigProvider, Flex, Form, Input, InputNumber, Modal, Spa
 import { type CSSProperties, type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { AgentSkillCoverEditor } from "@/components/agent-skill-cover";
+import { useConfirm, usePrompt } from "@/components/ui/confirm-dialog";
 import { AGENT_SKILL_CONTENT_MAX_LENGTH, type AgentSkill, type AgentSkillFile } from "@/services/api/agent-skills";
 import { fetchAdminAgentSkillFiles, saveAdminAgentSkill } from "@/services/api/admin";
 import { deleteStoredImages } from "@/services/image-storage";
@@ -15,7 +16,9 @@ import { useUserStore } from "@/stores/use-user-store";
 import { buildSkillTree, compareSkillEntries, isSkillPathWithin, nextSkillEntrySort, normalizeSkillEntryName, replaceSkillPathPrefix, skillEntryParentPath, type SkillTreeNode } from "../skill-file-utils";
 
 export function SkillEditorModal({ editingSkill, onClose }: { editingSkill: Partial<AgentSkill> | null; onClose: () => void }) {
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const prompt = usePrompt();
+    const confirm = useConfirm();
     const { token: antToken } = theme.useToken();
     const queryClient = useQueryClient();
     const token = useUserStore((state) => state.token);
@@ -79,76 +82,74 @@ export function SkillEditorModal({ editingSkill, onClose }: { editingSkill: Part
         setSkillFiles((current) => current.map((item) => item.path === selectedFilePath ? { ...item, content } : item));
     };
 
-    const createSkillEntry = (kind: AgentSkillFile["kind"]) => {
-        let name = "";
+    const createSkillEntry = async (kind: AgentSkillFile["kind"]) => {
         const selectedEntry = skillFiles.find((item) => item.path === selectedTreePath);
         const parentPath = selectedEntry?.kind === "folder" ? selectedEntry.path : selectedTreePath === "SKILL.md" ? "" : selectedTreePath.split("/").slice(0, -1).join("/");
-        modal.confirm({
+        const name = await prompt({
             title: kind === "folder" ? "创建文件夹" : "创建 Markdown",
-            content: <Input autoFocus placeholder={kind === "folder" ? "文件夹名称" : "文件名称"} onChange={(event) => { name = event.target.value; }} />,
-            okText: "创建",
-            cancelText: "取消",
-            onOk: () => {
-                const fileName = normalizeSkillEntryName(name, kind);
-                if (!fileName) {
-                    message.error("请输入有效名称");
-                    return Promise.reject();
-                }
+            placeholder: kind === "folder" ? "文件夹名称" : "文件名称",
+            confirmText: "创建",
+            validate: (value) => {
+                const fileName = normalizeSkillEntryName(value, kind);
+                if (!fileName) return "请输入有效名称";
                 const nextPath = [parentPath, fileName].filter(Boolean).join("/");
-                if (nextPath.toLowerCase() === "skill.md" || skillFiles.some((item) => item.path.toLowerCase() === nextPath.toLowerCase())) {
-                    message.error("同名文件或文件夹已存在");
-                    return Promise.reject();
-                }
-                setSkillFiles((current) => [...current, { path: nextPath, kind, content: "", sort: nextSkillEntrySort(current, parentPath) }]);
-                setSelectedTreePath(nextPath);
-                if (kind === "file") setSelectedFilePath(nextPath);
-                if (parentPath) setExpandedPaths((current) => [...new Set([...current, parentPath])]);
+                if (nextPath.toLowerCase() === "skill.md" || skillFiles.some((item) => item.path.toLowerCase() === nextPath.toLowerCase())) return "同名文件或文件夹已存在";
+                return null;
             },
         });
+        if (name === null) return;
+        const fileName = normalizeSkillEntryName(name, kind);
+        if (!fileName) {
+            message.error("请输入有效名称");
+            return;
+        }
+        const nextPath = [parentPath, fileName].filter(Boolean).join("/");
+        setSkillFiles((current) => [...current, { path: nextPath, kind, content: "", sort: nextSkillEntrySort(current, parentPath) }]);
+        setSelectedTreePath(nextPath);
+        if (kind === "file") setSelectedFilePath(nextPath);
+        if (parentPath) setExpandedPaths((current) => [...new Set([...current, parentPath])]);
     };
 
-    const renameSkillEntry = (entryPath: string, kind: AgentSkillFile["kind"]) => {
-        let name = entryPath.split("/").at(-1) || entryPath;
+    const renameSkillEntry = async (entryPath: string, kind: AgentSkillFile["kind"]) => {
         const parentPath = entryPath.split("/").slice(0, -1).join("/");
-        modal.confirm({
+        const name = await prompt({
             title: kind === "folder" ? "重命名文件夹" : "重命名文件",
-            content: <Input autoFocus defaultValue={name} onChange={(event) => { name = event.target.value; }} />,
-            okText: "确定",
-            cancelText: "取消",
-            onOk: () => {
-                const fileName = normalizeSkillEntryName(name, kind);
-                if (!fileName) {
-                    message.error("请输入有效名称");
-                    return Promise.reject();
-                }
+            defaultValue: entryPath.split("/").at(-1) || entryPath,
+            confirmText: "确定",
+            validate: (value) => {
+                const fileName = normalizeSkillEntryName(value, kind);
+                if (!fileName) return "请输入有效名称";
                 const nextPath = [parentPath, fileName].filter(Boolean).join("/");
-                if (nextPath === entryPath) return;
-                if (nextPath.toLowerCase() === "skill.md" || skillFiles.some((item) => !isSkillPathWithin(item.path, entryPath) && item.path.toLowerCase() === nextPath.toLowerCase())) {
-                    message.error("同名文件或文件夹已存在");
-                    return Promise.reject();
-                }
-                setSkillFiles((current) => current.map((item) => isSkillPathWithin(item.path, entryPath) ? { ...item, path: replaceSkillPathPrefix(item.path, entryPath, nextPath) } : item));
-                setSelectedTreePath((current) => replaceSkillPathPrefix(current, entryPath, nextPath));
-                setSelectedFilePath((current) => replaceSkillPathPrefix(current, entryPath, nextPath));
-                setExpandedPaths((current) => [...new Set(current.map((item) => replaceSkillPathPrefix(item, entryPath, nextPath)))]);
+                if (nextPath !== entryPath && (nextPath.toLowerCase() === "skill.md" || skillFiles.some((item) => !isSkillPathWithin(item.path, entryPath) && item.path.toLowerCase() === nextPath.toLowerCase()))) return "同名文件或文件夹已存在";
+                return null;
             },
         });
+        if (name === null) return;
+        const fileName = normalizeSkillEntryName(name, kind);
+        if (!fileName) {
+            message.error("请输入有效名称");
+            return;
+        }
+        const nextPath = [parentPath, fileName].filter(Boolean).join("/");
+        if (nextPath === entryPath) return;
+        setSkillFiles((current) => current.map((item) => isSkillPathWithin(item.path, entryPath) ? { ...item, path: replaceSkillPathPrefix(item.path, entryPath, nextPath) } : item));
+        setSelectedTreePath((current) => replaceSkillPathPrefix(current, entryPath, nextPath));
+        setSelectedFilePath((current) => replaceSkillPathPrefix(current, entryPath, nextPath));
+        setExpandedPaths((current) => [...new Set(current.map((item) => replaceSkillPathPrefix(item, entryPath, nextPath)))]);
     };
 
-    const deleteSkillEntry = (entryPath: string, kind: AgentSkillFile["kind"]) => {
-        modal.confirm({
+    const deleteSkillEntry = async (entryPath: string, kind: AgentSkillFile["kind"]) => {
+        const confirmed = await confirm({
             title: kind === "folder" ? "删除文件夹" : "删除文件",
-            content: kind === "folder" ? `确定删除「${entryPath}」及其中全部文件吗？` : `确定删除「${entryPath}」吗？`,
-            okText: "删除",
-            cancelText: "取消",
-            okButtonProps: { danger: true },
-            onOk: () => {
-                setSkillFiles((current) => current.filter((item) => !isSkillPathWithin(item.path, entryPath)));
-                setSelectedTreePath((current) => isSkillPathWithin(current, entryPath) ? "SKILL.md" : current);
-                setSelectedFilePath((current) => isSkillPathWithin(current, entryPath) ? "SKILL.md" : current);
-                setExpandedPaths((current) => current.filter((item) => !isSkillPathWithin(item, entryPath)));
-            },
+            description: kind === "folder" ? `确定删除「${entryPath}」及其中全部文件吗？` : `确定删除「${entryPath}」吗？`,
+            confirmText: "删除",
+            tone: "danger",
         });
+        if (!confirmed) return;
+        setSkillFiles((current) => current.filter((item) => !isSkillPathWithin(item.path, entryPath)));
+        setSelectedTreePath((current) => isSkillPathWithin(current, entryPath) ? "SKILL.md" : current);
+        setSelectedFilePath((current) => isSkillPathWithin(current, entryPath) ? "SKILL.md" : current);
+        setExpandedPaths((current) => current.filter((item) => !isSkillPathWithin(item, entryPath)));
     };
 
     const moveSkillEntry = (entryPath: string, kind: AgentSkillFile["kind"], parentPath: string, insertIndex?: number) => {

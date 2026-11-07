@@ -1,7 +1,6 @@
 "use client";
 
-import { Button, Modal } from "antd";
-
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteCanvasProjects } from "@/services/api/canvas-tasks";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useCanvasStore } from "../stores/use-canvas-store";
@@ -22,21 +21,15 @@ export function CanvasDeleteProjectsDialog() {
     };
 
     return (
-        <Modal
-            title="删除画布？"
+        <ConfirmDialog
             open={ids.length > 0}
-            centered
+            title="删除画布？"
+            description={`将删除 ${ids.length} 个画布，里面的节点和连线也会一起移除。`}
+            confirmText="删除"
+            cancelText="取消"
+            tone="danger"
+            onConfirm={confirm}
             onCancel={() => setDeleteIds([])}
-            footer={
-                <>
-                    <Button onClick={() => setDeleteIds([])}>取消</Button>
-                    <Button danger type="primary" onClick={confirm}>
-                        删除
-                    </Button>
-                </>
-            }
-        >
-            <p className="text-sm text-muted-foreground">将删除 {ids.length} 个画布，里面的节点和连线也会一起移除。</p>
-        </Modal>
+        />
     );
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button, Input, Modal, Popconfirm } from "antd";
+import { Button, Input, Modal } from "antd";
 import { History, RotateCcw, Save, Trash2 } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { ScriptProject } from "../types";
 import { createScriptDraft, diffScriptDraft, draftWords } from "../utils/script-project";
@@ -23,6 +24,7 @@ const STATUS_STYLE: Record<string, { label: string; className: string }> = {
 };
 
 export function ScriptVersionsModal({ open, project, onUpdate, onClose }: ScriptVersionsModalProps) {
+    const confirm = useConfirm();
     const drafts = project.drafts || [];
     const [selectedId, setSelectedId] = useState("");
     const [label, setLabel] = useState("");
@@ -74,9 +76,17 @@ export function ScriptVersionsModal({ open, project, onUpdate, onClose }: Script
                                     <span className="block truncate text-[11px] font-medium text-foreground/85">{draft.label}</span>
                                     <span className="mt-0.5 block font-mono text-[9px] text-muted-foreground/50">{new Date(draft.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} · {draftWords(draft)} 字</span>
                                 </button>
-                                <Popconfirm title="删除这个版本？" okText="删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => removeDraft(draft.id)}>
-                                    <Button size="small" type="text" danger aria-label="删除版本" icon={<Trash2 className="size-3" />} />
-                                </Popconfirm>
+                                <Button
+                                    size="small"
+                                    type="text"
+                                    danger
+                                    aria-label="删除版本"
+                                    icon={<Trash2 className="size-3" />}
+                                    onClick={async () => {
+                                        const ok = await confirm({ title: "删除版本", description: `确定删除版本「${draft.label || "未命名版本"}」吗？删除后无法恢复。`, confirmText: "删除", tone: "danger" });
+                                        if (ok) removeDraft(draft.id);
+                                    }}
+                                />
                             </div>
                         ))}
                     </div>

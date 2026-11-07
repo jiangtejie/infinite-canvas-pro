@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, Input, InputNumber, Modal, Select } from "antd";
 import { Clapperboard, ClipboardList, FileUp, Link2, Network, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import type { FilmEpisode, FilmProject, FilmShot, FilmShotStatus } from "@/lib/film/types";
 import { addFilmEpisode, addFilmScene, addFilmShot, filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
@@ -42,7 +43,8 @@ type FilmScriptStageProps = {
 };
 
 export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerateImageBatch, generatingShotId, batchProgress, onStopBatch, onGenerateVideo, onStopVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirm = useConfirm();
     const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const { analyzingEpisodeId, analyzeEpisode } = useFilmContinuity();
     const { batchProgress: checkingBatchProgress, checkShots } = useFilmContinuityCheck();
@@ -68,24 +70,22 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const currentScriptHash = useMemo(() => scriptTextHash(project.scriptText || ""), [project.scriptText]);
     const analysisStale = Boolean(project.scriptAnalysis && currentScriptHash !== project.scriptAnalysis.scriptHash);
 
-    const checkEpisodeContinuity = (episode: FilmEpisode) => {
+    const checkEpisodeContinuity = async (episode: FilmEpisode) => {
         const episodeShots = episode.scenes.flatMap((scene) => scene.shots);
         const checkable = episodeShots.filter((shot) => shot.imageUrl || shot.storageKey);
         if (!checkable.length) {
             message.warning("本集还没有可校验的分镜图");
             return;
         }
-        modal.confirm({
+        const confirmed = await confirm({
             title: `校验本集 ${checkable.length} 张分镜图？`,
-            content: "会逐张用多模态模型对照场记交接单检查，消耗相应次数的模型调用；校验结果会写回每个镜头的交接单。",
-            okText: "开始校验",
-            cancelText: "取消",
-            onOk: async () => {
-                const results = await checkShots(episodeShots);
-                if (!results || !Object.keys(results).length) return;
-                onUpdate({ episodes: episodes.map((item) => item.id === episode.id ? applyFilmContinuityChecks(item, results) : item) });
-            },
+            description: "会逐张用多模态模型对照场记交接单检查，消耗相应次数的模型调用；校验结果会写回每个镜头的交接单。",
+            confirmText: "开始校验",
         });
+        if (!confirmed) return;
+        const results = await checkShots(episodeShots);
+        if (!results || !Object.keys(results).length) return;
+        onUpdate({ episodes: episodes.map((item) => item.id === episode.id ? applyFilmContinuityChecks(item, results) : item) });
     };
 
     const analyzeContinuity = async (episode: FilmEpisode) => {
@@ -95,7 +95,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         setContinuityPreviewEpisodeId(episode.id);
     };
 
-    const generateSceneImages = (sceneShots: FilmShot[]) => {
+    const generateSceneImages = async (sceneShots: FilmShot[]) => {
         if (batchProgress) return;
         const describable = sceneShots.filter((shot) => (shot.prompt || shot.description).trim());
         if (!describable.length) {
@@ -107,13 +107,13 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
             message.info("本场镜头都已有分镜图");
             return;
         }
-        modal.confirm({
+        const confirmed = await confirm({
             title: `生成本场 ${pending.length} 张分镜图？`,
-            content: "已有分镜图的镜头会跳过；会用本场第一个镜头做锚点，后续镜头引用它保持色调与画风，按顺序生成。",
-            okText: "开始生成",
-            cancelText: "取消",
-            onOk: () => onGenerateImageBatch(sceneShots, { anchorShotId: sceneShots[0]?.id, skipExisting: true }),
+            description: "已有分镜图的镜头会跳过；会用本场第一个镜头做锚点，后续镜头引用它保持色调与画风，按顺序生成。",
+            confirmText: "开始生成",
         });
+        if (!confirmed) return;
+        onGenerateImageBatch(sceneShots, { anchorShotId: sceneShots[0]?.id, skipExisting: true });
     };
 
     const moveSelectedShot = (direction: "up" | "down") => {
@@ -202,34 +202,30 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         }
     };
 
-    const confirmApplyImport = (mode: "replace" | "append") => {
+    const confirmApplyImport = async (mode: "replace" | "append") => {
         if (!importDoc) return;
         if (mode === "replace" && episodes.length) {
-            modal.confirm({
+            const confirmed = await confirm({
                 title: "覆盖现有剧集和分镜？",
-                content: "当前项目已有剧集/分镜，覆盖导入会替换现有内容（可用「撤销解析」恢复上一版）。",
-                okText: "覆盖导入",
-                okButtonProps: { danger: true },
-                cancelText: "取消",
-                onOk: () => applyImportDocument("replace"),
+                description: "当前项目已有剧集/分镜，覆盖导入会替换现有内容（可用「撤销解析」恢复上一版）。",
+                confirmText: "覆盖导入",
+                tone: "danger",
             });
-            return;
+            if (!confirmed) return;
         }
         applyImportDocument(mode);
     };
 
-    const confirmApplyAnalysis = (mode: "replace" | "append") => {
+    const confirmApplyAnalysis = async (mode: "replace" | "append") => {
         if (!scriptAnalysis) return;
         if (mode === "replace" && episodes.length) {
-            modal.confirm({
+            const confirmed = await confirm({
                 title: "覆盖现有剧集和分镜？",
-                content: "覆盖导入会替换现有剧集/分镜，并把勾选接受的角色、关系应用到项目。",
-                okText: "覆盖导入",
-                okButtonProps: { danger: true },
-                cancelText: "取消",
-                onOk: () => applyAnalysisImport("replace"),
+                description: "覆盖导入会替换现有剧集/分镜，并把勾选接受的角色、关系应用到项目。",
+                confirmText: "覆盖导入",
+                tone: "danger",
             });
-            return;
+            if (!confirmed) return;
         }
         applyAnalysisImport(mode);
     };
@@ -378,20 +374,19 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         message.success(`已绑定 ${result.boundCharacters} 个镜头角色、${result.boundLocations} 个场景`);
     };
 
-    const undoParse = () => {
+    const undoParse = async () => {
         const snapshot = episodeHistory[episodeHistory.length - 1];
         if (!snapshot) return;
-        modal.confirm({
+        const confirmed = await confirm({
             title: "撤销上次解析？",
-            content: "会恢复解析前的分镜，解析后手动修改的内容会丢失。",
-            okText: "撤销",
-            cancelText: "取消",
-            onOk: () => {
-                onUpdate({ episodes: snapshot });
-                setEpisodeHistory((prev) => prev.slice(0, -1));
-                setSelectedShotId(flattenFilmShots(snapshot)[0]?.id ?? "");
-            },
+            description: "会恢复解析前的分镜，解析后手动修改的内容会丢失。",
+            confirmText: "撤销",
+            tone: "warning",
         });
+        if (!confirmed) return;
+        onUpdate({ episodes: snapshot });
+        setEpisodeHistory((prev) => prev.slice(0, -1));
+        setSelectedShotId(flattenFilmShots(snapshot)[0]?.id ?? "");
     };
 
     const clearScript = () => {
@@ -557,7 +552,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                     loading={Boolean(checkingBatchProgress)}
                                     disabled={Boolean(analyzingEpisodeId) || Boolean(checkingBatchProgress)}
                                     icon={<ShieldCheck className="size-3.5" />}
-                                    onClick={() => checkEpisodeContinuity(episode)}
+                                    onClick={() => void checkEpisodeContinuity(episode)}
                                 />
                                 {checkingBatchProgress ? <span className="font-mono text-[9px] text-acid tabular-nums">{checkingBatchProgress.done}/{checkingBatchProgress.total}</span> : null}
                                 {(() => {

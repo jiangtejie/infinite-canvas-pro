@@ -1,6 +1,7 @@
 "use client";
 
 import { Col, Form, Input, InputNumber, Modal, Row, type FormInstance } from "antd";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import type { AdminCreditLog } from "@/services/api/admin";
 
@@ -77,16 +78,14 @@ export function CreditLogDeleteModal({
     onOk: () => Promise<void> | void;
 }) {
     return (
-            <Modal
-                title="删除日志"
-                open={Boolean(deletingLog)}
-                onCancel={onCancel}
-                onOk={onOk}
-                okText="删除"
-                okButtonProps={{ danger: true }}
-                cancelText="取消"
-            >
-                确定删除这条算力点日志吗？
-            </Modal>
+        <ConfirmDialog
+            open={Boolean(deletingLog)}
+            title="删除日志"
+            description="确定删除这条算力点日志吗？删除后不可恢复。"
+            confirmText="删除"
+            tone="danger"
+            onCancel={onCancel}
+            onConfirm={onOk}
+        />
     );
 }

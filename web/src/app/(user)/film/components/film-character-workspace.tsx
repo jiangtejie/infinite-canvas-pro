@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { App, Button, Checkbox, Image, Input, Modal, Select, Spin } from "antd";
 import { Download, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import styles from "./film-character.module.css";
 import { uploadImage } from "@/services/image-storage";
@@ -24,7 +25,8 @@ type FilmCharacterWorkspaceProps = {
 type UploadTarget = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | null;
 
 export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
-    const { modal, message } = App.useApp();
+    const { message } = App.useApp();
+    const confirm = useConfirm();
     const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const characters = useMemo(() => project.characters || [], [project.characters]);
     const libraryCharacters = useFilmCastStore((state) => state.characters);
@@ -178,20 +180,20 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         setPreviewMode("part");
     };
 
-    const confirmGeneratePart = (key: FilmCharacterPartKey) => {
+    const confirmGeneratePart = async (key: FilmCharacterPartKey) => {
         if (!selected || batchProgress) return;
         const currentPart = ensureCharacterProfile(selected).parts[key];
         if (currentPart.locked) {
             message.warning("该部位已锁定，先解锁再生成");
             return;
         }
-        modal.confirm({
+        const confirmed = await confirm({
             title: `生成「${characterPartLabel(key)}」参考图？`,
-            content: "会调用一次图片生成任务，生成时会自动带上面部与全身参考。",
-            okText: "生成",
-            cancelText: "取消",
-            onOk: () => void generatePart(selected.id, key),
+            description: "会调用一次图片生成任务，生成时会自动带上面部与全身参考。",
+            confirmText: "生成",
         });
+        if (!confirmed) return;
+        await generatePart(selected.id, key);
     };
 
     const generateCard = async () => {
@@ -388,7 +390,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
                                 <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border/60 bg-background/70 p-2 backdrop-blur">
                                     <Button size="small" type="primary" loading={generatingMaster} disabled={Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMaster(selected.id)}>生成全身合成图</Button>
-                                    <Button size="small" loading={generatingPart} disabled={Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => confirmGeneratePart(selectedPart)}>生成{characterPartLabel(selectedPart)}</Button>
+                                    <Button size="small" loading={generatingPart} disabled={Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void confirmGeneratePart(selectedPart)}>生成{characterPartLabel(selectedPart)}</Button>
                                     <Button size="small" loading={Boolean(batchProgress)} disabled={generatingMaster || generatingPart} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMissingParts(selected.id)}>
                                         {batchProgress ? `补齐中 ${batchProgress.done}/${batchProgress.total}` : "补齐缺失部位"}
                                     </Button>

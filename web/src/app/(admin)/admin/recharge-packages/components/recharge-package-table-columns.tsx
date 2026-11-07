@@ -2,7 +2,7 @@
 
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import type { ProColumns } from "@ant-design/pro-components";
-import { Button, Popconfirm, Space, Switch, Tag, Typography } from "antd";
+import { Button, Space, Switch, Tag, Typography } from "antd";
 import dayjs from "dayjs";
 
 import type { AdminRechargePackage } from "@/services/api/admin";
@@ -80,9 +80,7 @@ export function buildRechargePackageColumns({
                                 })
                             }
                         />
-                        <Popconfirm title={`删除套餐「${item.name}」？`} description="已生成的订单不受影响。" okText="删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => void onDelete(item)}>
-                            <Button danger type="text" size="small" icon={<DeleteOutlined />} />
-                        </Popconfirm>
+                        <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => onDelete(item)} />
                     </Space>
                 ),
             },

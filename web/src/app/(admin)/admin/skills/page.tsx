@@ -4,10 +4,11 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutli
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { App, Button, Card, Col, Flex, Form, Input, Modal, Row, Space, Tag, theme, Tooltip, Typography } from "antd";
+import { App, Button, Card, Col, Flex, Form, Input, Row, Space, Tag, theme, Tooltip, Typography } from "antd";
 import { useMemo, useState } from "react";
 
 import { AgentSkillCover } from "@/components/agent-skill-cover";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { AgentSkill } from "@/services/api/agent-skills";
 import { deleteAdminAgentSkill, fetchAdminAgentSkills } from "@/services/api/admin";
 import { deleteStoredImages } from "@/services/image-storage";
@@ -109,9 +110,20 @@ export default function AdminSkillsPage() {
 
             <SkillEditorModal editingSkill={editingSkill} onClose={() => setEditingSkill(null)} />
 
-            <Modal title="删除 Skill" open={Boolean(deletingSkill)} onCancel={() => setDeletingSkill(null)} onOk={async () => { if (!deletingSkill) return; await deleteMutation.mutateAsync(deletingSkill.id); if (deletingSkill.coverStorageKey) await deleteStoredImages([deletingSkill.coverStorageKey]).catch(() => undefined); setDeletingSkill(null); }} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
-                确定删除「{deletingSkill?.name}」吗？
-            </Modal>
+            <ConfirmDialog
+                open={Boolean(deletingSkill)}
+                title="删除 Skill"
+                description={`确定删除「${deletingSkill?.name}」吗？删除后不可恢复。`}
+                confirmText="删除"
+                tone="danger"
+                onCancel={() => setDeletingSkill(null)}
+                onConfirm={async () => {
+                    if (!deletingSkill) return;
+                    await deleteMutation.mutateAsync(deletingSkill.id);
+                    if (deletingSkill.coverStorageKey) await deleteStoredImages([deletingSkill.coverStorageKey]).catch(() => undefined);
+                    setDeletingSkill(null);
+                }}
+            />
         </main>
     );
 }

@@ -3,10 +3,11 @@
 import { WandSparkles } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import dynamic from "next/dynamic";
-import { App, Drawer, Modal } from "antd";
+import { App, Drawer } from "antd";
 import { saveAs } from "file-saver";
 
 import type { WorkbenchLayout } from "@/components/workbench-header";
+import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
 import { LoadingState } from "@/components/ui/state-panel";
 import { WORKBENCH_BOTTOM_RESULTS_CLASS, WorkbenchShell } from "@/components/workbench/workbench-shell";
 import type { GeneratedImage, GenerationResult, GenerationLog, GenerationLogConfig, GenerationCategory, ResultViewMode, WorkflowPollContext } from "./history";
@@ -42,7 +43,8 @@ const CreativeWorkflowWorkspace = dynamic(
     { ssr: false, loading: () => <LoadingState className="h-full" label="正在加载工作流..." /> },
 );
 export default function ImagePage() {
-    const { message, modal } = App.useApp();
+    const { message } = App.useApp();
+    const confirm = useConfirm();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const config = useConfigStore((state) => state.config);
     const effectiveConfig = useEffectiveConfig();
@@ -559,26 +561,19 @@ export default function ImagePage() {
         setDeleteConfirmOpen(false);
     };
 
-    const deleteLog = (log: GenerationLog) => {
-        modal.confirm({
-            title: "删除生成结果",
-            content: "确定删除这条生成结果吗？",
-            okText: "删除",
-            cancelText: "取消",
-            okButtonProps: { danger: true },
-            onOk: async () => {
-                const nextLogs = logs.filter((item) => item.id !== log.id);
-                const imageKeys = disposableLogStorageKeys([log], nextLogs);
-                const previewKeys = log.images.map((image) => `image-result:${image.id}`);
-                await Promise.all([deleteBackendImageTasks([log]), deleteAccountImageLogs([log]), deleteStoredImages(imageKeys), deleteImagePreviews(previewKeys), logStore.removeItem(log.id)]);
-                setLogs(nextLogs);
-                setReferences((value) => value.filter((item) => !item.storageKey || !imageKeys.includes(item.storageKey)));
-                await persistImageHistory(nextLogs, categories);
-                setSelectedLogIds((value) => value.filter((id) => id !== log.id));
-                if (previewLog?.id === log.id) setPreviewLog(null);
-                await refreshLogs();
-            },
-        });
+    const deleteLog = async (log: GenerationLog) => {
+        const confirmed = await confirm({ title: "删除生成结果", description: "删除后无法恢复，生成记录与本地图片会一并移除。", confirmText: "删除", tone: "danger" });
+        if (!confirmed) return;
+        const nextLogs = logs.filter((item) => item.id !== log.id);
+        const imageKeys = disposableLogStorageKeys([log], nextLogs);
+        const previewKeys = log.images.map((image) => `image-result:${image.id}`);
+        await Promise.all([deleteBackendImageTasks([log]), deleteAccountImageLogs([log]), deleteStoredImages(imageKeys), deleteImagePreviews(previewKeys), logStore.removeItem(log.id)]);
+        setLogs(nextLogs);
+        setReferences((value) => value.filter((item) => !item.storageKey || !imageKeys.includes(item.storageKey)));
+        await persistImageHistory(nextLogs, categories);
+        setSelectedLogIds((value) => value.filter((id) => id !== log.id));
+        if (previewLog?.id === log.id) setPreviewLog(null);
+        await refreshLogs();
     };
 
     const persistLoggedOutLogImages = async (log: GenerationLog): Promise<GenerationLog> => {
@@ -702,24 +697,17 @@ export default function ImagePage() {
         message.success("已重命名分类");
     };
 
-    const deleteCategory = (category: GenerationCategory) => {
-        modal.confirm({
-            title: "删除分类",
-            content: `确定删除分类「${category.name}」吗？分类内的生成结果会移至未分类。`,
-            okText: "删除",
-            cancelText: "取消",
-            okButtonProps: { danger: true },
-            onOk: async () => {
-                const nextCategories = categories.filter((item) => item.id !== category.id);
-                const nextLogs = logs.map((log) => ({ ...log, categoryIds: log.categoryIds.filter((id) => id !== category.id) }));
-                setCategories(nextCategories);
-                setLogs(nextLogs);
-                await categoryStore.setItem(CATEGORY_STORE_KEY, nextCategories);
-                await Promise.all(nextLogs.map((log) => logStore.setItem(log.id, serializeLog(log))));
-                await persistImageHistory(nextLogs, nextCategories);
-                message.success("已删除分类");
-            },
-        });
+    const deleteCategory = async (category: GenerationCategory) => {
+        const confirmed = await confirm({ title: "删除分类", description: `分类「${category.name}」内的生成结果会移至未分类。`, confirmText: "删除分类", tone: "danger" });
+        if (!confirmed) return;
+        const nextCategories = categories.filter((item) => item.id !== category.id);
+        const nextLogs = logs.map((log) => ({ ...log, categoryIds: log.categoryIds.filter((id) => id !== category.id) }));
+        setCategories(nextCategories);
+        setLogs(nextLogs);
+        await categoryStore.setItem(CATEGORY_STORE_KEY, nextCategories);
+        await Promise.all(nextLogs.map((log) => logStore.setItem(log.id, serializeLog(log))));
+        await persistImageHistory(nextLogs, nextCategories);
+        message.success("已删除分类");
     };
 
     const updateLogCategories = async (log: GenerationLog, categoryIds: string[]) => {
@@ -1024,9 +1012,18 @@ export default function ImagePage() {
                     onConfirm={(payload) => void submitMaskEdit(payload)}
                 />
             ) : null}
-            <Modal title="删除生成记录" open={deleteConfirmOpen} onCancel={() => setDeleteConfirmOpen(false)} onOk={deleteSelectedLogs} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
-                确定删除选中的 {selectedLogIds.length} 条生成记录吗？
-            </Modal>
+            <ConfirmDialog
+                open={deleteConfirmOpen}
+                title="删除生成记录"
+                description={`确定删除选中的 ${selectedLogIds.length} 条生成记录吗？删除后无法恢复。`}
+                confirmText="删除"
+                tone="danger"
+                onConfirm={() => {
+                    setDeleteConfirmOpen(false);
+                    deleteSelectedLogs();
+                }}
+                onCancel={() => setDeleteConfirmOpen(false)}
+            />
         </div>
     );
 }
