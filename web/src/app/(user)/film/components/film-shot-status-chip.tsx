@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { FilmShotStatus } from "../types";
+import type { FilmShotStatus } from "@/lib/film/types";
 
 export function FilmShotStatusChip({ status }: { status: FilmShotStatus }) {
     const style = status === "video_ready"
@@ -8,7 +8,9 @@ export function FilmShotStatusChip({ status }: { status: FilmShotStatus }) {
             ? "border-acid/40 text-acid/90"
             : status === "failed"
                 ? "border-hot/50 text-hot"
-                : "border-border/70 text-muted-foreground/70";
-    const label = status === "video_ready" ? "视频" : status === "image_ready" ? "分镜图" : status === "failed" ? "失败" : "未开始";
+                : status === "generating"
+                    ? "border-acid/40 bg-acid/[0.06] text-acid/90 animate-pulse"
+                    : "border-border/70 text-muted-foreground/70";
+    const label = status === "video_ready" ? "视频" : status === "image_ready" ? "分镜图" : status === "failed" ? "失败" : status === "generating" ? "生成中" : "未开始";
     return <span className={cn("rounded-full border px-1.5 py-0.5 font-mono text-[9px] tracking-wide", style)}>{label}</span>;
 }

@@ -1,4 +1,4 @@
-import type { FilmAsset, FilmCharacterPart, FilmCharacterPartKey, FilmCharacterProfile, FilmImageRef, FilmShot } from "../types";
+import type { FilmAsset, FilmCharacterPart, FilmCharacterPartKey, FilmCharacterProfile, FilmImageRef, FilmShot } from "@/lib/film/types";
 
 export const CHARACTER_PART_DEFINITIONS: Array<{ key: FilmCharacterPartKey; label: string; hint: string }> = [
     { key: "face", label: "面部", hint: "人脸三视图、妆容" },

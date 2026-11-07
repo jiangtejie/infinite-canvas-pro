@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"github.com/jiangtejie/infinite-canvas-pro/service"
@@ -236,7 +237,8 @@ func readVideoTaskSourceID(r *http.Request) string {
 }
 
 func isClientVideoTaskID(id string) bool {
-	return strings.HasPrefix(strings.TrimSpace(id), "client_video_task_")
+	id = strings.TrimSpace(id)
+	return strings.HasPrefix(id, "client_video_task_") && utf8.RuneCountInString(id) <= maxClientTaskIDLength
 }
 
 func serveAIVideoTask(w http.ResponseWriter, r *http.Request, id string) bool {

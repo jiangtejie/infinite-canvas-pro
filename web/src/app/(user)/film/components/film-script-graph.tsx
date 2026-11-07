@@ -5,8 +5,8 @@ import { Button, Input, Modal, Select } from "antd";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmScriptAnalysis } from "../types";
-import { FilmAmbient } from "./film-ambient";
+import type { FilmScriptAnalysis } from "@/lib/film/types";
+import { FilmAmbient } from "@/components/film/film-ambient";
 
 type FilmScriptGraphProps = {
     analysis: FilmScriptAnalysis | null;

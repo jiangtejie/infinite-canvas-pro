@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -18,6 +19,15 @@ import (
 
 func normalizeCredits(value float64) float64 {
 	return math.Round(value*100) / 100
+}
+
+const maxUsernameLength = 191
+
+func validateUsernameLength(username string) error {
+	if utf8.RuneCountInString(username) > maxUsernameLength {
+		return safeMessageError{message: "用户名不能超过 191 个字符"}
+	}
+	return nil
 }
 
 type TokenClaims struct {
@@ -68,6 +78,9 @@ func Register(username string, password string) (model.AuthSession, error) {
 	}
 	if username == "" || password == "" {
 		return model.AuthSession{}, safeMessageError{message: "用户名和密码不能为空"}
+	}
+	if err := validateUsernameLength(username); err != nil {
+		return model.AuthSession{}, err
 	}
 	if _, ok, err := repository.GetUserByUsername(username); err != nil || ok {
 		if err != nil {
@@ -164,6 +177,9 @@ func SaveUser(user model.User, password string) (model.User, error) {
 	}
 	if user.Username == "" {
 		return user, safeMessageError{message: "用户名不能为空"}
+	}
+	if err := validateUsernameLength(user.Username); err != nil {
+		return user, err
 	}
 	if user.Role == "" || user.Role == model.UserRoleGuest {
 		user.Role = model.UserRoleUser

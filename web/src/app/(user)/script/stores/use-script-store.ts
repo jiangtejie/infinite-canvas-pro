@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist, type StorageValue } from "zustand/middleware";
 
-import { localForageStorage } from "@/lib/localforage-storage";
+import { createDebouncedJSONStorage } from "@/lib/persisted-store";
 import type { ScriptProject } from "../types";
 import { createScriptProject } from "../utils/script-project";
 
@@ -18,6 +18,8 @@ type ScriptStore = {
     updateProject: (id: string, patch: Partial<Omit<ScriptProject, "id" | "createdAt">>) => void;
     deleteProjects: (ids: string[]) => void;
 };
+
+const scriptStorage = createDebouncedJSONStorage<ScriptStore>();
 
 export const useScriptStore = create<ScriptStore>()(
     persist(
@@ -43,8 +45,8 @@ export const useScriptStore = create<ScriptStore>()(
         }),
         {
             name: SCRIPT_STORE_KEY,
-            storage: createJSONStorage(() => localForageStorage),
-            partialize: (state) => ({ projects: state.projects }),
+            storage: scriptStorage,
+            partialize: (state) => ({ projects: state.projects }) as StorageValue<ScriptStore>["state"],
             onRehydrateStorage: () => (state) => {
                 state?.markHydrated();
             },

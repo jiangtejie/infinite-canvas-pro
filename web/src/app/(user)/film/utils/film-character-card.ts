@@ -1,7 +1,7 @@
 import { nanoid } from "nanoid";
 
 import { resolveImageUrl, uploadImage } from "@/services/image-storage";
-import type { FilmAsset, FilmImageRef } from "../types";
+import type { FilmAsset, FilmImageRef } from "@/lib/film/types";
 import { characterCardSignature, characterMasterImages, ensureCharacterProfile } from "./film-character";
 
 const CARD_WIDTH = 1400;

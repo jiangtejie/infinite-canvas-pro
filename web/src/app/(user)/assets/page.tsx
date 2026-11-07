@@ -3,25 +3,18 @@
 import { Copy, Download, FileUp, LayoutGrid, Package, PencilLine, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
-import { App, Button, Drawer, Image, Input, Modal, Pagination, Tag } from "antd";
+import { App, Button, Input, Modal, Pagination } from "antd";
 import { saveAs } from "file-saver";
 
+import { AssetBrowserCard, AssetBrowserEmpty, AssetBrowserLoading, AssetKindFilter, assetKindLabel, type AssetBrowserItem, type AssetFilterKind } from "@/components/assets/asset-browser";
+import { AssetDetailDrawer, type AssetDetailModel } from "@/components/assets/asset-detail-drawer";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
-import { EmptyState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { formatBytes } from "@/lib/image-utils";
-import { useAssetStore, type Asset, type AssetKind } from "@/stores/use-asset-store";
+import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { exportAssets, readAssetPackage } from "./asset-transfer";
 import { AssetFormModal } from "@/components/assets/asset-form-modal";
-
-const kindOptions = [
-    { label: "全部", value: "all" },
-    { label: "文本", value: "text" },
-    { label: "图片", value: "image" },
-    { label: "视频", value: "video" },
-    { label: "音频", value: "audio" },
-];
 
 export default function AssetsPage() {
     const { message } = App.useApp();
@@ -31,7 +24,7 @@ export default function AssetsPage() {
     const addAsset = useAssetStore((state) => state.addAsset);
     const removeAsset = useAssetStore((state) => state.removeAsset);
     const [keyword, setKeyword] = useState("");
-    const [kindFilter, setKindFilter] = useState<AssetKind | "all">("all");
+    const [kindFilter, setKindFilter] = useState<AssetFilterKind>("all");
     const [categoryFilter, setCategoryFilter] = useState("");
     const [tagFilters, setTagFilters] = useState<string[]>([]);
     const [page, setPage] = useState(1);
@@ -40,6 +33,7 @@ export default function AssetsPage() {
     const [isAssetOpen, setIsAssetOpen] = useState(false);
     const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
     const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
+    const [assetsHydrated, setAssetsHydrated] = useState(false);
     const validAssets = useMemo(() => assets.filter((asset) => asset.kind === "text" || asset.kind === "image" || asset.kind === "video" || asset.kind === "audio"), [assets]);
     const categories = useMemo(() => Array.from(new Set(validAssets.flatMap((asset) => asset.category ? [asset.category] : []))), [validAssets]);
     const tags = useMemo(() => Array.from(new Set(validAssets.flatMap((asset) => asset.tags))), [validAssets]);
@@ -64,6 +58,13 @@ export default function AssetsPage() {
         const maxPage = Math.max(1, Math.ceil(filteredAssets.length / pageSize));
         setPage((value) => Math.min(value, maxPage));
     }, [filteredAssets.length, pageSize]);
+
+    useEffect(() => {
+        if (assetsHydrated) return;
+        const unsubscribe = useAssetStore.persist.onFinishHydration(() => setAssetsHydrated(true));
+        if (useAssetStore.persist.hasHydrated()) setAssetsHydrated(true);
+        return unsubscribe;
+    }, [assetsHydrated]);
 
     const clearFilters = () => {
         setPage(1);
@@ -177,7 +178,7 @@ export default function AssetsPage() {
                                 />
                                 <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">/</kbd>
                             </div>
-                            <FilterTagGroup inline options={kindOptions} isSelected={(value) => kindFilter === value} onSelect={(value) => { setPage(1); setKindFilter(value as AssetKind | "all"); }} />
+                            <AssetKindFilter value={kindFilter} onChange={(value) => { setPage(1); setKindFilter(value); }} />
                         </div>
                         {categories.length || tags.length ? (
                             <div className="grid gap-2 rounded-lg border border-border/70 bg-card/40 p-4">
@@ -192,24 +193,35 @@ export default function AssetsPage() {
                     </section>
 
                     <section className="flex flex-col gap-5">
-                        {visibleAssets.length ? (
+                        {!assetsHydrated ? (
+                            <AssetBrowserLoading label="正在加载我的素材" />
+                        ) : visibleAssets.length ? (
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {visibleAssets.map((asset, index) => (
                                     <div key={asset.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
-                                        <AssetCard asset={asset} onOpen={() => setPreviewAsset(asset)} onEdit={() => openEdit(asset)} onCopy={copyAssetText} onDownload={downloadAsset} onDelete={() => setDeletingAsset(asset)} />
+                                        <AssetBrowserCard
+                                            item={toBrowserItem(asset)}
+                                            onOpen={() => setPreviewAsset(asset)}
+                                            actions={
+                                                <>
+                                                    {asset.kind === "text" ? (
+                                                        <Button type="text" size="small" className="!px-1.5" icon={<Copy className="size-3.5" />} onClick={() => void copyAssetText(asset)} aria-label="复制" title="复制" />
+                                                    ) : (
+                                                        <Button type="text" size="small" className="!px-1.5" icon={<Download className="size-3.5" />} onClick={() => downloadAsset(asset)} aria-label="下载" title="下载" />
+                                                    )}
+                                                    <Button type="text" size="small" className="!px-1.5" icon={<PencilLine className="size-3.5" />} onClick={() => openEdit(asset)} aria-label="编辑" title="编辑" />
+                                                    <Button type="text" size="small" className="!px-1.5" icon={<Trash2 className="size-3.5" />} onClick={() => setDeletingAsset(asset)} aria-label="删除" title="删除" />
+                                                </>
+                                            }
+                                        />
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <EmptyState
-                                className="rounded-xl border border-dashed border-border bg-card/40"
-                                title="没有找到素材"
-                                description="调整类型、分类、标签或搜索关键词后再试。"
-                                action={<Button onClick={clearFilters}>清空筛选</Button>}
-                            />
+                            <AssetBrowserEmpty onClear={clearFilters} />
                         )}
 
-                        {filteredAssets.length > pageSize ? (
+                        {assetsHydrated && filteredAssets.length > pageSize ? (
                             <div className="flex justify-center pt-2">
                                 <Pagination
                                     current={page}
@@ -230,7 +242,7 @@ export default function AssetsPage() {
 
             <AssetFormModal open={isAssetOpen} asset={editingAsset} onClose={() => setIsAssetOpen(false)} />
 
-            <AssetDrawer asset={previewAsset} onClose={() => setPreviewAsset(null)} onCopy={copyAssetText} onDownload={downloadAsset} />
+            <AssetDetailDrawer detail={previewAsset ? toAssetDetail(previewAsset) : null} onClose={() => setPreviewAsset(null)} />
 
             <input ref={assetInputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importAssetZip(event.target.files?.[0])} />
 
@@ -241,122 +253,37 @@ export default function AssetsPage() {
     );
 }
 
-function AssetCard({ asset, onOpen, onEdit, onCopy, onDownload, onDelete }: { asset: Asset; onOpen: () => void; onEdit: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void; onDelete: () => void }) {
-    const cover = asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "");
-    const summary = assetSummary(asset);
-    const actions = [
-        asset.kind === "text"
-            ? { key: "copy", icon: <Copy className="size-3.5" />, label: "复制", onClick: () => void onCopy(asset) }
-            : { key: "download", icon: <Download className="size-3.5" />, label: "下载", onClick: () => onDownload(asset) },
-        { key: "edit", icon: <PencilLine className="size-3.5" />, label: "编辑", onClick: onEdit },
-        { key: "delete", icon: <Trash2 className="size-3.5" />, label: "删除", onClick: onDelete },
-    ];
-
-    return (
-        <article className="punk-card group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground">
-            <button type="button" className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden bg-muted/50 text-left" onClick={onOpen} aria-label={`查看 ${asset.title}`}>
-                {cover ? (
-                    <img loading="lazy" decoding="async" src={cover} alt={asset.title} className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-                ) : asset.kind === "video" ? (
-                    <video src={asset.data.url + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-                ) : (
-                    <span className="flex size-full items-center justify-center bg-muted/60 p-5 text-center text-xs leading-6 text-muted-foreground">{asset.kind === "text" ? asset.data.content : "暂无封面"}</span>
-                )}
-                <span className="absolute left-2.5 top-2.5 inline-flex h-5 items-center rounded-[3px] border border-white/15 bg-black/55 px-1.5 font-mono text-[10px] tracking-[0.12em] text-white/90 uppercase backdrop-blur">
-                    {assetKindLabel(asset.kind)}
-                </span>
-            </button>
-            <div className="flex flex-1 flex-col gap-2.5 p-4">
-                <button type="button" className="cursor-pointer text-left" onClick={onOpen}>
-                    <h2 className="line-clamp-1 text-sm font-medium text-foreground">{asset.title}</h2>
-                    <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{summary}</p>
-                </button>
-                <div className="flex flex-wrap gap-1.5">
-                    {(asset.tags || []).slice(0, 3).map((tag) => (
-                        <Tag key={tag} className="!m-0 !rounded-[3px] !text-[10px]">{tag}</Tag>
-                    ))}
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 pt-3">
-                    <span className="truncate font-mono text-[10px] tracking-[0.1em] text-muted-foreground/70 uppercase">{asset.source || "未标注来源"}</span>
-                    <div className="flex shrink-0 items-center gap-0.5">
-                        {actions.map((action) => (
-                            <Button key={action.key} type="text" size="small" className="!px-1.5" icon={action.icon} onClick={action.onClick} aria-label={action.label} title={action.label} />
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </article>
-    );
+function toBrowserItem(asset: Asset): AssetBrowserItem {
+    return {
+        id: asset.id,
+        title: asset.title,
+        coverUrl: asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : ""),
+        videoUrl: asset.kind === "video" ? asset.data.url : undefined,
+        kind: asset.kind,
+        summary: assetSummary(asset),
+        tags: asset.tags || [],
+        meta: asset.source || "未标注来源",
+    };
 }
 
-function AssetDrawer({ asset, onClose, onCopy, onDownload }: { asset: Asset | null; onClose: () => void; onCopy: (asset: Asset) => void; onDownload: (asset: Asset) => void }) {
-    const copyText = useCopyText();
-    const cover = asset ? asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "") : "";
-    const prompt = asset ? assetPrompt(asset) : "";
-    return (
-        <Drawer title="素材详情" open={Boolean(asset)} size="large" onClose={onClose} destroyOnHidden>
-            {asset ? (
-                <div className="grid gap-4">
-                    {asset.kind === "image" && cover ? (
-                        <Image src={cover} alt={asset.title} className="rounded-xl border border-border/60" style={{ maxHeight: "42vh", width: "auto", maxWidth: "100%", objectFit: "contain" }} preview={{ getContainer: () => document.body }} />
-                    ) : null}
-                    {asset.kind === "video" ? <video src={asset.data.url} controls className="aspect-video w-full rounded-xl border border-border/60 bg-black" /> : null}
-                    {asset.kind === "audio" ? <div className="rounded-xl border border-border/60 bg-card/40 p-4"><audio src={asset.data.url} controls className="w-full" /></div> : null}
-
-                    <div>
-                        <h2 className="break-words text-lg font-semibold leading-7 text-foreground">{asset.title || "未命名素材"}</h2>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            <Tag className="!m-0">{assetKindLabel(asset.kind)}</Tag>
-                            {asset.category ? <Tag className="!m-0" color="processing">{asset.category}</Tag> : null}
-                            {(asset.tags || []).map((tag) => <Tag key={tag} className="!m-0">{tag}</Tag>)}
-                        </div>
-                    </div>
-
-                    {asset.kind === "text" ? (
-                        <section className="grid gap-2 rounded-xl border border-border/60 bg-card/40 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">内容</span>
-                                <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => onCopy(asset)}>复制文本</Button>
-                            </div>
-                            <p className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-6 text-foreground/85">{asset.data.content}</p>
-                        </section>
-                    ) : null}
-
-                    {prompt ? (
-                        <section className="grid gap-2 rounded-xl border border-border/60 bg-card/40 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">提示词</span>
-                                <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => copyText(prompt, "提示词已复制")}>复制提示词</Button>
-                            </div>
-                            <p className="max-h-52 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-background/40 px-2.5 py-2 font-mono text-[11px] leading-6 text-foreground/80">{prompt}</p>
-                        </section>
-                    ) : null}
-
-                    <section className="grid gap-2 rounded-xl border border-border/60 bg-card/40 p-3">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">文件信息</span>
-                        <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2">
-                            {assetMetaLines(asset).map(([label, value]) => (
-                                <div key={label} className="grid gap-0.5">
-                                    <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{label}</span>
-                                    <span className="break-words text-[11px] leading-5 text-foreground/80">{value}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-
-                    <div className="flex flex-wrap gap-2 pt-1">
-                        {asset.kind === "text" ? (
-                            <Button type="primary" icon={<Copy className="size-4" />} onClick={() => onCopy(asset)}>复制文本</Button>
-                        ) : (
-                            <Button type="primary" icon={<Download className="size-4" />} onClick={() => onDownload(asset)}>
-                                {asset.kind === "video" ? "下载视频" : asset.kind === "audio" ? "下载音频" : "下载图片"}
-                            </Button>
-                        )}
-                    </div>
-                </div>
-            ) : null}
-        </Drawer>
-    );
+function toAssetDetail(asset: Asset): AssetDetailModel {
+    return {
+        kind: asset.kind,
+        title: asset.title,
+        coverUrl: asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : ""),
+        videoUrl: asset.kind === "video" ? asset.data.url : undefined,
+        audioUrl: asset.kind === "audio" ? asset.data.url : undefined,
+        tags: asset.tags || [],
+        category: asset.category,
+        textContent: asset.kind === "text" ? asset.data.content : undefined,
+        prompt: assetPrompt(asset) || undefined,
+        metaLines: assetMetaLines(asset),
+        copyValue: asset.kind === "text" ? asset.data.content : undefined,
+        inlineCopy: true,
+        downloadUrl: asset.kind === "image" ? asset.data.dataUrl : asset.kind === "video" || asset.kind === "audio" ? asset.data.url : undefined,
+        downloadFileName: asset.kind === "text" ? undefined : `${asset.title || "asset"}.${asset.data.mimeType.split("/")[1] || "png"}`,
+        actionLabel: asset.kind === "text" ? "复制文本" : asset.kind === "video" ? "下载视频" : asset.kind === "audio" ? "下载音频" : "下载图片",
+    };
 }
 
 function assetPrompt(asset: Asset) {
@@ -393,9 +320,3 @@ function assetSearchText(asset: Asset) {
     return [asset.title, asset.source || "", asset.category || "", (asset.tags || []).join(" "), asset.kind === "text" ? asset.data.content : asset.data.mimeType].join(" ").toLowerCase();
 }
 
-function assetKindLabel(kind: AssetKind) {
-    if (kind === "image") return "图片";
-    if (kind === "video") return "视频";
-    if (kind === "audio") return "音频";
-    return "文本";
-}

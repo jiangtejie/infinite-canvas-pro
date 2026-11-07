@@ -1,8 +1,8 @@
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
-import type { FilmAsset, FilmProject, FilmScriptAnalysis, FilmScriptCharacterAnalysis, FilmScriptRelationshipAnalysis, FilmScriptSceneAnalysis, FilmScriptSceneRelationship } from "../types";
-import type { FilmScriptDocument } from "./film-script-import";
+import type { FilmAsset, FilmProject, FilmScriptAnalysis, FilmScriptCharacterAnalysis, FilmScriptRelationshipAnalysis, FilmScriptSceneAnalysis, FilmScriptSceneRelationship } from "@/lib/film/types";
+import type { FilmScriptDocument } from "@/lib/film/film-script-import";
 
 export type FilmScriptAnalysisIssue = {
     level: "warning" | "info";

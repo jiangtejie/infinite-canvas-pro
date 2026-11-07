@@ -18,21 +18,21 @@ const (
 // User 系统用户。
 type User struct {
 	ID          string     `json:"id" gorm:"primaryKey"`
-	Username    string     `json:"username" gorm:"uniqueIndex"`
+	Username    string     `json:"username" gorm:"uniqueIndex;size:191"`
 	Password    string     `json:"password,omitempty"`
 	Email       string     `json:"email"`
 	DisplayName string     `json:"displayName"`
 	AvatarURL   string     `json:"avatarUrl"`
 	Role        UserRole   `json:"role"`
 	Credits     float64    `json:"credits" gorm:"type:decimal(20,2)"`
-	AffCode     string     `json:"affCode" gorm:"uniqueIndex"`
+	AffCode     string     `json:"affCode" gorm:"uniqueIndex;size:191"`
 	AffCount    int        `json:"affCount"`
 	InviterID   string     `json:"inviterId"`
 	GithubID    string     `json:"githubId"`
 	WechatID    string     `json:"wechatId"`
 	Status      UserStatus `json:"status"`
 	LastLoginAt string     `json:"lastLoginAt"`
-	Extra       string     `json:"extra" gorm:"type:text"`
+	Extra       string     `json:"extra"`
 	CreatedAt   string     `json:"createdAt"`
 	UpdatedAt   string     `json:"updatedAt"`
 }
@@ -92,7 +92,7 @@ type CreditLog struct {
 	Balance   float64       `json:"balance" gorm:"type:decimal(20,2)"`
 	RelatedID string        `json:"relatedId"`
 	Remark    string        `json:"remark"`
-	Extra     string        `json:"extra" gorm:"type:text"`
+	Extra     string        `json:"extra"`
 	CreatedAt string        `json:"createdAt"`
 
 	UserDisplayName string `json:"userDisplayName" gorm:"->;-:migration"`

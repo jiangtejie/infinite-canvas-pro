@@ -52,12 +52,12 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
 
     return (
-        <div data-canvas-no-zoom className="absolute bottom-24 left-4 z-50 sm:bottom-5 sm:left-5" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <div data-canvas-no-zoom className="absolute bottom-[calc(6rem+env(safe-area-inset-bottom))] left-4 z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:left-5" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button
                         type="text"
-                        className="!h-8 !w-8 !min-w-8 !p-0"
+                        className="!h-8 !w-8 !min-w-8 !p-0 [@media(pointer:coarse)]:!h-10 [@media(pointer:coarse)]:!w-10 [@media(pointer:coarse)]:!min-w-10"
                         style={isMiniMapOpen ? activeStyle : { color: theme.toolbar.item }}
                         icon={<Compass className="size-4" />}
                         onClick={onToggleMiniMap}
@@ -65,7 +65,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
                     />
                 </Tooltip>
                 <Tooltip title="查看全部（Shift + 1）">
-                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onFitAll} aria-label="查看全部" />
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0 [@media(pointer:coarse)]:!h-10 [@media(pointer:coarse)]:!w-10 [@media(pointer:coarse)]:!min-w-10" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onFitAll} aria-label="查看全部" />
                 </Tooltip>
                 <Tooltip title="放大/缩小画布">
                     <input
@@ -74,7 +74,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
                         max="500"
                         step="1"
                         value={Math.round(scale * 100)}
-                        className="w-24"
+                        className="w-24 [@media(pointer:coarse)]:w-28"
                         style={{ accentColor: theme.node.activeStroke }}
                         onChange={(event) => onScaleChange(Number(event.target.value) / 100)}
                         aria-label="放大/缩小画布"
@@ -86,14 +86,14 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
                     </Button>
                     {zoomMenuOpen ? (
                         <div role="menu" className="absolute bottom-full left-1/2 z-50 mb-2 w-52 -translate-x-1/2 rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
-                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitAll(); }}>查看全部（Shift + 1）</button>
+                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5 [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitAll(); }}>查看全部（Shift + 1）</button>
                             <button type="button" role="menuitem" disabled={!hasSelection} className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitSelected(); }}>聚焦选中（Shift + 2）</button>
-                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onScaleChange(1); }}>100%（Shift + 0）</button>
+                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5 [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onScaleChange(1); }}>100%（Shift + 0）</button>
                         </div>
                     ) : null}
                 </div>
                 <Tooltip title="快捷键">
-                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={onOpenShortcuts} aria-label="快捷键" />
+                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0 [@media(pointer:coarse)]:!h-10 [@media(pointer:coarse)]:!w-10 [@media(pointer:coarse)]:!min-w-10" style={{ color: theme.toolbar.item }} icon={<HelpCircle className="size-4" />} onClick={onOpenShortcuts} aria-label="快捷键" />
                 </Tooltip>
             </div>
         </div>

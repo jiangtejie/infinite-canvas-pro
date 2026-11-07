@@ -57,7 +57,7 @@ func StopCanvasTask(userID, kind, id string, workflow bool, source string) (bool
 	if source == "" {
 		source = "canvas"
 	}
-	if source != "canvas" && (kind != "video" || source != "video-workbench") {
+	if source != "canvas" && source != "workflow" && (kind != "video" || source != "video-workbench") && (kind != "image" || source != "image-workbench") {
 		return false, errors.New("不支持的任务来源")
 	}
 	id = strings.TrimSpace(id)

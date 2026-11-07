@@ -4,6 +4,7 @@
 @import "../styles/canvas.css";
 @import "../styles/admin.css";
 @import "../styles/prompts.css";
+@import "../styles/film.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -19,6 +20,7 @@
     --color-border: var(--border);
     --color-ring: var(--ring);
     --color-acid: var(--acid);
+    --color-acid-ink: var(--acid-ink);
     --color-hot: var(--hot);
     --color-hairline: var(--hairline);
     --radius-sm: calc(var(--radius) - 4px);
@@ -65,6 +67,7 @@
     --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
     /* 朋克双色：酸性黄绿 + 荧光洋红。浅色下压暗，保证纸面可读性 */
     --acid: oklch(0.72 0.17 118);
+    --acid-ink: oklch(0.44 0.13 128);
     --acid-soft: oklch(0.72 0.17 118 / 12%);
     --hot: oklch(0.6 0.24 355);
     /* 页面环境光与玻璃高光 */
@@ -120,6 +123,7 @@
 
 .dark {
     --acid: oklch(0.89 0.21 118);
+    --acid-ink: oklch(0.89 0.21 118);
     --acid-soft: oklch(0.89 0.21 118 / 10%);
     --hot: oklch(0.72 0.26 355);
     --ambient-1: oklch(0.88 0.2 118 / 9%);
@@ -655,96 +659,6 @@
             0 18px 48px rgb(0 0 0 / 22%);
     }
 
-
-    /* ===== 影视板块：氛围与动效 ===== */
-    @keyframes film-beam-sweep {
-        0% { transform: translateX(-130%); opacity: 0; }
-        18% { opacity: 0.65; }
-        72% { opacity: 0.35; }
-        100% { transform: translateX(130%); opacity: 0; }
-    }
-
-    .film-beam::after {
-        content: "";
-        position: absolute;
-        inset-block: 0;
-        left: 0;
-        width: 32%;
-        background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--acid) 10%, transparent), transparent);
-        animation: film-beam-sweep 7.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        pointer-events: none;
-    }
-
-    @keyframes film-stage-in {
-        from { opacity: 0; transform: translateY(8px); }
-    }
-
-    .film-stage-enter {
-        animation: film-stage-in 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    }
-
-    @keyframes film-float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-6px); }
-    }
-
-    .film-float {
-        animation: film-float 5.5s ease-in-out infinite;
-    }
-
-    @keyframes film-shimmer {
-        to { transform: translateX(100%); }
-    }
-
-    .film-shimmer {
-        position: relative;
-        overflow: hidden;
-    }
-
-    .film-shimmer::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(100deg, transparent 20%, color-mix(in oklch, white 18%, transparent) 50%, transparent 80%);
-        animation: film-shimmer 2.8s ease-in-out infinite;
-        pointer-events: none;
-    }
-
-    @keyframes film-scan {
-        0% { transform: translateY(-110%); opacity: 0; }
-        15% { opacity: 0.5; }
-        85% { opacity: 0.2; }
-        100% { transform: translateY(110%); opacity: 0; }
-    }
-
-    .film-scan::after {
-        content: "";
-        position: absolute;
-        inset-inline: 0;
-        top: 0;
-        height: 1px;
-        background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--acid) 42%, transparent), transparent);
-        animation: film-scan 6s linear infinite;
-        pointer-events: none;
-    }
-
-
-    /* 剧本工作区：桌面端编辑器撑满剩余高度，保持写作专注 */
-    @media (min-width: 1024px) {
-        .script-editor-shell {
-            height: calc(100vh - 230px);
-        }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .film-beam::after,
-        .film-stage-enter,
-        .film-float,
-        .film-shimmer::after,
-        .film-scan::after {
-            animation: none !important;
-        }
-    }
 
     .hide-scrollbar {
         -ms-overflow-style: none;

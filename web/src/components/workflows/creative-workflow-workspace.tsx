@@ -16,8 +16,9 @@ import { FailureDetailModal, TaskErrorLine } from "@/components/workbench/task-r
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
-import { createCanvasImageTask, requestEdit, requestGeneration, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
-import { saveImageGenerationLogs } from "@/services/api/generation-logs";
+import { batchCanvasImageTaskStatus, createCanvasImageTask, requestEdit, requestGeneration, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
+import { stopCanvasTask } from "@/services/api/canvas-tasks";
+import { fetchImageGenerationLogs, saveImageGenerationLogs } from "@/services/api/generation-logs";
 import { deleteUserWorkflow, draftUserWorkflow, fetchUserConfig, fetchUserWorkflows, saveUserWorkflow, type CreativeWorkflowRecord } from "@/services/api/user-config";
 import { deleteStoredImages, imageToDataUrl, uploadImage } from "@/services/image-storage";
 import { channelProtocolForConfig, defaultConfig, localChannelForActiveModel, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -143,8 +144,19 @@ type WorkflowTask = {
     durationMs?: number;
     images: WorkflowRunResult[];
     error?: string;
+    failedCount?: number;
     seriesTitle?: string;
     seriesIndex?: number;
+};
+
+/** 会话内提交或刷新恢复的后端异步工作流任务：按父任务汇总各张图片日志的完成情况。 */
+type TrackedWorkflowTaskState = {
+    remaining: number;
+    images: WorkflowRunResult[];
+    errors: string[];
+    startedAt: number;
+    seriesDraftId?: string;
+    taskIds: string[];
 };
 
 type ImageHistoryLog = {
@@ -192,6 +204,151 @@ const workflowStore = localforage.createInstance({ name: "infinite-canvas", stor
 const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
 const categoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
 
+const WORKFLOW_TASK_POLL_INTERVAL_MS = 10000;
+
+function isFinishedCanvasImageTask(task: CanvasImageTask) {
+    return Boolean(task.image_url || task.url || task.image_urls?.length) || ["completed", "complete", "done", "succeeded", "success"].includes((task.status || "").toLowerCase());
+}
+
+function isFailedCanvasImageTask(task: CanvasImageTask) {
+    return ["failed", "fail", "error", "cancelled", "canceled"].includes((task.status || "").toLowerCase());
+}
+
+/** 已存任务对应的图片记录：优先使用后端同步后的 storage，保证刷新恢复后还能下载/展示。 */
+function workflowTaskImagesFromCanvasTask(task: CanvasImageTask, durationMs: number): ImageHistoryLog["images"] {
+    const storages = task.imageStorage || [];
+    const urls = (task.image_urls?.length ? task.image_urls : [task.image_url || task.url || ""]).filter(Boolean);
+    return urls.map((url, index) => {
+        const stored = storages[index] || undefined;
+        return {
+            id: `${task.id}:${index}`,
+            dataUrl: stored?.url || url,
+            storageKey: stored?.storageKey || (index === 0 ? task.storageKey || "" : ""),
+            durationMs,
+            width: stored?.width || (index === 0 ? task.width || 0 : 0),
+            height: stored?.height || (index === 0 ? task.height || 0 : 0),
+            bytes: stored?.bytes || (index === 0 ? task.bytes || 0 : 0),
+            mimeType: stored?.mimeType || task.mimeType || "image/png",
+        };
+    });
+}
+
+function workflowResultsFromStoredLog(log: ImageHistoryLog): WorkflowRunResult[] {
+    return log.images.map((image, index) => ({
+        id: image.id || `${log.id}:${index}`,
+        workflowId: log.workflowId || "",
+        workflowName: log.workflowName || "工作流任务",
+        prompt: log.prompt,
+        imageUrl: image.dataUrl,
+        storageKey: image.storageKey,
+        width: image.width,
+        height: image.height,
+        bytes: image.bytes,
+        mimeType: image.mimeType,
+        durationMs: log.durationMs || 0,
+        createdAt: log.createdAt,
+    }));
+}
+
+const WORKFLOW_IMAGE_TASK_PREFIX = "client_workflow_image_task_";
+
+/** 模板不在本地时的临时重试上下文：只带 id 与日志快照配置，不写回工作流列表。 */
+function workflowForRetry(task: WorkflowTask): CreativeWorkflow | null {
+    const workflowId = (task.workflowId || "").trim();
+    if (!workflowId) return null;
+    return {
+        id: workflowId,
+        scope: "private",
+        editable: false,
+        mode: "single_image",
+        name: task.workflowName?.trim() || "工作流任务",
+        category: "",
+        description: "",
+        variables: [],
+        config: task.config,
+        seriesConfig: { targetCount: "1", promptModel: "", promptChannelId: "", promptInstruction: "", reviewRequired: false, concurrency: "1" },
+        createdAt: task.startedAt,
+        updatedAt: Date.now(),
+    };
+}
+
+/** 从服务端任务 id 还原父任务 id（创建时把 client_workflow_image_task_<父id>_<序号> 作为服务端任务 id）。 */
+function workflowTaskParentId(task?: CanvasImageTask) {
+    const id = task?.id || "";
+    if (!id.startsWith(WORKFLOW_IMAGE_TASK_PREFIX)) return "";
+    const match = id.slice(WORKFLOW_IMAGE_TASK_PREFIX.length).match(/^(.+)_(\d+)$/);
+    return match ? match[1] : "";
+}
+
+function workflowTaskParentIndex(task?: CanvasImageTask) {
+    const id = task?.id || "";
+    const match = id.slice(WORKFLOW_IMAGE_TASK_PREFIX.length).match(/^(.+)_(\d+)$/);
+    return match ? Number(match[2]) : 0;
+}
+
+/** 把恢复出的多张图片日志按父任务聚合成一张任务卡，和同会话提交展示一致。 */
+function workflowTaskFromStoredLogs(parentTaskId: string, logs: ImageHistoryLog[]): WorkflowTask {
+    const first = logs[0];
+    const inputs = Object.fromEntries(
+        Object.entries(first.workflowInputs || {})
+            .filter(([key]) => key !== "seriesTitle" && key !== "seriesIndex")
+            .map(([key, value]) => [key, String(value ?? "")]),
+    );
+    const seriesTitle = logs.map((log) => log.workflowInputs?.seriesTitle).find((value): value is string => typeof value === "string");
+    const seriesIndex = logs.map((log) => log.workflowInputs?.seriesIndex).find((value): value is number => typeof value === "number");
+    const completedImages = logs.filter((log) => log.status === "成功").flatMap((log) => workflowResultsFromStoredLog(log));
+    const failedCount = logs.filter((log) => log.status === "失败").length;
+    return {
+        id: parentTaskId,
+        status: "running",
+        workflowId: first.workflowId || "",
+        workflowName: first.workflowName?.trim() || "工作流任务",
+        prompt: first.prompt,
+        inputs,
+        references: first.references || [],
+        model: first.model,
+        apiMode: first.config?.apiMode || "images",
+        config: first.config,
+        count: logs.length,
+        startedAt: Math.min(...logs.map((log) => log.createdAt)),
+        images: completedImages,
+        failedCount: failedCount || undefined,
+        seriesTitle,
+        seriesIndex,
+    };
+}
+
+async function readWorkflowGenerationLogs(): Promise<ImageHistoryLog[]> {
+    try {
+        const logs: ImageHistoryLog[] = [];
+        await imageLogStore.iterate<ImageHistoryLog, void>((value) => {
+            if (value?.id) logs.push(value);
+        });
+        return logs;
+    } catch {
+        return [];
+    }
+}
+
+/** 本地日志为空时（换设备/清缓存）用账号已同步的日志补一份，便于恢复运行中的任务。 */
+async function mergeRemoteWorkflowLogs(token: string, localLogs: ImageHistoryLog[]) {
+    try {
+        const remoteLogs = await fetchImageGenerationLogs<ImageHistoryLog>(token);
+        const byId = new Map(localLogs.map((log) => [log.id, log]));
+        remoteLogs.forEach((log) => {
+            if (log?.id && !byId.has(log.id)) byId.set(log.id, log);
+        });
+        return Array.from(byId.values());
+    } catch {
+        return localLogs;
+    }
+}
+
+/** 带工作流信息的图片日志（本页创建或后端工作流任务恢复）：由工作流 workspace 统一轮询。 */
+function isWorkflowBackedLog(log: ImageHistoryLog) {
+    return Boolean(log.workflowId) || log.task?.source === "workflow";
+}
+
 const variableTypeOptions: Array<{ value: WorkflowVariableType; label: string }> = [
     { value: "text", label: "短文本" },
     { value: "textarea", label: "长文本" },
@@ -228,6 +385,7 @@ export function CreativeWorkflowWorkspace({
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const token = useUserStore((state) => state.token);
     const isUserReady = useUserStore((state) => state.isReady);
+    const ownerId = useUserStore((state) => state.user?.id || "guest");
     const [workflows, setWorkflows] = useState<CreativeWorkflow[]>([]);
     const [editingWorkflow, setEditingWorkflow] = useState<CreativeWorkflow | null>(null);
     const [runningWorkflow, setRunningWorkflow] = useState<CreativeWorkflow | null>(null);
@@ -237,6 +395,7 @@ export function CreativeWorkflowWorkspace({
     const [workflowAssetPickerOpen, setWorkflowAssetPickerOpen] = useState(false);
     const [runResults, setRunResults] = useState<WorkflowRunResult[]>([]);
     const [workflowTasks, setWorkflowTasks] = useState<WorkflowTask[]>([]);
+    const [stoppingTaskIds, setStoppingTaskIds] = useState<string[]>([]);
     const [seriesDrafts, setSeriesDrafts] = useState<SeriesPromptDraft[]>([]);
     const [seriesDraftLoading, setSeriesDraftLoading] = useState(false);
     const [seriesBatchAppend, setSeriesBatchAppend] = useState("");
@@ -257,6 +416,14 @@ export function CreativeWorkflowWorkspace({
     const [agentAssetPickerOpen, setAgentAssetPickerOpen] = useState(false);
     const workflowSyncEnabledRef = useRef(false);
     const seriesDraftsLoadedRef = useRef(false);
+    const recoveredTaskLogIdsRef = useRef(new Set<string>());
+    const recoveredTaskMissesRef = useRef(new Map<string, number>());
+    const recoverWorkflowTasksRef = useRef<() => Promise<void>>(async () => undefined);
+    const pollRecoveredTasksRef = useRef<() => Promise<void>>(async () => undefined);
+    const recoveredPollErrorRef = useRef(false);
+    // 本会话提交的后端异步工作流任务：日志 id → 父任务 id，父任务 id → 汇总状态。
+    const trackedTaskLogRef = useRef(new Map<string, string>());
+    const trackedTasksRef = useRef(new Map<string, TrackedWorkflowTaskState>());
 
     const filteredWorkflows = useMemo(() => {
         const text = query.trim().toLowerCase();
@@ -281,7 +448,8 @@ export function CreativeWorkflowWorkspace({
     }, [workflowMaxPage]);
 
     const renderedPrompt = useMemo(() => (runningWorkflow ? renderWorkflowPrompt(runningWorkflow, inputValues) : ""), [inputValues, runningWorkflow]);
-    const runningTaskCount = workflowTasks.filter((task) => task.status === "running").length;
+    const runningTasks = workflowTasks.filter((task) => task.status === "running");
+    const runningTaskCount = runningTasks.length;
     const activeSeriesDrafts = seriesDrafts.filter((item) => item.status !== "success");
     const agentModel = agentTextModel || effectiveConfig.textModel || "";
     const agentChannelId = agentTextChannelId || effectiveConfig.textChannelId;
@@ -291,8 +459,13 @@ export function CreativeWorkflowWorkspace({
 
     useEffect(() => {
         if (!isUserReady) return;
-        void refreshWorkflowsRef.current();
-    }, [isUserReady, token]);
+        // 先加载模板再恢复任务，避免恢复出的任务点「重试」时还查不到对应工作流。
+        void (async () => {
+            await refreshWorkflowsRef.current().catch(() => undefined);
+            // 嵌入生图页时工作流抽屉一旦打开就由 workspace 统一恢复/轮询任务（生图页随后跳过工作流日志的通用轮询）。
+            await recoverWorkflowTasksRef.current().catch(() => undefined);
+        })();
+    }, [embedded, isUserReady, token]);
 
     useEffect(() => {
         if (!agentTextModel && effectiveConfig.textModel) setAgentTextModel(effectiveConfig.textModel);
@@ -305,13 +478,27 @@ export function CreativeWorkflowWorkspace({
         return () => window.clearInterval(timer);
     }, [runningTaskCount]);
 
+    useEffect(() => {
+        if (!runningTaskCount) return;
+        void pollRecoveredTasksRef.current();
+        const timer = window.setInterval(() => {
+            void pollRecoveredTasksRef.current();
+        }, WORKFLOW_TASK_POLL_INTERVAL_MS);
+        return () => window.clearInterval(timer);
+    }, [runningTaskCount]);
+
     const runningWorkflowId = runningWorkflow?.id;
     const runningWorkflowMode = runningWorkflow?.mode;
 
     useEffect(() => {
         if (!runningWorkflowId || runningWorkflowMode !== "multi_image_series" || !seriesDraftsLoadedRef.current) return;
-        void workflowStore.setItem(seriesDraftStorageKey(runningWorkflowId), seriesDrafts);
-    }, [runningWorkflowId, runningWorkflowMode, seriesDrafts]);
+        // 只持久化可恢复字段（id/标题/提示词），任务状态与结果 id 不落盘；清空时直接删 key，避免脏数据。
+        if (!seriesDrafts.length) {
+            void workflowStore.removeItem(seriesDraftStorageKey(runningWorkflowId, ownerId));
+            return;
+        }
+        void workflowStore.setItem(seriesDraftStorageKey(runningWorkflowId, ownerId), seriesDrafts.map(serializeSeriesDraft));
+    }, [ownerId, runningWorkflowId, runningWorkflowMode, seriesDrafts]);
 
     const refreshWorkflows = async () => {
         if (token) {
@@ -359,7 +546,7 @@ export function CreativeWorkflowWorkspace({
         setWorkflowReferences([]);
         setSeriesDrafts([]);
         if (workflow.mode === "multi_image_series") {
-            void workflowStore.getItem<SeriesPromptDraft[]>(seriesDraftStorageKey(workflow.id)).then((drafts) => {
+            void workflowStore.getItem<PersistedSeriesDraft[]>(seriesDraftStorageKey(workflow.id, ownerId)).then((drafts) => {
                 setSeriesDrafts((drafts || []).map(normalizeSeriesDraft));
                 seriesDraftsLoadedRef.current = true;
             });
@@ -546,6 +733,7 @@ export function CreativeWorkflowWorkspace({
                     await saveWorkflows(workflows.filter((item) => item.id !== workflow.id));
                     message.warning(error instanceof Error && error.message === "接口不存在" ? "工作流同步接口不可用，已先从本地移除。请重启后端。" : "远端删除失败，已先从本地移除");
                 }
+                void workflowStore.removeItem(seriesDraftStorageKey(workflow.id, ownerId)).catch(() => undefined);
                 if (runningWorkflow?.id === workflow.id) setRunningWorkflow(null);
             },
         });
@@ -660,6 +848,12 @@ export function CreativeWorkflowWorkspace({
         setSeriesDrafts((value) => value.filter((item) => item.id !== id));
     };
 
+    const clearSeriesDrafts = async () => {
+        setSeriesDrafts([]);
+        if (runningWorkflow) await workflowStore.removeItem(seriesDraftStorageKey(runningWorkflow.id, ownerId)).catch(() => undefined);
+        message.success("已清空多图草稿");
+    };
+
     const applySeriesBatchAppend = () => {
         const text = seriesBatchAppend.trim();
         if (!text) {
@@ -746,11 +940,13 @@ export function CreativeWorkflowWorkspace({
     };
 
     const retryWorkflowTask = (task: WorkflowTask) => {
-        const workflow = workflows.find((item) => item.id === task.workflowId);
+        // 模板被删/换设备恢复时用日志快照配置按 workflow id 临时重试，不伪造或写回模板。
+        const workflow = workflows.find((item) => item.id === task.workflowId) || workflowForRetry(task);
         if (!workflow) {
-            message.warning("工作流已删除，无法重试");
+            message.warning("模板信息缺失，无法重试");
             return;
         }
+        untrackWorkflowTask(task.id);
         setWorkflowTasks((value) => value.filter((item) => item.id !== task.id));
         void startWorkflowImageTask(workflow, task.prompt, { ...task.inputs }, task.references, task.count, undefined, task.seriesTitle, task.seriesIndex);
     };
@@ -759,6 +955,261 @@ export function CreativeWorkflowWorkspace({
         await imageLogStore.setItem(log.id, serializeHistoryLog(log));
         if (token) await saveImageGenerationLogs(token, [serializeHistoryLog(log)]).catch(() => undefined);
     };
+
+    const applyRecoveredCanvasTask = async (log: ImageHistoryLog, task: CanvasImageTask, submitted = false) => {
+        const finishedAt = Date.now();
+        const durationMs = Math.max(0, finishedAt - log.createdAt);
+        if (isFailedCanvasImageTask(task)) {
+            const errorText = task.error?.message || "工作流运行失败";
+            const nextLog: ImageHistoryLog = { ...log, status: "失败", durationMs, failCount: 1, errors: [errorText], task, lastPolledAt: finishedAt };
+            await saveWorkflowTaskLog(nextLog);
+            // 本会话提交的任务由父任务汇总后统一更新任务卡与结果，避免同一任务出现多张卡。
+            if (!submitted) setWorkflowTasks((value) => value.map((item) => item.id === log.id ? { ...item, status: "failed", endedAt: finishedAt, durationMs, error: errorText } : item));
+            return { status: "failed" as const, log: nextLog };
+        }
+        const images = workflowTaskImagesFromCanvasTask(task, durationMs);
+        const nextLog: ImageHistoryLog = {
+            ...log,
+            status: "成功",
+            images,
+            thumbnails: images.map((image) => image.dataUrl),
+            imageCount: images.length,
+            successCount: images.length,
+            failCount: 0,
+            durationMs,
+            errors: [],
+            task,
+            lastPolledAt: finishedAt,
+        };
+        await saveWorkflowTaskLog(nextLog);
+        if (!submitted) {
+            const results = workflowResultsFromStoredLog(nextLog);
+            setWorkflowTasks((value) => value.map((item) => item.id === log.id ? { ...item, status: "success", endedAt: finishedAt, durationMs, images: results } : item));
+            setRunResults((value) => [...results, ...value]);
+        }
+        return { status: "success" as const, log: nextLog };
+    };
+
+    /** 汇总本会话提交任务的各张图片日志：全部结束后回写任务卡、最近结果并触发外部回调。 */
+    const completeTrackedWorkflowTask = (parentTaskId: string, status: "success" | "failed", log: ImageHistoryLog) => {
+        const state = trackedTasksRef.current.get(parentTaskId);
+        if (!state) return;
+        if (status === "success") state.images.push(...workflowResultsFromStoredLog(log));
+        else state.errors.push(log.errors?.[0] || "工作流运行失败");
+        state.remaining -= 1;
+        // 未全部结束时先更新任务卡进度，让任务卡与嵌入页"运行中任务"显示已完成张数。
+        setWorkflowTasks((value) => value.map((task) => task.id === parentTaskId ? { ...task, images: [...state.images], failedCount: state.errors.length } : task));
+        if (state.remaining > 0) return;
+        trackedTasksRef.current.delete(parentTaskId);
+        trackedTaskLogRef.current.forEach((parentId, logId) => {
+            if (parentId !== parentTaskId) return;
+            trackedTaskLogRef.current.delete(logId);
+            recoveredTaskLogIdsRef.current.delete(logId);
+            recoveredTaskMissesRef.current.delete(logId);
+        });
+        const endedAt = Date.now();
+        const durationMs = Math.max(0, endedAt - state.startedAt);
+        if (state.images.length) {
+            if (state.seriesDraftId) updateSeriesDraft(state.seriesDraftId, { status: "success", resultIds: state.images.map((image) => image.id) });
+            setWorkflowTasks((value) => value.map((task) => task.id === parentTaskId ? { ...task, status: "success", endedAt, durationMs, images: state.images, failedCount: state.errors.length, error: state.errors.length ? `${state.errors.length} 张失败：${state.errors.join("；")}` : undefined } : task));
+            setRunResults((value) => [...state.images, ...value]);
+            onWorkflowTaskSuccess?.({ taskId: parentTaskId, images: state.images, durationMs, endedAt });
+            message.success(state.errors.length ? `工作流任务完成 ${state.images.length} 张，${state.errors.length} 张失败` : "工作流任务已完成，结果已写入生图历史");
+        } else {
+            const errorText = state.errors.length ? state.errors.join("；") : "工作流运行失败";
+            if (state.seriesDraftId) updateSeriesDraft(state.seriesDraftId, { status: "failed", error: errorText });
+            setWorkflowTasks((value) => value.map((task) => task.id === parentTaskId ? { ...task, status: "failed", endedAt, durationMs, error: errorText, failedCount: state.errors.length } : task));
+            onWorkflowTaskFailure?.({ taskId: parentTaskId, error: errorText, durationMs, endedAt });
+            message.error(errorText);
+        }
+        onGenerationLogSaved?.();
+    };
+
+    /** 拉取已存任务的真实状态：完成/失败后回写日志与任务卡，避免刷新后一直停在「运行中」。 */
+    const pollRecoveredWorkflowTasks = async () => {
+        const logIds = Array.from(recoveredTaskLogIdsRef.current);
+        if (!logIds.length) return;
+        const logs = (await Promise.all(logIds.map((id) => imageLogStore.getItem<ImageHistoryLog>(id).catch(() => null)))).filter((log): log is ImageHistoryLog => Boolean(log?.task?.id));
+        if (!logs.length) {
+            recoveredTaskLogIdsRef.current.clear();
+            return;
+        }
+        let tasks: CanvasImageTask[];
+        try {
+            tasks = await batchCanvasImageTaskStatus(effectiveConfig, Array.from(new Set(logs.map((log) => log.task!.id))));
+            recoveredPollErrorRef.current = false;
+        } catch (error) {
+            // 轮询失败只提示一次，避免每 10 秒弹一次相同错误。
+            if (!recoveredPollErrorRef.current) {
+                recoveredPollErrorRef.current = true;
+                message.error(error instanceof Error ? error.message : "读取工作流任务状态失败");
+            }
+            return;
+        }
+        const taskById = new Map(tasks.map((task) => [task.id, task]));
+        let finishedCount = 0;
+        let failedCount = 0;
+        try {
+            for (const log of logs) {
+                const task = taskById.get(log.task!.id);
+                if (!task) {
+                    // 后端查不到任务时连续 3 次判定失败，避免恢复后的任务永远卡在运行中。
+                    const misses = (recoveredTaskMissesRef.current.get(log.id) || 0) + 1;
+                    recoveredTaskMissesRef.current.set(log.id, misses);
+                    if (misses < 3) continue;
+                    const errorText = "图片任务不存在或未创建成功";
+                    const nextLog: ImageHistoryLog = { ...log, status: "失败", durationMs: Math.max(0, Date.now() - log.createdAt), failCount: 1, errors: [errorText], task: undefined, lastPolledAt: Date.now() };
+                    await saveWorkflowTaskLog(nextLog);
+                    const parentTaskId = trackedTaskLogRef.current.get(log.id);
+                    if (parentTaskId) {
+                        completeTrackedWorkflowTask(parentTaskId, "failed", nextLog);
+                    } else {
+                        setWorkflowTasks((value) => value.map((item) => item.id === log.id ? { ...item, status: "failed", endedAt: Date.now(), error: errorText } : item));
+                        recoveredTaskLogIdsRef.current.delete(log.id);
+                        recoveredTaskMissesRef.current.delete(log.id);
+                        failedCount += 1;
+                    }
+                    continue;
+                }
+                if (!isFinishedCanvasImageTask(task) && !isFailedCanvasImageTask(task)) continue;
+                const parentTaskId = trackedTaskLogRef.current.get(log.id);
+                const applied = await applyRecoveredCanvasTask(log, task, Boolean(parentTaskId));
+                recoveredTaskLogIdsRef.current.delete(log.id);
+                recoveredTaskMissesRef.current.delete(log.id);
+                if (parentTaskId) completeTrackedWorkflowTask(parentTaskId, applied.status, applied.log);
+                else if (applied.status === "failed") failedCount += 1;
+                else finishedCount += 1;
+            }
+        } catch (error) {
+            if (!recoveredPollErrorRef.current) {
+                recoveredPollErrorRef.current = true;
+                message.error(error instanceof Error ? error.message : "回写工作流任务结果失败");
+            }
+            return;
+        }
+        if (finishedCount) message.success(`工作流任务已完成 ${finishedCount} 个，结果已写入生图历史`);
+        if (failedCount) message.warning(`${failedCount} 个工作流任务失败`);
+        if (finishedCount || failedCount) onGenerationLogSaved?.();
+    };
+    pollRecoveredTasksRef.current = pollRecoveredWorkflowTasks;
+
+    /** 登记本会话新提交的后端工作流任务：加入恢复轮询集合并按父任务汇总完成情况。 */
+    const trackWorkflowTaskLogs = (parentTaskId: string, logs: ImageHistoryLog[], startedAt: number, seriesDraftId?: string, initial?: { images: WorkflowRunResult[]; errors: string[] }) => {
+        if (!logs.length) return;
+        trackedTasksRef.current.set(parentTaskId, { remaining: logs.length, images: initial?.images ? [...initial.images] : [], errors: initial?.errors ? [...initial.errors] : [], startedAt, seriesDraftId, taskIds: logs.flatMap((log) => log.task?.id ? [log.task.id] : []) });
+        logs.forEach((log) => {
+            trackedTaskLogRef.current.set(log.id, parentTaskId);
+            recoveredTaskLogIdsRef.current.add(log.id);
+            recoveredTaskMissesRef.current.delete(log.id);
+        });
+        void pollRecoveredTasksRef.current();
+    };
+
+    /** 重试或取消时停止该父任务的轮询登记。 */
+    const untrackWorkflowTask = (parentTaskId: string) => {
+        trackedTasksRef.current.delete(parentTaskId);
+        trackedTaskLogRef.current.forEach((parentId, logId) => {
+            if (parentId !== parentTaskId) return;
+            trackedTaskLogRef.current.delete(logId);
+            recoveredTaskLogIdsRef.current.delete(logId);
+            recoveredTaskMissesRef.current.delete(logId);
+        });
+    };
+
+    /** 停止运行中的工作流任务：接口失败（可能已自行结束）时回写真实状态，不把任务卡停在「已停止」。 */
+    const stopWorkflowTask = async (task: WorkflowTask) => {
+        if (stoppingTaskIds.includes(task.id)) return;
+        setStoppingTaskIds((value) => [...value, task.id]);
+        try {
+            const submitted = trackedTasksRef.current.get(task.id);
+            const logIds = new Set<string>();
+            trackedTaskLogRef.current.forEach((parentId, logId) => {
+                if (parentId === task.id) logIds.add(logId);
+            });
+            // 刷新恢复的任务卡 id 就是日志 id。
+            if (!logIds.size) logIds.add(task.id);
+            const logs = (await Promise.all(Array.from(logIds).map((id) => imageLogStore.getItem<ImageHistoryLog>(id).catch(() => null)))).filter((log): log is ImageHistoryLog => Boolean(log?.task?.id));
+            // 只停止仍在生成的图片任务；已完成的图片保留结果，避免把成功记录覆盖成失败。
+            const pendingLogs = logs.filter((log) => log.status === "生成中");
+            const serverIds = pendingLogs.length ? pendingLogs.map((log) => log.task!.id) : (submitted?.taskIds ?? []);
+            if (!serverIds.length) {
+                message.warning("没有找到可停止的后端任务，正在同步最新状态");
+                await pollRecoveredTasksRef.current();
+                return;
+            }
+            const results = await Promise.all(serverIds.map((id) => stopCanvasTask("image", id, false, "workflow")));
+            if (!results.every((item) => item.stopped)) {
+                message.warning("停止失败：任务可能已经结束，正在同步最新状态");
+                await pollRecoveredTasksRef.current();
+                return;
+            }
+            const endedAt = Date.now();
+            const durationMs = Math.max(0, endedAt - task.startedAt);
+            const seriesDraftId = submitted?.seriesDraftId;
+            untrackWorkflowTask(task.id);
+            await Promise.all(pendingLogs.map((log) => saveWorkflowTaskLog({ ...log, status: "失败", durationMs, failCount: 1, errors: ["任务已停止"], task: { ...log.task!, status: "cancelled" }, lastPolledAt: endedAt })));
+            logs.forEach((log) => {
+                recoveredTaskLogIdsRef.current.delete(log.id);
+                recoveredTaskMissesRef.current.delete(log.id);
+            });
+            if (seriesDraftId) updateSeriesDraft(seriesDraftId, { status: "failed", error: "任务已停止" });
+            setWorkflowTasks((value) => value.map((item) => item.id === task.id ? { ...item, status: "failed", endedAt, durationMs, error: "任务已停止" } : item));
+            onGenerationLogSaved?.();
+            message.success("工作流任务已停止");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "停止工作流任务失败");
+            await pollRecoveredTasksRef.current().catch(() => undefined);
+        } finally {
+            setStoppingTaskIds((value) => value.filter((id) => id !== task.id));
+        }
+    };
+
+    const recoverWorkflowTasks = async () => {
+        // 仅登录态恢复：异步任务都走账号代理，未登录时本地待恢复日志无法查询状态。
+        if (!token) return;
+        const localLogs = await readWorkflowGenerationLogs();
+        const hasLocalPending = localLogs.some((log) => isWorkflowBackedLog(log) && log.status === "生成中" && log.task?.id);
+        // 本地已有运行中任务时不再拉全量账号日志，换设备场景才走远端补齐。
+        const logs = hasLocalPending ? localLogs : await mergeRemoteWorkflowLogs(token, localLogs);
+        const pending = logs.filter((log) => isWorkflowBackedLog(log) && log.status === "生成中" && log.task?.id);
+        if (!pending.length) return;
+        const parentOf = (log: ImageHistoryLog) => workflowTaskParentId(log.task) || log.id;
+        // 父任务下的全部日志（含已成功/失败的图片），恢复卡片直接展示既有结果。
+        const allByParent = new Map<string, ImageHistoryLog[]>();
+        logs.forEach((log) => {
+            if (!isWorkflowBackedLog(log) || !log.task?.id) return;
+            const parentTaskId = parentOf(log);
+            const group = allByParent.get(parentTaskId);
+            if (group) group.push(log);
+            else allByParent.set(parentTaskId, [log]);
+        });
+        // 服务端任务 id 形如 client_workflow_image_task_<父任务id>_<序号>，按父任务聚合成一张任务卡。
+        const pendingGroups = new Map<string, ImageHistoryLog[]>();
+        pending.forEach((log) => {
+            const parentTaskId = parentOf(log);
+            const group = pendingGroups.get(parentTaskId);
+            if (group) group.push(log);
+            else pendingGroups.set(parentTaskId, [log]);
+        });
+        const sortGroup = (group: ImageHistoryLog[]) => group.sort((a, b) => workflowTaskParentIndex(a.task) - workflowTaskParentIndex(b.task));
+        allByParent.forEach(sortGroup);
+        pendingGroups.forEach(sortGroup);
+        setWorkflowTasks((value) => {
+            const existing = new Set(value.map((task) => task.id));
+            const restored = Array.from(pendingGroups.entries())
+                .filter(([parentTaskId]) => !existing.has(parentTaskId))
+                .map(([parentTaskId, group]) => workflowTaskFromStoredLogs(parentTaskId, allByParent.get(parentTaskId) || group));
+            return restored.length ? [...restored, ...value] : value;
+        });
+        // 恢复出的任务与同会话任务共用同一套父任务汇总、停止与重试逻辑。
+        pendingGroups.forEach((group, parentTaskId) => {
+            const all = allByParent.get(parentTaskId) || group;
+            const initialImages = all.filter((log) => log.status === "成功").flatMap((log) => workflowResultsFromStoredLog(log));
+            const initialErrors = all.filter((log) => log.status === "失败").map((log) => log.errors?.[0] || "工作流运行失败");
+            trackWorkflowTaskLogs(parentTaskId, group, Math.min(...all.map((log) => log.createdAt)), undefined, { images: initialImages, errors: initialErrors });
+        });
+    };
+    recoverWorkflowTasksRef.current = recoverWorkflowTasks;
 
     const createWorkflowImageTasks = async ({
         taskId,
@@ -810,11 +1261,14 @@ export function CreativeWorkflowWorkspace({
                 task: { id: clientTaskId, status: "queued", progress: 0, source: "workflow", source_id: id, createdAt: startedAt.toString(), created_at: startedAt.toString() },
             });
         });
+        const createdLogs: ImageHistoryLog[] = [];
         const settled = await Promise.allSettled(
             taskLogs.map(async (log, index) => {
                 try {
                     const task = await createCanvasImageTask({ ...runConfig, seedIndex: index, seedCount: count, count: "1" }, prompt, references, { source: "workflow", sourceId: log.id, clientTaskId: log.task?.id || `${taskId}:${index}` });
-                    await saveWorkflowTaskLog({ ...log, task, lastPolledAt: Date.now() });
+                    const savedLog = { ...log, task, lastPolledAt: Date.now() };
+                    await saveWorkflowTaskLog(savedLog);
+                    createdLogs.push(savedLog);
                 } catch (error) {
                     const messageText = error instanceof Error ? error.message : "工作流图片任务创建失败";
                     await saveWorkflowTaskLog({ ...log, status: "失败", durationMs: Date.now() - startedAt, failCount: 1, errors: [messageText], lastPolledAt: Date.now() });
@@ -822,8 +1276,9 @@ export function CreativeWorkflowWorkspace({
                 }
             }),
         );
-        onGenerationLogSaved?.();
         const createdCount = settled.filter((item) => item.status === "fulfilled").length;
+        if (createdCount) trackWorkflowTaskLogs(taskId, createdLogs, startedAt, seriesDraftId);
+        onGenerationLogSaved?.();
         if (!createdCount) {
             const messageText = "工作流图片任务创建失败";
             if (seriesDraftId) updateSeriesDraft(seriesDraftId, { status: "failed", error: messageText });
@@ -833,6 +1288,7 @@ export function CreativeWorkflowWorkspace({
             return;
         }
         message.success(`已创建 ${createdCount} 个工作流图片任务`);
+        if (createdCount < count) message.warning(`${count - createdCount} 个工作流图片任务创建失败`);
     };
 
     const executeWorkflowTask = async ({
@@ -1005,6 +1461,29 @@ export function CreativeWorkflowWorkspace({
                     />
                 )}
 
+                {embedded && runningTaskCount ? (
+                    <section className="rounded-xl border border-border bg-card/60 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                                <LoaderCircle className="size-4 animate-spin" />
+                                运行中任务
+                                <Tag className="m-0" color="processing">{runningTaskCount}</Tag>
+                            </div>
+                            <span className="text-xs text-muted-foreground">完成后结果会写入生图历史，可随时停止</span>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                            {runningTasks.map((task) => (
+                                <div key={task.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 bg-background/40 px-2.5 py-1.5 text-xs">
+                                    <span className="min-w-0 flex-1 truncate" title={task.prompt}>{task.workflowName}{task.seriesTitle ? ` · ${task.seriesTitle}` : ""}</span>
+                                    <span className="shrink-0 tabular-nums text-muted-foreground">{task.images.length}/{task.count} 张</span>
+                                    <span className="shrink-0 tabular-nums text-muted-foreground">已用 {formatDuration(now - task.startedAt)}</span>
+                                    <Button size="small" danger loading={stoppingTaskIds.includes(task.id)} onClick={() => void stopWorkflowTask(task)}>停止</Button>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                ) : null}
+
                 <section className="flex flex-wrap items-center gap-2">
                     <Input.Search allowClear placeholder="搜索名称、分类、描述" className="w-full max-w-sm" value={query} onChange={(event) => setQuery(event.target.value)} />
                     <Select
@@ -1050,7 +1529,7 @@ export function CreativeWorkflowWorkspace({
                         </div>
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                             {workflowTasks.map((task) => (
-                                <WorkflowTaskCard key={task.id} task={task} now={now} onCopyPrompt={() => void navigator.clipboard.writeText(task.prompt)} onRetry={() => retryWorkflowTask(task)} onDownload={(image, index) => saveAs(image.imageUrl, `workflow-task-${index + 1}.png`)} />
+                                <WorkflowTaskCard key={task.id} task={task} now={now} stopping={stoppingTaskIds.includes(task.id)} onCopyPrompt={() => void navigator.clipboard.writeText(task.prompt)} onRetry={() => retryWorkflowTask(task)} onStop={() => void stopWorkflowTask(task)} onDownload={(image, index) => saveAs(image.imageUrl, `workflow-task-${index + 1}.png`)} />
                             ))}
                         </div>
                     </section>
@@ -1317,6 +1796,11 @@ export function CreativeWorkflowWorkspace({
                                             <Tag className="m-0">{seriesDrafts.length} 条</Tag>
                                         </div>
                                         <div className="flex gap-2">
+                                            {seriesDrafts.length ? (
+                                                <Button size="small" danger onClick={() => void clearSeriesDrafts()}>
+                                                    清空草稿
+                                                </Button>
+                                            ) : null}
                                             <Button size="small" loading={seriesDraftLoading} onClick={() => void generateSeriesPromptDrafts()}>
                                                 重新生成
                                             </Button>
@@ -1403,7 +1887,7 @@ function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow:
     );
 }
 
-function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload, onRetry }: { task: WorkflowTask; now: number; onCopyPrompt: () => void; onDownload: (image: WorkflowRunResult, index: number) => void; onRetry: () => void }) {
+function WorkflowTaskCard({ task, now, stopping, onCopyPrompt, onDownload, onRetry, onStop }: { task: WorkflowTask; now: number; stopping: boolean; onCopyPrompt: () => void; onDownload: (image: WorkflowRunResult, index: number) => void; onRetry: () => void; onStop: () => void }) {
     const [detailOpen, setDetailOpen] = useState(false);
     const elapsedMs = task.status === "running" ? now - task.startedAt : task.durationMs || (task.endedAt || task.startedAt) - task.startedAt;
     const statusView = {
@@ -1429,7 +1913,12 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload, onRetry }: { ta
                     </div>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                    {task.status === "failed" ? (
+                    {task.status === "running" ? (
+                        <Button size="small" danger loading={stopping} onClick={onStop}>
+                            停止
+                        </Button>
+                    ) : null}
+                    {task.status === "failed" && task.workflowId ? (
                         <Button size="small" danger icon={<RotateCcw className="size-3.5" />} onClick={onRetry}>
                             重试
                         </Button>
@@ -1441,12 +1930,18 @@ function WorkflowTaskCard({ task, now, onCopyPrompt, onDownload, onRetry }: { ta
             </div>
             <div className="space-y-3 p-3">
                 <div className="line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{task.prompt}</div>
+                {task.workflowId ? null : (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-5 text-amber-600 dark:text-amber-300">
+                        模板信息缺失，无法重试；仍可查看已生成结果或停止运行中的任务。
+                    </div>
+                )}
                 <div className="flex flex-wrap gap-1">
                     <Tag className="m-0 text-[10px]">{task.model}</Tag>
                     <Tag className="m-0 text-[10px]">{task.apiMode === "chat" ? "Chat" : task.apiMode === "responses" ? "Responses" : "Images"}</Tag>
                     <Tag className="m-0 text-[10px]">{task.config.size || "auto"}</Tag>
                     <Tag className="m-0 text-[10px]">{task.config.quality || "auto"}</Tag>
-                    <Tag className="m-0 text-[10px]">{task.count} 张</Tag>
+                    <Tag className="m-0 text-[10px]">{task.images.length}/{task.count} 张</Tag>
+                    {task.failedCount ? <Tag className="m-0 text-[10px]" color="error">{task.failedCount} 张失败</Tag> : null}
                     {task.apiMode !== "chat" && task.config.streamImages ? <Tag className="m-0 text-[10px]">流式 {task.config.streamPartialImages || "1"}</Tag> : null}
                 </div>
                 {Object.keys(task.inputs).length ? (
@@ -2004,18 +2499,25 @@ function extractJSONText(content: string) {
     return "";
 }
 
-function seriesDraftStorageKey(workflowId: string) {
-    return `${SERIES_DRAFT_STORE_PREFIX}${workflowId}`;
+/** 草稿只持久化可恢复字段：id/标题/提示词；运行状态与结果引用不落盘。 */
+type PersistedSeriesDraft = Pick<SeriesPromptDraft, "id" | "title" | "prompt">;
+
+function serializeSeriesDraft(draft: SeriesPromptDraft): PersistedSeriesDraft {
+    return { id: draft.id, title: draft.title, prompt: draft.prompt };
 }
 
-function normalizeSeriesDraft(draft: SeriesPromptDraft): SeriesPromptDraft {
+function seriesDraftStorageKey(workflowId: string, ownerId: string) {
+    return `${SERIES_DRAFT_STORE_PREFIX}${ownerId}:${workflowId}`;
+}
+
+function normalizeSeriesDraft(draft: Partial<SeriesPromptDraft>): SeriesPromptDraft {
     return {
         id: draft.id || nanoid(),
         title: draft.title || "未命名",
         prompt: draft.prompt || "",
-        status: draft.status === "running" ? "draft" : draft.status || "draft",
-        error: draft.error,
-        resultIds: Array.isArray(draft.resultIds) ? draft.resultIds : [],
+        // 运行中/结果状态不持久化，恢复后统一回到待审核草稿。
+        status: "draft",
+        resultIds: [],
     };
 }
 

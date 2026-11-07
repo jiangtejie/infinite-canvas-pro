@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"github.com/jiangtejie/infinite-canvas-pro/service"
@@ -425,6 +426,16 @@ func saveFailedCanvasAudioTask(task model.CanvasAudioTask, message string, detai
 	}
 }
 
+const maxClientTaskIDLength = 191
+
+func normalizeClientTaskID(id string) (string, error) {
+	id = strings.TrimSpace(id)
+	if utf8.RuneCountInString(id) > maxClientTaskIDLength {
+		return "", errors.New("任务 ID 过长")
+	}
+	return id, nil
+}
+
 func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, string, string, string, string, string, string, string, string, error) {
 	contentType := r.Header.Get("Content-Type")
 	raw, err := io.ReadAll(r.Body)
@@ -437,7 +448,11 @@ func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, 
 			return nil, "", "", "", "", "", "", "", "", err
 		}
 		endpoint := firstNonEmpty(meta["_canvas_endpoint"], fallbackEndpoint)
-		return body, cleanedContentType, endpoint, meta["_canvas_source"], meta["_canvas_node_id"], meta["_canvas_source_id"], meta["_canvas_task_id"], meta["_canvas_prompt"], meta["_canvas_channel_id"], nil
+		clientTaskID, err := normalizeClientTaskID(meta["_canvas_task_id"])
+		if err != nil {
+			return nil, "", "", "", "", "", "", "", "", err
+		}
+		return body, cleanedContentType, endpoint, meta["_canvas_source"], meta["_canvas_node_id"], meta["_canvas_source_id"], clientTaskID, meta["_canvas_prompt"], meta["_canvas_channel_id"], nil
 	}
 	var wrapper struct {
 		Endpoint     string          `json:"endpoint"`
@@ -462,7 +477,11 @@ func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, 
 		return nil, "", "", "", "", "", "", "", "", errors.New("任务请求体不能为空")
 	}
 	endpoint := firstNonEmpty(wrapper.Endpoint, fallbackEndpoint)
-	return body, "application/json", endpoint, wrapper.Source, wrapper.NodeID, wrapper.SourceID, firstNonEmpty(wrapper.ClientTaskID, wrapper.TaskID), wrapper.Prompt, wrapper.ChannelID, nil
+	clientTaskID, err := normalizeClientTaskID(firstNonEmpty(wrapper.ClientTaskID, wrapper.TaskID))
+	if err != nil {
+		return nil, "", "", "", "", "", "", "", "", err
+	}
+	return body, "application/json", endpoint, wrapper.Source, wrapper.NodeID, wrapper.SourceID, clientTaskID, wrapper.Prompt, wrapper.ChannelID, nil
 }
 
 func stripCanvasTaskMultipartFields(raw []byte, contentType string, normalizeImages bool) ([]byte, string, map[string]string, error) {

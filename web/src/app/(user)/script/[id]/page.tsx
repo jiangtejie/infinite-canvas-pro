@@ -4,16 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { App, Button, Input, Modal } from "antd";
-import { ArrowLeft, Check, Clapperboard, Download, History, Lock, PencilLine } from "lucide-react";
+import { ArrowLeft, Clapperboard, Download, History, Lock, PencilLine } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { FilmAmbient } from "../../film/components/film-ambient";
+import { FilmAmbient } from "@/components/film/film-ambient";
+import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import type { ScriptProject } from "../types";
 import { useScriptStore } from "../stores/use-script-store";
 import { createScriptDraft, exportScriptText, scriptPageCount, scriptWordCount } from "../utils/script-project";
 import { buildFilmPlanFromDraft } from "../utils/script-handoff";
-import { useFilmStore } from "../../film/stores/use-film-store";
+import { useFilmStore } from "@/stores/use-film-store";
 import { ScriptStoryPanel } from "../components/script-story-panel";
 import { ScriptCharactersPanel } from "../components/script-characters-panel";
 import { ScriptStructurePanel } from "../components/script-structure-panel";
@@ -72,7 +73,7 @@ export default function ScriptProjectPage() {
             status: "locked",
             lockedDraftId: draft.id,
         });
-        message.success(locked ? "已更新锁定稿，可重新转分镜" : "已锁定当前稿，可以转 AI 影视分镜");
+        message.success(locked ? "已更新锁定稿；已转分镜的项目可在影视工作台里「按最新剧本重新解析」" : "已锁定当前稿，可以转 AI 影视分镜");
     };
 
     const handoffToFilm = () => {
@@ -90,6 +91,8 @@ export default function ScriptProjectPage() {
             scriptText,
             episodes,
             scriptDocument: document,
+            scriptProjectId: project.id,
+            scriptHash: document.scriptHash,
             stage: "storyboard",
         });
         updateProject(project.id, {
@@ -175,14 +178,13 @@ export default function ScriptProjectPage() {
 
                     <div className="ml-auto flex items-center gap-2">
                         <span className="hidden font-mono text-[10px] text-muted-foreground/60 tabular-nums sm:inline">{project.scenes.length} 场 · {words.toLocaleString()} 字 · 约 {pages} 页</span>
-                        <span className="hidden items-center gap-1 font-mono text-[10px] text-muted-foreground/70 uppercase sm:flex">
-                            <Check className="size-3 text-acid" aria-hidden />
-                            已自动保存
+                        <span className="hidden sm:block">
+                            <LocalSaveIndicator compact />
                         </span>
                         <span className={cn("chip hidden sm:inline-flex", locked ? "border-acid/40 text-acid" : "")}>{locked ? "已锁定" : "草稿"}</span>
                         {locked ? (
                             <>
-                                {project.filmProjectId ? null : <Button size="small" type="text" className="hidden sm:inline-flex" onClick={lockDraft}>更新锁定稿</Button>}
+                                <Button size="small" type="text" className="hidden sm:inline-flex" onClick={lockDraft}>更新锁定稿</Button>
                                 <Button size="small" type="primary" icon={<Clapperboard className="size-3.5" />} onClick={handoffToFilm}>
                                     {project.filmProjectId ? "打开 AI 影视分镜" : "转 AI 影视分镜"}
                                 </Button>

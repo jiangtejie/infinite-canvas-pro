@@ -8,6 +8,9 @@ import { boolConfig } from "@/lib/seedance-video";
 import type { AiConfig, VideoElementItem, VideoElementReference, VideoMultiPromptItem } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 
+import { normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount } from "../history";
+import { klingModeOptions, klingRatioOptions, klingSecondsOptions, klingV3DefaultSeconds, klingV3SecondsRange } from "@/components/workbench/kling-parameter-options";
+
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
 type AssetPickerTarget = "general" | "image" | "video" | "audio" | "firstFrame" | "lastFrame";
 
@@ -26,9 +29,6 @@ const TEXT = {
     chooseAsset: "从素材库选择",
     model: "模型",
     mode: "模式选择",
-    std: "标准模式(720P 无声)",
-    pro: "专业模式(1080P 音频)",
-    k4: "4K模式",
     size: "尺寸",
     seconds: "秒数",
     audioTitle: "音频生成",
@@ -138,8 +138,8 @@ export function KlingV26WorkbenchPanel({
 }) {
     const { message } = App.useApp();
     const mode = isKlingV3 && config.videoMode === "4k" ? "4k" : config.videoMode === "pro" ? "pro" : "std";
-    const seconds = isKlingV3 ? String(config.videoSeconds ?? "") : config.videoSeconds === "10" ? "10" : "5";
-    const ratio = klingRatioValue(config.size);
+    const seconds = isKlingV3 ? String(config.videoSeconds ?? "") : normalizeKlingV26Seconds(config.videoSeconds);
+    const ratio = normalizeKlingV26Ratio(config.size);
     const generateAudio = boolConfig(config.videoGenerateAudio, false);
     const isKIEKlingV3 = isKlingV3 && klingProvider === "kie";
     const supportsMultiShot = klingOmniVariant !== "transformation";
@@ -157,7 +157,8 @@ export function KlingV26WorkbenchPanel({
     useEffect(() => {
         if (!isKlingV3 || initializedV3SecondsRef.current) return;
         initializedV3SecondsRef.current = true;
-        if (String(config.videoSeconds || "").trim() === "6") updateConfig("videoSeconds", "3");
+        const nextSeconds = klingV3DefaultSeconds(config.videoSeconds);
+        if (nextSeconds) updateConfig("videoSeconds", nextSeconds);
     }, [config.videoSeconds, isKlingV3, updateConfig]);
 
     const setMode = (value: string) => {
@@ -323,23 +324,23 @@ export function KlingV26WorkbenchPanel({
                     <ModelPicker config={config} value={model} channelId={config.videoChannelId} workflowRef={config.videoWorkflowRef} onWorkflowChange={(value) => updateConfig("videoWorkflowRef", value)} onChange={(value, channelId) => { updateConfig("videoModel", value); if (channelId) updateConfig("videoChannelId", channelId); }} capability="video" fullWidth onMissingConfig={() => openConfigDialog(false)} />
                 </KlingSection>
                 <KlingSection title={TEXT.mode}>
-                    <OptionGrid columns={isKlingV3 ? 3 : 2} options={isKlingV3 ? [{ value: "std", label: "720P" }, { value: "pro", label: "1080P" }, { value: "4k", label: "4K" }] : [{ value: "std", label: TEXT.std }, { value: "pro", label: TEXT.pro }]} value={mode} onChange={setMode} />
+                    <OptionGrid columns={isKlingV3 ? 3 : 2} options={klingModeOptions(isKlingV3)} value={mode} onChange={setMode} />
                 </KlingSection>
                 <KlingSection title={TEXT.size}>
-                    <OptionGrid columns={3} options={[{ value: "16:9", label: "16:9" }, { value: "9:16", label: "9:16" }, { value: "1:1", label: "1:1" }]} value={ratio} onChange={(value) => updateConfig("size", value === "1:1" ? "1024x1024" : value)} />
+                    <OptionGrid columns={3} options={klingRatioOptions} value={ratio} onChange={(value) => updateConfig("size", value === "1:1" ? "1024x1024" : value)} />
                 </KlingSection>
                 <KlingSection title={TEXT.seconds}>
                     {isKlingV3 ? (
                         <div className="grid grid-cols-3 gap-2.5">
-                            {[{ value: "3", label: "3s" }, { value: "15", label: "15s" }].map((item) => (
+                            {klingSecondsOptions(true).map((item) => (
                                 <button key={item.value} type="button" className={optionClass(seconds === item.value)} onClick={() => updateConfig("videoSeconds", item.value)}>
                                     {item.label}
                                 </button>
                             ))}
-                            <KlingNumberInput value={seconds} min={3} max={15} onChange={(value) => updateConfig("videoSeconds", value)} />
+                            <KlingNumberInput value={seconds} min={klingV3SecondsRange.min} max={klingV3SecondsRange.max} onChange={(value) => updateConfig("videoSeconds", value)} />
                         </div>
                     ) : (
-                        <OptionGrid options={[{ value: "5", label: "5s" }, { value: "10", label: "10s" }]} value={seconds} onChange={(value) => updateConfig("videoSeconds", value)} />
+                        <OptionGrid options={klingSecondsOptions(false)} value={seconds} onChange={(value) => updateConfig("videoSeconds", value)} />
                     )}
                 </KlingSection>
                 <KlingSection title={TEXT.audioTitle}>
@@ -444,7 +445,7 @@ function KlingElementReferenceStrip({ references, onRemoveReference, onMoveRefer
                     {item.kind === "video" ? <VideoIcon className="absolute bottom-1 left-1 size-3.5 text-white drop-shadow" /> : null}
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{index + 1}</span>
                     <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
-                    <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label={TEXT.removeImage}>
+                    <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={() => onRemoveReference(item.id)} aria-label={TEXT.removeImage}>
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>
@@ -462,7 +463,7 @@ function KlingReferenceImageStrip({ references, emptyText = TEXT.emptyImages, on
                     <img loading="lazy" decoding="async" src={item.dataUrl} alt={item.name} className="size-full object-cover" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{TEXT.image}{index + 1}</span>
                     <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
-                    <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label={TEXT.removeImage}>
+                    <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={() => onRemoveReference(item.id)} aria-label={TEXT.removeImage}>
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>
@@ -520,14 +521,4 @@ function normalizeMultiPrompts(value: VideoMultiPromptItem[] | undefined): Video
     return value.map((item) => ({ prompt: item?.prompt || "", duration: item?.duration || "1" }));
 }
 
-function normalizeVideoCount(value: string | number) {
-    const count = Math.floor(Number(value) || 1);
-    return Math.max(1, Math.min(6, count));
-}
 
-function klingRatioValue(value: string) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (["9:16", "720x1280", "1080x1920"].includes(normalized)) return "9:16";
-    if (["1024x1024", "1080x1080"].includes(normalized)) return "1:1";
-    return "16:9";
-}

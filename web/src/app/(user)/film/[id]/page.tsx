@@ -4,10 +4,12 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Input, Modal, Select } from "antd";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
-import { FilmAmbient } from "../components/film-ambient";
+import { FilmAmbient } from "@/components/film/film-ambient";
+import { FilmScriptSource } from "../components/film-script-source";
+import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { cn } from "@/lib/utils";
 import { FilmCastStage } from "../components/film-cast-stage";
 import { FilmEditStage } from "../components/film-edit-stage";
@@ -16,10 +18,11 @@ import { FilmStoryboardStage } from "../components/film-storyboard-stage";
 import { useFilmAssetImage } from "../hooks/use-film-asset-image";
 import { useFilmShotImage } from "../hooks/use-film-shot-image";
 import { useFilmShotVideo } from "../hooks/use-film-shot-video";
-import { useFilmStore } from "../stores/use-film-store";
-import type { FilmAspect, FilmStage, FilmStylePresetId } from "../types";
-import { FILM_ASPECT_OPTIONS, filmAspectLabel, normalizeFilmAspect } from "../utils/film-aspects";
-import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel, normalizeFilmStylePreset } from "../utils/film-styles";
+import { useFilmTaskRecovery } from "../hooks/use-film-task-recovery";
+import { useFilmStore } from "@/stores/use-film-store";
+import type { FilmAspect, FilmStage, FilmStylePresetId } from "@/lib/film/types";
+import { FILM_ASPECT_OPTIONS, filmAspectLabel, normalizeFilmAspect } from "@/lib/film/film-aspects";
+import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel, normalizeFilmStylePreset } from "@/lib/film/film-styles";
 
 const STAGES: Array<{ key: FilmStage; label: string }> = [
     { key: "script", label: "剧本" },
@@ -50,6 +53,12 @@ export default function FilmProjectPage() {
     const assetGeneration = useFilmAssetImage(project, (patch) => {
         if (project) updateProject(project.id, patch);
     });
+    useFilmTaskRecovery(project, (patch) => {
+        if (project) updateProject(project.id, patch);
+    }, {
+        shotIds: [imageGeneration.generatingShotId, videoGeneration.generatingShotId].filter(Boolean),
+        assetIds: [assetGeneration.generatingAssetId].filter(Boolean),
+    });
 
     const switchStage = (next: FilmStage) => {
         setStage(next);
@@ -77,7 +86,7 @@ export default function FilmProjectPage() {
             <header className="relative shrink-0 overflow-hidden border-b border-border/70 bg-background/40">
                 <FilmAmbient className="-top-24 h-44 opacity-60" />
                 <div className="relative z-10 mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
-                    <Link href="/film" aria-label="返回影视项目" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
+                    <Link href="/film" aria-label="返回影视项目" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground [@media(pointer:coarse)]:size-10">
                         <ArrowLeft className="size-4" />
                     </Link>
                     <div className="min-w-0">
@@ -113,21 +122,28 @@ export default function FilmProjectPage() {
                     >
                         画幅 {filmAspectLabel(project.aspect)} · {filmStyleLabel(project.stylePreset)}
                     </button>
-                    <span className="hidden items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase sm:flex">
-                        <Check className="size-3 text-acid" aria-hidden />
-                        已自动保存
+                    <span className="hidden sm:block">
+                        <LocalSaveIndicator compact />
                     </span>
                 </div>
                 <div className="relative z-10 flex gap-1 overflow-x-auto border-t border-border/50 px-4 sm:hidden">
                     {STAGES.map((item) => (
-                        <button key={item.key} type="button" onClick={() => switchStage(item.key)} className={cn("relative px-3 py-2 text-xs", currentStage === item.key ? "text-acid" : "text-muted-foreground")}>
+                        <button key={item.key} type="button" onClick={() => switchStage(item.key)} className={cn("relative px-3 py-2 text-xs [@media(pointer:coarse)]:py-2.5", currentStage === item.key ? "text-acid" : "text-muted-foreground")}>
                             {item.label}
                         </button>
                     ))}
                 </div>
             </header>
 
-            <div className="relative min-h-0 flex-1 overflow-y-auto p-4 lg:overflow-hidden">
+            {project.scriptProjectId ? (
+                <div className="shrink-0 border-b border-border/60 bg-background/30">
+                    <div className="mx-auto flex min-h-9 max-w-[1600px] flex-wrap items-center gap-x-2 gap-y-1 px-4 py-1.5 text-xs sm:px-6">
+                        <FilmScriptSource project={project} onUpdate={(patch) => updateProject(project.id, patch)} />
+                    </div>
+                </div>
+            ) : null}
+
+            <div className="relative min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] max-lg:overscroll-contain lg:overflow-hidden lg:pb-4">
                 <div key={currentStage} className="film-stage-enter mx-auto max-w-[1600px] lg:h-full lg:min-h-0">
                     {currentStage === "script" ? (
                         <FilmScriptStage
@@ -139,6 +155,7 @@ export default function FilmProjectPage() {
                             batchProgress={imageGeneration.batchProgress}
                             onStopBatch={imageGeneration.stopBatch}
                             onGenerateVideo={videoGeneration.generateVideo}
+                            onStopVideo={videoGeneration.stopVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}
                         />
@@ -148,6 +165,7 @@ export default function FilmProjectPage() {
                             onUpdate={(patch) => updateProject(project.id, patch)}
                             onGenerateAsset={assetGeneration.generateAsset}
                             onGenerateView={assetGeneration.generateView}
+                            onStopAsset={assetGeneration.stopAsset}
                             generatingAssetId={assetGeneration.generatingAssetId}
                         />
                     ) : currentStage === "edit" ? (
@@ -160,11 +178,14 @@ export default function FilmProjectPage() {
                             onGenerateImage={imageGeneration.generate}
                             generatingShotId={imageGeneration.generatingShotId}
                             onGenerateImageBatch={imageGeneration.generateBatch}
+                            onStopImageBatch={imageGeneration.stopBatch}
                             batchProgress={imageGeneration.batchProgress}
                             onGenerateVideo={videoGeneration.generateVideo}
+                            onStopVideo={videoGeneration.stopVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}
                             onGenerateVideoBatch={videoGeneration.generateVideoBatch}
+                            onStopVideoBatch={videoGeneration.stopVideo}
                             videoBatchProgress={videoGeneration.batchProgress}
                         />
                     )}

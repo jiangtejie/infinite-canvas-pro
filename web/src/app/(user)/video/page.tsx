@@ -1,36 +1,33 @@
 "use client";
 
-import { ClipboardPaste, FolderPlus, Sparkles, Upload } from "lucide-react";
+import { ClipboardPaste, FolderPlus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { App, Button, Input, Modal, Switch } from "antd";
+import { App, Button, Modal } from "antd";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
 
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
-import { ModelPicker } from "@/components/model-picker";
-import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-header";
-import { PunkAura } from "@/components/ui/punk-aura";
-import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
+import type { WorkbenchLayout } from "@/components/workbench-header";
 import { LoadingState } from "@/components/ui/state-panel";
+import { WORKBENCH_BOTTOM_RESULTS_CLASS, WorkbenchShell } from "@/components/workbench/workbench-shell";
+import { VideoWorkbenchPanel } from "./components/workbench-panel";
 import type { GeneratedVideo, GenerationResult, GenerationLog, UpdateAiConfig, AssetPickerTarget, WorkflowPollContext } from "./history";
-import { logStore, createResultFromLog, copyPrompt, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, resolveKlingWorkbenchConfig, videoChannelProtocol, characterOrientationOptions, normalizeCharacterOrientation, klingBottomSizeValue, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeKlingV26Seconds, normalizeVideoSeconds, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
-import { FrameReferenceStrip, GenerationSettings, ReferenceQuickActions } from "./components/workbench-controls";
-import { ReferenceAudioStrip, ReferenceImageStrip, ReferenceVideoStrip } from "./components/reference-strips";
+import { logStore, createResultFromLog, copyPrompt, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, resolveKlingWorkbenchConfig, normalizeCharacterOrientation, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
+import { ReferenceVideoStrip } from "./components/reference-strips";
 import { ResultsPanel } from "./components/results-panel";
 import { useVideoTaskPolling } from "./hooks/use-video-task-polling";
 import { useVideoHistorySync } from "./hooks/use-video-history-sync";
 import { useVideoGeneration } from "./hooks/use-video-generation";
 import { useVideoTaskStop } from "./hooks/use-video-task-stop";
-import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
-import { getAutoDLCapabilities, isAutoDLConfig, normalizeAutoDLDuration } from "@/lib/autodl";
+import { getAutoDLCapabilities, isAutoDLConfig } from "@/lib/autodl";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
-import { kieKlingOmniVariant, normalizeVideoResolutionValue, videoResolutionOptions, videoSizeForResolution, videoSizeOptions } from "@/components/video-settings-panel";
+import { kieKlingOmniVariant } from "@/components/video-settings-panel";
 import { isMiniMaxH3Config } from "@/lib/minimax-video";
-import { ARK_SEEDANCE_REFERENCE_LIMITS, boolConfig, isSeedanceVideoConfig, seedanceVideoReferenceError, seedanceVideoReferenceHint, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
-import { COGVIDEOX3_DURATIONS, isAgnesVideoV25Model, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration, supportsVideoFrameReferences } from "@/lib/video-model-capabilities";
+import { ARK_SEEDANCE_REFERENCE_LIMITS, boolConfig, seedanceVideoReferenceError, seedanceVideoReferenceHint, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
+import { isAgnesVideoV25Model, modelKey, supportsVideoFrameReferences } from "@/lib/video-model-capabilities";
 import { deleteStoredMedia, downloadRemoteMedia, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { deleteStoredImages, uploadImage } from "@/services/image-storage";
 import { deleteVideoGenerationLogs, saveVideoGenerationLogs } from "@/services/api/generation-logs";
@@ -41,8 +38,6 @@ import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import type { WorkflowRef } from "@/lib/workflow-channel";
-
-const cogVideoX3DurationOptions = COGVIDEOX3_DURATIONS.map((value) => ({ value, label: `${value}s` }));
 
 import type { VideoGenerationSnapshot, VideoTaskRun } from "./task-types";
 
@@ -679,6 +674,7 @@ export default function VideoPage() {
         updateConfig("videoShotType", result.config.videoShotType || "intelligence");
         updateConfig("videoMultiPrompt", normalizeKlingMultiPrompts(result.config.videoMultiPrompt));
         updateConfig("videoElementList", normalizeKlingElementList(result.config.videoElementList));
+        if (result.taskCount) setTaskCount(normalizeVideoCount(result.taskCount));
         updateConfig("videoNegativePrompt", result.config.videoNegativePrompt || "");
         if (result.config.videoGenerateAudio) updateConfig("videoGenerateAudio", result.config.videoGenerateAudio);
         if (result.config.videoWatermark) updateConfig("videoWatermark", result.config.videoWatermark);
@@ -931,6 +927,8 @@ export default function VideoPage() {
         updateConfig("videoMultiShot", log.config.videoMultiShot || "false");
         updateConfig("videoShotType", log.config.videoShotType || "intelligence");
         updateConfig("videoMultiPrompt", normalizeKlingMultiPrompts(log.config.videoMultiPrompt));
+        updateConfig("videoElementList", normalizeKlingElementList(log.config.videoElementList));
+        if (log.taskCount) setTaskCount(normalizeVideoCount(log.taskCount));
         updateConfig("videoNegativePrompt", log.config.videoNegativePrompt || "");
         if (log.config.videoGenerateAudio) updateConfig("videoGenerateAudio", log.config.videoGenerateAudio);
         if (log.config.videoWatermark) updateConfig("videoWatermark", log.config.videoWatermark);
@@ -944,201 +942,130 @@ export default function VideoPage() {
         void submitGenerationSnapshot(snapshot);
     };
 
+    const resultsPanel = (
+        <ResultsPanel
+            className={workbenchLayout === "bottom" ? WORKBENCH_BOTTOM_RESULTS_CLASS : undefined}
+            results={results}
+            logs={logs}
+            pendingCount={pendingCount}
+            now={now}
+            selectedLogIds={selectedLogIds}
+            activeLogId={previewLog?.id}
+            onSelectedLogIdsChange={setSelectedLogIds}
+            onCreateSession={createSession}
+            onDeleteSelected={() => setDeleteConfirmOpen(true)}
+            onDeleteLog={(log) => {
+                setSelectedLogIds([log.id]);
+                setDeleteConfirmOpen(true);
+            }}
+            onPreviewLog={previewGenerationLog}
+            onRetryLog={retryGenerationLog}
+            onPreviewResult={previewGenerationResult}
+            onRetryResult={retryResult}
+            onStopResult={(result) => void stopVideoTask(result.taskLogId || result.id)}
+            onCopyPrompt={(value) => void copyPrompt(value, (content) => message.success(content))}
+            onDownload={downloadVideo}
+            onSyncResult={syncResultVideo}
+            onSyncLog={syncLogVideo}
+            onSaveAsset={saveResultToAssets}
+            syncingVideoIds={syncingVideoIds}
+            onUseExample={setPrompt}
+        />
+    );
+    const workbenchPanel = workbenchLayout === "side" && isKlingWorkbench ? (
+        <KlingV26WorkbenchPanel
+            isKlingV3={klingWorkbenchVariant === "v3"}
+            klingProvider={klingWorkbenchProvider}
+            klingOmniVariant={klingOmni}
+            referenceVideoCount={videoReferences.length}
+            referenceVideoSection={klingAcceptsVideoReferences ? <div className="space-y-2">
+                <div className="flex flex-wrap gap-1">
+                    <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={() => void addVideoReferencesFromClipboard()}>剪贴板</Button>
+                    <Button size="small" icon={<Upload className="size-3.5" />} onClick={() => fileInputRef.current?.click()}>上传</Button>
+                    <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => openAssetPicker("video")}>我的素材</Button>
+                </div>
+                <ReferenceVideoStrip references={videoReferences} maxCount={1} onRemoveReference={(id) => void removeVideoReference(id)} onMoveReference={(index, offset) => setVideoReferences((value) => moveListItem(value, index, offset))} />
+            </div> : undefined}
+            currentLayout={workbenchLayout}
+            prompt={prompt}
+            negativePrompt={negativePrompt}
+            references={references}
+            config={videoConfig}
+            model={model}
+            canGenerate={canGenerate}
+            running={running}
+            pendingCount={pendingCount}
+            taskCount={taskCount}
+            onTaskCountChange={setTaskCount}
+            updateConfig={updateVideoConfig}
+            openConfigDialog={openConfigDialog}
+            onLayoutChange={setWorkbenchLayout}
+            onPromptChange={setPrompt}
+            onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
+            onOpenPromptLibrary={() => setPromptDialogOpen(true)}
+            onOpenAssetPicker={openAssetPicker}
+            onPastePrompt={() => void pastePromptFromClipboard()}
+            onClearPrompt={() => setPrompt("")}
+            onPasteReferences={() => void addReferencesFromClipboard()}
+            onUploadReferences={() => fileInputRef.current?.click()}
+            onRemoveReference={(id) => void removeReference(id)}
+            onMoveReference={(index, offset) => setReferences((value) => moveListItem(value, index, offset))}
+            onPasteElementReferences={(index) => void addElementReferencesFromClipboard(index)}
+            onUploadElementReferences={uploadElementReferences}
+            onOpenElementAssetPicker={openElementAssetPicker}
+            onRemoveElementReference={removeElementReference}
+            onMoveElementReference={moveElementReference}
+            onGenerate={() => void generate()}
+        />
+    ) : (
+        <VideoWorkbenchPanel
+            layout={workbenchLayout}
+            currentLayout={workbenchLayout}
+            prompt={prompt}
+            negativePrompt={negativePrompt}
+            references={references}
+            firstFrame={firstFrame}
+            lastFrame={lastFrame}
+            videoReferences={videoReferences}
+            audioReferences={audioReferences}
+            config={videoConfig}
+            model={model}
+            canGenerate={canGenerate}
+            running={running}
+            pendingCount={pendingCount}
+            taskCount={taskCount}
+            onTaskCountChange={setTaskCount}
+            updateConfig={updateVideoConfig}
+            openConfigDialog={openConfigDialog}
+            onLayoutChange={setWorkbenchLayout}
+            onPromptChange={setPrompt}
+            onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
+            onOpenPromptLibrary={() => setPromptDialogOpen(true)}
+            onOpenAssetPicker={openAssetPicker}
+            onPastePrompt={() => void pastePromptFromClipboard()}
+            onClearPrompt={() => setPrompt("")}
+            onPasteReferences={() => void addReferencesFromClipboard()}
+            onPasteFrame={(slot) => void setFrameFromClipboard(slot)}
+            onPasteVideoReferences={() => void addVideoReferencesFromClipboard()}
+            onPasteAudioReferences={() => void addAudioReferencesFromClipboard()}
+            onUploadReferences={() => fileInputRef.current?.click()}
+            onUploadFrame={(slot) => (slot === "first" ? firstFrameInputRef.current?.click() : lastFrameInputRef.current?.click())}
+            onRemoveFrame={(slot) => void removeFrameReference(slot)}
+            onRemoveReference={(id) => void removeReference(id)}
+            onMoveReference={(index, offset) => setReferences((value) => moveListItem(value, index, offset))}
+            onRemoveVideoReference={(id) => void removeVideoReference(id)}
+            onMoveVideoReference={(index, offset) => setVideoReferences((value) => moveListItem(value, index, offset))}
+            onRemoveAudioReference={(id) => void removeAudioReference(id)}
+            onMoveAudioReference={(index, offset) => setAudioReferences((value) => moveListItem(value, index, offset))}
+            onGenerate={() => void generate()}
+            bottomSettingsCollapsed={bottomSettingsCollapsed}
+            setBottomSettingsCollapsed={setBottomSettingsCollapsed}
+        />
+    );
+
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
-            <main className={`${workbenchLayout === "side" ? "grid grid-cols-1 lg:grid-cols-[minmax(300px,376px)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-4 overflow-y-auto p-3 lg:overflow-hidden lg:p-4`}>
-                {workbenchLayout === "side" ? (
-                    <>
-                        {isKlingWorkbench ? (
-                            <KlingV26WorkbenchPanel
-                                isKlingV3={klingWorkbenchVariant === "v3"}
-                                klingProvider={klingWorkbenchProvider}
-                                klingOmniVariant={klingOmni}
-                                referenceVideoCount={videoReferences.length}
-                                referenceVideoSection={klingAcceptsVideoReferences ? <div className="space-y-2">
-                                    <div className="flex flex-wrap gap-1">
-                                        <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={() => void addVideoReferencesFromClipboard()}>剪贴板</Button>
-                                        <Button size="small" icon={<Upload className="size-3.5" />} onClick={() => fileInputRef.current?.click()}>上传</Button>
-                                        <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => openAssetPicker("video")}>我的素材</Button>
-                                    </div>
-                                    <ReferenceVideoStrip references={videoReferences} maxCount={1} onRemoveReference={(id) => void removeVideoReference(id)} onMoveReference={(index, offset) => setVideoReferences((value) => moveListItem(value, index, offset))} />
-                                </div> : undefined}
-                                currentLayout={workbenchLayout}
-                                prompt={prompt}
-                                negativePrompt={negativePrompt}
-                                references={references}
-                                config={videoConfig}
-                                model={model}
-                                canGenerate={canGenerate}
-                                running={running}
-                                pendingCount={pendingCount}
-                                taskCount={taskCount}
-                                onTaskCountChange={setTaskCount}
-                                updateConfig={updateVideoConfig}
-                                openConfigDialog={openConfigDialog}
-                                onLayoutChange={setWorkbenchLayout}
-                                onPromptChange={setPrompt}
-                                onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
-                                onOpenPromptLibrary={() => setPromptDialogOpen(true)}
-                                onOpenAssetPicker={openAssetPicker}
-                                onPastePrompt={() => void pastePromptFromClipboard()}
-                                onClearPrompt={() => setPrompt("")}
-                                onPasteReferences={() => void addReferencesFromClipboard()}
-                                onUploadReferences={() => fileInputRef.current?.click()}
-                                onRemoveReference={(id) => void removeReference(id)}
-                                onMoveReference={(index, offset) => setReferences((value) => moveListItem(value, index, offset))}
-                                onPasteElementReferences={(index) => void addElementReferencesFromClipboard(index)}
-                                onUploadElementReferences={uploadElementReferences}
-                                onOpenElementAssetPicker={openElementAssetPicker}
-                                onRemoveElementReference={removeElementReference}
-                                onMoveElementReference={moveElementReference}
-                                onGenerate={() => void generate()}
-                            />
-                        ) : (
-                        <WorkbenchPanel
-                            layout="side"
-                            currentLayout={workbenchLayout}
-                            prompt={prompt}
-                            references={references}
-                            firstFrame={firstFrame}
-                            lastFrame={lastFrame}
-                            videoReferences={videoReferences}
-                            audioReferences={audioReferences}
-                            config={videoConfig}
-                            model={model}
-                            canGenerate={canGenerate}
-                            running={running}
-                            pendingCount={pendingCount}
-                            taskCount={taskCount}
-                            onTaskCountChange={setTaskCount}
-                            updateConfig={updateVideoConfig}
-                            openConfigDialog={openConfigDialog}
-                            onLayoutChange={setWorkbenchLayout}
-                            onPromptChange={setPrompt}
-                            onOpenPromptLibrary={() => setPromptDialogOpen(true)}
-                            onOpenAssetPicker={openAssetPicker}
-                            onPastePrompt={() => void pastePromptFromClipboard()}
-                            onClearPrompt={() => setPrompt("")}
-                            onPasteReferences={() => void addReferencesFromClipboard()}
-                            onPasteFrame={(slot) => void setFrameFromClipboard(slot)}
-                            onPasteVideoReferences={() => void addVideoReferencesFromClipboard()}
-                            onPasteAudioReferences={() => void addAudioReferencesFromClipboard()}
-                            onUploadReferences={() => fileInputRef.current?.click()}
-                            onUploadFrame={(slot) => (slot === "first" ? firstFrameInputRef.current?.click() : lastFrameInputRef.current?.click())}
-                            onRemoveFrame={(slot) => void removeFrameReference(slot)}
-                            onRemoveReference={(id) => void removeReference(id)}
-                            onMoveReference={(index, offset) => setReferences((value) => moveListItem(value, index, offset))}
-                            onRemoveVideoReference={(id) => void removeVideoReference(id)}
-                            onMoveVideoReference={(index, offset) => setVideoReferences((value) => moveListItem(value, index, offset))}
-                            onRemoveAudioReference={(id) => void removeAudioReference(id)}
-                            onMoveAudioReference={(index, offset) => setAudioReferences((value) => moveListItem(value, index, offset))}
-                            onGenerate={() => void generate()}
-                        />
-                        )}
-                        <ResultsPanel
-                            results={results}
-                            logs={logs}
-                            pendingCount={pendingCount}
-                            now={now}
-                            selectedLogIds={selectedLogIds}
-                            activeLogId={previewLog?.id}
-                            onSelectedLogIdsChange={setSelectedLogIds}
-                            onCreateSession={createSession}
-                            onDeleteSelected={() => setDeleteConfirmOpen(true)}
-                            onDeleteLog={(log) => {
-                                setSelectedLogIds([log.id]);
-                                setDeleteConfirmOpen(true);
-                            }}
-                            onPreviewLog={previewGenerationLog}
-                            onRetryLog={retryGenerationLog}
-                            onPreviewResult={previewGenerationResult}
-                            onRetryResult={retryResult}
-                            onStopResult={(result) => void stopVideoTask(result.taskLogId || result.id)}
-                            onCopyPrompt={(value) => void copyPrompt(value, (content) => message.success(content))}
-                            onDownload={downloadVideo}
-                            onSyncResult={syncResultVideo}
-                            onSyncLog={syncLogVideo}
-                            onSaveAsset={saveResultToAssets}
-                            syncingVideoIds={syncingVideoIds}
-                            onUseExample={setPrompt}
-                        />
-                    </>
-                ) : (
-                    <>
-                        <ResultsPanel
-                            className="min-h-[360px] flex-1 pb-40 lg:pb-44"
-                            results={results}
-                            logs={logs}
-                            pendingCount={pendingCount}
-                            now={now}
-                            selectedLogIds={selectedLogIds}
-                            activeLogId={previewLog?.id}
-                            onSelectedLogIdsChange={setSelectedLogIds}
-                            onCreateSession={createSession}
-                            onDeleteSelected={() => setDeleteConfirmOpen(true)}
-                            onDeleteLog={(log) => {
-                                setSelectedLogIds([log.id]);
-                                setDeleteConfirmOpen(true);
-                            }}
-                            onPreviewLog={previewGenerationLog}
-                            onRetryLog={retryGenerationLog}
-                            onPreviewResult={previewGenerationResult}
-                            onRetryResult={retryResult}
-                            onStopResult={(result) => void stopVideoTask(result.taskLogId || result.id)}
-                            onCopyPrompt={(value) => void copyPrompt(value, (content) => message.success(content))}
-                            onDownload={downloadVideo}
-                            onSyncResult={syncResultVideo}
-                            onSyncLog={syncLogVideo}
-                            onSaveAsset={saveResultToAssets}
-                            syncingVideoIds={syncingVideoIds}
-                            onUseExample={setPrompt}
-                        />
-                        <WorkbenchPanel
-                            layout="bottom"
-                            currentLayout={workbenchLayout}
-                            prompt={prompt}
-                            negativePrompt={negativePrompt}
-                            references={references}
-                            firstFrame={firstFrame}
-                            lastFrame={lastFrame}
-                            videoReferences={videoReferences}
-                            audioReferences={audioReferences}
-                            config={videoConfig}
-                            model={model}
-                            canGenerate={canGenerate}
-                            running={running}
-                            pendingCount={pendingCount}
-                            taskCount={taskCount}
-                            onTaskCountChange={setTaskCount}
-                            updateConfig={updateVideoConfig}
-                            openConfigDialog={openConfigDialog}
-                            onLayoutChange={setWorkbenchLayout}
-                            onPromptChange={setPrompt}
-                            onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
-                            onOpenPromptLibrary={() => setPromptDialogOpen(true)}
-                            onOpenAssetPicker={openAssetPicker}
-                            onPastePrompt={() => void pastePromptFromClipboard()}
-                            onClearPrompt={() => setPrompt("")}
-                            onPasteReferences={() => void addReferencesFromClipboard()}
-                            onPasteFrame={(slot) => void setFrameFromClipboard(slot)}
-                            onPasteVideoReferences={() => void addVideoReferencesFromClipboard()}
-                            onPasteAudioReferences={() => void addAudioReferencesFromClipboard()}
-                            onUploadReferences={() => fileInputRef.current?.click()}
-                            onUploadFrame={(slot) => (slot === "first" ? firstFrameInputRef.current?.click() : lastFrameInputRef.current?.click())}
-                            onRemoveFrame={(slot) => void removeFrameReference(slot)}
-                            onRemoveReference={(id) => void removeReference(id)}
-                            onMoveReference={(index, offset) => setReferences((value) => moveListItem(value, index, offset))}
-                            onRemoveVideoReference={(id) => void removeVideoReference(id)}
-                            onMoveVideoReference={(index, offset) => setVideoReferences((value) => moveListItem(value, index, offset))}
-                            onRemoveAudioReference={(id) => void removeAudioReference(id)}
-                            onMoveAudioReference={(index, offset) => setAudioReferences((value) => moveListItem(value, index, offset))}
-                            onGenerate={() => void generate()}
-                            bottomSettingsCollapsed={bottomSettingsCollapsed}
-                            setBottomSettingsCollapsed={setBottomSettingsCollapsed}
-                        />
-                    </>
-                )}
-            </main>
+            <WorkbenchShell layout={workbenchLayout} panel={workbenchPanel} results={resultsPanel} />
             <input
                 ref={fileInputRef}
                 type="file"
@@ -1190,293 +1117,3 @@ export default function VideoPage() {
     );
 }
 
-function WorkbenchPanel({
-    layout,
-    currentLayout,
-    prompt,
-    negativePrompt = "",
-    references,
-    firstFrame,
-    lastFrame,
-    videoReferences,
-    audioReferences,
-    config,
-    model,
-    canGenerate,
-    pendingCount,
-    taskCount,
-    onTaskCountChange,
-    updateConfig,
-    openConfigDialog,
-    onLayoutChange,
-    onPromptChange,
-    onNegativePromptChange,
-    onOpenPromptLibrary,
-    onOpenAssetPicker,
-    onPastePrompt,
-    onClearPrompt,
-    onPasteReferences,
-    onPasteFrame,
-    onPasteVideoReferences,
-    onPasteAudioReferences,
-    onUploadReferences,
-    onUploadFrame,
-    onRemoveFrame,
-    onRemoveReference,
-    onMoveReference,
-    onRemoveVideoReference,
-    onMoveVideoReference,
-    onRemoveAudioReference,
-    onMoveAudioReference,
-    onGenerate,
-    bottomSettingsCollapsed = true,
-    setBottomSettingsCollapsed,
-}: {
-    layout: WorkbenchLayout;
-    currentLayout: WorkbenchLayout;
-    prompt: string;
-    negativePrompt?: string;
-    references: ReferenceImage[];
-    firstFrame: ReferenceImage | null;
-    lastFrame: ReferenceImage | null;
-    videoReferences: ReferenceVideo[];
-    audioReferences: ReferenceAudio[];
-    config: AiConfig;
-    model: string;
-    canGenerate: boolean;
-    running: boolean;
-    pendingCount: number;
-    taskCount: number;
-    onTaskCountChange: (value: number) => void;
-    updateConfig: UpdateAiConfig;
-    openConfigDialog: (shouldPromptContinue?: boolean) => void;
-    onLayoutChange: (layout: WorkbenchLayout) => void;
-    onPromptChange: (value: string) => void;
-    onNegativePromptChange?: (value: string) => void;
-    onOpenPromptLibrary: () => void;
-    onOpenAssetPicker: (target?: AssetPickerTarget) => void;
-    onPastePrompt: () => void;
-    onClearPrompt: () => void;
-    onPasteReferences: () => void;
-    onPasteFrame: (slot: "first" | "last") => void;
-    onPasteVideoReferences: () => void;
-    onPasteAudioReferences: () => void;
-    onUploadReferences: () => void;
-    onUploadFrame: (slot: "first" | "last") => void;
-    onRemoveFrame: (slot: "first" | "last") => void;
-    onRemoveReference: (id: string) => void;
-    onMoveReference: (index: number, offset: number) => void;
-    onRemoveVideoReference: (id: string) => void;
-    onMoveVideoReference: (index: number, offset: number) => void;
-    onRemoveAudioReference: (id: string) => void;
-    onMoveAudioReference: (index: number, offset: number) => void;
-    onGenerate: () => void;
-    bottomSettingsCollapsed?: boolean;
-    setBottomSettingsCollapsed?: (value: boolean) => void;
-}) {
-    const frameReferencesEnabled = Boolean(config.videoWorkflowRef) || supportsVideoFrameReferences(model, channelProtocolForConfig({ ...config, model }));
-    const referenceLimits = !config.videoWorkflowRef && channelProtocolForConfig({ ...config, model, videoModel: model }) === "ark" && (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5")) ? ARK_SEEDANCE_REFERENCE_LIMITS : SEEDANCE_REFERENCE_LIMITS;
-    const autodl = !config.videoWorkflowRef && isAutoDLConfig(config, model);
-    const { data: autodlWorkflow } = useAutoDLWorkflow(config, model);
-    const cogVideoX3 = !config.videoWorkflowRef && isCogVideoX3Model(model);
-    const audioGenerationEnabled = supportsVideoAudioGeneration(model);
-    const generateAudio = boolConfig(config.videoGenerateAudio, false);
-    const klingBottomConfig = config.videoWorkflowRef ? null : resolveKlingWorkbenchConfig(config, model);
-    const klingBottomVariant = klingBottomConfig?.variant || "";
-    const klingBottomProvider = klingBottomConfig?.provider || "apimart";
-    const klingBottom = Boolean(klingBottomConfig);
-    const showAudioSwitch = klingBottom || audioGenerationEnabled;
-    const motionControl = !config.videoWorkflowRef && (isAPIMartKlingMotionControlConfig(config, model) || isKIEKlingMotionControlConfig(config, model) || (videoChannelProtocol(config, model) === "tokendance" && modelKey(model) === "kling-3-0"));
-    const bottomSettingsGridClass = motionControl
-        ? showAudioSwitch ? "lg:grid-cols-[1.3fr_0.8fr_0.8fr_0.7fr_0.8fr_0.8fr_0.7fr_auto_auto]" : "lg:grid-cols-[1.3fr_0.8fr_0.8fr_0.7fr_0.8fr_0.7fr_auto_auto]"
-        : showAudioSwitch ? "lg:grid-cols-[1.3fr_0.8fr_0.8fr_0.7fr_0.8fr_0.7fr_auto_auto]" : "lg:grid-cols-[1.3fr_0.8fr_0.8fr_0.7fr_0.7fr_auto_auto]";
-    const initializedKlingV3BottomSecondsRef = useRef(false);
-
-    useEffect(() => {
-        if (klingBottomVariant !== "v3" || initializedKlingV3BottomSecondsRef.current) return;
-        initializedKlingV3BottomSecondsRef.current = true;
-        if (String(config.videoSeconds || "").trim() === "6") updateConfig("videoSeconds", "3");
-    }, [config.videoSeconds, klingBottomVariant, updateConfig]);
-
-    const [settingsOpen, setSettingsOpen] = useState(false);
-    useEffect(() => {
-        const media = window.matchMedia("(min-width: 1024px)");
-        const sync = () => setSettingsOpen(media.matches);
-        sync();
-        media.addEventListener("change", sync);
-        return () => media.removeEventListener("change", sync);
-    }, []);
-
-    if (layout === "bottom") {
-        return (
-            <BottomPromptComposer
-                prompt={prompt}
-                placeholder="描述镜头运动、主体动作、场景氛围和画面风格"
-                onPromptChange={onPromptChange}
-                canGenerate={canGenerate}
-                pendingCount={pendingCount}
-                settingsOpen={!bottomSettingsCollapsed}
-                onToggleSettings={() => setBottomSettingsCollapsed?.(!bottomSettingsCollapsed)}
-                onClearPrompt={onClearPrompt}
-                onOpenPromptLibrary={onOpenPromptLibrary}
-                onOpenAssetPicker={() => onOpenAssetPicker()}
-                onSwitchToSide={() => onLayoutChange("side")}
-                onGenerate={onGenerate}
-            >
-                        {klingBottom && klingBottomProvider !== "kie" ? (
-                            <Input.TextArea
-                                value={negativePrompt}
-                                onChange={(event) => onNegativePromptChange?.(event.target.value)}
-                                placeholder="负面提示词"
-                                autoSize={{ minRows: 1, maxRows: 3 }}
-                                className="rounded-lg"
-                            />
-                        ) : null}
-                        <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${bottomSettingsGridClass} ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
-                            <label className="grid gap-1 text-xs text-muted-foreground">
-                                模型
-                                <ModelPicker config={config} value={model} channelId={config.videoChannelId} workflowRef={config.videoWorkflowRef} onWorkflowChange={(value) => updateConfig("videoWorkflowRef", value)} onChange={(value, channelId) => { updateConfig("videoModel", value); if (channelId) updateConfig("videoChannelId", channelId); }} capability="video" className="canvas-compact-control !h-11 !rounded-xl" onMissingConfig={() => openConfigDialog(false)} fullWidth />
-                            </label>
-                            {klingBottom ? (
-                                <KlingV26BottomSettings config={config} updateConfig={updateConfig} generateAudio={generateAudio} isKlingV3={klingBottomVariant === "v3"} />
-                            ) : (
-                                <>
-                                    <QuickSelect label="清晰度" value={normalizeVideoResolutionValue(config.vquality)} options={isSeedanceVideoConfig(config) ? videoResolutionOptions.slice(0, 3) : videoResolutionOptions} onChange={(value) => { updateConfig("vquality", value); updateConfig("size", videoSizeForResolution(value, config.size)); }} />
-                                    <QuickSelect label="尺寸" value={videoSizeForResolution(config.vquality, config.size)} options={videoSizeOptions(config.vquality)} onChange={(value) => updateConfig("size", value)} />
-                                    {cogVideoX3 ? <QuickSelect label="秒数" value={normalizeCogVideoX3Duration(config.videoSeconds)} options={cogVideoX3DurationOptions} onChange={(value) => updateConfig("videoSeconds", value)} /> : <QuickNumber label="秒数" value={autodl ? config.videoSeconds ?? "" : normalizeVideoSeconds(config.videoSeconds)} min={1} max={30} onChange={(value) => updateConfig("videoSeconds", value)} clampOnChange={!autodl} normalizeOnBlur={autodl ? (value) => normalizeAutoDLDuration(value, autodlWorkflow) : undefined} />}
-                                    {audioGenerationEnabled ? <QuickSwitch label="生成音频" checked={generateAudio} onChange={(checked) => updateConfig("videoGenerateAudio", String(checked))} /> : null}
-                                    {motionControl ? <QuickSelect label="角色朝向参考" value={normalizeCharacterOrientation(config.videoCharacterOrientation)} options={characterOrientationOptions} onChange={(value) => updateConfig("videoCharacterOrientation", value)} /> : null}
-                                </>
-                            )}
-                            <QuickNumber label="任务" value={String(taskCount)} min={1} max={6} onChange={(value) => onTaskCountChange(normalizeVideoCount(value))} />
-                            <ReferenceQuickActions imageCount={references.length} videoCount={videoReferences.length} audioCount={audioReferences.length} onPasteReferences={onPasteReferences} onUploadReferences={onUploadReferences} />
-                            <Button type="primary" className="hidden h-11 min-w-28 items-center justify-center gap-1.5 rounded-xl lg:flex" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
-                                {pendingCount ? `${pendingCount} 生成中` : "开始创作"}
-                            </Button>
-                        </div>
-                        {firstFrame || lastFrame || references.length || videoReferences.length || audioReferences.length ? (
-                            <div className="grid gap-2">
-                                {firstFrame || lastFrame ? <FrameReferenceStrip firstFrame={firstFrame} lastFrame={lastFrame} compact onUploadFrame={onUploadFrame} onRemoveFrame={onRemoveFrame} /> : null}
-                                {references.length ? <ReferenceImageStrip references={references} compact onRemoveReference={onRemoveReference} onMoveReference={onMoveReference} /> : null}
-                                {videoReferences.length ? <ReferenceVideoStrip references={videoReferences} compact onRemoveReference={onRemoveVideoReference} onMoveReference={onMoveVideoReference} /> : null}
-                                {audioReferences.length ? <ReferenceAudioStrip references={audioReferences} compact onRemoveReference={onRemoveAudioReference} onMoveReference={onMoveAudioReference} /> : null}
-                            </div>
-                        ) : null}
-            </BottomPromptComposer>
-        );
-    }
-
-    return (
-        <div className="punk-panel flex min-h-[420px] flex-col overflow-hidden rounded-xl lg:min-h-0">
-            <div className="relative shrink-0 overflow-hidden border-b border-border/70 px-4 py-3">
-                <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden"><PunkAura className="punk-aura opacity-60" /></div>
-                <div className="relative"><WorkbenchHeader title="视频创作台" currentLayout={currentLayout} onLayoutChange={onLayoutChange} /></div>
-            </div>
-            <div className="thin-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-                <WorkbenchPromptSection prompt={prompt} placeholder="描述镜头运动、主体动作、场景氛围和画面风格" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={() => onOpenAssetPicker()} />
-                {frameReferencesEnabled ? (
-                    <WorkbenchSection title="首尾帧" count={[firstFrame, lastFrame].filter(Boolean).length}>
-                        <FrameReferenceStrip firstFrame={firstFrame} lastFrame={lastFrame} onPasteFrame={onPasteFrame} onUploadFrame={onUploadFrame} onOpenAssetPicker={onOpenAssetPicker} onRemoveFrame={onRemoveFrame} />
-                    </WorkbenchSection>
-                ) : null}
-                <WorkbenchSection title="参考图" count={references.length}>
-                    <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1">
-                            <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteReferences}>剪切板</Button>
-                            <Button size="small" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
-                            <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onOpenAssetPicker("image")}>从素材库选择</Button>
-                        </div>
-                        <ReferenceImageStrip references={references} maxCount={referenceLimits.images} onRemoveReference={onRemoveReference} onMoveReference={onMoveReference} />
-                    </div>
-                </WorkbenchSection>
-                <WorkbenchSection title="参考视频" count={videoReferences.length} collapsible defaultOpen={videoReferences.length > 0}>
-                    <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1">
-                            <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteVideoReferences}>剪贴板</Button>
-                            <Button size="small" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
-                            <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onOpenAssetPicker("video")}>从素材库选择</Button>
-                        </div>
-                        <ReferenceVideoStrip references={videoReferences} maxCount={referenceLimits.videos} onRemoveReference={onRemoveVideoReference} onMoveReference={onMoveVideoReference} />
-                    </div>
-                </WorkbenchSection>
-                <WorkbenchSection title="参考音频" count={audioReferences.length} collapsible defaultOpen={audioReferences.length > 0}>
-                    <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1">
-                            <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteAudioReferences}>剪贴板</Button>
-                            <Button size="small" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
-                            <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => onOpenAssetPicker("audio")}>从素材库选择</Button>
-                        </div>
-                        <ReferenceAudioStrip references={audioReferences} maxCount={referenceLimits.audios} onRemoveReference={onRemoveAudioReference} onMoveReference={onMoveAudioReference} />
-                    </div>
-                </WorkbenchSection>
-                {motionControl ? <CharacterOrientationSetting value={config.videoCharacterOrientation} onChange={(value) => updateConfig("videoCharacterOrientation", value)} /> : null}
-                <WorkbenchSection title="视频参数" collapsible defaultOpen={settingsOpen} key={settingsOpen ? "settings-open" : "settings-closed"}>
-                    <GenerationSettings config={config} model={model} updateConfig={updateConfig} openConfigDialog={openConfigDialog} />
-                </WorkbenchSection>
-                <WorkbenchSection title="任务数量">
-                    <TaskCountControl value={taskCount} onChange={onTaskCountChange} />
-                </WorkbenchSection>
-            </div>
-            <div className="shrink-0 border-t border-border/70 px-4 py-3">
-                <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
-                    {pendingCount ? `生成中（${pendingCount}）` : "开始生成"}
-                </Button>
-            </div>
-        </div>
-    );
-}
-
-function TaskCountControl({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-    return (
-        <label className="flex h-11 items-center gap-2 rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground">
-            <span className="shrink-0">任务</span>
-            <input className="h-7 w-16 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none" type="number" min={1} max={6} value={value} onChange={(event) => onChange(normalizeVideoCount(event.target.value))} />
-        </label>
-    );
-}
-
-function CharacterOrientationSetting({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-    const current = normalizeCharacterOrientation(value);
-    return (
-        <WorkbenchSection title="角色朝向参考">
-            <div className="grid grid-cols-2 gap-2.5">
-                {characterOrientationOptions.map((item) => (
-                    <button key={item.value} type="button" className={optionPillClass(current === item.value)} onClick={() => onChange(item.value)}>
-                        {item.label}
-                    </button>
-                ))}
-            </div>
-        </WorkbenchSection>
-    );
-}
-
-function optionPillClass(active: boolean) {
-    return [
-        "h-9 rounded-full border bg-transparent px-2 text-sm font-medium transition hover:opacity-80",
-        active ? "border-foreground text-foreground" : "border-border text-muted-foreground",
-    ].join(" ");
-}
-
-function KlingV26BottomSettings({ config, updateConfig, generateAudio, isKlingV3 }: { config: AiConfig; updateConfig: UpdateAiConfig; generateAudio: boolean; isKlingV3: boolean }) {
-    const mode = isKlingV3 && config.videoMode === "4k" ? "4k" : config.videoMode === "pro" ? "pro" : "std";
-    const modeOptions = isKlingV3 ? [{ value: "std", label: "720P" }, { value: "pro", label: "1080P" }, { value: "4k", label: "4K" }] : [{ value: "std", label: "标准(720P 无声)" }, { value: "pro", label: "专业(1080P 音频)" }];
-    return (
-        <>
-            <QuickSelect label="模式选择" value={mode} options={modeOptions} onChange={(value) => updateConfig("videoMode", value)} />
-            <QuickSelect label="尺寸" value={klingBottomSizeValue(config.size)} options={[{ value: "16:9", label: "16:9" }, { value: "9:16", label: "9:16" }, { value: "1:1", label: "1:1" }]} onChange={(value) => updateConfig("size", value === "1:1" ? "1024x1024" : value)} />
-            <QuickNumber label="秒数" value={isKlingV3 ? String(config.videoSeconds ?? "") : normalizeKlingV26Seconds(config.videoSeconds)} min={isKlingV3 ? 3 : 5} max={isKlingV3 ? 15 : 10} onChange={(value) => updateConfig("videoSeconds", isKlingV3 ? value : normalizeKlingV26Seconds(value))} clampOnChange={!isKlingV3} />
-            <QuickSwitch label="生成音频" checked={generateAudio} onChange={(checked) => updateConfig("videoGenerateAudio", String(checked))} />
-        </>
-    );
-}
-
-function QuickSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-    return (
-        <label className="grid gap-1 text-xs text-muted-foreground">
-            {label}
-            <span className="flex h-11 items-center justify-center rounded-xl border border-border bg-background px-3">
-                <Switch size="small" checked={checked} onChange={onChange} />
-            </span>
-        </label>
-    );
-}

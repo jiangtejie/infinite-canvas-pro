@@ -3,7 +3,7 @@
 import { ImageIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmAsset } from "../types";
+import type { FilmAsset } from "@/lib/film/types";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
 
 export function FilmImageThumbnail({ url, storageKey, alt, className }: { url?: string; storageKey?: string; alt?: string; className?: string }) {

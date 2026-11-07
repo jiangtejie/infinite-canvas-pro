@@ -10,7 +10,8 @@ import { isMiniMaxH3Config } from "@/lib/minimax-video";
 import { boolConfig, isSeedanceFastOrMiniModel, isSeedanceVideoModel, normalizeSeedanceRatio, normalizeSeedanceResolution, seedancePixelLabel, seedanceRatioOptions, seedanceResolutionOptions } from "@/lib/seedance-video";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { COGVIDEOX3_DURATIONS, isAgnesVideoV25Model, isCogVideoX3Model, modelKey, supportsVideoAudioGeneration, videoDurationOptionsForModel } from "@/lib/video-model-capabilities";
-import { grokVideoModeOptions, isAPIMartKlingV26Config, isAPIMartKlingV3Config, isKIEGrokVideoModel, isKIEKlingV3Config, klingV26DurationOptions, klingV26ModeOptions, klingV26RatioLabels, klingV26RatioOptions, klingV3DurationOptions, klingV3ModeOptions, normalizeKlingV26Ratio } from "@/services/api/protocols/kling-models";
+import { grokVideoModeOptions, isAPIMartKlingV26Config, isAPIMartKlingV3Config, isKIEGrokVideoModel, isKIEKlingV3Config, normalizeKlingV26Ratio } from "@/services/api/protocols/kling-models";
+import { klingModeItems, klingRatioItems, klingSecondsOptions, klingV3SecondsRange } from "@/components/workbench/kling-parameter-options";
 import { type AiConfig } from "@/stores/use-config-store";
 
 export { isAPIMartKlingV26Config, isAPIMartKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingV3Config, kieKlingOmniVariant, isKIEKlingMotionControlConfig, isKIEGrokVideoModel } from "@/services/api/protocols/kling-models";
@@ -202,7 +203,7 @@ function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                 )}
                 <SettingGroup title="模式选择" color={theme.node.muted}>
                     <div className={`grid gap-2.5 ${isV3 ? "grid-cols-3" : "grid-cols-2"}`}>
-                        {(isV3 ? klingV3ModeOptions : klingV26ModeOptions).map((item) => (
+                        {klingModeItems(isV3).map((item) => (
                             <button
                                 key={item.value}
                                 type="button"
@@ -211,15 +212,15 @@ function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={() => onConfigChange("videoMode", item.value)}
                             >
-                                <span>{item.title}</span>
-                                <span>{item.desc}</span>
+                                <span>{item.label}</span>
+                                <span>{item.caption}</span>
                             </button>
                         ))}
                     </div>
                 </SettingGroup>
                 <SettingGroup title="比例" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">
-                        {klingV26RatioOptions.map((item) => (
+                        {klingRatioItems.map((item) => (
                             <button
                                 key={item.value}
                                 type="button"
@@ -230,7 +231,7 @@ function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                             >
                                 <SizePreview width={ratioPreview(item.value).width} height={ratioPreview(item.value).height} color={theme.node.text} />
                                 <span>{item.label}</span>
-                                <span className="text-[10px] leading-none opacity-55">{klingV26RatioLabels[item.value]}</span>
+                                <span className="text-[10px] leading-none opacity-55">{item.caption}</span>
                             </button>
                         ))}
                     </div>
@@ -238,7 +239,7 @@ function KlingV26VideoSettingsPanel({ config, modelName, onConfigChange, theme, 
                 {!visualOnly ? (
                     <>
                         <SettingGroup title="时长" color={theme.node.muted}>
-                            <VideoDurationField value={config.videoSeconds} options={isV3 ? durationRange(klingV3DurationOptions[0], klingV3DurationOptions[1]) : klingV26DurationOptions} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
+                            <KlingDurationControl isV3={isV3} value={config.videoSeconds} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
                         </SettingGroup>
                         <AudioGenerationSetting checked={generateAudio} hint={isV3 ? undefined : "仅专业模式，仅一张参考图可用"} theme={theme} onChange={(checked) => onConfigChange("videoGenerateAudio", String(checked))} />
                     </>
@@ -378,6 +379,22 @@ function SettingGroup({ title, color, children }: { title: string; color: string
                 {title}
             </div>
             {children}
+        </div>
+    );
+}
+
+/** Kling 时长：v3 用 3-15 秒数字输入，v2.6 用 5s / 10s 选项，与底部创作栏参数保持一致。 */
+function KlingDurationControl({ isV3, value, theme, onChange }: { isV3: boolean; value: string; theme: CanvasTheme; onChange: (value: string) => void }) {
+    if (isV3) {
+        return <NumberInput value={value} theme={theme} onChange={onChange} onBlur={(next) => onChange(String(Math.max(klingV3SecondsRange.min, Math.min(klingV3SecondsRange.max, Math.floor(Number(next) || klingV3SecondsRange.min)))))} />;
+    }
+    return (
+        <div className="grid grid-cols-2 gap-2.5">
+            {klingSecondsOptions(false).map((item) => (
+                <OptionPill key={item.value} selected={value === item.value} theme={theme} onClick={() => onChange(item.value)}>
+                    {item.label}
+                </OptionPill>
+            ))}
         </div>
     );
 }

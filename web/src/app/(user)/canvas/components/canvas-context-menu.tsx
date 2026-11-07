@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
-import { BetweenHorizontalStart, GalleryHorizontal, GalleryHorizontalEnd, Plus, Trash2 } from "lucide-react";
+import { BetweenHorizontalStart, GalleryHorizontal, GalleryHorizontalEnd, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useFocusRestore } from "@/hooks/use-focus-restore";
@@ -9,7 +9,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import type { ContextMenuState } from "../types";
 import type { VideoFramePosition } from "../utils/canvas-video-frame";
 
-export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, onClose, onCaptureVideoFrame, onDuplicate, onDelete }: { menu: ContextMenuState; canCaptureVideoFrame: boolean; onClose: () => void; onCaptureVideoFrame: (position: VideoFramePosition) => void; onDuplicate: () => void; onDelete: () => void }) {
+export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, canGenerate, canEdit, generateLabel, onClose, onCaptureVideoFrame, onEdit, onGenerate, onDuplicate, onDelete }: { menu: ContextMenuState; canCaptureVideoFrame: boolean; canGenerate: boolean; canEdit: boolean; generateLabel: string; onClose: () => void; onCaptureVideoFrame: (position: VideoFramePosition) => void; onEdit: () => void; onGenerate: () => void; onDuplicate: () => void; onDelete: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -59,6 +59,9 @@ export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, onClose, onC
             onPointerDown={(event) => event.stopPropagation()}
             onKeyDown={handleKeyDown}
         >
+            {canGenerate ? <MenuButton icon={<Sparkles className="size-4" />} label={generateLabel} onClick={onGenerate} /> : null}
+            {canEdit ? <MenuButton icon={<Pencil className="size-4" />} label="编辑提示词" onClick={onEdit} /> : null}
+            {canGenerate || canEdit ? <div className="my-1 border-t" style={{ borderColor: theme.toolbar.border }} /> : null}
             {canCaptureVideoFrame ? (
                 <>
                     <MenuButton icon={<BetweenHorizontalStart className="size-4" />} label="截取首帧" onClick={() => onCaptureVideoFrame("first")} />

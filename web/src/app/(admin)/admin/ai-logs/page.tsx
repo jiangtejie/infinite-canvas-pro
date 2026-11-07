@@ -1,11 +1,14 @@
 "use client";
 
-import { DeleteOutlined, EyeOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { App, Card, Flex, Table, Tag } from "antd";
+import { useEffect, useRef, useState } from "react";
 
 import { deleteAdminAICallLogs, fetchAdminAICallLogs, fetchAdminSettings, saveAdminSettings, type AdminAICallLog } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
+
+import { AiLogDetailModal } from "./components/ai-log-detail-modal";
+import { AiLogFilterBar } from "./components/ai-log-filter-bar";
+import { buildAiLogColumns, type AiLogDetail } from "./components/ai-log-table-columns";
 
 export default function AdminAICallLogsPage() {
     const token = useUserStore((state) => state.token);
@@ -18,7 +21,7 @@ export default function AdminAICallLogsPage() {
     const [loading, setLoading] = useState(false);
     const [clearDays, setClearDays] = useState(7);
     const [clearing, setClearing] = useState(false);
-    const [detail, setDetail] = useState<{ title: string; value: string } | null>(null);
+    const [detail, setDetail] = useState<AiLogDetail | null>(null);
     const [localDirectReportEnabled, setLocalDirectReportEnabled] = useState(false);
     const [savingLocalDirectReport, setSavingLocalDirectReport] = useState(false);
 
@@ -91,70 +94,31 @@ export default function AdminAICallLogsPage() {
         }
     };
 
-    const columns = useMemo(
-        () => [
-            { title: "时间", dataIndex: "createdAt", width: 170, render: (value: string) => formatTime(value) },
-            { title: "用户", dataIndex: "userDisplayName", width: 150, render: (_: string, item: AdminAICallLog) => item.userDisplayName || item.userId || "-" },
-            { title: "接口", dataIndex: "endpoint", width: 170 },
-            { title: "模型", dataIndex: "model", width: 180, ellipsis: true },
-            { title: "渠道", dataIndex: "channelName", width: 150, ellipsis: true, render: (_: string, item: AdminAICallLog) => item.channelName || item.channelId || "-" },
-            { title: "状态", dataIndex: "status", width: 90, render: (status: number, item: AdminAICallLog) => <Tag color={!item.failed && status >= 200 && status < 400 ? "success" : "error"}>{status || "失败"}</Tag> },
-            { title: "耗时", dataIndex: "durationMs", width: 110, render: (value: number) => formatElapsed(value) },
-            { title: "扣点", dataIndex: "credits", width: 80 },
-            {
-                title: "操作",
-                key: "actions",
-                width: 180,
-                fixed: "right" as const,
-                render: (_: unknown, item: AdminAICallLog) => (
-                    <Space size={6}>
-                        <Button size="small" icon={<EyeOutlined />} onClick={() => setDetail({ title: "请求详情", value: item.requestBody })}>
-                            请求详情
-                        </Button>
-                        <Button size="small" icon={<EyeOutlined />} onClick={() => setDetail({ title: "返回详情", value: item.responseBody || item.error })}>
-                            返回详情
-                        </Button>
-                    </Space>
-                ),
-            },
-        ],
-        [],
-    );
+    const columns = buildAiLogColumns({ onDetail: setDetail });
 
     return (
         <main className="p-3 md:p-6">
             <Flex vertical gap={16} className="w-full">
-                <Card variant="borderless">
-                    <Form
-                        layout="vertical"
-                        onFinish={() => {
-                            setPage(1);
-                            void loadLogs();
-                        }}
-                    >
-                        <div className="flex flex-wrap items-center gap-3">
-                            <Input className="min-w-[280px] flex-1 lg:max-w-[460px]" value={keyword} placeholder="搜索用户、模型、渠道、接口或错误" onChange={(event) => setKeyword(event.target.value)} />
-                            <Button htmlType="submit" type="primary" icon={<SearchOutlined />}>
-                                查询
-                            </Button>
-                            <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(""); setPage(1); void loadLogs(); }}>
-                                重置
-                            </Button>
-                            <div className="flex h-8 items-center gap-2 rounded-md border border-border bg-background px-3">
-                                <Typography.Text className="whitespace-nowrap text-sm">本地直连日志</Typography.Text>
-                                <Switch size="small" checked={localDirectReportEnabled} loading={savingLocalDirectReport} onChange={(checked) => void updateLocalDirectReport(checked)} />
-                            </div>
-                            <div className="flex h-8 items-center gap-2">
-                                <Typography.Text className="whitespace-nowrap text-sm">清理超过</Typography.Text>
-                                <InputNumber min={1} value={clearDays} className="!w-24" onChange={(value) => setClearDays(Number(value) || 7)} />
-                                <Typography.Text type="secondary" className="shrink-0">天前</Typography.Text>
-                            </div>
-                            <Button danger icon={<DeleteOutlined />} loading={clearing} onClick={() => void clearLogs()} className="ml-0 lg:ml-auto">
-                                清理旧日志
-                            </Button>
-                        </div>
-                    </Form>
-                </Card>
+                <AiLogFilterBar
+                    keyword={keyword}
+                    setKeyword={setKeyword}
+                    onSearch={() => {
+                        setPage(1);
+                        void loadLogs();
+                    }}
+                    onReset={() => {
+                        setKeyword("");
+                        setPage(1);
+                        void loadLogs();
+                    }}
+                    localDirectReportEnabled={localDirectReportEnabled}
+                    savingLocalDirectReport={savingLocalDirectReport}
+                    onToggleLocalDirectReport={(checked) => void updateLocalDirectReport(checked)}
+                    clearDays={clearDays}
+                    setClearDays={setClearDays}
+                    clearing={clearing}
+                    onClearLogs={() => void clearLogs()}
+                />
                 <Card variant="borderless" title={<span>AI 调用日志 <Tag>{total} 条</Tag></span>}>
                     <Table
                         rowKey="id"
@@ -176,26 +140,7 @@ export default function AdminAICallLogsPage() {
                     />
                 </Card>
             </Flex>
-            <Modal title={detail?.title || "AI 调用详情"} open={Boolean(detail)} width="min(1100px, 92vw)" footer={null} onCancel={() => setDetail(null)} destroyOnHidden>
-                <LogBlock value={detail?.value || ""} />
-            </Modal>
+            <AiLogDetailModal detail={detail} onClose={() => setDetail(null)} />
         </main>
     );
-}
-
-function LogBlock({ value }: { value: string }) {
-    return (
-        <pre className="max-h-[72vh] whitespace-pre-wrap break-words overflow-auto rounded-lg border border-border bg-muted p-3 text-xs leading-5 text-foreground">{value || "-"}</pre>
-    );
-}
-
-function formatTime(value: string) {
-    if (!value) return "-";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-}
-
-function formatElapsed(value: number) {
-    if (!Number.isFinite(value) || value <= 0) return "-";
-    return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${value}ms`;
 }

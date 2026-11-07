@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { FilmVideoSegment } from "../types";
+import type { FilmVideoSegment } from "@/lib/film/types";
 
 export function createDefaultSegments(duration: number): FilmVideoSegment[] {
     return [{ id: nanoid(), start: 0, end: Math.max(1, Math.round(duration)), prompt: "" }];

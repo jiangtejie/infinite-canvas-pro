@@ -5,8 +5,8 @@ import { App, Button, Input, Modal, Select } from "antd";
 import { ImagePlus, Library, MapPin, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
-import { useFilmCastStore } from "../stores/use-film-cast-store";
+import type { FilmAsset, FilmAssetKind, FilmProject } from "@/lib/film/types";
+import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { addFilmAsset, importFilmAsset, removeFilmAsset, updateFilmAsset } from "../utils/film-edits";
 import { FILM_LOCATION_VIEW_PRESETS, type FilmViewPreset } from "../utils/film-view-presets";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
@@ -17,13 +17,14 @@ type FilmLocationWorkspaceProps = {
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     onGenerateAsset: (asset: FilmAsset, kind: FilmAssetKind) => void;
     onGenerateView: (asset: FilmAsset, kind: FilmAssetKind, preset: FilmViewPreset) => void;
+    onStopAsset: () => void;
     generatingAssetId: string;
 };
 
-export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGenerateView, generatingAssetId }: FilmLocationWorkspaceProps) {
+export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGenerateView, onStopAsset, generatingAssetId }: FilmLocationWorkspaceProps) {
     const { message } = App.useApp();
     const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
-    const locations = project.locations || [];
+    const locations = useMemo(() => project.locations || [], [project.locations]);
     const libraryLocations = useFilmCastStore((state) => state.locations);
     const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
     const [selectedId, setSelectedId] = useState("");
@@ -81,7 +82,7 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
 
     return (
         <div className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_400px]">
-            <section className="punk-panel flex max-h-[75vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+            <section className="punk-panel flex max-h-[75dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                 <div className="relative flex shrink-0 flex-wrap items-center gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
                     <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">场景库</span>
@@ -113,7 +114,7 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                 </div>
             </section>
 
-            <section className="punk-panel flex max-h-[75vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+            <section className="punk-panel flex max-h-[75dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                 <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
                     <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">场景详情</span>
@@ -152,6 +153,7 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                                 <Button type="primary" size="small" loading={generatingAssetId === selected.id} icon={<ImagePlus className="size-3.5" />} onClick={() => onGenerateAsset(selected, "location")}>
                                     {selected.imageUrl ? "重新生成概念图" : "生成概念图"}
                                 </Button>
+                                {generatingAssetId === selected.id ? <Button size="small" danger onClick={onStopAsset}>停止生成</Button> : null}
                                 <Button size="small" icon={<Library className="size-3.5" />} onClick={saveToLibrary}>存入场景库</Button>
                                 <Button danger size="small" icon={<Trash2 className="size-3.5" />} onClick={removeSelected}>删除</Button>
                             </div>
@@ -171,7 +173,7 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
 
             <Modal title="从场景库导入" open={importOpen} onCancel={() => setImportOpen(false)} footer={null} width={680}>
                 {libraryLocations.length === 0 ? <p className="py-4 text-center text-xs text-muted-foreground">场景库还是空的，先在项目里生成并点「存入场景库」。</p> : null}
-                <div className="thin-scrollbar grid max-h-[60vh] gap-2 overflow-y-auto sm:grid-cols-2">
+                <div className="thin-scrollbar grid max-h-[60dvh] gap-2 overflow-y-auto sm:grid-cols-2">
                     {libraryLocations.map((asset) => (
                         <button key={asset.id} type="button" onClick={() => importFromLibrary(asset)} className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-card/50 p-2 text-left transition-colors hover:border-acid/50">
                             <FilmImageThumbnail url={asset.imageUrl} storageKey={asset.storageKey} alt={asset.name} className="size-12 shrink-0 rounded-md border border-border/60" />

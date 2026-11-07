@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { App, Button, Checkbox, Image, Input, Modal, Select, Spin } from "antd";
 import { Download, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import styles from "./film-character.module.css";
 import { uploadImage } from "@/services/image-storage";
-import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmImageRef, FilmProject } from "../types";
-import { useFilmCastStore } from "../stores/use-film-cast-store";
+import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmImageRef, FilmProject } from "@/lib/film/types";
+import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { useFilmCharacterImage } from "../hooks/use-film-character-image";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
 import { addFilmAsset, importFilmAsset, removeFilmAsset } from "../utils/film-edits";
@@ -22,47 +23,13 @@ type FilmCharacterWorkspaceProps = {
 
 type UploadTarget = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | null;
 
-const CHARACTER_LAYOUT_STYLE = `
-.film-character-layout { display: grid; gap: 12px; }
-.film-character-body { display: grid; gap: 8px; }
-.film-slot-column { display: flex; flex-direction: column; gap: 8px; }
-.film-stage { position: relative; overflow: hidden; border-radius: 12px; background: var(--card); min-height: 420px; }
-.film-stage::before {
-    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
-    background:
-        radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--acid) 12%, transparent), transparent 58%),
-        radial-gradient(ellipse at 50% 108%, rgba(0,0,0,.55), transparent 55%);
-}
-.film-stage::after {
-    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .35;
-    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
-    background-size: 18px 18px;
-}
-.film-stage-frame {
-    position: relative; border: 1px solid color-mix(in srgb, var(--acid) 28%, var(--border));
-    border-radius: 12px; padding: 6px; background: rgba(0,0,0,.22);
-    box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
-}
-.film-stage-corner { position: absolute; width: 12px; height: 12px; border-color: var(--acid); border-style: solid; opacity: .75; }
-.film-stage-scan {
-    position: absolute; left: 0; right: 0; height: 32%; pointer-events: none;
-    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--acid) 16%, transparent), transparent);
-    animation: film-stage-scan 1.8s linear infinite;
-}
-@keyframes film-stage-scan { from { top: -32%; } to { top: 100%; } }
-@media (min-width: 1024px) {
-    .film-character-layout { grid-template-columns: 190px minmax(0, 1fr) 330px; height: 100%; min-height: 0; }
-    .film-character-body { grid-template-columns: 104px minmax(0, 1fr) 104px; flex: 1; min-height: 0; }
-}
-`;
-
 export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
     const { modal, message } = App.useApp();
     const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
-    const characters = project.characters || [];
+    const characters = useMemo(() => project.characters || [], [project.characters]);
     const libraryCharacters = useFilmCastStore((state) => state.characters);
     const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
-    const { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard: createCard } = useFilmCharacterImage(project, onUpdate);
+    const { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard: createCard, stopCharacterImage } = useFilmCharacterImage(project, onUpdate);
     const [selectedId, setSelectedId] = useState("");
     const [selectedPart, setSelectedPart] = useState<FilmCharacterPartKey>("face");
     const [previewMode, setPreviewMode] = useState<"master" | "part">("master");
@@ -267,9 +234,8 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
     return (
         <>
-            <style>{CHARACTER_LAYOUT_STYLE}</style>
-            <div className="film-character-layout min-h-0">
-                <section className="punk-panel flex max-h-[80vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+            <div className={cn(styles.characterLayout, "min-h-0")}>
+                <section className="punk-panel flex max-h-[80dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                     <div className="flex shrink-0 items-center gap-1 border-b border-border/60 px-3 py-2.5">
                         <span className="eyebrow">01 角色</span>
                         <Button size="small" type="text" icon={<Plus className="size-3.5" />} onClick={createCharacter} aria-label="新建角色" />
@@ -347,8 +313,8 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                             <Button className="mt-4" size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createCharacter}>新建第一个角色</Button>
                         </div>
                     ) : (
-                        <div className="film-character-body min-h-0 p-3">
-                            <div className="film-slot-column hidden lg:flex">
+                        <div className={cn(styles.characterBody, "min-h-0 p-3")}>
+                            <div className={cn(styles.slotColumn, "hidden lg:flex")}>
                                 <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">02 头部</span>
                                 {(["face", "hair"] as FilmCharacterPartKey[]).map((key) => (
                                     <PartSlot key={key} partKey={key} profile={profile!} selected={selectedPart === key} generating={generatingKey === `part:${key}`} onSelect={() => selectPart(key)} onGenerate={() => confirmGeneratePart(key)} />
@@ -357,7 +323,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                             </div>
 
                             <div className="flex min-h-0 flex-col gap-2">
-                                <div className="film-stage flex min-h-[420px] flex-1 flex-col p-3">
+                                <div className={cn(styles.stage, "flex min-h-[420px] flex-1 flex-col p-3")}>
                                     <div className="relative z-10 flex flex-wrap items-center gap-2">
                                         <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/60 p-0.5 backdrop-blur">
                                             <button type="button" onClick={() => setPreviewMode("master")} aria-pressed={previewMode === "master"} className={cn("rounded px-2 py-1 text-[11px] transition-colors", previewMode === "master" ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}>全身合成</button>
@@ -380,19 +346,19 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
                                     <div className="relative z-10 flex min-h-[300px] flex-1 items-center justify-center px-2 py-4">
                                         {previewImage ? (
-                                            <div className="film-stage-frame" style={{ transform: `scale(${stageZoom})`, transition: "transform 150ms ease" }}>
+                                            <div className={styles.stageFrame} style={{ transform: `scale(${stageZoom})`, transition: "transform 150ms ease" }}>
                                                 <Image src={previewImage.url} alt={previewMode === "master" ? "全身合成图" : characterPartLabel(selectedPart)} style={{ maxHeight: 420, width: "auto" }} className="rounded-md" preview={{ mask: "放大预览" }} />
-                                                <span aria-hidden className="film-stage-corner" style={{ left: -1, top: -1, borderWidth: "2px 0 0 2px" }} />
-                                                <span aria-hidden className="film-stage-corner" style={{ right: -1, top: -1, borderWidth: "2px 2px 0 0" }} />
-                                                <span aria-hidden className="film-stage-corner" style={{ left: -1, bottom: -1, borderWidth: "0 0 2px 2px" }} />
-                                                <span aria-hidden className="film-stage-corner" style={{ right: -1, bottom: -1, borderWidth: "0 2px 2px 0" }} />
+                                                <span aria-hidden className={styles.stageCorner} style={{ left: -1, top: -1, borderWidth: "2px 0 0 2px" }} />
+                                                <span aria-hidden className={styles.stageCorner} style={{ right: -1, top: -1, borderWidth: "2px 2px 0 0" }} />
+                                                <span aria-hidden className={styles.stageCorner} style={{ left: -1, bottom: -1, borderWidth: "0 0 2px 2px" }} />
+                                                <span aria-hidden className={styles.stageCorner} style={{ right: -1, bottom: -1, borderWidth: "0 2px 2px 0" }} />
                                             </div>
                                         ) : (
                                             <EmptyStage />
                                         )}
                                         {(previewMode === "master" ? generatingMaster : generatingPart) ? (
                                             <div className="absolute inset-0 grid place-items-center rounded-lg bg-background/60 backdrop-blur-[2px]">
-                                                <span className="film-stage-scan" aria-hidden />
+                                                <span className={styles.stageScan} aria-hidden />
                                                 <div className="relative z-10 flex flex-col items-center gap-2">
                                                     <Spin size="small" />
                                                     <span className="font-mono text-[10px] text-acid">{previewMode === "master" ? "正在合成全身图" : `正在生成${characterPartLabel(selectedPart)}`} · {elapsed}s</span>
@@ -432,11 +398,12 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                     <Button size="small" disabled={!cardImage} icon={<Download className="size-3.5" />} onClick={downloadCard}>下载角色卡</Button>
                                     <Button size="small" icon={profile?.masterLocked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={toggleMasterLock}>{profile?.masterLocked ? "已锁定" : "锁定合成图"}</Button>
                                     <Button size="small" icon={<Library className="size-3.5" />} onClick={saveToLibrary}>存入角色库</Button>
+                                    {generatingKey || batchProgress ? <Button size="small" danger onClick={stopCharacterImage}>停止生成</Button> : null}
                                     <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={removeSelected}>删除</Button>
                                 </div>
                             </div>
 
-                            <div className="film-slot-column hidden lg:flex">
+                            <div className={cn(styles.slotColumn, "hidden lg:flex")}>
                                 <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">02 身体</span>
                                 {(["upper", "lower", "limbs"] as FilmCharacterPartKey[]).map((key) => (
                                     <PartSlot key={key} partKey={key} profile={profile!} selected={selectedPart === key} generating={generatingKey === `part:${key}`} onSelect={() => selectPart(key)} onGenerate={() => confirmGeneratePart(key)} />
@@ -452,7 +419,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     )}
                 </section>
 
-                <section className="punk-panel flex max-h-[80vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                <section className="punk-panel flex max-h-[80dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                     <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
                         <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                         <span className="eyebrow">04 {characterPartLabel(selectedPart)}参考</span>
@@ -518,7 +485,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
             <input ref={uploadRef} hidden type="file" accept="image/*" onChange={handleFile} />
 
-            <Modal title="生成角色卡" open={cardOpen} onCancel={() => setCardOpen(false)} footer={null} width={520}>
+            <Modal title="生成角色卡" open={cardOpen} onCancel={() => { if (!composingCard) setCardOpen(false); }} maskClosable={!composingCard} footer={null} width={520}>
                 <div className="grid gap-3">
                     <label className="grid gap-1">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">版式</span>
@@ -544,7 +511,8 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                         {masterImages.length ? "角色卡由浏览器本地拼合，不额外消耗生成次数；分镜生成默认只引用这一张。" : "还没有全身图，确认后会先生成一张全身三视图（消耗一次生成），再拼成角色卡。"}
                     </p>
                     <div className="flex justify-end gap-2">
-                        <Button onClick={() => setCardOpen(false)}>取消</Button>
+                        <Button onClick={() => setCardOpen(false)} disabled={composingCard}>取消</Button>
+                        {composingCard ? <Button danger onClick={stopCharacterImage}>停止生成</Button> : null}
                         <Button type="primary" loading={composingCard} onClick={() => void generateCard()}>生成角色卡</Button>
                     </div>
                 </div>
@@ -552,7 +520,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
             <Modal title="从角色库导入" open={importOpen} onCancel={() => setImportOpen(false)} footer={null} width={680}>
                 {libraryCharacters.length === 0 ? <p className="py-4 text-center text-xs text-muted-foreground">角色库还是空的，先在项目里生成并点「存入角色库」。</p> : null}
-                <div className="thin-scrollbar grid max-h-[60vh] gap-2 overflow-y-auto sm:grid-cols-2">
+                <div className="thin-scrollbar grid max-h-[60dvh] gap-2 overflow-y-auto sm:grid-cols-2">
                     {libraryCharacters.map((asset) => (
                         <button key={asset.id} type="button" onClick={() => importFromLibrary(asset)} className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-card/50 p-2 text-left transition-colors hover:border-acid/50">
                             <FilmImageThumbnail url={asset.imageUrl} storageKey={asset.storageKey} alt={asset.name} className="size-12 shrink-0 rounded-md border border-border/60" />

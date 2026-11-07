@@ -16,7 +16,7 @@ export function ReferenceImageStrip({ references, compact = false, maxCount = SE
                     <img loading="lazy" decoding="async" src={item.dataUrl} alt={item.name} className="size-full object-cover" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{seedanceReferenceLabel("image", index)}</span>
                     <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
-                    <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label="移除参考图">
+                    <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={() => onRemoveReference(item.id)} aria-label="移除参考图">
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>
@@ -34,7 +34,7 @@ export function ReferenceVideoStrip({ references, compact = false, maxCount = SE
                     <video src={item.url} className="size-full object-cover" muted preload="metadata" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{seedanceReferenceLabel("video", index)}</span>
                     <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
-                    <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label="移除参考视频">
+                    <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={() => onRemoveReference(item.id)} aria-label="移除参考视频">
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>
@@ -56,7 +56,7 @@ export function ReferenceAudioStrip({ references, compact = false, maxCount = SE
                     </div>
                     {!compact ? <audio src={item.url} controls className="h-8 w-full" preload="metadata" /> : null}
                     <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
-                    <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label="移除参考音频">
+                    <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={() => onRemoveReference(item.id)} aria-label="移除参考音频">
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>

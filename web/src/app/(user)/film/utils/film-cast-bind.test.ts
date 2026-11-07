@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { bindFilmCast } from "./film-cast-bind";
-import type { FilmAsset, FilmEpisode } from "../types";
+import type { FilmAsset, FilmEpisode } from "@/lib/film/types";
 
 const asset = (id: string, name: string): FilmAsset => ({ id, name, description: "", visualPrompt: "", status: "idle", createdAt: "2026-01-01T00:00:00.000Z" });
 
@@ -16,8 +16,8 @@ const episodes: FilmEpisode[] = [{
         time: "",
         mood: "",
         shots: [
-            { id: "shot1", shotNo: "01", shotType: "", cameraMovement: "", duration: 5, description: "沈星晴 坐在大巴上", dialogue: "", audio: "", prompt: "", status: "idle" },
-            { id: "shot2", shotNo: "02", shotType: "", cameraMovement: "", duration: 5, description: "空镜", dialogue: "", audio: "", prompt: "", status: "idle" },
+            { id: "shot1", shotNo: "01", shotType: "", cameraMovement: "", duration: 5, description: "沈星晴 坐在大巴上", dialogue: "", audio: "", prompt: "" },
+            { id: "shot2", shotNo: "02", shotType: "", cameraMovement: "", duration: 5, description: "空镜", dialogue: "", audio: "", prompt: "" },
         ],
     }],
 }];

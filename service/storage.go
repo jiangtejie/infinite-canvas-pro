@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jiangtejie/infinite-canvas-pro/model"
@@ -26,6 +27,15 @@ import (
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
+
+const maxStorageObjectKeyLength = 191
+
+func validateStorageObjectKey(objectKey string) error {
+	if utf8.RuneCountInString(objectKey) > maxStorageObjectKeyLength {
+		return errors.New("对象路径过长，请缩短存储路径前缀")
+	}
+	return nil
+}
 
 // UploadedStorageObject 上传存储对象返回结果。
 type UploadedStorageObject struct {
@@ -230,6 +240,9 @@ func UploadStorageObjectWithProvider(ctx context.Context, filename string, conte
 	}
 	nowTime := time.Now()
 	objectKey := strings.Trim(strings.Trim(provider.PathPrefix, "/")+"/"+userID+"/"+nowTime.Format("2006/01/02")+"/"+objectID+ext, "/")
+	if err := validateStorageObjectKey(objectKey); err != nil {
+		return UploadedStorageObject{}, err
+	}
 	sum := sha256.Sum256(data)
 	if err := putStorageObject(provider, objectKey, contentType, data); err != nil {
 		return UploadedStorageObject{}, err
@@ -274,6 +287,9 @@ func RegisterDirectStorageObject(ctx context.Context, input DirectStorageObjectI
 	prefix := strings.Trim(path.Join(provider.PathPrefix, user.ID), "/") + "/"
 	if !strings.HasPrefix(objectKey, prefix) {
 		return UploadedStorageObject{}, errors.New("WebDAV 对象路径无效")
+	}
+	if err := validateStorageObjectKey(objectKey); err != nil {
+		return UploadedStorageObject{}, err
 	}
 	contentType := strings.TrimSpace(input.MimeType)
 	if contentType == "" {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { App } from "antd";
 
 import type { AiConfig } from "@/stores/use-config-store";
-import type { FilmShot } from "../types";
+import type { FilmShot } from "@/lib/film/types";
 import { formatFilmContinuityCheck, requestFilmShotContinuityCheck } from "../utils/film-continuity-check";
 import { useModelConfig } from "@/hooks/use-model-config";
 

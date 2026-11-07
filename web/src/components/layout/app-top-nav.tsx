@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { navigationSections, navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
+import { navigationSections, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { AnnouncementBanner } from "@/components/layout/announcement-banner";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
@@ -33,7 +33,11 @@ export function AppTopNav() {
     }, [isConfigOpen]);
     const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
     const slug = pathname.split("/").filter(Boolean)[0];
-    const activeToolSlug = navigationTools.some((tool) => tool.slug === slug) ? (slug as NavigationToolSlug) : undefined;
+    const activeToolSlug = navigationSections
+        .flatMap((section) => ("children" in section ? section.children : [section]))
+        .some((tool) => tool.slug === slug)
+        ? (slug as NavigationToolSlug)
+        : undefined;
 
     useEffect(() => {
         setOpenSectionKey(null);
@@ -134,8 +138,8 @@ export function AppTopNav() {
                                                     className={cn(
                                                         navItemClass,
                                                         sectionActive || isOpen
-                                                            ? "font-medium text-acid! after:bg-acid"
-                                                            : "text-acid! after:bg-transparent hover:after:bg-acid/40",
+                                                            ? "font-medium text-acid-ink! after:bg-acid"
+                                                            : "text-acid-ink! after:bg-transparent hover:after:bg-acid/40",
                                                     )}
                                                 >
                                                     <Icon className="size-4" />
@@ -156,8 +160,8 @@ export function AppTopNav() {
                                                                     className={cn(
                                                                         "flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
                                                                         active
-                                                                            ? "bg-acid/[0.08]! font-medium text-acid!"
-                                                                            : "text-acid! hover:bg-acid/[0.08]!",
+                                                                            ? "bg-acid/[0.08]! font-medium text-acid-ink!"
+                                                                            : "text-acid-ink! hover:bg-acid/[0.08]!",
                                                                     )}
                                                                 >
                                                                     <ChildIcon className="size-4 shrink-0" />
@@ -182,8 +186,8 @@ export function AppTopNav() {
                                             className={cn(
                                                 navItemClass,
                                                 active
-                                                    ? "font-medium text-acid! after:bg-acid"
-                                                    : "text-acid! after:bg-transparent hover:after:bg-acid/40",
+                                                    ? "font-medium text-acid-ink! after:bg-acid"
+                                                    : "text-acid-ink! after:bg-transparent hover:after:bg-acid/40",
                                             )}
                                         >
                                             <Icon className="size-4" />

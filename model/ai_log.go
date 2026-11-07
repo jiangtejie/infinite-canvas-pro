@@ -13,9 +13,9 @@ type AICallLog struct {
 	Failed          bool    `json:"failed" gorm:"-"`
 	DurationMs      int64   `json:"durationMs"`
 	Credits         float64 `json:"credits" gorm:"type:decimal(20,2)"`
-	RequestBody     string  `json:"requestBody" gorm:"type:text"`
-	ResponseBody    string  `json:"responseBody" gorm:"type:text"`
-	Error           string  `json:"error" gorm:"type:text"`
+	RequestBody     string  `json:"requestBody"`
+	ResponseBody    string  `json:"responseBody"`
+	Error           string  `json:"error"`
 	CreatedAt       string  `json:"createdAt" gorm:"index"`
 }
 

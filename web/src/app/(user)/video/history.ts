@@ -22,11 +22,10 @@ import { isRetryableWorkflowError } from "@/services/api/workflow-generation";
 import { modelKey } from "@/lib/video-model-capabilities";
 import { normalizeVideoResolutionValue } from "@/components/video-settings-panel";
 
-import { errorDetailWith, errorMessage, updateResult } from "@/lib/generation-history";
+import { createErrorDetail, errorMessage, formatLogTime, isClientTaskId, isCompletedTaskStatus, isFailedTaskStatus, isRecoverableTask, mergeNormalizedLogs, normalizeLogsSafely as normalizeMediaLogsSafely, parseTaskTimestampValue, readStoredValues, resolveChannelId, sortByNewest, taskChannelId, uniqueStrings, updateResult, updateResultsByMatch } from "@/lib/generation-history";
 export { errorMessage, updateResult };
-export function errorDetail(error: unknown) {
-    return errorDetailWith(error, (value) => value instanceof VideoRequestError);
-}
+export type { UpdateAiConfig, WorkflowPollContext } from "@/lib/generation-history";
+export const errorDetail = createErrorDetail((value) => value instanceof VideoRequestError);
 
 export type GeneratedVideo = {
     id: string;
@@ -94,9 +93,7 @@ export type GenerationLog = {
 
 export type GenerationLogConfig = Pick<AiConfig, "channelMode" | "activeChannelId" | "videoChannelId" | "model" | "videoModel" | "size" | "vquality" | "videoSeconds" | "videoMode" | "videoNegativePrompt" | "videoMultiShot" | "videoShotType" | "videoMultiPrompt" | "videoElementList" | "videoGenerateAudio" | "videoWatermark" | "videoCharacterOrientation">;
 
-export type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
 export type AssetPickerTarget = "general" | "image" | "video" | "audio" | "firstFrame" | "lastFrame" | "element";
-export type WorkflowPollContext = { token: string; signal: AbortSignal };
 
 export const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
 
@@ -154,9 +151,7 @@ export async function persistStoredVideoLogs(logs: GenerationLog[]) {
 export async function mergeVideoLogs(remoteLogs: GenerationLog[], localLogs: GenerationLog[]) {
     const normalizedRemote = (await normalizeLogsSafely(remoteLogs)).filter(shouldSyncVideoLog);
     const normalizedLocal = await normalizeLogsSafely(localLogs);
-    const remoteKeys = new Set(normalizedRemote.flatMap(videoLogIdentityKeys));
-    const preservedLocal = normalizedLocal.filter((log) => shouldPreserveLocalLogDuringRemoteMerge(log, remoteKeys));
-    return dedupeVideoLogs([...normalizedRemote, ...preservedLocal]);
+    return mergeNormalizedLogs(normalizedRemote, normalizedLocal, videoLogIdentityKeys, shouldPreserveLocalLogDuringRemoteMerge, dedupeVideoLogs);
 }
 
 export function shouldPreserveLocalLogDuringRemoteMerge(log: GenerationLog, remoteKeys: Set<string>) {
@@ -251,7 +246,7 @@ export function videoLogBackendMergeKeys(log: GenerationLog) {
             if (isClientVideoTaskId(id)) keys.push(id);
         });
     }
-    return Array.from(new Set(keys.filter((key): key is string => Boolean(key))));
+    return uniqueStrings(keys);
 }
 
 export function backendTaskToLog(task: VideoResponse, fallbackConfig: AiConfig): GenerationLog {
@@ -268,7 +263,7 @@ export function backendTaskToLog(task: VideoResponse, fallbackConfig: AiConfig):
         createdAt,
         title: (request.prompt || model || "视频任务").slice(0, 12) || "视频任务",
         prompt: request.prompt || "",
-        time: new Date(createdAt).toLocaleString("zh-CN", { hour12: false }),
+        time: formatLogTime(createdAt),
         model,
         providerWorkflowRef: parseWorkflowRef(task.workflowRef),
         taskBackend: parseWorkflowRef(task.workflowRef) ? "workflow" : "account",
@@ -360,18 +355,11 @@ export function fieldString(value: unknown) {
 }
 
 export function parseTaskTimestamp(value: unknown) {
-    if (typeof value === "number") return value > 1e12 ? value : value * 1000;
-    if (typeof value === "string" && value.trim()) {
-        const numeric = Number(value);
-        if (Number.isFinite(numeric)) return numeric > 1e12 ? numeric : numeric * 1000;
-        const parsed = Date.parse(value);
-        if (Number.isFinite(parsed)) return parsed;
-    }
-    return 0;
+    return parseTaskTimestampValue(value);
 }
 
 export function isClientVideoTaskId(id?: string | null): id is string {
-    return typeof id === "string" && id.startsWith("client_video_task_");
+    return isClientTaskId(id, "client_video_task_");
 }
 
 export function normalizeVideoIdentityKey(key?: string | null) {
@@ -385,7 +373,7 @@ export function videoTaskIdentityKeys(task?: VideoResponse | null) {
         const value = typeof key === "string" ? key.trim() : "";
         return value && (allowClientTaskId || !isClientVideoTaskId(value)) ? value : "";
     };
-    return Array.from(new Set([normalizeTaskKey(task?.id), normalizeTaskKey(task?.task_id), normalizeTaskKey(task?.video_id)].filter((key): key is string => Boolean(key))));
+    return uniqueStrings([normalizeTaskKey(task?.id), normalizeTaskKey(task?.task_id), normalizeTaskKey(task?.video_id)]);
 }
 
 export function hasBackendVideoTaskBinding(task?: VideoResponse | null) {
@@ -415,15 +403,15 @@ export function isLocalClientVideoLog(log: GenerationLog) {
 }
 
 export function videoLogIdentityKeys(log: GenerationLog) {
-    return Array.from(new Set([...videoTaskIdentityKeys(log.task), normalizeVideoIdentityKey(log.video?.id)].filter((key): key is string => Boolean(key))));
+    return uniqueStrings([...videoTaskIdentityKeys(log.task), normalizeVideoIdentityKey(log.video?.id)]);
 }
 
 export function videoResultIdentityKeys(result: GenerationResult) {
-    return Array.from(new Set([...videoTaskIdentityKeys(result.task), normalizeVideoIdentityKey(result.video?.id)].filter((key): key is string => Boolean(key))));
+    return uniqueStrings([...videoTaskIdentityKeys(result.task), normalizeVideoIdentityKey(result.video?.id)]);
 }
 
 export function videoLogDeleteKeys(log: GenerationLog) {
-    return Array.from(new Set([log.id, log.task?.id, log.task?.task_id, log.task?.video_id, log.video?.id].filter((key): key is string => Boolean(typeof key === "string" && key.trim())).map((key) => key.trim())));
+    return uniqueStrings([log.id, log.task?.id, log.task?.task_id, log.task?.video_id, log.video?.id]);
 }
 
 export function videoLogScore(log: GenerationLog) {
@@ -485,11 +473,7 @@ export function disposableLogStorageKeys(deletedLogs: GenerationLog[], remaining
 
 
 export function updateResultByLogId(results: GenerationResult[], logId: string, next: Partial<GenerationResult>) {
-    return results.map((item) => {
-        if (item.taskLogId !== logId && item.id !== logId) return item;
-        if ((item.status === "stopping" || item.status === "stopped") && next.status !== "stopping" && next.status !== "stopped") return item;
-        return { ...item, ...next };
-    });
+    return updateResultsByMatch(results, (item) => item.taskLogId === logId || item.id === logId, next, (item, patch) => (item.status === "stopping" || item.status === "stopped") && patch.status !== "stopping" && patch.status !== "stopped");
 }
 
 export function mergePendingLogResults(results: GenerationResult[], logs: GenerationLog[]) {
@@ -510,11 +494,11 @@ export function findMatchingPendingLogForResult(result: GenerationResult, logs: 
 }
 
 export function sortVideoResults(results: GenerationResult[]) {
-    return [...results].sort((a, b) => b.createdAt - a.createdAt);
+    return sortByNewest(results);
 }
 
 export function sortVideoLogs(logs: GenerationLog[]) {
-    return [...logs].sort((a, b) => b.createdAt - a.createdAt);
+    return sortByNewest(logs);
 }
 
 export function videoFromTaskResponse(task: VideoResponse, durationMs: number): GeneratedVideo {
@@ -537,11 +521,11 @@ export function parseTaskVideoSize(value: unknown) {
 }
 
 export function isCompletedVideoTask(task: VideoResponse) {
-    return Boolean(task.video_url || task.url) || ["completed", "complete", "done", "succeeded", "success"].includes((task.status || "").toLowerCase());
+    return Boolean(task.video_url || task.url) || isCompletedTaskStatus(task.status);
 }
 
 export function isFailedVideoTask(task: VideoResponse) {
-    return ["failed", "fail", "error", "cancelled", "canceled"].includes((task.status || "").toLowerCase());
+    return isFailedTaskStatus(task.status);
 }
 
 export function isTransientVideoPollError(error: unknown) {
@@ -552,7 +536,7 @@ export function isTransientVideoPollError(error: unknown) {
 }
 
 export function isRecoverableBackendVideoTask(task: VideoResponse) {
-    return !isCompletedVideoTask(task) && !isFailedVideoTask(task);
+    return isRecoverableTask(task, isCompletedVideoTask, isFailedVideoTask);
 }
 
 export function isCloudVideo(video: GeneratedVideo) {
@@ -562,29 +546,11 @@ export function isCloudVideo(video: GeneratedVideo) {
 
 
 export async function readStoredLogs() {
-    if (typeof window === "undefined") return [];
-    try {
-        const logs: GenerationLog[] = [];
-        await logStore.iterate<GenerationLog, void>((value) => {
-            logs.push(value);
-        });
-        return (await normalizeLogsSafely(logs)).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    } catch {
-        return [];
-    }
+    return sortByNewest(await normalizeLogsSafely(await readStoredValues<GenerationLog>(logStore)));
 }
 
-export async function normalizeLogsSafely(logs: Array<Partial<GenerationLog>>) {
-    const normalized = await Promise.all(
-        logs.map(async (log) => {
-            try {
-                return await normalizeLog(log);
-            } catch {
-                return null;
-            }
-        }),
-    );
-    return normalized.filter((log): log is GenerationLog => Boolean(log));
+export function normalizeLogsSafely(logs: Array<Partial<GenerationLog>>) {
+    return normalizeMediaLogsSafely(logs as GenerationLog[], normalizeLog);
 }
 
 export async function safeResolveMediaUrl(storageKey: string, fallback: string) {
@@ -631,7 +597,7 @@ export async function normalizeLog(log: Partial<GenerationLog>): Promise<Generat
         createdAt: log.createdAt || Date.now(),
         title: log.title || log.model || "未命名",
         prompt: log.prompt || "",
-        time: log.time || new Date().toLocaleString("zh-CN", { hour12: false }),
+        time: log.time || formatLogTime(Date.now()),
         model: log.model || config.videoModel || "",
         providerWorkflowRef: log.providerWorkflowRef,
         config,
@@ -748,7 +714,7 @@ export function buildLog({ prompt, model, config, references, firstFrame, lastFr
         createdAt: Date.now(),
         title: prompt.slice(0, 12) || "未命名",
         prompt,
-        time: new Date().toLocaleString("zh-CN", { hour12: false }),
+        time: formatLogTime(Date.now()),
         model,
         providerWorkflowRef,
         config: logConfig,
@@ -806,18 +772,11 @@ export function buildVideoConfig(config: AiConfig, model: string): AiConfig {
 }
 
 export function videoTaskChannelId(task?: VideoResponse | null) {
-    return task?.userChannelId || task?.channelId || "";
+    return taskChannelId(task);
 }
 
 export function resolveVideoChannelId(config: AiConfig, model: string, ...preferredIds: Array<string | undefined>) {
-    const channels = config.channelMode === "remote"
-        ? config.publicChannels.map((channel) => ({ id: channel.id || "", models: channel.models || [] }))
-        : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, models: channel.models }));
-    for (const id of preferredIds) {
-        const channelId = (id || "").trim();
-        if (channelId && channels.some((channel) => channel.id === channelId && channel.models.includes(model))) return channelId;
-    }
-    return channels.find((channel) => channel.models.includes(model))?.id || "";
+    return resolveChannelId(config, model, ...preferredIds);
 }
 
 export function isAPIMartKlingV26Config(config: AiConfig, model: string) {
@@ -866,13 +825,6 @@ export const characterOrientationOptions = [{ value: "image", label: "图片" },
 
 export function normalizeCharacterOrientation(value: string | undefined) {
     return value === "image" ? "image" : "video";
-}
-
-export function klingBottomSizeValue(value: string) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (["9:16", "720x1280", "1080x1920"].includes(normalized)) return "9:16";
-    if (["1024x1024", "1080x1080"].includes(normalized)) return "1:1";
-    return "16:9";
 }
 
 export function normalizeKlingV26Ratio(value: string) {

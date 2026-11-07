@@ -1,7 +1,7 @@
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import { imageToDataUrl } from "@/services/image-storage";
 import type { AiConfig } from "@/stores/use-config-store";
-import type { FilmShot } from "../types";
+import type { FilmShot } from "@/lib/film/types";
 import { formatFilmContinuityPrompt } from "./film-continuity-sheet";
 import { compressFilmReference } from "./film-image-compress";
 

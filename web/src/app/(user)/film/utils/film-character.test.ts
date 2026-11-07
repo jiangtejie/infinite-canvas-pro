@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, characterReferenceImages, characterShotReferenceImages, createEmptyCharacterProfile } from "./film-character";
-import type { FilmAsset } from "../types";
+import type { FilmAsset } from "@/lib/film/types";
 
 const asset = (overrides: Partial<FilmAsset> = {}): FilmAsset => ({ id: "c1", name: "沈星晴", description: "", visualPrompt: "", status: "idle", createdAt: "2026-01-01T00:00:00.000Z", ...overrides });
 

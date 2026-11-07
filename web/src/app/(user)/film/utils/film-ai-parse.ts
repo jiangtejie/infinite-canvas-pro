@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 
 import { isCanvasAgentContextLimitError, requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
-import type { FilmEpisode, FilmScene } from "../types";
+import type { FilmEpisode, FilmScene } from "@/lib/film/types";
 import { filmShotTypeCodeFromLabel } from "./film-shot-types";
 
 export type FilmAiShotRow = {
@@ -155,7 +155,6 @@ export function filmAiRowsToEpisodes(rows: FilmAiShotRow[]): FilmEpisode[] {
             dialogue: (row.sound || "").trim(),
             audio: "",
             prompt: "",
-            status: "idle",
         });
         count += 1;
     }

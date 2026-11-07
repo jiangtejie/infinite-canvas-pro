@@ -4,9 +4,10 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { Clapperboard, ImageIcon, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmProject, FilmShot } from "../types";
-import { filmAspectCssRatio } from "../utils/film-aspects";
+import type { FilmProject, FilmShot } from "@/lib/film/types";
+import { filmAspectCssRatio } from "@/lib/film/film-aspects";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
+import { deriveFilmShotStatus } from "../utils/film-status";
 import { FilmShotStatusChip } from "./film-shot-status-chip";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 
@@ -133,7 +134,7 @@ function BoardCard({ shot, aspect, selected, onSelect }: { shot: FilmShot; aspec
             </span>
             <span className="flex items-center justify-between gap-2">
                 <span className={cn("font-mono text-[10px] tabular-nums", selected ? "text-acid" : "text-muted-foreground/70")}>{shot.shotNo}</span>
-                <FilmShotStatusChip status={shot.status} />
+                <FilmShotStatusChip status={deriveFilmShotStatus(shot)} />
             </span>
             <span className={cn("line-clamp-2 text-xs leading-5", shot.description ? "text-foreground/80" : "text-muted-foreground/50")}>
                 {shot.description || "未填写画面描述"}

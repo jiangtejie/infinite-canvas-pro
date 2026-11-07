@@ -191,10 +191,11 @@ type ConfigStore = {
     isPublicSettingsLoading: boolean;
     isConfigOpen: boolean;
     shouldPromptContinue: boolean;
+    continueAction: (() => void) | null;
     updateConfig: <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
     loadPublicSettings: () => Promise<void>;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
-    openConfigDialog: (shouldPromptContinue?: boolean) => void;
+    openConfigDialog: (shouldPromptContinue?: boolean, continueAction?: () => void) => void;
     setConfigDialogOpen: (isOpen: boolean) => void;
     clearPromptContinue: () => void;
 };
@@ -400,6 +401,7 @@ export const useConfigStore = create<ConfigStore>()(
             isPublicSettingsLoading: false,
             isConfigOpen: false,
             shouldPromptContinue: false,
+            continueAction: null,
             updateConfig: (key, value) =>
                 set((state) => ({
                     config: {
@@ -417,9 +419,9 @@ export const useConfigStore = create<ConfigStore>()(
                 }
             },
             isAiConfigReady: (config, model) => isAiConfigReady(config, model),
-            openConfigDialog: (shouldPromptContinue = false) => set({ isConfigOpen: true, shouldPromptContinue }),
+            openConfigDialog: (shouldPromptContinue = false, continueAction: (() => void) | null = null) => set({ isConfigOpen: true, shouldPromptContinue, continueAction }),
             setConfigDialogOpen: (isConfigOpen) => set({ isConfigOpen }),
-            clearPromptContinue: () => set({ shouldPromptContinue: false }),
+            clearPromptContinue: () => set({ shouldPromptContinue: false, continueAction: null }),
         }),
         {
             name: CONFIG_STORE_KEY,

@@ -1,4 +1,4 @@
-import type { FilmAsset, FilmEpisode } from "../types";
+import type { FilmAsset, FilmEpisode } from "@/lib/film/types";
 
 /** 按角色/场景名称匹配镜头文本，自动补上引用；已有手动绑定不覆盖。 */
 export function bindFilmCast(episodes: FilmEpisode[], characters: FilmAsset[], locations: FilmAsset[]) {

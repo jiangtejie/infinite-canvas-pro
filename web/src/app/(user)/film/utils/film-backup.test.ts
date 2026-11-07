@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { parseFilmProjectBackup, serializeFilmProject } from "./film-backup";
-import { parseFilmScriptDocument } from "./film-script-import";
-import type { FilmProject } from "../types";
+import { parseFilmScriptDocument } from "@/lib/film/film-script-import";
+import type { FilmProject } from "@/lib/film/types";
 
 const sample: FilmProject = {
     id: "film-1",

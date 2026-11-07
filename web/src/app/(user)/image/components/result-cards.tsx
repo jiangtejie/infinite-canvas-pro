@@ -1,13 +1,42 @@
 "use client";
 
 import { Button, Image, Tag } from "antd";
-import { CloudUpload, Download, FolderPlus, LoaderCircle, PenLine } from "lucide-react";
+import { Ban, CloudUpload, Download, FolderPlus, LoaderCircle, PenLine } from "lucide-react";
 
-import { FailedResultCard, MediaResultCard, PendingMediaCard, TaskResultInfo, formatTaskTime } from "@/components/workbench/task-result";
+import { FailedResultCard, ReferenceThumbnailOverlay, formatTaskTime } from "@/components/workbench/task-result";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
+import { ImageMetaLine, ImagePromptBlock } from "./image-card-parts";
 import { useImagePreviewUrl } from "./use-preview-url";
 
 import type { GeneratedImage, GenerationResult } from "../history";
+
+function metaItems(item: GenerationResult) {
+    return [formatTaskTime(item.createdAt), item.model, item.workflowName ? `工作流 ${item.workflowName}` : "", item.config.size || "auto", item.durationMs ? formatDuration(item.durationMs) : ""];
+}
+
+function metaTitle(item: GenerationResult) {
+    return [
+        formatTaskTime(item.createdAt),
+        item.model,
+        item.workflowName ? `工作流 ${item.workflowName}` : "",
+        item.config.apiMode === "chat" ? "Chat" : item.config.apiMode === "responses" ? "Responses" : "Images",
+        item.config.size || "auto",
+        `质量 ${item.config.quality || "auto"}`,
+        item.config.apiMode !== "chat" && item.config.streamImages ? `流式 ${item.config.streamPartialImages || "1"}` : "",
+        item.durationMs ? formatDuration(item.durationMs) : "",
+    ]
+        .filter(Boolean)
+        .join(" · ");
+}
+
+function ResultBadges({ storageKey }: { storageKey?: string }) {
+    if (storageKey?.startsWith("server:")) return null;
+    return (
+        <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
+            <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag>
+        </div>
+    );
+}
 
 export function ResultImageCard({
     result,
@@ -33,61 +62,71 @@ export function ResultImageCard({
     const previewUrl = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
 
     return (
-        <MediaResultCard
-            mediaClassName="aspect-[4/3]"
-            overlay={
-                <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
-                    {!image.storageKey?.startsWith("server:") ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
-                    <Tag className="m-0 text-[10px]" color="blue">新生成</Tag>
-                </div>
-            }
-            references={result.references}
-            prompt={result.prompt}
-            tags={<TaskTags item={result} />}
-            meta={
-                <>
-                    <span>
-                        {image.width}x{image.height}
-                    </span>
-                    <span>{formatBytes(image.bytes)}</span>
-                    <span>{formatDuration(image.durationMs)}</span>
-                </>
-            }
-            actions={
-                <>
-                    <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
-                    <Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
-                    <Button size="small" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
-                    <Button size="small" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
-                </>
-            }
-            onCopyPrompt={onCopyPrompt}
-            media={<Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} width={image.width || undefined} height={image.height || undefined} className="aspect-[4/3] object-cover" />}
-        />
+        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
+            <div className="relative aspect-[4/3] shrink-0 bg-muted">
+                <ResultBadges storageKey={image.storageKey} />
+                <ReferenceThumbnailOverlay references={result.references} className="left-1.5 top-1.5" />
+                <Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} width={image.width || undefined} height={image.height || undefined} className="aspect-[4/3] object-cover" />
+            </div>
+            <div className="flex-1 space-y-2 p-3">
+                <ImagePromptBlock prompt={result.prompt} onCopyPrompt={onCopyPrompt} />
+                <ImageMetaLine title={metaTitle(result)} items={[...metaItems(result), image.width ? `${image.width}x${image.height}` : "", image.bytes ? formatBytes(image.bytes) : ""]} />
+            </div>
+            <div className="flex items-center justify-end gap-1 border-t border-border px-2.5 py-2">
+                <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
+                <Button size="small" title="保存到我的素材" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
+                <Button size="small" title="继续编辑" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
+                <Button size="small" title="下载图片" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
+            </div>
+        </div>
     );
 }
 
-export function PendingImageCard({ result, now, onCopyPrompt }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void> }) {
+export function PendingImageCard({ result, now, onCopyPrompt, onStop, stopping }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void>; onStop?: () => void; stopping?: boolean }) {
     return (
-        <PendingMediaCard
-            mediaClassName="aspect-[4/3]"
-            prompt={result.prompt}
-            tags={<TaskTags item={{ ...result, durationMs: Math.max(0, now - result.createdAt) }} />}
-            onCopyPrompt={onCopyPrompt}
-        >
-            <div
-                className="absolute inset-0 opacity-60"
-                style={{
-                    backgroundImage: "radial-gradient(circle, rgba(120,113,108,0.35) 1.4px, transparent 1.6px)",
-                    backgroundSize: "16px 16px",
-                }}
-            />
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground dark:text-muted-foreground">
-                <LoaderCircle className="size-6 animate-spin" />
-                <span>生成中</span>
-                <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, now - result.createdAt))}</span>
+        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-dashed border-border bg-muted/50">
+            <div className="relative aspect-[4/3] shrink-0">
+                <div
+                    className="absolute inset-0 opacity-60"
+                    style={{
+                        backgroundImage: "radial-gradient(circle, rgba(120,113,108,0.35) 1.4px, transparent 1.6px)",
+                        backgroundSize: "16px 16px",
+                    }}
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <LoaderCircle className="size-6 animate-spin" />
+                    <span>{stopping ? "停止中" : "生成中"}</span>
+                    <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, now - result.createdAt))}</span>
+                    {onStop ? (
+                        <Button size="small" loading={stopping} onClick={onStop}>
+                            {stopping ? "停止中…" : "停止"}
+                        </Button>
+                    ) : null}
+                </div>
             </div>
-        </PendingMediaCard>
+            <div className="flex-1 space-y-2 border-t border-border p-3">
+                <ImagePromptBlock prompt={result.prompt} onCopyPrompt={onCopyPrompt} />
+                <ImageMetaLine items={metaItems({ ...result, durationMs: Math.max(0, now - result.createdAt) })} />
+            </div>
+        </div>
+    );
+}
+
+export function StoppedImageCard({ result, onCopyPrompt, onRetry }: { result: GenerationResult; onCopyPrompt: (text: string) => void | Promise<void>; onRetry: () => void }) {
+    return (
+        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-dashed border-border bg-muted/40">
+            <div className="relative flex aspect-[4/3] shrink-0 flex-col items-center justify-center gap-2">
+                <Ban className="size-6 text-muted-foreground" aria-hidden />
+                <span className="text-sm text-muted-foreground">已停止生成</span>
+                <Button size="small" onClick={onRetry}>
+                    重新生成
+                </Button>
+            </div>
+            <div className="flex-1 space-y-2 border-t border-border p-3">
+                <ImagePromptBlock prompt={result.prompt} onCopyPrompt={onCopyPrompt} />
+                <ImageMetaLine items={metaItems(result)} />
+            </div>
+        </div>
     );
 }
 
@@ -98,27 +137,13 @@ export function FailedImageCard({ result, error, onCopyPrompt, onRetry }: { resu
             references={result.references}
             error={error}
             detail={result.errorDetail || error}
-            info={<TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} error={error} onCopyPrompt={onCopyPrompt} />}
+            info={
+                <div className="space-y-2 border-t border-red-200/70 p-3 text-xs dark:border-red-950">
+                    <ImagePromptBlock prompt={result.prompt} onCopyPrompt={onCopyPrompt} />
+                    <ImageMetaLine items={metaItems(result)} />
+                </div>
+            }
             onRetry={onRetry}
         />
-    );
-}
-
-export function TaskTags({ item }: { item: GenerationResult }) {
-    return (
-        <>
-            {item.workflowName ? (
-                <Tag className="m-0" color="cyan">
-                    工作流 {item.workflowName}
-                </Tag>
-            ) : null}
-            <Tag className="m-0">{formatTaskTime(item.createdAt)}</Tag>
-            <Tag className="m-0">{item.model}</Tag>
-            <Tag className="m-0">{item.config.apiMode === "chat" ? "Chat" : item.config.apiMode === "responses" ? "Responses" : "Images"}</Tag>
-            <Tag className="m-0">{item.config.size || "auto"}</Tag>
-            <Tag className="m-0">{item.config.quality || "auto"}</Tag>
-            {item.config.apiMode !== "chat" && item.config.streamImages ? <Tag className="m-0">流式 {item.config.streamPartialImages || "1"}</Tag> : null}
-            {item.durationMs ? <Tag className="m-0">{formatDuration(item.durationMs)}</Tag> : null}
-        </>
     );
 }

@@ -5,7 +5,7 @@ import { Button, Select } from "antd";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmContinuitySheet, FilmShot } from "../types";
+import type { FilmContinuitySheet, FilmShot } from "@/lib/film/types";
 import { FILM_CONTINUITY_FIELDS, FILM_CONTINUITY_GROUPS } from "../utils/film-continuity-sheet";
 
 type FilmContinuityNotebookProps = {
@@ -59,7 +59,7 @@ export function FilmContinuityNotebook({ episodeTitle, sheets, onJumpToShot }: F
     }
 
     return (
-        <div className="flex h-[72vh] min-h-[520px] flex-col gap-3">
+        <div className="flex h-[72dvh] min-h-[520px] flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
                 <span className="eyebrow">{episodeTitle}</span>
                 <span className="chip">{sheets.length} 镜场记</span>

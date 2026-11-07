@@ -12,7 +12,7 @@ type AgentSkill struct {
 	Source          string           `json:"source" gorm:"index"`
 	Name            string           `json:"name"`
 	Description     string           `json:"description"`
-	CoverURL        string           `json:"coverUrl" gorm:"type:text"`
+	CoverURL        string           `json:"coverUrl"`
 	CoverStorageKey string           `json:"coverStorageKey"`
 	Content         string           `json:"content"`
 	Enabled         bool             `json:"enabled" gorm:"index"`

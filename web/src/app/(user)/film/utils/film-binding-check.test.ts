@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { checkFilmBindingIssues } from "./film-binding-check";
-import type { FilmAsset, FilmEpisode } from "../types";
+import type { FilmAsset, FilmEpisode } from "@/lib/film/types";
 
 const asset = (id: string, name: string): FilmAsset => ({ id, name, description: "", visualPrompt: "", status: "idle", createdAt: "2026-01-01T00:00:00.000Z" });
-const shot = (id: string, description: string, extra: Partial<FilmEpisode["scenes"][number]["shots"][number]> = {}) => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description, dialogue: "", audio: "", prompt: "", status: "idle" as const, ...extra });
+const shot = (id: string, description: string, extra: Partial<FilmEpisode["scenes"][number]["shots"][number]> = {}) => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description, dialogue: "", audio: "", prompt: "", ...extra });
 
 const episodes: FilmEpisode[] = [{
     id: "e1", title: "第1集", scenes: [{

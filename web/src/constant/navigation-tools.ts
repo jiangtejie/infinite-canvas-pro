@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { Clapperboard, FileText, GitBranch, ImagePlus, Images, Maximize2, PenLine, Sparkles, Video } from "lucide-react";
+import { Clapperboard, FileText, GitBranch, ImagePlus, Images, Library, Maximize2, PenLine, Sparkles, Video } from "lucide-react";
 
-export type NavigationToolSlug = "canvas" | "image" | "video" | "workflows" | "prompts" | "film" | "script" | "assets";
+export type NavigationToolSlug = "canvas" | "image" | "video" | "workflows" | "prompts" | "film" | "script" | "assets" | "asset-library";
 
 export type NavigationTool = {
     slug: NavigationToolSlug;
@@ -11,7 +11,7 @@ export type NavigationTool = {
 
 type NavigationSection = NavigationTool | { label: string; icon: LucideIcon; children: NavigationTool[] };
 
-// 一级导航：画布、影剧与素材直接进页面，通用创作工具收进“AI 自媒体”，影视与剧本收进“AI 影剧”。
+// 一级导航：画布、影剧与素材直接进页面，通用创作工具收进“AI 自媒体”，影视与剧本收进“AI 影剧”，个人与团队素材收进“素材”。
 export const navigationSections: NavigationSection[] = [
     { slug: "canvas", label: "我的画布", icon: Maximize2 },
     {
@@ -32,8 +32,17 @@ export const navigationSections: NavigationSection[] = [
             { slug: "script", label: "AI 剧本创作", icon: PenLine },
         ],
     },
-    { slug: "assets", label: "我的素材", icon: Images },
+    {
+        label: "素材",
+        icon: Images,
+        children: [
+            { slug: "assets", label: "我的素材", icon: Images },
+            { slug: "asset-library", label: "素材库", icon: Library },
+        ],
+    },
 ];
 
-// 首页等需要平铺入口的地方直接用这份列表。
-export const navigationTools: NavigationTool[] = navigationSections.flatMap((section) => ("children" in section ? section.children : [section]));
+// 首页等需要平铺入口的地方直接用这份列表；素材库是团队内容入口，不计入首页的创作入口宫格。
+export const navigationTools: NavigationTool[] = navigationSections
+    .flatMap((section) => ("children" in section ? section.children : [section]))
+    .filter((tool) => tool.slug !== "asset-library");

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { filmAiRowsToEpisodes, mergeFilmEpisodes, parseFilmAiShotRows, splitScriptIntoChunks } from "./film-ai-parse";
-import type { FilmEpisode } from "../types";
+import type { FilmEpisode } from "@/lib/film/types";
 
 test("解析 AI 返回的分镜 JSON", () => {
     const rows = parseFilmAiShotRows("```json\n[{\"episode\":\"第1集\",\"scene\":\"1-1 海边\",\"shotNo\":\"01\",\"shotType\":\"大远景\",\"cameraMovement\":\"缓慢横移\",\"description\":\"海面泛起荧光绿\",\"sound\":\"海浪声\",\"duration\":5}]\n```");
@@ -36,7 +36,7 @@ test("长剧本按集/场标题切块", () => {
 });
 
 test("分块结果按集和场合并", () => {
-    const shot = (shotNo: string) => ({ id: `shot-${shotNo}`, shotNo, shotType: "", cameraMovement: "", duration: 5, description: "画面", dialogue: "", audio: "", prompt: "", status: "idle" as const });
+    const shot = (shotNo: string) => ({ id: `shot-${shotNo}`, shotNo, shotType: "", cameraMovement: "", duration: 5, description: "画面", dialogue: "", audio: "", prompt: "" });
     const first: FilmEpisode[] = [{ id: "e1", title: "第1集", scenes: [{ id: "s1", name: "1-1 海边", location: "", time: "", mood: "", shots: [shot("01")] }] }];
     const second: FilmEpisode[] = [{ id: "e2", title: "第1集", scenes: [{ id: "s2", name: "1-1 海边", location: "", time: "", mood: "", shots: [shot("02")] }] }];
     mergeFilmEpisodes(first, second);

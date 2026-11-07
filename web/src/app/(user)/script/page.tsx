@@ -8,7 +8,8 @@ import { App, Button, Input, Modal, Select } from "antd";
 import { ArrowUpRight, Download, FileUp, Plus, ScrollText, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { FilmAmbient } from "../film/components/film-ambient";
+import { FilmAmbient } from "@/components/film/film-ambient";
+import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import type { ScriptFormat, ScriptProject } from "./types";
 import { useScriptStore } from "./stores/use-script-store";
@@ -121,12 +122,13 @@ export default function ScriptListPage() {
                     <PageHeader
                         eyebrow="SCRIPT / 剧本"
                         title="AI 剧本创作"
-                        description="先写故事，再写剧本：用故事圣经、人物引擎、结构板和场景卡，把想法推进成可拍摄的舞台。"
+                        description="先写故事，再写剧本：用故事圣经、人物引擎、结构板和场景卡，把想法推进成可拍摄的舞台；数据仅保存在本机浏览器。"
                         meta={
                             <>
                                 <span className="chip">{projects.length} 个剧本</span>
                                 <span className="chip">{totalScenes} 场</span>
                                 <span className="chip">{totalWords.toLocaleString()} 字</span>
+                                <LocalSaveIndicator className="self-center" />
                             </>
                         }
                         actions={
@@ -177,7 +179,7 @@ export default function ScriptListPage() {
                                             <span>{dayjs(project.updatedAt).format("MM-DD HH:mm")}</span>
                                         </div>
                                     </Link>
-                                    <div className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                                    <div className="absolute right-3 top-3 flex items-center gap-0.5 rounded-md bg-background/70 opacity-100 backdrop-blur-sm transition-opacity duration-200 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
                                         <button type="button" aria-label="导出剧本" title="导出剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-foreground/5 hover:text-foreground" onClick={(event) => { event.preventDefault(); exportProject(project); }}>
                                             <Download className="size-3" />
                                         </button>

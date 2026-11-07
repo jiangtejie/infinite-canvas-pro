@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Modal, Spin } from "antd";
 import { AlertTriangle, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 
@@ -26,14 +26,20 @@ export function ScriptAiDiagnosisModal({ open, project, scene, onClose }: Script
     const { diagnosing, diagnoseScene } = useScriptAi();
     const [diagnosis, setDiagnosis] = useState<ScriptSceneDiagnosis | null>(null);
     const [attempted, setAttempted] = useState(false);
+    const latestRef = useRef({ open, project, scene, diagnoseScene });
 
     useEffect(() => {
-        if (!open || !scene) return;
+        latestRef.current = { open, project, scene, diagnoseScene };
+    }, [open, project, scene, diagnoseScene]);
+
+    useEffect(() => {
+        const { open: isOpen, project: currentProject, scene: currentScene, diagnoseScene: diagnose } = latestRef.current;
+        if (!isOpen || !currentScene) return;
         let cancelled = false;
         setDiagnosis(null);
         setAttempted(false);
         void (async () => {
-            const result = await diagnoseScene(project, scene);
+            const result = await diagnose(currentProject, currentScene);
             if (cancelled) return;
             setAttempted(true);
             if (result) setDiagnosis(result);

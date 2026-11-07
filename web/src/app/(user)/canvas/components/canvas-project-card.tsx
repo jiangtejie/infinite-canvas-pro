@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Check, Download, Pencil, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button, Input } from "antd";
 
-import { CanvasNodeType } from "../types";
+import { ensureImagePreview, previewUrlFor, resolveImageUrl } from "@/services/image-storage";
+import { CanvasNodeType, type CanvasNodeData } from "../types";
 import { useCanvasStore, type CanvasProject } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "../utils/canvas-export";
@@ -38,7 +40,7 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
                 {previews.length ? (
                     <div className="flex h-full gap-1 p-1">
                         {previews.map((node) => (
-                            <img key={node.id} src={node.metadata?.content} alt="" loading="lazy" decoding="async" className="h-full min-w-0 flex-1 rounded-[4px] object-cover opacity-90 transition duration-500 group-hover:opacity-100" />
+                            <ProjectNodeThumb key={node.id} projectId={project.id} node={node} />
                         ))}
                     </div>
                 ) : (
@@ -84,7 +86,7 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
                     <p className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground/80 uppercase">
                         {new Date(project.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     </p>
-                    <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100 focus-within:opacity-100" onClick={(event) => event.stopPropagation()}>
                         {editing ? (
                             <>
                                 <Button type="text" size="small" shape="circle" icon={<Check className="size-4" />} onClick={saveTitle} aria-label="保存名称" />
@@ -101,5 +103,49 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
                 </div>
             </div>
         </article>
+    );
+}
+
+function ProjectNodeThumb({ projectId, node }: { projectId: string; node: CanvasNodeData }) {
+    const content = node.metadata?.content || "";
+    const storageKey = node.metadata?.storageKey;
+    const previewKey = `canvas-node:${projectId}:${node.id}`;
+    const source = `${node.metadata?.primaryImageId || ""}:${node.metadata?.imageTaskResultId || ""}:${storageKey || content}`;
+    const [src, setSrc] = useState(() => previewUrlFor(previewKey, source) || (content && !content.startsWith("blob:") ? content : ""));
+
+    useEffect(() => {
+        let alive = true;
+        const cached = previewUrlFor(previewKey, source);
+        if (cached) {
+            setSrc(cached);
+            return;
+        }
+        const finish = () => {
+            alive = false;
+        };
+        if (content && !content.startsWith("blob:") && !content.startsWith("data:")) {
+            setSrc(content);
+            void ensureImagePreview(previewKey, content, storageKey, source).then((preview) => {
+                if (alive && preview) setSrc(preview);
+            });
+            return finish;
+        }
+        setSrc(content && !content.startsWith("blob:") ? content : "");
+        if (!storageKey && !content.startsWith("blob:")) return finish;
+        void resolveImageUrl(storageKey, content).then((url) => {
+            if (!alive || !url) return;
+            setSrc(url);
+            if (!url.startsWith("http")) return;
+            void ensureImagePreview(previewKey, url, undefined, source).then((preview) => {
+                if (alive && preview) setSrc(preview);
+            });
+        }).catch(() => undefined);
+        return finish;
+    }, [content, previewKey, source, storageKey]);
+
+    return src ? (
+        <img src={src} alt={node.title || ""} loading="lazy" decoding="async" className="h-full min-w-0 flex-1 rounded-[4px] object-cover opacity-90 transition duration-500 group-hover:opacity-100" />
+    ) : (
+        <div className="h-full min-w-0 flex-1 rounded-[4px] bg-muted/50" />
     );
 }

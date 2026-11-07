@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmAsset, FilmAssetKind, FilmProject } from "../types";
+import type { FilmAsset, FilmAssetKind, FilmProject } from "@/lib/film/types";
 import type { FilmViewPreset } from "../utils/film-view-presets";
 import { FilmCharacterWorkspace } from "./film-character-workspace";
 import { FilmLocationWorkspace } from "./film-location-workspace";
@@ -14,10 +14,11 @@ type FilmCastStageProps = {
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     onGenerateAsset: (asset: FilmAsset, kind: FilmAssetKind) => void;
     onGenerateView: (asset: FilmAsset, kind: FilmAssetKind, preset: FilmViewPreset) => void;
+    onStopAsset: () => void;
     generatingAssetId: string;
 };
 
-export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateView, generatingAssetId }: FilmCastStageProps) {
+export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateView, onStopAsset, generatingAssetId }: FilmCastStageProps) {
     const [tab, setTab] = useState<"character" | "location">("character");
     const characters = project.characters || [];
     const locations = project.locations || [];
@@ -50,7 +51,7 @@ export function FilmCastStage({ project, onUpdate, onGenerateAsset, onGenerateVi
                 {tab === "character" ? (
                     <FilmCharacterWorkspace project={project} onUpdate={onUpdate} />
                 ) : (
-                    <FilmLocationWorkspace project={project} onUpdate={onUpdate} onGenerateAsset={onGenerateAsset} onGenerateView={onGenerateView} generatingAssetId={generatingAssetId} />
+                    <FilmLocationWorkspace project={project} onUpdate={onUpdate} onGenerateAsset={onGenerateAsset} onGenerateView={onGenerateView} onStopAsset={onStopAsset} generatingAssetId={generatingAssetId} />
                 )}
             </div>
         </div>

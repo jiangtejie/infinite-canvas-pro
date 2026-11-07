@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { App } from "antd";
 
-import type { FilmEpisode } from "../types";
+import type { FilmEpisode } from "@/lib/film/types";
 import { requestFilmAiStoryboard, type FilmParseOptions } from "../utils/film-ai-parse";
 import { useModelConfig } from "@/hooks/use-model-config";
 

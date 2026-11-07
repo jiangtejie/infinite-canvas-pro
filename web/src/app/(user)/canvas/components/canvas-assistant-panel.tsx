@@ -638,7 +638,7 @@ export function CanvasAssistantPanel({
             >
             <motion.aside
                 data-canvas-agent-panel
-                className={cn("relative flex shrink-0 flex-col border-l max-md:shadow-2xl", !closing && "max-md:!w-[92vw]")}
+                className={cn("relative flex shrink-0 flex-col border-l max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl", !closing && "max-md:!w-[92vw]")}
                 initial={{ x: 48 }}
                 animate={{ x: closing ? 28 : 0 }}
                 transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: [0.22, 1, 0.36, 1] }}

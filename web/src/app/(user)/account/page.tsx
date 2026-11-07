@@ -45,6 +45,11 @@ export default function AccountPage() {
     const [activeOrder, setActiveOrder] = useState<RechargeOrder | null>(null);
     const [saving, setSaving] = useState(false);
 
+    // 头像菜单等入口会以 /account?tab=recharge 打开；同路由跳转时组件不重建，需要跟随参数切页签。
+    useEffect(() => {
+        if (params.get("tab") === "recharge") setTab("微信充值");
+    }, [params]);
+
     useEffect(() => {
         if (!token) return;
         Promise.all([fetchAccountProfile(token), fetchRechargePackages(token), fetchRechargeOrders(token), fetchCreditLogs(token), fetchInvoices(token)])

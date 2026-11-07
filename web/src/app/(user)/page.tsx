@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, ArrowUpRight, Clapperboard, ExternalLink, ImageIcon, PenLine } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Clapperboard, ExternalLink, ImageIcon, Maximize2, PenLine } from "lucide-react";
 import Link from "next/link";
-import { type CSSProperties, type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Image, Tag } from "antd";
 import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
@@ -80,6 +80,7 @@ export default function IndexPage() {
     const effectiveConfig = useEffectiveConfig();
     const createProject = useCanvasStore((state) => state.createProject);
     const hydrated = useCanvasStore((state) => state.hydrated);
+    const projects = useCanvasStore((state) => state.projects);
     const [promptShowcase, setPromptShowcase] = useState<Prompt[]>([]);
     const [previewIndex, setPreviewIndex] = useState(0);
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -99,6 +100,7 @@ export default function IndexPage() {
     const composerRef = useRef<HTMLDivElement>(null);
     const uploadInputRef = useRef<HTMLInputElement>(null);
     const pendingAssetCountsRef = useRef<Record<InsertAssetPayload["kind"], number>>({ text: 0, image: 0, video: 0, audio: 0 });
+    const recentProjects = useMemo(() => [...projects].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, 3), [projects]);
 
     useEffect(() => {
         void fetchPrompts({ pageSize: 12 })
@@ -238,21 +240,43 @@ export default function IndexPage() {
                     <input ref={uploadInputRef} hidden type="file" accept="image/*,video/*,audio/*" onChange={onUploadInputChange} />
                 </section>
 
-                <section className="relative mt-6 sm:mt-10" aria-label="精选案例">
-                    <div className="mb-5 flex items-center justify-between gap-4">
-                        <span className="eyebrow">精选案例</span>
-                        <span className="hidden font-mono text-[10px] tracking-[0.18em] text-muted-foreground/60 uppercase sm:block">拖拽切换 / 点击播放</span>
-                    </div>
-                    <div className="relative left-1/2 w-screen -translate-x-1/2">
-                        <HomeBannerCarousel banners={HOME_BANNERS} />
-                    </div>
-                </section>
+                {hydrated && recentProjects.length ? (
+                    <section className="relative mt-10 sm:mt-14" aria-labelledby="home-recent-title">
+                        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                            <div>
+                                <span className="eyebrow">继续创作</span>
+                                <h2 id="home-recent-title" className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-foreground sm:text-[28px]">最近画布</h2>
+                            </div>
+                            <Button href="/canvas" icon={<ArrowRight className="size-4" />} iconPlacement="end">全部画布</Button>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {recentProjects.map((project) => (
+                                <Link
+                                    key={project.id}
+                                    href={`/canvas/${project.id}`}
+                                    className="punk-card brackets enter-up group relative flex min-h-[104px] flex-col justify-between gap-4 overflow-hidden rounded-xl border border-border bg-card/60 p-5"
+                                >
+                                    <span className="grid size-9 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70 transition-colors group-hover:border-acid/45 group-hover:text-acid">
+                                        <Maximize2 className="size-4" />
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                                            <span className="line-clamp-1">{project.title || "未命名画布"}</span>
+                                            <ArrowUpRight className="size-3.5 shrink-0 -translate-y-px text-muted-foreground/0 transition group-hover:text-acid" aria-hidden />
+                                        </span>
+                                        <span className="mt-1.5 block text-xs text-muted-foreground">{project.nodes.length} 个节点 · {formatRecentTime(project.updatedAt)} 更新</span>
+                                    </span>
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
+                ) : null}
 
                 <section className="relative mt-16 sm:mt-20" aria-labelledby="home-tools-title">
                     <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <span className="eyebrow">工作台</span>
-                            <h2 id="home-tools-title" className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-foreground sm:text-[28px]">一条链路，七种创作入口</h2>
+                            <h2 id="home-tools-title" className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-foreground sm:text-[28px]">一条链路，{navigationTools.length} 种创作入口</h2>
                         </div>
                         <p className="max-w-sm text-xs leading-6 text-muted-foreground sm:text-right">从灵感到成片，每个环节都独立可编排，也能在画布里串起来。</p>
                     </div>
@@ -279,6 +303,16 @@ export default function IndexPage() {
                                 </span>
                             </Link>
                         ))}
+                    </div>
+                </section>
+
+                <section className="relative mt-16 sm:mt-20" aria-label="精选案例">
+                    <div className="mb-5 flex items-center justify-between gap-4">
+                        <span className="eyebrow">精选案例</span>
+                        <span className="hidden font-mono text-[10px] tracking-[0.18em] text-muted-foreground/60 uppercase sm:block">拖拽切换 / 点击播放</span>
+                    </div>
+                    <div className="relative left-1/2 w-screen -translate-x-1/2">
+                        <HomeBannerCarousel banners={HOME_BANNERS} />
                     </div>
                 </section>
 
@@ -363,4 +397,10 @@ export default function IndexPage() {
             />
         </main>
     );
+}
+
+function formatRecentTime(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
 }

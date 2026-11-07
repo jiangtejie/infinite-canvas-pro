@@ -6,7 +6,6 @@ import { audioMimeType, isGlmTtsModel, normalizeAudioFormatValue, normalizeAudio
 import { isAutoDLConfig } from "@/lib/autodl";
 import { isGrok2APITtsConfig, normalizeGrokTtsFormat, normalizeGrokTtsLanguage, normalizeGrokTtsSpeed, type GrokTtsVoice } from "@/lib/grok-tts";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, normalizeMimoTtsFormat, normalizeMimoTtsVoice } from "@/lib/mimo-tts";
-import { modelChannelAttributionHeaders } from "@/lib/model-channel";
 import { geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { geminiPcmBase64ToWav, normalizeGeminiTtsVoice } from "@/lib/gemini-tts";
 import { isMiniMaxTtsConfig, normalizeMiniMaxTtsFormat, normalizeMiniMaxTtsSpeed, normalizeMiniMaxTtsVoice, type MiniMaxTtsVoice } from "@/lib/minimax-tts";
@@ -14,6 +13,10 @@ import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer, type Uploa
 import { autoSyncToCloud } from "@/services/image-storage";
 import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+
+import { aiApiUrl, aiHeaders as sharedAiHeaders, refreshRemoteUser, usesAccountProxy } from "./ai-request";
+
+const jsonAiHeaders = (config: AiConfig) => sharedAiHeaders(config, { contentType: "application/json", requireRemoteLogin: false });
 import type { ReferenceAudio } from "@/types/media";
 import { tokenDanceGatewayURL } from "./protocols/tokendance";
 
@@ -43,52 +46,13 @@ type MiniMaxVoicesResponse = { code?: number; msg?: string; system_voice?: MiniM
 const grokTtsVoiceRequests = new Map<string, Promise<GrokTtsVoice[]>>();
 const miniMaxTtsVoiceRequests = new Map<string, Promise<MiniMaxTtsVoice[]>>();
 
-function usesAccountProxy(config: AiConfig) {
-    const token = useUserStore.getState().token;
-    return config.channelMode === "remote" || (config.channelMode === "local" && Boolean(token));
-}
-
-function aiApiUrl(config: AiConfig, path: string) {
-    if (usesAccountProxy(config)) return `/api/v1${path}`;
-    const channel = localChannelForActiveModel(config);
-    return buildApiUrl(channel?.baseUrl || config.baseUrl, path);
-}
-
-function aiHeaders(config: AiConfig) {
-    const token = useUserStore.getState().token;
-    if (config.channelMode === "remote") {
-        return {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(channelIdForActiveModel(config) ? { "X-Model-Channel-ID": channelIdForActiveModel(config) } : {}),
-            "Content-Type": "application/json",
-        };
-    }
-    if (token) {
-        return {
-            Authorization: `Bearer ${token}`,
-            ...(channelIdForActiveModel(config) ? { "X-User-Model-Channel-ID": channelIdForActiveModel(config) } : {}),
-            "Content-Type": "application/json",
-        };
-    }
-    if (isGeminiConfig(config)) return geminiDirectHeaders(config);
-    return {
-        Authorization: `Bearer ${localChannelForActiveModel(config)?.apiKey || config.apiKey}`,
-        ...modelChannelAttributionHeaders(channelProtocolForConfig(config)),
-        "Content-Type": "application/json",
-    };
-}
-
-function refreshRemoteUser(config: AiConfig) {
-    if (usesAccountProxy(config)) void useUserStore.getState().hydrateUser();
-}
-
 export function fetchGrokTtsVoices(config: AiConfig, model: string) {
     const requestConfig = { ...config, model, audioModel: model };
     const requestKey = `${aiApiUrl(requestConfig, "/tts/voices")}|${channelIdForActiveModel(requestConfig)}|${model}`;
     const existing = grokTtsVoiceRequests.get(requestKey);
     if (existing) return existing;
 
-    const request = axios.get<{ voices?: GrokTtsVoice[] }>(aiApiUrl(requestConfig, "/tts/voices"), { headers: aiHeaders(requestConfig), params: { model } })
+    const request = axios.get<{ voices?: GrokTtsVoice[] }>(aiApiUrl(requestConfig, "/tts/voices"), { headers: jsonAiHeaders(requestConfig), params: { model } })
         .then((response) => Array.isArray(response.data.voices) ? response.data.voices.filter((voice) => Boolean(voice.voice_id)) : [])
         .finally(() => grokTtsVoiceRequests.delete(requestKey));
     grokTtsVoiceRequests.set(requestKey, request);
@@ -105,8 +69,8 @@ export function fetchMiniMaxTtsVoices(config: AiConfig, model: string) {
     if (existing) return existing;
 
     const request = (proxy
-        ? axios.get<MiniMaxVoicesResponse>(url, { headers: aiHeaders(requestConfig), params: { model } })
-        : axios.post<MiniMaxVoicesResponse>(url, { voice_type: "system" }, { headers: aiHeaders(requestConfig) }))
+        ? axios.get<MiniMaxVoicesResponse>(url, { headers: jsonAiHeaders(requestConfig), params: { model } })
+        : axios.post<MiniMaxVoicesResponse>(url, { voice_type: "system" }, { headers: jsonAiHeaders(requestConfig) }))
         .then((response) => {
             if (response.data.code) throw new Error(response.data.msg || "MiniMax 音色读取失败");
             if (response.data.base_resp?.status_code) throw new Error(response.data.base_resp.status_msg || "MiniMax 音色读取失败");
@@ -138,7 +102,7 @@ export async function requestAudioGeneration(config: AiConfig, prompt: string, r
             const response = await axios.post<GeminiAudioResponse>(
                 usesAccountProxy(config) ? "/api/v1/audio/speech" : geminiActionUrl(channel?.baseUrl || config.baseUrl, model, "generateContent"),
                 body,
-                { headers: usesAccountProxy(config) ? { ...aiHeaders(config), ...(signal ? { "X-Canvas-Node-Request": "true" } : {}) } : geminiDirectHeaders(config), signal },
+                { headers: usesAccountProxy(config) ? { ...jsonAiHeaders(config), ...(signal ? { "X-Canvas-Node-Request": "true" } : {}) } : geminiDirectHeaders(config), signal },
             );
             refreshRemoteUser(config);
             return decodeGeminiAudio(response.data);
@@ -171,20 +135,20 @@ export async function requestAudioGeneration(config: AiConfig, prompt: string, r
                         channel: 1,
                     },
                 },
-                { headers: aiHeaders(requestConfig), signal },
+                { headers: jsonAiHeaders(requestConfig), signal },
             );
             return decodeMiniMaxAudio(response.data, normalizeMiniMaxTtsFormat(requestConfig.miniMaxTtsFormat));
         }
         if (isMimoTtsModel(model) && !usesAccountProxy(config)) {
             const format = normalizeMimoTtsFormat(config.mimoTtsFormat);
             const body = await buildMiMoNativeRequest(config, model, prompt, referenceAudio);
-            const response = await axios.post<MiMoAudioResponse>(aiApiUrl(config, "/chat/completions"), body, { headers: aiHeaders(config), signal });
+            const response = await axios.post<MiMoAudioResponse>(aiApiUrl(config, "/chat/completions"), body, { headers: jsonAiHeaders(config), signal });
             return decodeMiMoAudio(response.data, format);
         }
 
         const format = audioResponseFormat(config, model);
         const body = await buildAudioSpeechRequest(config, model, prompt, referenceAudio);
-        const response = await axios.post<Blob>(aiApiUrl(config, "/audio/speech"), body, { headers: aiHeaders(config), responseType: "blob", signal });
+        const response = await axios.post<Blob>(aiApiUrl(config, "/audio/speech"), body, { headers: jsonAiHeaders(config), responseType: "blob", signal });
         await assertAudioBlob(response.data);
         refreshRemoteUser(config);
         return response.data.type.startsWith("audio/") ? response.data : new Blob([response.data], { type: audioMimeType(format) });
@@ -235,7 +199,7 @@ export async function createCanvasAudioTask(config: AiConfig, prompt: string, op
 	}
     const request: RequestInit = {
         method: "POST",
-        headers: translation ? translationHeaders(config,translation) : aiHeaders(config),
+        headers: translation ? translationHeaders(config,translation) : jsonAiHeaders(config),
         body: JSON.stringify({
             endpoint: "/audio/speech",
             nodeId: options.nodeId || "",

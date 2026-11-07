@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { App } from "antd";
 
-import type { FilmContinuitySheet, FilmEpisode } from "../types";
+import type { FilmContinuitySheet, FilmEpisode } from "@/lib/film/types";
 import { requestFilmContinuity } from "../utils/film-continuity-sheet";
 import { useModelConfig } from "@/hooks/use-model-config";
 

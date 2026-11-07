@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { Modal, theme as antdTheme } from "antd";
-import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, RefreshCw, Star, Video } from "lucide-react";
+import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, Plus, RefreshCw, Star, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { pickImageSource } from "@/lib/image-thumbnail";
@@ -44,10 +44,11 @@ type CanvasNodeProps = {
     batchOpening?: boolean;
     batchRecovering?: boolean;
     batchMotion?: { x: number; y: number; index: number };
-    onMouseDown: (event: React.MouseEvent, nodeId: string) => void;
+    onDragStart: (event: React.PointerEvent, nodeId: string) => void;
     onHoverStart: (nodeId: string) => void;
     onHoverEnd: (nodeId: string) => void;
-    onConnectStart: (event: React.MouseEvent, nodeId: string, handleType: "source" | "target") => void;
+    onConnectStart: (event: React.PointerEvent, nodeId: string, handleType: "source" | "target") => void;
+    onKeyboardConnect: (nodeId: string, handleType: "source" | "target") => void;
     onResize: (nodeId: string, width: number, height: number, position?: Position, loadedNode?: CanvasNodeData) => void;
     onContentChange: (nodeId: string, content: string) => void;
     onTitleChange: (nodeId: string, title: string) => void;
@@ -57,6 +58,7 @@ type CanvasNodeProps = {
     onViewImage?: (node: CanvasNodeData) => void;
     onSelectReference?: (nodeId: string) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
+    onKeyboardSelect?: (nodeId: string) => void;
 };
 
 type NodeContentRendererProps = {
@@ -81,7 +83,7 @@ type NodeContentRendererProps = {
     onViewImage?: (node: CanvasNodeData) => void;
     onToggleBatch?: () => void;
     onSetBatchPrimary?: () => void;
-    onMoveStart?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+    onMoveStart?: (event: React.PointerEvent<HTMLButtonElement>) => void;
 };
 
 export const CanvasNode = React.memo(function CanvasNode({
@@ -107,10 +109,11 @@ export const CanvasNode = React.memo(function CanvasNode({
     batchOpening = false,
     batchRecovering = false,
     batchMotion,
-    onMouseDown,
+    onDragStart,
     onHoverStart,
     onHoverEnd,
     onConnectStart,
+    onKeyboardConnect,
     onResize,
     onContentChange,
     onTitleChange,
@@ -120,6 +123,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     onViewImage,
     onSelectReference,
     onContextMenu,
+    onKeyboardSelect,
 }: CanvasNodeProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [hovered, setHovered] = useState(false);
@@ -136,6 +140,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     const imageBorderColor = isActive ? selectionBlue : isRelated && !isBatchChild ? theme.node.muted : "transparent";
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
+    const resizePointerIdRef = useRef<number | null>(null);
     const resizeRef = useRef({
         isResizing: false,
         corner: "bottom-right" as ResizeCorner,
@@ -214,8 +219,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     }, [isEditingContent]);
 
     const handleResizeMove = useCallback(
-        (event: MouseEvent) => {
-            if (!resizeRef.current.isResizing) return;
+        (event: PointerEvent) => {
+            if (!resizeRef.current.isResizing || resizePointerIdRef.current !== event.pointerId) return;
 
             const dx = (event.clientX - resizeRef.current.startX) / scale;
             const dy = (event.clientY - resizeRef.current.startY) / scale;
@@ -254,13 +259,16 @@ export const CanvasNode = React.memo(function CanvasNode({
         [data.id, onResize, scale],
     );
 
-    const handleResizeUp = useCallback(() => {
+    const handleResizeUp = useCallback((event?: PointerEvent) => {
+        if (event && resizePointerIdRef.current != null && event.pointerId !== resizePointerIdRef.current) return;
         resizeRef.current.isResizing = false;
-        window.removeEventListener("mousemove", handleResizeMove);
-        window.removeEventListener("mouseup", handleResizeUp);
+        resizePointerIdRef.current = null;
+        window.removeEventListener("pointermove", handleResizeMove);
+        window.removeEventListener("pointerup", handleResizeUp);
+        window.removeEventListener("pointercancel", handleResizeUp);
     }, [handleResizeMove]);
 
-    const handleResizeMouseDown = (event: React.MouseEvent, corner: ResizeCorner) => {
+    const handleResizePointerDown = (event: React.PointerEvent, corner: ResizeCorner) => {
         event.stopPropagation();
         event.preventDefault();
         resizeRef.current = {
@@ -275,22 +283,34 @@ export const CanvasNode = React.memo(function CanvasNode({
             keepRatio: (isCanvasImageNodeType(data.type) && !data.metadata?.freeResize) || data.type === CanvasNodeType.Video,
             ratio: (data.metadata?.naturalWidth || data.width) / (data.metadata?.naturalHeight || data.height || 1),
         };
-        window.addEventListener("mousemove", handleResizeMove);
-        window.addEventListener("mouseup", handleResizeUp);
+        resizePointerIdRef.current = event.pointerId;
+        window.addEventListener("pointermove", handleResizeMove);
+        window.addEventListener("pointerup", handleResizeUp);
+        window.addEventListener("pointercancel", handleResizeUp);
     };
 
     useEffect(() => {
         return () => {
-            window.removeEventListener("mousemove", handleResizeMove);
-            window.removeEventListener("mouseup", handleResizeUp);
+            window.removeEventListener("pointermove", handleResizeMove);
+            window.removeEventListener("pointerup", handleResizeUp);
+            window.removeEventListener("pointercancel", handleResizeUp);
         };
     }, [handleResizeMove, handleResizeUp]);
 
     return (
         <div
             data-node-id={data.id}
-            tabIndex={-1}
-            className={`node-element absolute flex select-none flex-col outline-none transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
+            tabIndex={referenceSelectionState ? -1 : 0}
+            role="group"
+            aria-label={data.title || "画布节点"}
+            onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                event.stopPropagation();
+                onKeyboardSelect?.(data.id);
+            }}
+            className={`node-element absolute flex select-none flex-col outline-none transition-shadow duration-200 focus-visible:ring-2 focus-visible:ring-[#2f80ff]/80 focus-visible:ring-offset-0 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
                 width: data.width,
@@ -306,7 +326,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 setHovered(false);
                 onHoverEnd(data.id);
             }}
-            onMouseDownCapture={(event) => {
+            onPointerDownCapture={(event) => {
                 if (!referenceSelectionState) return;
                 event.preventDefault();
                 event.stopPropagation();
@@ -367,7 +387,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                     borderColor: isGroup ? isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : theme.node.stroke,
                     boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66` : isGroup && isSelected ? `0 0 0 1px ${selectionBlue}55` : isActive ? `0 0 0 1px ${selectionBlue}55` : isRelated && !isBatchChild ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
                 }}
-                onMouseDown={(event) => onMouseDown(event, data.id)}
+                onPointerDown={(event) => onDragStart(event, data.id)}
                 onDoubleClick={(event) => {
                     if (referenceSelectionState) {
                         event.preventDefault();
@@ -427,7 +447,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                             onViewImage={onViewImage}
                             onToggleBatch={() => onToggleBatch?.(data.id)}
                             onSetBatchPrimary={() => onSetBatchPrimary?.(data)}
-                            onMoveStart={(event) => onMouseDown(event, data.id)}
+                            onMoveStart={(event) => onDragStart(event, data.id)}
                         />
                     ) : null}
                 </div>
@@ -442,16 +462,16 @@ export const CanvasNode = React.memo(function CanvasNode({
                     </div>
                 ) : null}
 
-                {!referenceSelectionState ? <ResizeHandle corner="top-left" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="top-right" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-left" onMouseDown={handleResizeMouseDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-right" onMouseDown={handleResizeMouseDown} /> : null}
+                {!referenceSelectionState ? <ResizeHandle corner="top-left" onPointerDown={handleResizePointerDown} /> : null}
+                {!referenceSelectionState ? <ResizeHandle corner="top-right" onPointerDown={handleResizePointerDown} /> : null}
+                {!referenceSelectionState ? <ResizeHandle corner="bottom-left" onPointerDown={handleResizePointerDown} /> : null}
+                {!referenceSelectionState ? <ResizeHandle corner="bottom-right" onPointerDown={handleResizePointerDown} /> : null}
             </div>
 
             {!referenceSelectionState && !isGroup ? (
                 <>
-                    <ConnectionHandleDot side="left" visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "target")} />
-                    <ConnectionHandleDot side="right" visible={data.type !== CanvasNodeType.Config && (hovered || isSelected || isConnecting)} onMouseDown={(event) => onConnectStart(event, data.id, "source")} />
+                    <ConnectionHandleDot side="left" visible={hovered || isSelected || isConnecting} prominent={isSelected} label="连入：拖拽到上游节点，或按 Enter 后 Tab 选择节点" onPointerDown={(event) => onConnectStart(event, data.id, "target")} onActivate={() => onKeyboardConnect(data.id, "target")} />
+                    <ConnectionHandleDot side="right" visible={data.type !== CanvasNodeType.Config && (hovered || isSelected || isConnecting)} prominent={isSelected} label="连出：拖拽到目标节点，或按 Enter 后 Tab 选择目标连接点" onPointerDown={(event) => onConnectStart(event, data.id, "source")} onActivate={() => onKeyboardConnect(data.id, "source")} />
                 </>
             ) : null}
 
@@ -467,7 +487,7 @@ function NodeContent(props: NodeContentRendererProps) {
     if (props.node.metadata?.status === "stopped") return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: props.theme.node.muted }}>
             <span className="text-sm">已停止</span>
-            <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ color: props.theme.node.text, background: props.theme.toolbar.panel, borderColor: props.theme.toolbar.border }} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); props.onRetry?.(props.node); }}>重新生成</button>
+            <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ color: props.theme.node.text, background: props.theme.toolbar.panel, borderColor: props.theme.toolbar.border }} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); props.onRetry?.(props.node); }}>重新生成</button>
         </div>
     );
     if ((props.node.metadata?.status === "loading" || props.node.metadata?.status === "stopping") && (props.node.type !== CanvasNodeType.Text || !props.node.metadata.content)) return <LoadingContent node={props.node} theme={props.theme} now={props.now} />;
@@ -744,7 +764,7 @@ function VideoNodeContent({ node, theme, isSelected, onViewImage, onResize }: No
         );
     const controlStyle = { background: theme.toolbar.panel, color: theme.toolbar.item };
     const controlClassName = "absolute bottom-2 z-20 flex size-7 items-center justify-center rounded-md opacity-70 backdrop-blur transition-opacity hover:opacity-100";
-    const keepVideoFocus = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const keepVideoFocus = (event: React.SyntheticEvent<HTMLButtonElement>) => {
         event.preventDefault();
         event.stopPropagation();
         if (isSelected) videoRef.current?.focus({ preventScroll: true });
@@ -753,10 +773,10 @@ function VideoNodeContent({ node, theme, isSelected, onViewImage, onResize }: No
         <div className="relative h-full w-full overflow-hidden rounded-[18px] bg-black">
             <video ref={videoRef} src={node.metadata.content} tabIndex={-1} playsInline className="h-full w-full object-contain outline-none" onLoadStart={() => { setVideoTime(0); setMediaDurationMs(0); }} onLoadedMetadata={(event) => { const video = event.currentTarget; setMediaDurationMs(Number.isFinite(video.duration) ? video.duration * 1000 : 0); if (video.currentSrc === video.src) onResize(node.id, video.videoWidth, video.videoHeight, undefined, node); }} onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onKeyDown={(event) => { if (isSelected && event.code === "Space") { event.preventDefault(); event.stopPropagation(); togglePlayback(); } }} />
             {mediaDurationMs > 0 ? <span className="pointer-events-none absolute left-2 top-2 z-20 flex h-7 items-center justify-center rounded-md px-2 text-[11px] font-medium opacity-70 backdrop-blur" style={controlStyle}>{new Date(mediaDurationMs).toISOString().slice(mediaDurationMs >= 3_600_000 ? 11 : 14, 19)}</span> : null}
-            <button type="button" title={isPlaying ? "暂停" : "播放"} aria-label={isPlaying ? "暂停" : "播放"} className={`${controlClassName} left-2`} style={controlStyle} onClick={(event) => { event.stopPropagation(); togglePlayback(); }} onMouseDown={keepVideoFocus} onDoubleClick={(event) => event.stopPropagation()}>
+            <button type="button" title={isPlaying ? "暂停" : "播放"} aria-label={isPlaying ? "暂停" : "播放"} className={`${controlClassName} left-2`} style={controlStyle} onClick={(event) => { event.stopPropagation(); togglePlayback(); }} onPointerDown={keepVideoFocus} onMouseDown={keepVideoFocus} onDoubleClick={(event) => event.stopPropagation()}>
                 {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
             </button>
-            <button type="button" title="放大预览" aria-label="放大预览" className={`${controlClassName} right-2`} style={controlStyle} onClick={(event) => { event.stopPropagation(); videoRef.current?.pause(); onViewImage?.(node); }} onMouseDown={keepVideoFocus} onDoubleClick={(event) => event.stopPropagation()}>
+            <button type="button" title="放大预览" aria-label="放大预览" className={`${controlClassName} right-2`} style={controlStyle} onClick={(event) => { event.stopPropagation(); videoRef.current?.pause(); onViewImage?.(node); }} onPointerDown={keepVideoFocus} onMouseDown={keepVideoFocus} onDoubleClick={(event) => event.stopPropagation()}>
                 <Maximize2 className="size-3.5" />
             </button>
             <div className="absolute bottom-2 left-11 right-11 z-20 flex h-7 items-center" onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
@@ -797,7 +817,7 @@ function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
                 <Music2 className="size-4 shrink-0" />
                 <span className="truncate">{node.title || "音频"}</span>
             </div>
-            <audio src={node.metadata.content} controls className="w-full" data-canvas-no-zoom />
+            <audio src={node.metadata.content} controls className="w-full" data-canvas-no-zoom onPointerDown={(event) => event.stopPropagation()} />
         </div>
     );
 }
@@ -954,27 +974,58 @@ function BatchFrame({ batchCount, batchExpanded, batchOpening, batchRecovering, 
         </div>
     );
 }
-function ResizeHandle({ corner, onMouseDown }: { corner: ResizeCorner; onMouseDown: (event: React.MouseEvent, corner: ResizeCorner) => void }) {
+function ResizeHandle({ corner, onPointerDown }: { corner: ResizeCorner; onPointerDown: (event: React.PointerEvent, corner: ResizeCorner) => void }) {
     const positionClass = {
-        "top-left": "-left-[14px] -top-[14px] cursor-nwse-resize",
-        "top-right": "-right-[14px] -top-[14px] cursor-nesw-resize",
-        "bottom-left": "-bottom-[14px] -left-[14px] cursor-nesw-resize",
-        "bottom-right": "-bottom-[14px] -right-[14px] cursor-nwse-resize",
+        "top-left": "-left-[14px] -top-[14px] cursor-nwse-resize [@media(pointer:coarse)]:-left-[22px] [@media(pointer:coarse)]:-top-[22px]",
+        "top-right": "-right-[14px] -top-[14px] cursor-nesw-resize [@media(pointer:coarse)]:-right-[22px] [@media(pointer:coarse)]:-top-[22px]",
+        "bottom-left": "-bottom-[14px] -left-[14px] cursor-nesw-resize [@media(pointer:coarse)]:-bottom-[22px] [@media(pointer:coarse)]:-left-[22px]",
+        "bottom-right": "-bottom-[14px] -right-[14px] cursor-nwse-resize [@media(pointer:coarse)]:-bottom-[22px] [@media(pointer:coarse)]:-right-[22px]",
     }[corner];
 
-    return <div className={`absolute z-50 size-7 ${positionClass}`} onMouseDown={(event) => onMouseDown(event, corner)} />;
+    return <div className={`absolute z-50 size-7 [@media(pointer:coarse)]:size-11 ${positionClass}`} style={{ touchAction: "none" }} onPointerDown={(event) => onPointerDown(event, corner)} />;
 }
 
-function ConnectionHandleDot({ side, visible, onMouseDown }: { side: "left" | "right"; visible: boolean; onMouseDown: (event: React.MouseEvent) => void }) {
+function ConnectionHandleDot({ side, visible, prominent = false, label, onPointerDown, onActivate }: {
+    side: "left" | "right";
+    visible: boolean;
+    prominent?: boolean;
+    label: string;
+    onPointerDown: (event: React.PointerEvent) => void;
+    onActivate: () => void;
+}) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <div
-            className={`absolute top-1/2 z-30 flex size-12 -translate-y-1/2 cursor-crosshair items-center justify-center transition-opacity duration-150 ${side === "left" ? "-left-6" : "-right-6"
+        <button
+            type="button"
+            aria-label={label}
+            title={label}
+            tabIndex={visible ? 0 : -1}
+            className={`absolute top-1/2 z-30 flex size-12 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full transition-opacity duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f80ff]/70 [@media(pointer:coarse)]:size-16 ${side === "left" ? "-left-6 [@media(pointer:coarse)]:-left-8" : "-right-6 [@media(pointer:coarse)]:-right-8"
                 } ${visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-            onMouseDown={onMouseDown}
+            style={{ touchAction: "none" }}
+            onPointerDown={(event) => {
+                event.stopPropagation();
+                onPointerDown(event);
+            }}
+            onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                event.stopPropagation();
+                onActivate();
+            }}
         >
-            <div className="size-3 rounded-full border-2 transition-[transform,background-color,border-color] hover:scale-125" style={{ background: theme.node.panel, borderColor: theme.node.muted }} />
-        </div>
+            <span
+                className={`flex items-center justify-center rounded-full border-2 transition-transform hover:scale-125 [@media(pointer:coarse)]:size-5 ${prominent ? "size-4" : "size-3"}`}
+                style={{
+                    background: theme.node.panel,
+                    borderColor: prominent ? selectionBlue : theme.node.muted,
+                    color: selectionBlue,
+                    boxShadow: prominent ? `0 0 0 4px ${selectionBlue}22` : undefined,
+                }}
+            >
+                {prominent ? <Plus className="size-2.5" /> : null}
+            </span>
+        </button>
     );
 }

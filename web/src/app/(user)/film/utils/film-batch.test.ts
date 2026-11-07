@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { selectFilmBatchShots } from "./film-batch";
-import type { FilmShot } from "../types";
+import type { FilmShot } from "@/lib/film/types";
 
 const shot = (id: string, overrides: Partial<FilmShot> = {}): FilmShot => ({
     id,
@@ -14,7 +14,6 @@ const shot = (id: string, overrides: Partial<FilmShot> = {}): FilmShot => ({
     dialogue: "",
     audio: "",
     prompt: "",
-    status: "idle",
     ...overrides,
 });
 

@@ -8,9 +8,9 @@ import { useCopyText } from "@/hooks/use-copy-text";
 import { cn } from "@/lib/utils";
 import { uploadImage } from "@/services/image-storage";
 import { resolveModelForCapability, useEffectiveConfig } from "@/stores/use-config-store";
-import type { FilmAsset, FilmFrameSource, FilmShot, FilmVideoSegment } from "../types";
+import type { FilmAsset, FilmFrameSource, FilmShot, FilmVideoSegment } from "@/lib/film/types";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
-import { filmAspectCssRatio } from "../utils/film-aspects";
+import { filmAspectCssRatio } from "@/lib/film/film-aspects";
 import { composeFilmVideoPrompt, createDefaultSegments, mergeVideoSegmentWithPrevious, removeVideoSegment, splitVideoSegment, validateSegments } from "../utils/film-video-segments";
 import { clampFilmVideoDuration, filmVideoLimits, filmVideoReferenceLimit } from "../utils/film-video-limits";
 import { FilmImageThumbnail } from "./film-asset-thumbnail";
@@ -19,6 +19,7 @@ type FilmShotVideoPanelProps = {
     shot: FilmShot;
     onChange: (patch: Partial<FilmShot>) => void;
     onGenerate: () => void;
+    onStop?: () => void;
     generating: boolean;
     progress: number;
     aspect?: string;
@@ -27,7 +28,7 @@ type FilmShotVideoPanelProps = {
     locations: FilmAsset[];
 };
 
-export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, progress, aspect, styleText, characters, locations }: FilmShotVideoPanelProps) {
+export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generating, progress, aspect, styleText, characters, locations }: FilmShotVideoPanelProps) {
     const { message } = App.useApp();
     const copyText = useCopyText();
     const effectiveConfig = useEffectiveConfig();
@@ -44,7 +45,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
     const [selectedSegmentId, setSelectedSegmentId] = useState("");
 
     const mode = shot.videoMode === "frames" ? "frames" : "reference";
-    const defaultSegments = useMemo(() => createDefaultSegments(shot.duration), [shot.id, shot.duration]);
+    const defaultSegments = useMemo(() => createDefaultSegments(shot.duration), [shot.duration]);
     const segments = shot.videoSegments?.length ? shot.videoSegments : defaultSegments;
     const selectedSegment = segments.find((segment) => segment.id === selectedSegmentId) ?? segments[0] ?? null;
     const segmentError = validateSegments(segments, shot.duration);
@@ -256,7 +257,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
                 <Button size="small" className="mt-2" onClick={() => copyText(composedPrompt, "提示词已复制")}>复制提示词</Button>
             </details>
 
-            <div className="sticky bottom-0 z-10 grid gap-2 rounded-lg border border-border/60 bg-background/95 p-3 backdrop-blur">
+            <div className="sticky bottom-0 z-10 grid gap-2 rounded-lg border border-border/60 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur [@media(pointer:coarse)]:[&_.ant-btn]:min-h-9">
                 <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜视频</span>
                     <Button
@@ -275,6 +276,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
                     >
                         {generating ? `生成中 ${progress}%` : shot.videoUrl ? "重新生成" : "生成分镜视频"}
                     </Button>
+                    {generating && onStop ? <Button size="small" danger onClick={onStop}>停止生成</Button> : null}
                 </div>
                 {shot.errorMessage && !generating ? <p className="text-[11px] leading-5 text-hot">上次生成失败：{shot.errorMessage}</p> : null}
                 {generateBlockReason ? (
@@ -314,7 +316,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, generating, pro
                                     <button
                                         type="button"
                                         title={`第 ${index + 1} 版 · ${version.createdAt ? new Date(version.createdAt).toLocaleTimeString("zh-CN", { hour12: false }) : ""}`}
-                                        onClick={() => onChange({ videoUrl: version.url, videoStorageKey: version.storageKey || "", status: "video_ready", errorMessage: "" })}
+                                        onClick={() => onChange({ videoUrl: version.url, videoStorageKey: version.storageKey || "", errorMessage: "" })}
                                         className={cn("px-1.5 py-0.5 font-mono text-[9px] transition-colors", current ? "text-acid" : "text-muted-foreground/70 hover:text-foreground")}
                                     >
                                         v{index + 1}

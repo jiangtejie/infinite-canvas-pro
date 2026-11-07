@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene } from "./film-edits";
-import type { FilmEpisode, FilmShot } from "../types";
+import type { FilmEpisode, FilmShot } from "@/lib/film/types";
 
-const shot = (id: string): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description: id, dialogue: "", audio: "", prompt: "", status: "idle" });
+const shot = (id: string): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description: id, dialogue: "", audio: "", prompt: "" });
 
 const episodes: FilmEpisode[] = [
     {

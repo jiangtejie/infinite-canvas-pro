@@ -17,6 +17,8 @@ description: 当前后端主要数据表与字段说明
 - `mysql`
 - `postgresql`
 
+MySQL 建库默认使用 `utf8mb4 / utf8mb4_bin`，与 SQLite 的 BINARY 比较语义保持一致；后端启动时会检测目标库默认排序规则，与预期不一致时打印 WARNING。MySQL 与 SQLite 的完整差异见文末「MySQL 注意事项」。
+
 当前启动时执行 `AutoMigrate`，自动维护以下表：
 
 - `users`
@@ -39,6 +41,8 @@ description: 当前后端主要数据表与字段说明
 - `recharge_packages`
 - `recharge_orders`
 - `invoice_requests`
+- `creative_workflows`
+- `ai_call_logs`
 
 后续新增表时再同步补充本文档，未实际使用的规划表不提前写入。
 
@@ -256,21 +260,33 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | --- | --- | --- |
 | `id` | string | 主键，本地任务 ID |
 | `user_id` | string | 用户 ID |
+| `user_display_name` | string | 提交任务时的用户名快照 |
 | `source` | string | 固定为 `canvas` |
 | `source_id` | string | 画布来源 ID |
 | `node_id` | string | 画布节点 ID |
 | `model` | string | 模型名称 |
 | `channel_id` | string | 模型渠道 ID |
+| `user_channel_id` | string | 用户自定义渠道 ID，可为空 |
+| `channel_name` | string | 渠道名称快照 |
 | `workflow_ref` | text | 仅新工作流任务使用的渠道/条目精确引用；旧图片任务为空 |
+| `credits` | decimal(20,2) | 本次任务预扣的算力点 |
 | `status` | string | 状态：`queued`、`processing`、`completed`、`failed` |
 | `progress` | number | 生成进度 |
 | `prompt` | text | 提示词 |
 | `generation_type` | string | `generation` 或 `edit` |
-| `image_url` | text | 完成后图片 URL或第一张图片 URL |
+| `endpoint` | string | 实际请求的上游接口路径 |
+| `content_type` | string | 请求体 Content-Type |
+| `request_body` | 大文本 | 发往上游的请求体快照，可能包含 base64 媒体 |
+| `response_body` | 大文本 | 上游响应体快照，可能包含 base64 图片 |
+| `error` | 大文本 | 失败摘要 |
+| `error_detail` | 大文本 | 失败详情 |
+| `image_url` | 大文本 | 完成后图片 URL 或第一张图片 URL，可能是 data URL |
 | `image_urls` | JSON | 完成后全部图片 URL，第一项与 `image_url` 一致 |
 | `storage_key` | string | 存储对象 key |
-| `error` | text | 失败摘要 |
-| `error_detail` | text | 失败详情 |
+| `width` | number | 结果图片宽度 |
+| `height` | number | 结果图片高度 |
+| `mime_type` | string | 结果 MIME 类型 |
+| `bytes` | number | 结果字节数 |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 | `started_at` | string | 开始时间 |
@@ -286,19 +302,29 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | --- | --- | --- |
 | `id` | string | 主键，本地任务 ID |
 | `user_id` | string | 用户 ID |
+| `user_display_name` | string | 提交任务时的用户名快照 |
 | `source` | string | 固定为 `canvas` |
 | `source_id` | string | 画布来源 ID |
 | `node_id` | string | 画布节点 ID |
 | `model` | string | 模型名称 |
 | `channel_id` | string | 模型渠道 ID |
+| `user_channel_id` | string | 用户自定义渠道 ID，可为空 |
+| `channel_name` | string | 渠道名称快照 |
 | `workflow_ref` | text | 仅新工作流任务使用的渠道/条目精确引用；旧音频任务为空 |
+| `credits` | decimal(20,2) | 本次任务预扣的算力点 |
 | `status` | string | 状态：`queued`、`processing`、`completed`、`failed` |
 | `progress` | number | 生成进度 |
 | `prompt` | text | 提示词 |
-| `audio_url` | text | 完成后音频 URL |
+| `endpoint` | string | 实际请求的上游接口路径 |
+| `content_type` | string | 请求体 Content-Type |
+| `request_body` | 大文本 | 发往上游的请求体快照，可能包含 base64 媒体 |
+| `response_body` | 大文本 | 上游响应体快照，可能包含 base64 音频 |
+| `error` | 大文本 | 失败摘要 |
+| `error_detail` | 大文本 | 失败详情 |
+| `audio_url` | 大文本 | 完成后音频 URL，可能是 data URL |
 | `storage_key` | string | 存储对象 key |
-| `error` | text | 失败摘要 |
-| `error_detail` | text | 失败详情 |
+| `mime_type` | string | 结果 MIME 类型 |
+| `bytes` | number | 结果字节数 |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 | `started_at` | string | 开始时间 |
@@ -485,3 +511,56 @@ RunningHub/ComfyUI 不加入上述普通模型筛选：系统工作流公开列�
 | `admin_adjust` | 后台手动调整 |
 | `ai_consume` | 调用后端模型接口消费 |
 | `ai_refund` | 后端模型接口调用失败返还 |
+
+### creative_workflows
+
+创意工作流模板表。保存用户或系统沉淀的可复用工作流模板，`data` 为完整 JSON（变量与配置），前端按权限读取和编辑。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键 |
+| `owner_user_id` | string | 所属用户 ID；系统模板为空 |
+| `scope` | string | `private` 或 `public` |
+| `name` | string | 工作流名称，索引列 |
+| `category` | string | 分类，索引列 |
+| `description` | string | 说明 |
+| `data` | 大文本 | 工作流定义 JSON：变量、配置与节点数据 |
+| `created_at` | string | 创建时间 |
+| `updated_at` | string | 更新时间 |
+| `last_run_at` | string | 上次运行时间 |
+
+索引：`idx_creative_workflows_owner_user_id`、`idx_creative_workflows_scope`、`idx_creative_workflows_name`、`idx_creative_workflows_category`。
+
+### ai_call_logs
+
+AI 调用日志表。字段与文件日志一致，当前后端调用只写入 `AI_LOG_DIR` 下的文件日志，该表暂未写入实际数据，仅保留给后续统一入库。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键 |
+| `user_id` | string | 关联用户 ID，索引列 |
+| `endpoint` | string | 接口路径，索引列 |
+| `method` | string | HTTP 方法 |
+| `model` | string | 模型名称，索引列 |
+| `channel_id` | string | 渠道 ID，索引列 |
+| `channel_name` | string | 渠道名称 |
+| `status` | number | 上游 HTTP 状态码，索引列 |
+| `duration_ms` | number | 请求耗时（毫秒） |
+| `credits` | decimal(20,2) | 本次调用算力点 |
+| `request_body` | 大文本 | 请求体摘要 |
+| `response_body` | 大文本 | 响应体摘要 |
+| `error` | 大文本 | 失败原因 |
+| `created_at` | string | 创建时间，索引列 |
+
+索引：`idx_ai_call_logs_user_id`、`idx_ai_call_logs_endpoint`、`idx_ai_call_logs_model`、`idx_ai_call_logs_channel_id`、`idx_ai_call_logs_status`、`idx_ai_call_logs_created_at`。
+
+## MySQL 注意事项
+
+- 模型里保存 AI 请求/响应、base64 媒体、生成历史等大字段不再声明 `type:text`：GORM 在 MySQL 下会建成 `longtext`，SQLite 下仍是 `text`，SQLite 结构不受影响。若显式写 `type:text`，MySQL 只有 65,535 字节上限。
+- 带 `index`/`uniqueIndex`/`primaryKey`/默认值的 `string` 在 MySQL 下会建成 `varchar(191)`（按字符计）。`uniqueIndex` 必须显式 `size:191`，否则 GORM MySQL 方言会生成 `longtext`，建唯一索引时报 Error 1170。线上 SQLite 已有数据迁移前需确认这些列不超 191 字符。
+- 后端启动时会自动补齐 MySQL DSN 的 `parseTime=true`；DSN 未显式提供 `loc` 时默认 `loc=Local`。连接字符集默认已是 utf8mb4，建议在 DSN 中显式声明 `charset=utf8mb4`。
+- 建库时使用 `utf8mb4 / utf8mb4_bin`，等值比较、唯一索引与排序均为二进制/大小写敏感，与 SQLite 的 BINARY 语义一致；SQLite 的 `LIKE` 对 ASCII 默认不区分大小写，MySQL `utf8mb4_bin` 下 `LIKE` 会区分大小写，关键词搜索的 ASCII 大小写行为略有差异。
+- 模型中的 `time.Time` 字段在 MySQL 下为 `datetime(3)`（毫秒精度），SQLite 下保存为带时区的文本；表示不同但指向同一瞬时，读取依赖 DSN 的 `parseTime`/`loc`。
+- `longtext` 单条写入仍受 MySQL 服务端 `max_allowed_packet` 限制（默认 64MB），部署大文件场景时需按需调整。
+- 若目标库是预先创建好的（不是由后端创建），其字符集与排序规则不会被自动修改；后端启动时会检测默认排序规则并打印 WARNING，建议按 `utf8mb4 / utf8mb4_bin` 重建或自行确认查询行为。
+

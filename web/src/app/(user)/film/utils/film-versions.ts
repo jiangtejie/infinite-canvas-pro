@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { FilmMediaVersion, FilmShot } from "../types";
+import type { FilmMediaVersion, FilmShot } from "@/lib/film/types";
 
 export const MAX_MEDIA_VERSIONS = 6;
 
@@ -16,7 +16,6 @@ export function withImageVersion(shot: FilmShot, imageUrl: string, storageKey?: 
     return {
         imageUrl,
         storageKey: storageKey || "",
-        status: "image_ready",
         errorMessage: "",
         imageVersions: appendVersion(shot.imageVersions, imageUrl, storageKey),
     };
@@ -26,7 +25,6 @@ export function withVideoVersion(shot: FilmShot, videoUrl: string, storageKey?: 
     return {
         videoUrl,
         videoStorageKey: storageKey || "",
-        status: "video_ready",
         errorMessage: "",
         videoVersions: appendVersion(shot.videoVersions, videoUrl, storageKey),
     };

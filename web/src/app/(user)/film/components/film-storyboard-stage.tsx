@@ -2,18 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { App, Button, InputNumber, Modal, Select } from "antd";
-import { Check, Clapperboard, ImageIcon, LayoutGrid, List, Maximize2, Pencil, ShieldAlert, Table2, Trash2 } from "lucide-react";
+import { Check, Clapperboard, ImageIcon, LayoutGrid, Link2, List, Maximize2, Pencil, ShieldAlert, Table2, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmProject, FilmShot } from "../types";
+import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "../utils/parse-script";
 import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
-import { filmAspectCssRatio, filmAspectLabel } from "../utils/film-aspects";
-import { resolveFilmStyleText } from "../utils/film-styles";
+import { filmAspectCssRatio, filmAspectLabel } from "@/lib/film/film-aspects";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { checkFilmBindingIssues } from "../utils/film-binding-check";
 import { FILM_SHOT_TYPE_OPTIONS, filmShotTypeLabel } from "../utils/film-shot-types";
+import { deriveFilmShotStatus } from "../utils/film-status";
+import { estimateFilmVideoMinutes } from "../utils/film-video-limits";
+import { countFilmShotConnections, pruneFilmEdges } from "../utils/film-shot-groups";
 import { FilmShotDetail } from "./film-shot-detail";
 import { FilmShotStatusChip } from "./film-shot-status-chip";
+import { FilmShotGroupPanel } from "./film-shot-group-panel";
 import { FilmStoryboardBoard } from "./film-storyboard-board";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 
@@ -28,15 +32,18 @@ type FilmStoryboardStageProps = {
     onGenerateImage: (shot: FilmShot) => void;
     generatingShotId: string;
     onGenerateImageBatch: (shots: FilmShot[]) => void;
+    onStopImageBatch: () => void;
     batchProgress: { done: number; total: number } | null;
     onGenerateVideo: (shot: FilmShot) => void;
+    onStopVideo: () => void;
     generatingVideoShotId: string;
     videoProgress: number;
     onGenerateVideoBatch: (shots: FilmShot[]) => void;
+    onStopVideoBatch: () => void;
     videoBatchProgress: { done: number; total: number } | null;
 };
 
-export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateImageBatch, batchProgress, onGenerateVideo, generatingVideoShotId, videoProgress, onGenerateVideoBatch, videoBatchProgress }: FilmStoryboardStageProps) {
+export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateImage, generatingShotId, onGenerateImageBatch, onStopImageBatch, batchProgress, onGenerateVideo, onStopVideo, generatingVideoShotId, videoProgress, onGenerateVideoBatch, onStopVideoBatch, videoBatchProgress }: FilmStoryboardStageProps) {
     const { message, modal } = App.useApp();
     const shots = useMemo(() => flattenFilmShots(project.episodes), [project.episodes]);
     const readyCount = countReadyShots(project.episodes);
@@ -47,9 +54,9 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
     const [batchEditOpen, setBatchEditOpen] = useState(false);
     const [continuityOpen, setBindingOpen] = useState(false);
     const bindingIssues = useMemo(() => checkFilmBindingIssues(project.episodes, project.characters || [], project.locations || []), [project.episodes, project.characters, project.locations]);
+    const connectionCounts = useMemo(() => countFilmShotConnections(project.shotConnections), [project.shotConnections]);
     const [batchDuration, setBatchDuration] = useState<number | undefined>(undefined);
     const [batchShotType, setBatchShotType] = useState("");
-    const [batchStatus, setBatchStatus] = useState<"" | FilmShot["status"]>("");
 
     const groups = useMemo(() => {
         const result: ShotGroup[] = [];
@@ -70,7 +77,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
     const confirmGroupVideo = (targets: FilmShot[]) => {
         modal.confirm({
             title: `生成本组 ${targets.length} 个分镜视频？`,
-            content: "会按顺序逐个提交视频任务，耗时取决于视频模型；已有分镜图会自动作为首帧。",
+            content: `将生成 ${targets.length} 条视频，预计耗时约 ${estimateFilmVideoMinutes(targets.length)} 分钟（按每条 1.5 分钟估算）；已有分镜图会自动作为首帧。生成过程中可随时停止。`,
             okText: "开始生成",
             cancelText: "取消",
             onOk: () => onGenerateVideoBatch(targets),
@@ -97,7 +104,6 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
     const openBatchEdit = () => {
         setBatchDuration(undefined);
         setBatchShotType("");
-        setBatchStatus("");
         setBatchEditOpen(true);
     };
 
@@ -106,7 +112,6 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
         const patch: Partial<FilmShot> = {};
         if (typeof batchDuration === "number") patch.duration = batchDuration;
         if (batchShotType) patch.shotType = batchShotType;
-        if (batchStatus) patch.status = batchStatus;
         if (!Object.keys(patch).length) {
             message.warning("没有选择要修改的字段");
             return;
@@ -145,9 +150,19 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
         setSelectedShotId(shots[0]?.id ?? "");
     }, [selectedShotId, shots]);
 
+    // 镜头被删除后自动清理失效的组内引用与连线
+    const shotGroups = useMemo(() => project.shotGroups || [], [project.shotGroups]);
+    const shotConnections = useMemo(() => project.shotConnections || [], [project.shotConnections]);
+    useEffect(() => {
+        if (!shotGroups.length && !shotConnections.length) return;
+        const next = pruneFilmEdges(shots, shotGroups, shotConnections);
+        if (next.groups === shotGroups && next.connections === shotConnections) return;
+        onUpdate({ shotGroups: next.groups, shotConnections: next.connections });
+    }, [onUpdate, shotConnections, shotGroups, shots]);
+
     return (
         <div className="flex flex-col gap-3 lg:h-full lg:min-h-0">
-            <div className="punk-panel relative flex shrink-0 flex-wrap items-center gap-2 overflow-hidden px-4 py-2.5">
+            <div className="punk-panel relative flex shrink-0 flex-wrap items-center gap-2 overflow-hidden px-4 py-2.5 [@media(pointer:coarse)]:[&_.ant-btn]:min-h-9">
                 <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                 <span className="eyebrow">导演台</span>
                 <span className="chip chip-acid">{shots.length} 个分镜</span>
@@ -173,7 +188,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                     const targets = shots.filter((shot) => selectedIds.includes(shot.id));
                                     modal.confirm({
                                         title: `批量生成 ${targets.length} 个分镜视频？`,
-                                        content: "会按顺序逐个提交视频任务，耗时取决于视频模型；已有分镜图会自动作为首帧。",
+                                        content: `将生成 ${targets.length} 条视频，预计耗时约 ${estimateFilmVideoMinutes(targets.length)} 分钟（按每条 1.5 分钟估算）；已有分镜图会自动作为首帧。生成过程中可随时停止。`,
                                         okText: "开始生成",
                                         cancelText: "取消",
                                         onOk: () => onGenerateVideoBatch(targets),
@@ -186,6 +201,16 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                             <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={deleteSelected}>删除</Button>
                             <Button size="small" onClick={() => setSelectedIds([])}>清空</Button>
                         </>
+                    ) : null}
+                    {batchProgress ? (
+                        <Button size="small" danger onClick={onStopImageBatch}>
+                            停止批量出图 {batchProgress.done}/{batchProgress.total}
+                        </Button>
+                    ) : null}
+                    {videoBatchProgress ? (
+                        <Button size="small" danger onClick={onStopVideoBatch}>
+                            停止批量视频 {videoBatchProgress.done}/{videoBatchProgress.total}
+                        </Button>
                     ) : null}
                     {view === "groups" ? (
                         <Select
@@ -208,11 +233,13 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                 </div>
             </div>
 
+            <FilmShotGroupPanel project={project} selectedIds={selectedIds} onUpdate={onUpdate} onSelectShots={setSelectedIds} />
+
             <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px]">
                 {view === "board" ? (
                     <FilmStoryboardBoard project={project} selectedShotId={selectedShotId} onSelect={setSelectedShotId} />
                 ) : view === "table" ? (
-                    <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                    <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                             <span className="eyebrow">分镜表</span>
                             <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">点击行编辑</span>
@@ -264,7 +291,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                     <td className="max-w-[360px] px-3 py-2 text-foreground/80"><span className="line-clamp-2 leading-5">{shot.description || <span className="text-muted-foreground/50">未填写画面描述</span>}</span></td>
                                                     <td className="max-w-[220px] px-3 py-2 text-muted-foreground/80"><span className="line-clamp-2 leading-5">{shot.dialogue || "—"}</span></td>
                                                     <td className="px-3 py-2 font-mono text-muted-foreground/80 tabular-nums">{shot.duration}s</td>
-                                                    <td className="px-3 py-2"><FilmShotStatusChip status={shot.status} /></td>
+                                                    <td className="px-3 py-2"><FilmShotStatusChip status={deriveFilmShotStatus(shot)} /></td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -274,7 +301,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         </div>
                     </section>
                 ) : view === "groups" ? (
-                    <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                    <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                             <span className="eyebrow">分组板</span>
                             <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">每 {groupSize} 镜一组</span>
@@ -311,7 +338,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         </div>
                     </section>
                 ) : (
-                    <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                    <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                             <span className="eyebrow">分镜板</span>
                             <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">点击镜头卡编辑</span>
@@ -348,6 +375,12 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                         key={shot.id}
                                                         role="button"
                                                         tabIndex={0}
+                                                        draggable
+                                                        onDragStart={(event) => {
+                                                            event.dataTransfer.setData("application/x-film-shot-id", shot.id);
+                                                            event.dataTransfer.setData("text/plain", shot.id);
+                                                            event.dataTransfer.effectAllowed = "copy";
+                                                        }}
                                                         onClick={() => setSelectedShotId(shot.id)}
                                                         onKeyDown={(event) => {
                                                             if (event.key === "Enter" || event.key === " ") {
@@ -385,7 +418,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                                 </span>
                                                                 <span className={cn("truncate font-mono text-[10px] tabular-nums", shot.id === selectedShotId ? "text-acid" : "text-muted-foreground/70")}>{shot.shotNo}</span>
                                                             </span>
-                                                            <FilmShotStatusChip status={shot.status} />
+                                                            <FilmShotStatusChip status={deriveFilmShotStatus(shot)} />
                                                         </span>
                                                         <span className="relative block w-full overflow-hidden rounded-md border border-border/50 bg-background/30" style={{ aspectRatio: filmAspectCssRatio(project.aspect) }}>
                                                             <span aria-hidden className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-background/30 via-transparent to-transparent" />
@@ -404,7 +437,8 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                                                             <span>{filmShotTypeLabel(shot.shotType)}</span>
                                                             <span aria-hidden>·</span>
                                                             <span>{shot.duration}s</span>
-                                                            {shot.prompt ? <ImageIcon className="ml-auto size-3 text-acid/70" aria-label="已填写提示词" /> : null}
+                                                            {connectionCounts.get(shot.id) ? <span className="ml-auto inline-flex items-center gap-0.5 text-acid/80" title={`参与 ${connectionCounts.get(shot.id)} 条镜头连线`}><Link2 className="size-3" aria-hidden />{connectionCounts.get(shot.id)}</span> : null}
+                                                            {shot.prompt ? <ImageIcon className={cn("size-3 text-acid/70", connectionCounts.get(shot.id) ? "" : "ml-auto")} aria-label="已填写提示词" /> : null}
                                                         </span>
                                                     </div>
                                                 ))}
@@ -417,7 +451,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                     </section>
                 )}
 
-                <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+                <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                         <span className="eyebrow">分镜详情</span>
                         {selectedShot ? <span className="font-mono text-[10px] text-muted-foreground/70">{selectedShot.shotNo}</span> : null}
@@ -430,6 +464,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                             onGenerate={() => onGenerateImage(selectedShot)}
                             generating={generatingShotId === selectedShot.id}
                             onGenerateVideo={() => onGenerateVideo(selectedShot)}
+                            onStopVideo={onStopVideo}
                             generatingVideo={generatingVideoShotId === selectedShot.id}
                             videoProgress={videoProgress}
                             characters={project.characters || []}
@@ -458,7 +493,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                 {bindingIssues.length === 0 ? (
                     <p className="py-6 text-center text-xs leading-6 text-muted-foreground">没有发现明显的连戏问题。</p>
                 ) : (
-                    <div className="thin-scrollbar grid max-h-[60vh] gap-2 overflow-y-auto">
+                    <div className="thin-scrollbar grid max-h-[60dvh] gap-2 overflow-y-auto">
                         {bindingIssues.map((issue) => (
                             <button
                                 key={issue.id}
@@ -494,21 +529,7 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">景别</span>
                         <Select allowClear placeholder="留空不改" value={batchShotType || undefined} options={FILM_SHOT_TYPE_OPTIONS} onChange={(value?: string) => setBatchShotType(value ?? "")} />
                     </label>
-                    <label className="grid gap-1">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">状态</span>
-                        <Select
-                            allowClear
-                            placeholder="留空不改"
-                            value={batchStatus || undefined}
-                            options={[
-                                { value: "idle", label: "未开始" },
-                                { value: "image_ready", label: "分镜图已生成" },
-                                { value: "video_ready", label: "视频已生成" },
-                                { value: "failed", label: "失败" },
-                            ]}
-                            onChange={(value?: FilmShot["status"]) => setBatchStatus(value ?? "")}
-                        />
-                    </label>
+                    <p className="text-[11px] leading-5 text-muted-foreground/70">镜头状态由「是否有分镜图 / 视频」自动派生，不再手动设置。</p>
                 </div>
             </Modal>
         </div>
@@ -569,7 +590,7 @@ function ShotGroupCard({ group, groupSize, aspect, selectedShotId, onSelectShot,
                             )}
                         </span>
                         <span className="absolute left-1 top-1 rounded bg-background/80 px-1 font-mono text-[8px] text-foreground/80">{shot.shotNo}</span>
-                        {shot.status === "video_ready" ? <span className="absolute bottom-1 right-1 rounded bg-acid/90 px-1 font-mono text-[8px] text-background">视频</span> : null}
+                        {deriveFilmShotStatus(shot) === "video_ready" ? <span className="absolute bottom-1 right-1 rounded bg-acid/90 px-1 font-mono text-[8px] text-background">视频</span> : null}
                     </button>
                 ))}
             </div>

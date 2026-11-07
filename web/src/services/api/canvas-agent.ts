@@ -1,6 +1,7 @@
 import { mimoTextModels } from "@/lib/mimo-tts";
 import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig } from "@/lib/gemini";
-import { aiApiUrl, aiHeaders, ImageRequestError, isEventStreamResponse, readJsonServerSentEvents, refreshRemoteUser } from "@/services/api/image";
+import { aiApiUrl, aiHeaders, refreshRemoteUser } from "@/services/api/ai-request";
+import { ImageRequestError, isEventStreamResponse, readJsonServerSentEvents } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
 import { channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { tokenDanceRecoveryMessage } from "./protocols/tokendance";

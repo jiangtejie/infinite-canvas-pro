@@ -5,13 +5,13 @@ import { Button, Input } from "antd";
 import { ArrowLeft, Library, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { FilmAmbient } from "../components/film-ambient";
+import { FilmAmbient } from "@/components/film/film-ambient";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "../components/film-asset-thumbnail";
-import { useFilmCastStore } from "../stores/use-film-cast-store";
+import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
-import type { FilmAsset, FilmAssetKind } from "../types";
+import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 
 type Selection = { kind: FilmAssetKind; id: string };
 

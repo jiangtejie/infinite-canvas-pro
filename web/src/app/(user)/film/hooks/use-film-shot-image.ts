@@ -5,14 +5,15 @@ import { App } from "antd";
 
 import type { SeedableImageConfig } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
+import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
-import type { FilmProject, FilmShot } from "../types";
+import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
-import { runImageTask } from "../utils/film-image-task";
+import { runImageTask, stopFilmImageTask } from "../utils/film-image-task";
 import { withImageVersion } from "../utils/film-versions";
-import { normalizeFilmAspect } from "../utils/film-aspects";
-import { resolveFilmStyleText } from "../utils/film-styles";
+import { normalizeFilmAspect } from "@/lib/film/film-aspects";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { collectFilmShotReferences } from "../utils/film-references";
 import { selectFilmBatchShots } from "../utils/film-batch";
 import { formatFilmContinuityPrompt, previousFilmShot } from "../utils/film-continuity-sheet";
@@ -29,12 +30,15 @@ export type FilmImageBatchOptions = {
 
 export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
     const { message } = App.useApp();
+    const effectiveConfig = useEffectiveConfig();
     const resolveModelConfig = useModelConfig();
     const [generatingShotId, setGeneratingShotId] = useState("");
     const [batchProgress, setBatchProgress] = useState<FilmImageBatchProgress | null>(null);
     const projectRef = useRef(project);
     projectRef.current = project;
     const stopBatchRef = useRef(false);
+    const batchControllerRef = useRef<AbortController | null>(null);
+    const batchTaskIdRef = useRef("");
     const busy = Boolean(generatingShotId) || Boolean(batchProgress);
 
     const buildImageConfig = (current: FilmProject) => {
@@ -86,14 +90,16 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         try {
             const previous = await previousReference(current, shot);
             const { prompt, references } = await buildShotPrompt(current, shot, previous ? [previous] : []);
-            const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id);
+            const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id, {
+                onTask: (task) => onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now() } }) }),
+            });
             const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
             onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withImageVersion(latestShot, imageUrl, storageKey)),
+                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey), pendingTask: undefined }),
             });
             message.success("分镜图已生成");
         } catch (error) {
-            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { status: "failed", errorMessage: error instanceof Error ? error.message : "分镜图生成失败" }) });
+            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: error instanceof Error ? error.message : "分镜图生成失败", pendingTask: undefined }) });
             message.error(error instanceof Error ? error.message : "分镜图生成失败");
         } finally {
             setGeneratingShotId("");
@@ -116,41 +122,81 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
             : null;
         stopBatchRef.current = false;
         let failed = 0;
+        let succeeded = 0;
         let done = 0;
+        let stopped = false;
         setBatchProgress({ done: 0, total: pending.length });
         try {
             for (const shot of pending) {
-                if (stopBatchRef.current) break;
+                if (stopBatchRef.current) {
+                    stopped = true;
+                    break;
+                }
                 setGeneratingShotId(shot.id);
+                const controller = new AbortController();
+                batchControllerRef.current = controller;
+                batchTaskIdRef.current = "";
                 try {
                     const isAnchor = shot.id === anchorShot?.id;
                     const latestProject = projectRef.current || current;
                     const previous = await previousReference(latestProject, shot);
                     const { prompt, references } = await buildShotPrompt(latestProject, shot, previous ? [previous] : [], isAnchor ? null : anchorReference);
-                    const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id);
+                    const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id, {
+                        signal: controller.signal,
+                        onTask: (task) => {
+                            batchTaskIdRef.current = task.id;
+                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now() } }) });
+                        },
+                    });
                     const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
                     onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withImageVersion(latestShot, imageUrl, storageKey)),
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey), pendingTask: undefined }),
                     });
                     if (isAnchor) anchorReference = await imageReference(imageUrl, storageKey, `anchor-${shot.id}`);
+                    succeeded += 1;
                 } catch (error) {
-                    failed += 1;
-                    onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { status: "failed", errorMessage: error instanceof Error ? error.message : "分镜图生成失败" }) });
+                    if (stopBatchRef.current) {
+                        stopped = true;
+                        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: undefined }) });
+                    } else {
+                        failed += 1;
+                        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: error instanceof Error ? error.message : "分镜图生成失败", pendingTask: undefined }) });
+                    }
                 } finally {
+                    batchControllerRef.current = null;
+                    batchTaskIdRef.current = "";
                     done += 1;
+                    setGeneratingShotId("");
                     setBatchProgress({ done, total: pending.length });
                 }
+                if (stopped) break;
             }
         } finally {
+            batchControllerRef.current = null;
+            batchTaskIdRef.current = "";
             setGeneratingShotId("");
             setBatchProgress(null);
         }
-        const stopped = stopBatchRef.current;
-        message.success(stopped ? `已停止批量生成：完成 ${done}/${pending.length} 个` : `批量生成完成：成功 ${pending.length - failed} 个${failed ? `，失败 ${failed} 个` : ""}`);
+        if (stopped) message.info(`已停止批量生成：完成 ${succeeded}/${pending.length} 个`);
+        else message.success(`批量生成完成：成功 ${succeeded} 个${failed ? `，失败 ${failed} 个` : ""}`);
     };
 
+    /** 立即停止批量出图：中断当前任务、终止后续队列，已完成的镜头保留结果。 */
     const stopBatch = () => {
+        if (!batchProgress) {
+            message.info("当前没有正在生成的批量任务");
+            return;
+        }
         stopBatchRef.current = true;
+        batchControllerRef.current?.abort();
+        const taskId = batchTaskIdRef.current;
+        if (taskId) {
+            const model = effectiveConfig.imageModel || effectiveConfig.model;
+            void stopFilmImageTask({ ...effectiveConfig, model } as AiConfig, taskId).then((cancelled) => {
+                if (!cancelled) message.warning("取消服务端任务失败，模型侧任务可能仍在运行");
+            });
+        }
+        message.info("正在停止生成…");
     };
 
     return { generatingShotId, batchProgress, generate, generateBatch, stopBatch };

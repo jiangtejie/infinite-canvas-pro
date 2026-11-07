@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
@@ -67,6 +69,10 @@ func DB() (*gorm.DB, error) {
 			}
 		}
 		if driver == "mysql" {
+			dsn, dbErr = normalizeMySQLDSN(dsn)
+			if dbErr != nil {
+				return
+			}
 			dbErr = ensureMySQLDatabase(dsn)
 			if dbErr != nil {
 				return
@@ -75,6 +81,10 @@ func DB() (*gorm.DB, error) {
 		db, dbErr = gorm.Open(dialector(driver, dsn), &gorm.Config{})
 		if dbErr != nil {
 			return
+		}
+		if driver == "mysql" {
+			configureMySQLPool(db)
+			warnMySQLCollation(db)
 		}
 		dbErr = db.AutoMigrate(
 			&model.User{},
@@ -119,6 +129,57 @@ func isPostgresDriver(driver string) bool {
 	return driver == "postgres" || driver == "postgresql"
 }
 
+// normalizeMySQLDSN 补齐 GORM 读取 time.Time 所需的 parseTime，并默认使用本地时区。
+func normalizeMySQLDSN(dsn string) (string, error) {
+	cfg, err := mysqldriver.ParseDSN(dsn)
+	if err != nil {
+		return "", err
+	}
+	cfg.ParseTime = true
+	if !mysqlDSNHasParam(dsn, "loc") {
+		cfg.Loc = time.Local
+	}
+	return cfg.FormatDSN(), nil
+}
+
+// mysqlDSNHasParam 判断 DSN 查询参数里是否显式提供了某项配置。
+func mysqlDSNHasParam(dsn string, name string) bool {
+	index := strings.LastIndex(dsn, "?")
+	if index < 0 {
+		return false
+	}
+	values, err := url.ParseQuery(dsn[index+1:])
+	if err != nil {
+		return false
+	}
+	_, ok := values[name]
+	return ok
+}
+
+// configureMySQLPool 设置 MySQL 连接池，避免 wait_timeout 回收陈旧连接。
+func configureMySQLPool(db *gorm.DB) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return
+	}
+	sqlDB.SetMaxOpenConns(50)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(30 * time.Minute)
+}
+
+const mysqlDatabaseCollation = "utf8mb4_bin"
+
+// warnMySQLCollation 在 MySQL 库排序规则与预期不一致时提示，避免大小写/重音语义悄悄偏离 SQLite。
+func warnMySQLCollation(db *gorm.DB) {
+	var collation string
+	if err := db.Raw("SELECT DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = DATABASE()").Scan(&collation).Error; err != nil {
+		return
+	}
+	if collation != "" && collation != mysqlDatabaseCollation {
+		log.Printf("WARNING: MySQL 数据库排序规则为 %s，预期为 %s，大小写/重音比较行为可能与 SQLite 不一致", collation, mysqlDatabaseCollation)
+	}
+}
+
 func ensureMySQLDatabase(dsn string) error {
 	cfg, err := mysqldriver.ParseDSN(dsn)
 	if err != nil {
@@ -150,7 +211,7 @@ func ensureMySQLDatabase(dsn string) error {
 	}
 	defer serverDB.Close()
 
-	_, err = serverDB.ExecContext(ctx, "CREATE DATABASE "+quoteMySQLIdentifier(target)+" CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+	_, err = serverDB.ExecContext(ctx, "CREATE DATABASE "+quoteMySQLIdentifier(target)+" CHARACTER SET utf8mb4 COLLATE "+mysqlDatabaseCollation)
 	if isMySQLError(err, 1007) {
 		return nil
 	}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { Avatar, Tooltip } from "antd";
-import { ChevronDown, Keyboard, LogOut, Settings2, Shield, UserRound } from "lucide-react";
+import { ChevronDown, Keyboard, LogOut, Settings2, Shield, UserRound, Wallet } from "lucide-react";
 import Link from "next/link";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
@@ -148,6 +148,10 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                                     管理后台
                                 </Link>
                             ) : null}
+                            <Link href="/account?tab=recharge" role="menuitem" className={MENU_ROW} onClick={() => setMenuOpen(false)}>
+                                <Wallet className="size-4 shrink-0 opacity-70" />
+                                充值 / 积分
+                            </Link>
                             <Link href="/account" role="menuitem" className={MENU_ROW} onClick={() => setMenuOpen(false)}>
                                 <UserRound className="size-4 shrink-0 opacity-70" />
                                 用户中心

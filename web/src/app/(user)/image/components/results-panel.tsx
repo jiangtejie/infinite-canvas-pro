@@ -11,7 +11,7 @@ import type { GeneratedImage, GenerationCategory, GenerationLog, GenerationResul
 import { imageLogIdentityKeys, imageResultIdentityKeys } from "../history";
 import { CategoryCard } from "./category-card";
 import { HistoryLogCard } from "./history-log-card";
-import { FailedImageCard, PendingImageCard, ResultImageCard } from "./result-cards";
+import { FailedImageCard, PendingImageCard, ResultImageCard, StoppedImageCard } from "./result-cards";
 
 const EMPTY_PROMPTS = [
     "酸性绿色背景的极简海报，中央黑色几何标志，无文字",
@@ -52,6 +52,8 @@ export function ResultsPanel({
     onSyncResult,
     onSyncLog,
     onRetry,
+    onStop,
+    canStopResult,
     onUseExample,
 }: {
     className?: string;
@@ -86,6 +88,8 @@ export function ResultsPanel({
     onSyncResult: (resultId: string, image: GeneratedImage, index: number) => void;
     onSyncLog: (log: GenerationLog, image: GeneratedImage, index: number) => void;
     onRetry: (result: GenerationResult) => void;
+    onStop: (result: GenerationResult) => void;
+    canStopResult?: (result: GenerationResult) => boolean;
     onUseExample: (prompt: string) => void;
 }) {
     const { message } = App.useApp();
@@ -185,9 +189,9 @@ export function ResultsPanel({
             }
         >
             {shouldShowGrid ? (
-                <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                     {results.map((result, index) => (
-                        <div key={result.id} className="enter-up" style={{ "--enter-index": Math.min(index, 8) } as CSSProperties}>
+                        <div key={result.id} className="enter-up h-full" style={{ "--enter-index": Math.min(index, 8) } as CSSProperties}>
                             {result.status === "success" && result.image ? (
                                 <ResultImageCard
                                     result={result}
@@ -202,8 +206,10 @@ export function ResultsPanel({
                                 />
                             ) : result.status === "failed" ? (
                                 <FailedImageCard result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
+                            ) : result.status === "stopped" ? (
+                                <StoppedImageCard result={result} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
                             ) : (
-                                <PendingImageCard result={result} now={now} onCopyPrompt={onCopyPrompt} />
+                                <PendingImageCard result={result} now={now} onCopyPrompt={onCopyPrompt} stopping={result.status === "stopping"} onStop={canStopResult?.(result) ?? Boolean(result.task) ? () => onStop(result) : undefined} />
                             )}
                         </div>
                     ))}
@@ -217,7 +223,7 @@ export function ResultsPanel({
                         </>
                     ) : null}
                     {displayedLogs.map((log, index) => (
-                        <div key={log.id} className="enter-up" style={{ "--enter-index": Math.min(index + results.length, 8) } as CSSProperties}>
+                        <div key={log.id} className="enter-up h-full" style={{ "--enter-index": Math.min(index + results.length, 8) } as CSSProperties}>
                             <HistoryLogCard
                                 log={log}
                                 categories={categories}

@@ -1,10 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { AppProviders } from "@/components/layout/app-providers";
 import { appFontFamily } from "@/lib/app-font";
 import "./globals.css";
 import React from "react";
+
+export const viewport: Viewport = {
+    viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
     title: {

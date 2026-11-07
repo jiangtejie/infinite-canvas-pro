@@ -5,21 +5,18 @@ import { formatTaskTime } from "@/components/workbench/task-result";
 import type { CanvasImageTask, SeedableImageConfig } from "@/services/api/image";
 import { resolveImageUrl } from "@/services/image-storage";
 import type { AiConfig } from "@/stores/use-config-store";
-import { normalizeLocalChannels } from "@/stores/use-config-store";
 import type { WorkflowRef } from "@/lib/workflow-channel";
 import type { ReferenceImage } from "@/types/image";
 import { parseWorkflowRef } from "@/lib/workflow-channel";
 import { ImageRequestError } from "@/services/api/image";
-import { deleteUnusedImagePreviews, ensureImagePreview } from "@/services/image-storage";
+import { deleteUnusedImagePreviews } from "@/services/image-storage";
 import { nanoid } from "nanoid";
 
-import { errorDetailWith, errorMessage, updateResult } from "@/lib/generation-history";
-export { errorMessage, updateResult };
-export type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
+import { createErrorDetail, errorMessage, formatLogTime, isClientTaskId, isCompletedTaskStatus, isFailedTaskStatus, isRecoverableTask, mergeNormalizedLogs, normalizeLogsSafely, parseTaskTimestampValue, readStoredValues, resolveChannelId, sortByNewest, taskChannelId, uniqueStrings, updateResult, updateResultsByMatch } from "@/lib/generation-history";
+export { errorMessage, uniqueStrings, updateResult };
+export type { UpdateAiConfig, WorkflowPollContext } from "@/lib/generation-history";
 
-export function errorDetail(error: unknown) {
-    return errorDetailWith(error, (value) => value instanceof ImageRequestError);
-}
+export const errorDetail = createErrorDetail((value) => value instanceof ImageRequestError);
 
 export type GeneratedImage = {
     id: string;
@@ -35,7 +32,7 @@ export type GeneratedImage = {
 export type GenerationResult = {
     id: string;
     taskLogId?: string;
-    status: "pending" | "success" | "failed";
+    status: "pending" | "stopping" | "success" | "failed" | "stopped";
     createdAt: number;
     prompt: string;
     model: string;
@@ -70,7 +67,7 @@ export type GenerationLog = {
     imageCount: number;
     size: string;
     quality: string;
-    status: "生成中" | "成功" | "失败";
+    status: "生成中" | "停止中" | "已停止" | "成功" | "失败";
     images: GeneratedImage[];
     thumbnails: string[];
     errors: string[];
@@ -89,8 +86,6 @@ export type GenerationLogConfig = Pick<AiConfig, "channelMode" | "model" | "imag
 export type RequestSnapshot = { text: string; requestConfig: SeedableImageConfig; displayConfig: GenerationLogConfig; references: ReferenceImage[]; workflowRef?: WorkflowRef };
 export type GenerationCategory = { id: string; name: string; createdAt: number };
 export type ResultViewMode = "all" | "category";
-export type WorkflowPollContext = { token: string; signal: AbortSignal };
-
 export const CATEGORY_STORE_KEY = "infinite-canvas:image_generation_categories";
 export const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
 export const categoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
@@ -140,7 +135,7 @@ export function createWorkflowResultId(taskId: string, index: number) {
 
 export function updateResultByLogId(results: GenerationResult[], logId: string, next: Partial<GenerationResult>) {
     const keys = new Set(uniqueStrings([logId, ...imageTaskIdentityKeys(next.task)]));
-    return results.map((item) => (imageResultIdentityKeys(item).some((key) => keys.has(key)) ? { ...item, ...next } : item));
+    return updateResultsByMatch(results, (item) => imageResultIdentityKeys(item).some((key) => keys.has(key)), next);
 }
 
 export function mergePendingLogResults(results: GenerationResult[], logs: GenerationLog[]) {
@@ -151,17 +146,13 @@ export function mergePendingLogResults(results: GenerationResult[], logs: Genera
     });
     const existingIds = new Set(updatedResults.flatMap(imageResultIdentityKeys));
     const pendingResults = logs.filter((log) => !imageLogIdentityKeys(log).some((key) => existingIds.has(key))).map((log) => createResultFromImageLog(log, "pending"));
-    return dedupeGenerationResults([...pendingResults, ...updatedResults]).sort((a, b) => b.createdAt - a.createdAt);
+    return sortByNewest(dedupeGenerationResults([...pendingResults, ...updatedResults]));
 }
 
 export function stringRecordValue(record: unknown, key: string) {
     if (!record || typeof record !== "object") return "";
     const value = (record as Record<string, unknown>)[key];
     return typeof value === "string" ? value.trim() : "";
-}
-
-export function uniqueStrings(values: Array<string | undefined>) {
-    return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
 }
 
 export function imageTaskSourceId(task?: CanvasImageTask) {
@@ -241,7 +232,7 @@ export function dedupeGenerationLogs(logs: GenerationLog[]) {
         merged[index] = nextLog;
         uniqueStrings([...imageLogIdentityKeys(current), ...imageLogIdentityKeys(log), ...imageLogIdentityKeys(nextLog)]).forEach((key) => byKey.set(key, index));
     });
-    return merged.sort((a, b) => b.createdAt - a.createdAt);
+    return sortByNewest(merged);
 }
 
 export function generationResultRank(result: GenerationResult) {
@@ -295,15 +286,15 @@ export function imageLogTaskId(log: GenerationLog) {
 }
 
 export function isRecoverableImageTask(task: CanvasImageTask) {
-    return !isCompletedImageTask(task) && !isFailedImageTask(task);
+    return isRecoverableTask(task, isCompletedImageTask, isFailedImageTask);
 }
 
 export function isCompletedImageTask(task: CanvasImageTask) {
-    return Boolean(task.image_url || task.url) || ["completed", "complete", "done", "succeeded", "success"].includes((task.status || "").toLowerCase());
+    return Boolean(task.image_url || task.url) || isCompletedTaskStatus(task.status);
 }
 
 export function isFailedImageTask(task: CanvasImageTask) {
-    return ["failed", "fail", "error", "cancelled", "canceled"].includes((task.status || "").toLowerCase());
+    return isFailedTaskStatus(task.status);
 }
 
 export function mergeBackendImageTasks(logs: GenerationLog[], tasks: CanvasImageTask[], config: AiConfig) {
@@ -405,28 +396,13 @@ export function imageLogFromTask(log: GenerationLog, task: CanvasImageTask): Gen
 }
 
 export function parseImageTaskTime(value: unknown) {
-    if (typeof value === "number") return value > 100000000000 ? value : value * 1000;
-    if (typeof value !== "string" || !value.trim()) return 0;
-    const numeric = Number(value);
-    if (Number.isFinite(numeric)) return numeric > 100000000000 ? numeric : numeric * 1000;
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : 0;
+    return parseTaskTimestampValue(value, 100000000000);
 }
 
 
 
 export async function readStoredLogs() {
-    if (typeof window === "undefined") return [];
-    try {
-        const values: GenerationLog[] = [];
-        await logStore.iterate<GenerationLog, void>((value) => {
-            values.push(value);
-        });
-        const logs = await Promise.all(values.map(normalizeLog));
-        return dedupeGenerationLogs(logs);
-    } catch {
-        return [];
-    }
+    return dedupeGenerationLogs(await normalizeLogsSafely(await readStoredValues<GenerationLog>(logStore), normalizeLog));
 }
 
 export async function readStoredCategories() {
@@ -483,7 +459,7 @@ export function withWorkflowLogCategories(logs: GenerationLog[], categories: Gen
 }
 
 export function isClientImageTaskId(value?: string) {
-    return typeof value === "string" && value.startsWith("client_image_task_");
+    return isClientTaskId(value, "client_image_task_");
 }
 
 export function isLocalOnlyImageLog(log: GenerationLog) {
@@ -501,9 +477,7 @@ export function shouldPreserveLocalImageLogDuringRemoteMerge(log: GenerationLog,
 export async function mergeGenerationLogs(remoteLogs: GenerationLog[], localLogs: GenerationLog[]) {
     const normalizedRemote = await Promise.all(remoteLogs.map(normalizeLog));
     const normalizedLocal = await Promise.all(localLogs.map(normalizeLog));
-    const remoteKeys = new Set(normalizedRemote.flatMap(imageLogIdentityKeys));
-    const preservedLocal = normalizedLocal.filter((log) => shouldPreserveLocalImageLogDuringRemoteMerge(log, remoteKeys));
-    return dedupeGenerationLogs([...normalizedRemote, ...preservedLocal]);
+    return mergeNormalizedLogs(normalizedRemote, normalizedLocal, imageLogIdentityKeys, shouldPreserveLocalImageLogDuringRemoteMerge, dedupeGenerationLogs);
 }
 
 export async function normalizeLog(log: Partial<GenerationLog>): Promise<GenerationLog> {
@@ -536,18 +510,13 @@ export async function normalizeLog(log: Partial<GenerationLog>): Promise<Generat
             });
         }
     }
-    await Promise.all(
-        visibleImages.map((image) =>
-            ensureImagePreview(`image-result:${image.id}`, image.dataUrl, image.storageKey, image.storageKey || image.dataUrl, true),
-        ),
-    );
     const config = normalizeLogConfig(log);
     return {
         id: log.id || nanoid(),
         createdAt: log.createdAt || Date.now(),
         title: log.title || log.model || "未命名",
         prompt: log.prompt || log.title || "",
-        time: log.time || new Date().toLocaleString("zh-CN", { hour12: false }),
+        time: log.time || formatLogTime(Date.now()),
         model: log.model || config.imageModel || "",
         config,
         references,
@@ -608,18 +577,11 @@ export function normalizeLogConfig(log: Partial<GenerationLog>): GenerationLogCo
 }
 
 export function imageTaskChannelId(task?: CanvasImageTask | null) {
-    return task?.userChannelId || task?.channelId || "";
+    return taskChannelId(task);
 }
 
 export function resolveImageChannelId(config: AiConfig, model: string, ...preferredIds: Array<string | undefined>) {
-    const channels = config.channelMode === "remote"
-        ? config.publicChannels.map((channel) => ({ id: channel.id || "", models: channel.models || [] }))
-        : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, models: channel.models }));
-    for (const id of preferredIds) {
-        const channelId = (id || "").trim();
-        if (channelId && channels.some((channel) => channel.id === channelId && channel.models.includes(model))) return channelId;
-    }
-    return channels.find((channel) => channel.models.includes(model))?.id || "";
+    return resolveChannelId(config, model, ...preferredIds);
 }
 
 export function buildGenerationLogConfig(config: AiConfig): GenerationLogConfig {

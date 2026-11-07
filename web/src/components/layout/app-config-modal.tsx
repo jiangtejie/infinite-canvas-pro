@@ -47,6 +47,13 @@ const modelGroups: ModelGroup[] = [
 
 const WorkflowChannelPane = dynamic(() => import("@/components/workflow/workflow-channel-pane").then((module) => module.WorkflowChannelPane), { ssr: false });
 
+const CONFIG_SECTIONS = [
+    { id: "channel", label: "渠道与模型" },
+    { id: "defaults", label: "生成默认" },
+    { id: "storage", label: "存储与同步" },
+    { id: "advanced", label: "高级" },
+];
+
 export function AppConfigModal() {
     const { message } = App.useApp();
     const [loadingModels, setLoadingModels] = useState(false);
@@ -226,11 +233,13 @@ export function AppConfigModal() {
             }
             clearImageStorageCache();
             clearFileStorageCache();
+            const continueAction = useConfigStore.getState().continueAction;
             setConfigDialogOpen(false);
             if ((config.syncStorageConfig || config.syncWebDAVStorageConfig) && !token) message.warning("请登录后再同步配置");
             else if (localIncomplete || modelIncomplete) message.warning("部分模型或本地渠道密钥尚未配置完整，配置已保存");
-            else message.success(shouldPromptContinue ? "配置已保存，请继续刚才的请求" : "配置已保存");
+            else message.success(shouldPromptContinue ? "配置已保存，正在继续刚才的请求" : "配置已保存");
             clearPromptContinue();
+            if (continueAction) window.setTimeout(continueAction, 0);
         } catch (error) {
             message.error(error instanceof Error ? "同步配置失败：" + error.message : "同步配置失败");
         } finally {
@@ -435,7 +444,10 @@ export function AppConfigModal() {
             open={isConfigOpen}
             width={960}
             centered
-            onCancel={() => setConfigDialogOpen(false)}
+            onCancel={() => {
+                setConfigDialogOpen(false);
+                clearPromptContinue();
+            }}
             styles={{ body: { maxHeight: "72vh", overflowY: "auto", paddingRight: 18 } }}
             footer={
                 <Button type="primary" loading={savingConfig} onClick={() => void finishConfig()}>
@@ -445,6 +457,20 @@ export function AppConfigModal() {
         >
             <div className="pt-1">
                 <Form layout="vertical" requiredMark={false}>
+                    {shouldPromptContinue ? (
+                        <div className="mb-4 rounded-lg border border-acid/40 bg-acid/[0.06] px-3 py-2.5">
+                            <div className="text-sm font-medium text-foreground">还差一步就能开始生成</div>
+                            <div className="mt-1 text-xs leading-5 text-muted-foreground">在「渠道与模型」填写 Base URL 与 API Key，点「拉取全部渠道」，再点右下角「完成」。保存后会自动继续刚才的请求。</div>
+                        </div>
+                    ) : null}
+                    <div className="sticky top-0 z-10 -mx-1 mb-4 flex flex-wrap gap-1 rounded-lg border border-border bg-background/95 p-1 backdrop-blur">
+                        {CONFIG_SECTIONS.map((item) => (
+                            <Button key={item.id} size="small" type="text" onClick={() => document.getElementById("config-section-" + item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                                {item.label}
+                            </Button>
+                        ))}
+                    </div>
+                    <div id="config-section-channel" className="scroll-mt-16">
                     {allowCustomChannel && canUseRemoteChannel ? (
                         <Form.Item label="渠道模式" className="mb-5">
                             <Segmented
@@ -533,6 +559,8 @@ export function AppConfigModal() {
                             </Form.Item>
                         ))}
                     </div>
+                    </div>
+                    <div id="config-section-defaults" className="scroll-mt-16">
                     <div className="grid gap-4 md:grid-cols-4">
                         <Form.Item label="画布默认生图张数" extra="新建画布生图和配置节点默认使用，单个节点仍可单独覆盖。" className="mb-4">
                             <Input
@@ -603,6 +631,8 @@ export function AppConfigModal() {
                         <FeatureSwitch title="Codex CLI 兼容模式" description="开启后减少不兼容参数，并追加防提示词改写前缀。" checked={Boolean(config.codexCli)} onChange={(checked) => updateConfig("codexCli", checked ? "1" : "")} />
                         <FeatureSwitch title="视频音频生成" description="视频默认生成同步音频。" checked={config.videoGenerateAudio === "true"} onChange={(checked) => updateConfig("videoGenerateAudio", String(checked))} />
                     </div>
+                    </div>
+                    <div id="config-section-storage" className="scroll-mt-16">
                     {canUseUserStorageProvider ? (
                         <>
                             <section className="mb-5 mt-4 rounded-xl border border-border bg-muted/50 p-3/50">
@@ -666,6 +696,8 @@ export function AppConfigModal() {
                             </section>
                         </>
                     ) : null}
+                    </div>
+                    <div id="config-section-advanced" className="scroll-mt-16">
                     {(!isMimoTtsModel(config.audioModel) || isMimoPresetTtsModel(config.audioModel) || isMimoVoiceCloneModel(config.audioModel)) && !glmTts && !grokTts && !miniMaxTts ? (
                         <Form.Item label="默认音频指令" className="mb-4">
                             <Input.TextArea rows={2} value={config.audioInstructions} placeholder="例如：自然、温暖、适合旁白。" onChange={(event) => updateConfig("audioInstructions", event.target.value)} />
@@ -676,6 +708,7 @@ export function AppConfigModal() {
                             <Input.TextArea rows={3} value={config.systemPrompt} placeholder="例如：你是一位擅长电影感写实摄影的视觉导演。" onChange={(event) => updateConfig("systemPrompt", event.target.value)} />
                         </Form.Item>
                     ) : null}
+                    </div>
                 </Form>
             </div>
             </Modal>

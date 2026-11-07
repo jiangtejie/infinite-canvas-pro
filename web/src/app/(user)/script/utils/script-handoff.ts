@@ -1,5 +1,5 @@
 import type { ScriptDraft } from "../types";
-import { filmScriptDocumentToEpisodes, parseFilmScriptDocument } from "../../film/utils/film-script-import";
+import { filmScriptDocumentToEpisodes, parseFilmScriptDocument } from "@/lib/film/film-script-import";
 
 /** 把锁定的剧本快照转成影视项目需要的剧集 / 场次 / 分镜。 */
 export function buildFilmPlanFromDraft(draft: ScriptDraft) {

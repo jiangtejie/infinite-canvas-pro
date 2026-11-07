@@ -15,6 +15,8 @@ export type CanvasSidePanelState = {
     width: number;
 };
 
+export type CanvasSaveStatus = "idle" | "saving" | "saved" | "error";
+
 export const DEFAULT_CANVAS_SIDE_PANEL: CanvasSidePanelState = { open: true, width: 280 };
 export const DEFAULT_CANVAS_AGENT_PANEL: CanvasSidePanelState = { open: false, width: 464 };
 
@@ -39,6 +41,7 @@ export type CanvasProject = {
 
 type CanvasStore = {
     hydrated: boolean;
+    saveStatus: CanvasSaveStatus;
     projects: CanvasProject[];
     createProject: (title?: string, options?: { agentConfig?: CanvasAgentConfig; pendingAgentRequest?: CanvasPendingAgentRequest }) => string;
     importProject: (project: Partial<CanvasProject>) => string;
@@ -48,17 +51,28 @@ type CanvasStore = {
     updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest">>) => void;
     syncWithRemote: (token: string, syncEnabled: boolean) => Promise<void>;
     setSyncEnabled: (enabled: boolean) => void;
+    retrySave: () => void;
 };
 
 const initialViewport: ViewportTransform = { x: 0, y: 0, k: 1 };
 const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
 type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saveSequence = 0;
 let queuedPersistState: PersistedCanvasState | null = null;
 let accountCanvasSyncEnabled = false;
 const projectSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const pendingProjectSaves = new Map<string, { token: string; project: CanvasProject }>();
 const savingProjects = new Set<string>();
+const cloudSaveFailures = new Set<string>();
+let cloudSaveInFlight = 0;
+let syncFailed = false;
+let localSaveStatus: CanvasSaveStatus = "idle";
+
+function applySaveStatus() {
+    const next: CanvasSaveStatus = cloudSaveFailures.size || syncFailed ? "error" : localSaveStatus === "error" ? "error" : cloudSaveInFlight > 0 ? "saving" : localSaveStatus;
+    if (useCanvasStore.getState().saveStatus !== next) useCanvasStore.setState({ saveStatus: next });
+}
 
 function waitForUserStoreHydration() {
     if (useUserStore.persist.hasHydrated()) return Promise.resolve();
@@ -83,8 +97,18 @@ async function flushProjectSave(id: string) {
     if (!pending || !accountCanvasSyncEnabled || useUserStore.getState().token !== pending.token) return;
 
     savingProjects.add(id);
-    await saveCanvasProject(pending.token, pending.project).catch(() => undefined);
-    savingProjects.delete(id);
+    cloudSaveInFlight += 1;
+    applySaveStatus();
+    try {
+        await saveCanvasProject(pending.token, pending.project);
+        cloudSaveFailures.delete(id);
+    } catch {
+        cloudSaveFailures.add(id);
+    } finally {
+        savingProjects.delete(id);
+        cloudSaveInFlight = Math.max(0, cloudSaveInFlight - 1);
+        applySaveStatus();
+    }
     void flushProjectSave(id);
 }
 
@@ -95,6 +119,8 @@ function queueProjectSave(project: CanvasProject) {
     projectSaveTimers.delete(project.id);
     if (!token || !accountCanvasSyncEnabled) {
         pendingProjectSaves.delete(project.id);
+        if (!token) cloudSaveFailures.delete(project.id);
+        applySaveStatus();
         return;
     }
     pendingProjectSaves.set(project.id, { token, project });
@@ -110,11 +136,13 @@ function queueProjectSave(project: CanvasProject) {
 function cancelProjectSaves(ids: string[]) {
     ids.forEach((id) => {
         pendingProjectSaves.delete(id);
+        cloudSaveFailures.delete(id);
         const timer = projectSaveTimers.get(id);
         if (!timer) return;
         clearTimeout(timer);
         projectSaveTimers.delete(id);
     });
+    applySaveStatus();
 }
 
 async function reconcileCanvasProjects(
@@ -238,10 +266,23 @@ const canvasStorage: PersistStorage<CanvasStore> = {
             return;
         }
         queuedPersistState = nextState;
+        const sequence = ++saveSequence;
         if (saveTimer) clearTimeout(saveTimer);
+        localSaveStatus = "saving";
+        applySaveStatus();
         saveTimer = setTimeout(() => {
             saveTimer = null;
-            void localForageStorage.setItem(name, JSON.stringify(value));
+            void Promise.resolve(localForageStorage.setItem(name, JSON.stringify(value)))
+                .then(() => {
+                    if (sequence !== saveSequence) return;
+                    localSaveStatus = "saved";
+                    applySaveStatus();
+                })
+                .catch(() => {
+                    if (sequence !== saveSequence) return;
+                    localSaveStatus = "error";
+                    applySaveStatus();
+                });
         }, 400);
     },
     removeItem: (name) => localForageStorage.removeItem(name),
@@ -251,6 +292,7 @@ export const useCanvasStore = create<CanvasStore>()(
     persist(
         (set, get) => ({
             hydrated: false,
+            saveStatus: "idle",
             projects: [],
             createProject: (title = "未命名画布", options) => {
                 const now = new Date().toISOString();
@@ -356,12 +398,21 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             syncWithRemote: async (token, syncEnabled) => {
                 accountCanvasSyncEnabled = syncEnabled;
-                if (!syncEnabled) return;
+                if (!syncEnabled) {
+                    syncFailed = false;
+                    applySaveStatus();
+                    return;
+                }
                 const localProjects = get().projects;
                 const remoteProjects = await listCanvasProjects(token).catch(
                     () => null,
                 );
-                if (!remoteProjects) return;
+                if (!remoteProjects) {
+                    syncFailed = true;
+                    applySaveStatus();
+                    return;
+                }
+                syncFailed = false;
                 const projects = await reconcileCanvasProjects(
                     token,
                     remoteProjects,
@@ -374,13 +425,59 @@ export const useCanvasStore = create<CanvasStore>()(
                 const nextState = { projects };
                 queuedPersistState = nextState;
                 set(nextState);
-                await localForageStorage.setItem(
-                    CANVAS_STORE_KEY,
-                    JSON.stringify({ state: nextState, version: 0 }),
-                );
+                try {
+                    await localForageStorage.setItem(
+                        CANVAS_STORE_KEY,
+                        JSON.stringify({ state: nextState, version: 0 }),
+                    );
+                    localSaveStatus = "saved";
+                } catch {
+                    localSaveStatus = "error";
+                }
+                applySaveStatus();
             },
             setSyncEnabled: (enabled) => {
                 accountCanvasSyncEnabled = enabled;
+            },
+            retrySave: () => {
+                const state: PersistedCanvasState = { projects: get().projects };
+                const sequence = ++saveSequence;
+                if (saveTimer) {
+                    clearTimeout(saveTimer);
+                    saveTimer = null;
+                }
+                queuedPersistState = state;
+                localSaveStatus = "saving";
+                applySaveStatus();
+                void Promise.resolve(localForageStorage.setItem(CANVAS_STORE_KEY, JSON.stringify({ state, version: 0 })))
+                    .then(() => {
+                        if (sequence !== saveSequence) return;
+                        localSaveStatus = "saved";
+                        applySaveStatus();
+                    })
+                    .catch(() => {
+                        if (sequence !== saveSequence) return;
+                        localSaveStatus = "error";
+                        applySaveStatus();
+                    });
+                const token = useUserStore.getState().token;
+                if (!token || !accountCanvasSyncEnabled) return;
+                if (syncFailed) {
+                    syncFailed = false;
+                    applySaveStatus();
+                    void get().syncWithRemote(token, true);
+                }
+                const failedIds = Array.from(cloudSaveFailures);
+                failedIds.forEach((id) => {
+                    const project = get().projects.find((item) => item.id === id);
+                    if (!project) {
+                        cloudSaveFailures.delete(id);
+                        return;
+                    }
+                    pendingProjectSaves.set(id, { token, project });
+                    void flushProjectSave(id);
+                });
+                applySaveStatus();
             },
         }),
         {

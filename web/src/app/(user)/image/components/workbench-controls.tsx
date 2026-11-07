@@ -28,7 +28,7 @@ export function ReferenceStrip({ references, compact = false, className = "", on
                             mask: "点击预览",
                         }}
                     />
-                    <button type="button" className="absolute right-1 top-1 hidden z-10 size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={() => onRemoveReference(item.id)} aria-label="移除参考图">
+                    <button type="button" className="absolute right-1 top-1 z-10 flex size-6 items-center justify-center rounded bg-black/60 text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100" onClick={() => onRemoveReference(item.id)} aria-label="移除参考图">
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>

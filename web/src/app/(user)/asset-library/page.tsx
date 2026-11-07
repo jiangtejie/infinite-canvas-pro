@@ -1,13 +1,13 @@
 "use client";
 
-import { Copy, FolderPlus, Search } from "lucide-react";
+import { FolderPlus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { App, Button, Drawer, Image, Input, Pagination, Tag, Typography } from "antd";
+import { App, Button, Input, Pagination } from "antd";
+import { AssetBrowserCard, AssetBrowserEmpty, AssetBrowserLoading, AssetKindFilter, type AssetBrowserItem, type AssetFilterKind } from "@/components/assets/asset-browser";
+import { AssetDetailDrawer, type AssetDetailModel } from "@/components/assets/asset-detail-drawer";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { PageHeader } from "@/components/ui/page-header";
-import { EmptyState, LoadingState } from "@/components/ui/state-panel";
-import { useCopyText } from "@/hooks/use-copy-text";
 import { getProxyUrl } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
@@ -16,7 +16,6 @@ const PAGE_SIZE = 12;
 
 export default function AssetLibraryPage() {
     const { message } = App.useApp();
-    const copyText = useCopyText();
     const [keyword, setKeyword] = useState("");
     const [selectedType, setSelectedType] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("");
@@ -115,8 +114,6 @@ export default function AssetLibraryPage() {
         setSelectedTags([]);
     };
 
-    if (!isReady) return <LoadingState className="h-full" label="正在加载素材库" />;
-
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
@@ -150,19 +147,11 @@ export default function AssetLibraryPage() {
                                     }}
                                 />
                             </div>
-                            <FilterTagGroup
-                                inline
-                                options={[
-                                    { label: "全部", value: "" },
-                                    { label: "文本", value: "text" },
-                                    { label: "图片", value: "image" },
-                                    { label: "视频", value: "video" },
-                                    { label: "音频", value: "audio" },
-                                ]}
-                                isSelected={(value) => selectedType === value}
-                                onSelect={(value) => {
+                            <AssetKindFilter
+                                value={(selectedType || "all") as AssetFilterKind}
+                                onChange={(value) => {
                                     setPage(1);
-                                    setSelectedType(value);
+                                    setSelectedType(value === "all" ? "" : value);
                                 }}
                             />
                         </div>
@@ -196,24 +185,30 @@ export default function AssetLibraryPage() {
                     </section>
 
                     <section className="flex flex-col gap-5">
-                        {items.length ? (
+                        {!isReady ? (
+                            <AssetBrowserLoading label="正在加载素材库" />
+                        ) : items.length ? (
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {items.map((asset, index) => (
                                     <div key={asset.id} className="enter-up" style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}>
-                                        <LibraryCard asset={asset} onOpen={() => setSelectedAsset(asset)} onAdd={() => void saveToMyAssets(asset)} />
+                                        <AssetBrowserCard
+                                            item={toBrowserItem(asset)}
+                                            onOpen={() => setSelectedAsset(asset)}
+                                            actions={
+                                                <>
+                                                    <Button size="small" onClick={() => setSelectedAsset(asset)}>查看</Button>
+                                                    <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={() => void saveToMyAssets(asset)}>加入素材</Button>
+                                                </>
+                                            }
+                                        />
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <EmptyState
-                                className="rounded-xl border border-dashed border-border bg-card/40"
-                                title="没有找到素材"
-                                description="调整类型、分类、标签或搜索关键词后再试。"
-                                action={<Button onClick={clearFilters}>清空筛选</Button>}
-                            />
+                            <AssetBrowserEmpty onClear={clearFilters} />
                         )}
 
-                        {total > PAGE_SIZE ? (
+                        {isReady && total > PAGE_SIZE ? (
                             <div className="flex justify-center pt-2">
                                 <Pagination current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={(nextPage) => setPage(nextPage)} />
                             </div>
@@ -222,96 +217,44 @@ export default function AssetLibraryPage() {
                 </div>
             </main>
 
-            <Drawer title="素材详情" open={Boolean(selectedAsset)} size="large" onClose={() => setSelectedAsset(null)}>
-                {selectedAsset ? (
-                    <div className="space-y-5">
-                        {selectedAsset.coverUrl ? (
-                            <Image src={selectedAsset.coverUrl} alt={selectedAsset.title} className="rounded-lg" style={{ maxHeight: "46vh", width: "auto", maxWidth: "100%", objectFit: "contain" }} preview={{ getContainer: () => document.body }} />
-                        ) : (
-                            <div className="rounded-lg border border-border bg-muted p-5 text-sm leading-6 text-muted-foreground">{selectedAsset.content || "暂无封面"}</div>
-                        )}
-                        <div>
-                            <Typography.Title level={4} className="!mb-2">
-                                {selectedAsset.title}
-                            </Typography.Title>
-                            <div className="flex flex-wrap gap-1.5">
-                                <Tag>{assetTypeLabel(selectedAsset.type)}</Tag>
-                                {selectedAsset.tags.map((tag) => (
-                                    <Tag key={tag}>{tag}</Tag>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="rounded-lg border border-border p-4">
-                            <Typography.Text type="secondary" className="block text-xs">
-                                内容
-                            </Typography.Text>
-                            {selectedAsset.type === "text" ? <Typography.Paragraph className="mt-2 whitespace-pre-wrap">{selectedAsset.content}</Typography.Paragraph> : <Typography.Text className="mt-2 block">{selectedAsset.url}</Typography.Text>}
-                        </div>
-                        {selectedAsset.description ? <Typography.Paragraph type="secondary">{selectedAsset.description}</Typography.Paragraph> : null}
-                        <div className="flex flex-wrap gap-2">
-                            {selectedAsset.type === "text" ? (
-                                <Button type="primary" icon={<Copy className="size-4" />} onClick={() => copyText(selectedAsset.content)}>
-                                    复制文本
-                                </Button>
-                            ) : null}
-                            {selectedAsset.type !== "text" ? (
-                                <Button type="primary" icon={<Copy className="size-4" />} onClick={() => copyText(selectedAsset.url)}>
-                                    复制链接
-                                </Button>
-                            ) : null}
-                            <Button icon={<FolderPlus className="size-4" />} onClick={() => void saveToMyAssets(selectedAsset)}>
-                                加入我的素材
-                            </Button>
-                        </div>
-                    </div>
+            <AssetDetailDrawer
+                detail={selectedAsset ? toAssetDetail(selectedAsset) : null}
+                onClose={() => setSelectedAsset(null)}
+                extraActions={selectedAsset ? (
+                    <Button icon={<FolderPlus className="size-4" />} onClick={() => void saveToMyAssets(selectedAsset)}>
+                        加入我的素材
+                    </Button>
                 ) : null}
-            </Drawer>
+            />
         </div>
     );
 }
 
-function LibraryCard({ asset, onOpen, onAdd }: { asset: AssetLibraryItem; onOpen: () => void; onAdd: () => void }) {
-    const cover = asset.coverUrl;
-    return (
-        <article className="punk-card group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground">
-            <button type="button" className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden bg-muted/50 text-left" onClick={onOpen} aria-label={`查看 ${asset.title}`}>
-                {cover ? (
-                    <img loading="lazy" decoding="async" src={cover} alt={asset.title} className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-                ) : (
-                    <span className="flex size-full items-center justify-center bg-muted/60 p-5 text-center text-xs leading-6 text-muted-foreground">{asset.content || "暂无封面"}</span>
-                )}
-                <span className="absolute left-2.5 top-2.5 inline-flex h-5 items-center rounded-[3px] border border-white/15 bg-black/55 px-1.5 font-mono text-[10px] tracking-[0.12em] text-white/90 uppercase backdrop-blur">
-                    {assetTypeLabel(asset.type)}
-                </span>
-            </button>
-            <div className="flex flex-1 flex-col gap-2.5 p-4">
-                <button type="button" className="cursor-pointer text-left" onClick={onOpen}>
-                    <h2 className="line-clamp-1 text-sm font-medium text-foreground">{asset.title}</h2>
-                    <p className="mt-1.5 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{asset.type === "text" ? asset.content : asset.url}</p>
-                </button>
-                <div className="flex flex-wrap gap-1.5">
-                    {asset.tags.slice(0, 3).map((tag) => (
-                        <Tag key={tag} className="!m-0 !rounded-[3px] !text-[10px]">
-                            {tag}
-                        </Tag>
-                    ))}
-                    {!asset.tags.length ? <span className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground/60 uppercase">无标签</span> : null}
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 pt-3">
-                    <span className="truncate font-mono text-[10px] tracking-[0.1em] text-muted-foreground/70 uppercase">{asset.category || "未分类"}</span>
-                    <div className="flex shrink-0 items-center gap-1">
-                        <Button size="small" onClick={onOpen}>查看</Button>
-                        <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={onAdd}>加入素材</Button>
-                    </div>
-                </div>
-            </div>
-        </article>
-    );
+function toBrowserItem(asset: AssetLibraryItem): AssetBrowserItem {
+    return {
+        id: asset.id,
+        title: asset.title,
+        coverUrl: asset.coverUrl,
+        videoUrl: asset.type === "video" ? asset.url : undefined,
+        kind: asset.type,
+        summary: asset.type === "text" ? asset.content : asset.url,
+        tags: asset.tags,
+        meta: asset.category || "未分类",
+    };
 }
 
-function assetTypeLabel(type: AssetLibraryItem["type"]) {
-    if (type === "image") return "图片";
-    if (type === "video") return "视频";
-    if (type === "audio") return "音频";
-    return "文本";
+function toAssetDetail(asset: AssetLibraryItem): AssetDetailModel {
+    const isText = asset.type === "text";
+    return {
+        kind: asset.type,
+        title: asset.title,
+        coverUrl: asset.coverUrl,
+        fallbackText: asset.coverUrl ? undefined : asset.content || "暂无封面",
+        tags: asset.tags,
+        textContent: isText ? asset.content : undefined,
+        contentUrl: isText ? undefined : asset.url,
+        description: asset.description,
+        copyValue: isText ? asset.content : asset.url,
+        actionLabel: isText ? "复制文本" : "复制链接",
+    };
 }

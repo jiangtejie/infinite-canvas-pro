@@ -24,6 +24,8 @@ const adminMenus = [
     { key: "/admin/settings", icon: Settings2, label: "系统设置", group: "系统", desc: "模型渠道、提示词与站点配置" },
 ];
 
+const adminGroups = Array.from(new Set(adminMenus.map((item) => item.group)));
+
 const PAGE_META: Record<string, { title: string; desc: string }> = {
     "/admin/users": { title: "用户管理", desc: "管理账号、角色与算力点余额。" },
     "/admin/credit-logs": { title: "算力点日志", desc: "查看每一次充值、消耗与调整记录。" },
@@ -77,27 +79,31 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         <span className="text-[15px] font-semibold tracking-tight">矩灵画布</span>
                         <span className="chip !h-[18px] !px-1.5 !text-[9px]">ADMIN</span>
                     </Link>
-                    <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="后台导航">
-                        <p className="px-2.5 pb-1.5 font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50 uppercase">管理</p>
-                        {adminMenus.map((item) => {
-                            const Icon = item.icon;
-                            const active = item.key === activeKey;
-                            return (
-                                <Link
-                                    key={item.key}
-                                    href={item.key}
-                                    aria-current={active ? "page" : undefined}
-                                    className={cn(
-                                        "group relative flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
-                                        active ? "bg-acid/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground",
-                                    )}
-                                >
-                                    {active ? <span aria-hidden className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-acid" /> : null}
-                                    <Icon className={cn("size-4 shrink-0", active ? "text-acid" : "opacity-70")} />
-                                    <span className="truncate">{item.label}</span>
-                                </Link>
-                            );
-                        })}
+                    <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-3" aria-label="后台导航">
+                        {adminGroups.map((group) => (
+                            <div key={group} className="space-y-1">
+                                <p className="px-2.5 pb-1.5 font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50 uppercase">{group}</p>
+                                {adminMenus.filter((item) => item.group === group).map((item) => {
+                                    const Icon = item.icon;
+                                    const active = item.key === activeKey;
+                                    return (
+                                        <Link
+                                            key={item.key}
+                                            href={item.key}
+                                            aria-current={active ? "page" : undefined}
+                                            className={cn(
+                                                "group relative flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
+                                                active ? "bg-acid/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground",
+                                            )}
+                                        >
+                                            {active ? <span aria-hidden className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-acid" /> : null}
+                                            <Icon className={cn("size-4 shrink-0", active ? "text-acid" : "opacity-70")} />
+                                            <span className="truncate">{item.label}</span>
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        ))}
                     </nav>
                     <div className="shrink-0 space-y-2 border-t border-border/70 p-3">
                         <Button block icon={<Home className="size-4" />} href="/canvas" target="_blank" rel="noreferrer">

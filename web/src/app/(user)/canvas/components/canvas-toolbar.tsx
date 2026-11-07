@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch, Tooltip } from "antd";
-import { CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Hand, Image as ImageIcon, Info, Layers3, Library, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Info, Layers3, Library, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
 
 import { CANVAS_SHORTCUT_LABELS } from "../utils/canvas-shortcuts";
 
@@ -10,11 +10,14 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 
-type DockMenuKey = "add" | "assets" | "more" | "appearance";
+export type CanvasAlignKind = "left" | "centerX" | "right" | "top" | "centerY" | "bottom";
+
+type DockMenuKey = "add" | "assets" | "more" | "appearance" | "align";
 type DockMenuItem = { key: string; label: string; icon?: ReactNode; onClick: () => void };
 
 const DOCK_MENU_WIDTH = 208;
 const APPEARANCE_WIDTH = 264;
+const ALIGN_WIDTH = 236;
 
 export function CanvasToolbar({
     selectedCount,
@@ -41,6 +44,10 @@ export function CanvasToolbar({
     onOpenAssetLibrary,
     onOpenMyAssets,
     sidePanelWidth,
+    selectedHasGroup,
+    onAlign,
+    onGroup,
+    onUngroup,
 }: {
     selectedCount: number;
     canvasTool: "select" | "pan";
@@ -66,6 +73,10 @@ export function CanvasToolbar({
     onOpenAssetLibrary: () => void;
     onOpenMyAssets: () => void;
     sidePanelWidth: number;
+    selectedHasGroup: boolean;
+    onAlign: (kind: CanvasAlignKind) => void;
+    onGroup: () => void;
+    onUngroup: () => void;
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
@@ -95,7 +106,27 @@ export function CanvasToolbar({
         { key: "director", label: "导演台", icon: <Layers3 className="size-4" />, onClick: onAddDirector },
         { key: "config", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: onAddConfig },
     ];
-    const menuWidth = openMenu === "appearance" ? APPEARANCE_WIDTH : DOCK_MENU_WIDTH;
+    const menuWidth = openMenu === "appearance" ? APPEARANCE_WIDTH : openMenu === "align" ? ALIGN_WIDTH : DOCK_MENU_WIDTH;
+    const alignOptions: { key: CanvasAlignKind; label: string }[] = [
+        { key: "left", label: "左对齐" },
+        { key: "centerX", label: "水平居中" },
+        { key: "right", label: "右对齐" },
+        { key: "top", label: "顶部对齐" },
+        { key: "centerY", label: "垂直居中" },
+        { key: "bottom", label: "底部对齐" },
+    ];
+    const runAlign = (kind: CanvasAlignKind) => {
+        setOpenMenu(null);
+        onAlign(kind);
+    };
+    const runGroup = () => {
+        setOpenMenu(null);
+        onGroup();
+    };
+    const runUngroup = () => {
+        setOpenMenu(null);
+        onUngroup();
+    };
     const shortcutTitle = (label: string, shortcut: string) => <span className="flex min-w-32 items-center justify-between gap-5"><span>{label}</span><kbd className="text-[11px] opacity-60">{shortcut}</kbd></span>;
 
     const toggleMenu = (menu: DockMenuKey, event: React.MouseEvent<HTMLElement>) => {
@@ -105,7 +136,7 @@ export function CanvasToolbar({
         }
         const dockRect = dockRef.current?.getBoundingClientRect();
         const triggerRect = event.currentTarget.getBoundingClientRect();
-        const width = menu === "appearance" ? APPEARANCE_WIDTH : DOCK_MENU_WIDTH;
+        const width = menu === "appearance" ? APPEARANCE_WIDTH : menu === "align" ? ALIGN_WIDTH : DOCK_MENU_WIDTH;
         if (dockRect) {
             const center = triggerRect.left - dockRect.left + triggerRect.width / 2;
             setMenuLeft(Math.max(8, Math.min(center - width / 2, dockRect.width - width - 8)));
@@ -171,9 +202,14 @@ export function CanvasToolbar({
                 <Button data-canvas-dock-trigger type="text" aria-label="素材" aria-haspopup="menu" aria-expanded={openMenu === "assets"} className="!h-10 !min-w-10 !px-2" style={openMenu === "assets" ? activeStyle : { color: theme.toolbar.item }} onClick={(event) => toggleMenu("assets", event)}>素材</Button>
                 <Button data-canvas-dock-trigger type="text" aria-label="更多工具" aria-haspopup="menu" aria-expanded={openMenu === "more"} className="!h-10 !min-w-10 !px-2" style={openMenu === "more" ? activeStyle : { color: theme.toolbar.item }} icon={<Ellipsis className="size-4" />} onClick={(event) => toggleMenu("more", event)}>更多</Button>
                 <Button data-canvas-dock-trigger type="text" aria-label="画布外观" aria-haspopup="dialog" aria-expanded={openMenu === "appearance"} className="!size-10 !min-w-10 !p-0" style={openMenu === "appearance" ? activeStyle : { color: theme.toolbar.item }} icon={<Palette className="size-4.5" />} onClick={(event) => toggleMenu("appearance", event)} />
-                {selectedCount > 0 ? <>
+                {selectedCount > 0 || selectedHasGroup ? <>
                     <Divider theme={theme} />
                     <span className="hidden px-1 text-xs tabular-nums opacity-70 sm:inline">{selectedCount} 项</span>
+                    {selectedCount > 1 || selectedHasGroup ? (
+                        <Tooltip title="对齐 / 分组" placement="top">
+                            <Button data-canvas-dock-trigger type="text" aria-label="对齐与分组" aria-haspopup="menu" aria-expanded={openMenu === "align"} className="!size-10 !min-w-10 !p-0" style={openMenu === "align" ? activeStyle : { color: theme.toolbar.item }} icon={<AlignCenterHorizontal className="size-4.5" />} onClick={(event) => toggleMenu("align", event)} />
+                        </Tooltip>
+                    ) : null}
                     <Tooltip title={shortcutTitle("复制副本", CANVAS_SHORTCUT_LABELS.duplicate)} placement="top"><Button type="text" aria-label="复制副本" className="!size-10 !min-w-10 !p-0" style={{ color: theme.toolbar.item }} icon={<Copy className="size-4.5" />} onClick={onDuplicate} /></Tooltip>
                     <Tooltip title={shortcutTitle("删除选中", CANVAS_SHORTCUT_LABELS.delete)} placement="top"><Button type="text" danger aria-label="删除选中" className="!size-10 !min-w-10 !p-0" icon={<Trash2 className="size-4.5" />} onClick={onDelete} /></Tooltip>
                 </> : null}
@@ -183,8 +219,8 @@ export function CanvasToolbar({
                         ref={panelRef}
                         data-canvas-dock-panel
                         role="menu"
-                        aria-label={openMenu === "appearance" ? "画布外观" : "工具菜单"}
-                        className="absolute bottom-[calc(100%+12px)] z-10 rounded-2xl border p-1.5 text-sm shadow-2xl"
+                        aria-label={openMenu === "appearance" ? "画布外观" : openMenu === "align" ? "对齐与分组" : "工具菜单"}
+                        className="absolute bottom-[calc(100%+12px)] z-10 rounded-2xl border p-1.5 text-sm shadow-2xl [@media(pointer:coarse)]:[&_[data-dock-item]]:min-h-10"
                         style={{ left: menuLeft, width: menuWidth, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, backdropFilter: "blur(14px)", ["--dock-hover" as string]: theme.toolbar.itemHover } as CSSProperties}
                         onKeyDown={handlePanelKeyDown}
                     >
@@ -206,6 +242,37 @@ export function CanvasToolbar({
                                 <Segmented<"zoom" | "pan"> block aria-label="画布操作方式" value={wheelMode} onChange={setWheelMode} options={[{ label: "鼠标", value: "zoom" }, { label: "触控板", value: "pan" }]} />
                                 <p className="mt-2 text-[11px] leading-relaxed opacity-65">鼠标：滚轮缩放；触控板：双指平移。按住 Ctrl / ⌘ 滚动可缩放。</p>
                                 <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1 py-1"><span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65"><Info className="size-3.5" />图片信息</span><Switch size="small" checked={showImageInfo} onChange={onShowImageInfoChange} /></div>
+                            </div>
+                        ) : openMenu === "align" ? (
+                            <div className="space-y-0.5 p-0.5">
+                                {selectedCount > 1 ? <>
+                                    <div className="px-2 pb-1 pt-1 text-[11px] font-medium opacity-50">对齐选中节点</div>
+                                    <div className="grid grid-cols-2 gap-1">
+                                        {alignOptions.map((option) => (
+                                            <button
+                                                key={option.key}
+                                                type="button"
+                                                role="menuitem"
+                                                data-dock-item
+                                                className="flex w-full items-center rounded-xl px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--dock-hover)] focus-visible:bg-[var(--dock-hover)] focus-visible:outline-none"
+                                                onClick={() => runAlign(option.key)}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <div className="my-1 h-px" style={{ background: theme.toolbar.border }} />
+                                </> : null}
+                                <button type="button" role="menuitem" data-dock-item disabled={selectedCount < 2} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--dock-hover)] focus-visible:bg-[var(--dock-hover)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40" onClick={runGroup}>
+                                    <Group className="size-4 opacity-70" />
+                                    建组（选中 ≥ 2）
+                                </button>
+                                {selectedHasGroup ? (
+                                    <button type="button" role="menuitem" data-dock-item className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--dock-hover)] focus-visible:bg-[var(--dock-hover)] focus-visible:outline-none" onClick={runUngroup}>
+                                        <Ungroup className="size-4 opacity-70" />
+                                        解组
+                                    </button>
+                                ) : null}
                             </div>
                         ) : (
                             <div className="space-y-0.5">

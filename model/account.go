@@ -21,7 +21,7 @@ type RechargePackage struct {
 
 type RechargeOrder struct {
 	ID            string  `json:"id" gorm:"primaryKey"`
-	OrderNo       string  `json:"orderNo" gorm:"uniqueIndex"`
+	OrderNo       string  `json:"orderNo" gorm:"uniqueIndex;size:191"`
 	UserID        string  `json:"userId" gorm:"index"`
 	PackageID     string  `json:"packageId"`
 	PackageName   string  `json:"packageName"`
@@ -38,8 +38,8 @@ type RechargeOrder struct {
 
 type InvoiceRequest struct {
 	ID        string `json:"id" gorm:"primaryKey"`
-	UserID    string `json:"userId" gorm:"index;uniqueIndex:idx_invoice_user_order"`
-	OrderNo   string `json:"orderNo" gorm:"uniqueIndex:idx_invoice_user_order"`
+	UserID    string `json:"userId" gorm:"index;uniqueIndex:idx_invoice_user_order;size:191"`
+	OrderNo   string `json:"orderNo" gorm:"uniqueIndex:idx_invoice_user_order;size:191"`
 	Title     string `json:"title"`
 	TaxNumber string `json:"taxNumber"`
 	Email     string `json:"email"`

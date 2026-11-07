@@ -1,24 +1,20 @@
 "use client";
 
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { ProTable, type ProColumns } from "@ant-design/pro-components";
-import { Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Space, Tag, theme, Tooltip, Typography } from "antd";
-import dayjs from "dayjs";
+import { PlusOutlined } from "@ant-design/icons";
+import { ProTable } from "@ant-design/pro-components";
+import { Button, Form, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import type { AdminCreditLog } from "@/services/api/admin";
+
+import { CreditLogFilterBar } from "./components/credit-log-filter-bar";
+import { CreditLogDeleteModal, CreditLogEditorModal } from "./components/credit-log-modals";
+import { buildCreditLogColumns } from "./components/credit-log-table-columns";
 import { useAdminCreditLogs } from "./use-admin-credit-logs";
 
 type CreditLogFormValues = Partial<AdminCreditLog>;
 
-const creditLogTypeLabels: Record<string, string> = {
-    admin_adjust: "后台调整",
-    ai_consume: "模型消费",
-    ai_refund: "失败返还",
-};
-
 export default function AdminCreditLogsPage() {
-    const { token } = theme.useToken();
     const { logs, keyword, date, page, pageSize, total, isLoading, searchLogs, changePage, changePageSize, resetFilters, refreshLogs, saveLog: saveAdminLog, deleteLog } = useAdminCreditLogs();
     const [form] = Form.useForm<CreditLogFormValues>();
     const [keywordText, setKeywordText] = useState(keyword);
@@ -37,99 +33,18 @@ export default function AdminCreditLogsPage() {
         setEditingLog(null);
     };
 
-    const columns: ProColumns<AdminCreditLog>[] = [
-        {
-            title: "用户",
-            dataIndex: "userDisplayName",
-            width: 150,
-            render: (_, item) => item.userDisplayName || "-",
-        },
-        {
-            title: "用户 ID",
-            dataIndex: "userId",
-            width: 220,
-            render: (_, item) => <Typography.Text copyable>{item.userId}</Typography.Text>,
-        },
-        {
-            title: "类型",
-            dataIndex: "type",
-            width: 140,
-            render: (_, item) => <Tag>{creditLogTypeLabels[item.type] || item.type || "-"}</Tag>,
-        },
-        {
-            title: "变动",
-            dataIndex: "amount",
-            width: 100,
-            render: (_, item) => <Typography.Text type={item.amount >= 0 ? "success" : "danger"}>{item.amount}</Typography.Text>,
-        },
-        {
-            title: "余额",
-            dataIndex: "balance",
-            width: 100,
-        },
-        {
-            title: "备注",
-            dataIndex: "remark",
-            ellipsis: true,
-            render: (_, item) => <Typography.Text type="secondary">{item.remark || "-"}</Typography.Text>,
-        },
-        {
-            title: "创建时间",
-            dataIndex: "createdAt",
-            width: 180,
-            render: (_, item) => <Typography.Text type="secondary">{item.createdAt ? dayjs(item.createdAt).format("YYYY-MM-DD HH:mm:ss") : "-"}</Typography.Text>,
-        },
-        {
-            title: "操作",
-            key: "actions",
-            width: 96,
-            render: (_, item) => (
-                <Space size={4}>
-                    <Tooltip title="编辑">
-                        <Button type="text" size="small" icon={<EditOutlined />} onClick={() => setEditingLog(item)} />
-                    </Tooltip>
-                    <Tooltip title="删除">
-                        <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => setDeletingLog(item)} />
-                    </Tooltip>
-                </Space>
-            ),
-        },
-    ];
+    const deleteSelectedLog = async () => {
+        if (!deletingLog) return;
+        await deleteLog(deletingLog.id);
+        setDeletingLog(null);
+    };
+
+    const columns = buildCreditLogColumns({ onEdit: setEditingLog, onDelete: setDeletingLog });
 
     return (
         <main style={{ padding: 24 }}>
             <Space orientation="vertical" size={16} style={{ width: "100%" }}>
-                <Card variant="borderless">
-                    <Form layout="vertical">
-                        <Row gutter={16} align="bottom">
-                            <Col flex="360px">
-                                <Form.Item label="关键词">
-                                    <Space.Compact block>
-                                        <Input style={{ flex: 1, minWidth: 0 }} value={keywordText} placeholder="搜索用户名、用户 ID、类型、备注或关联 ID" allowClear onPressEnter={() => searchLogs(keywordText)} onChange={(event) => setKeywordText(event.target.value)} />
-                                        <DatePicker style={{ width: 46, height: token.controlHeight, padding: 0, cursor: "pointer", background: token.colorPrimary, borderColor: token.colorPrimary }} styles={{ input: { opacity: 0, cursor: "pointer" }, suffix: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", marginInlineStart: 0, color: token.colorTextLightSolid } }} value={date ? dayjs(date) : null} format={() => ""} placeholder="" inputReadOnly allowClear={false} title={date || "选择日期"} onChange={(value) => searchLogs(keywordText, value?.format("YYYY-MM-DD") || "")} />
-                                    </Space.Compact>
-                                </Form.Item>
-                            </Col>
-                            <Col flex="none">
-                                <Form.Item>
-                                    <Space>
-                                        <Button
-                                            onClick={() => {
-                                                setKeywordText("");
-                                                resetFilters();
-                                            }}
-                                        >
-                                            重置
-                                        </Button>
-                                        <Button type="primary" onClick={() => searchLogs(keywordText)}>
-                                            查询
-                                        </Button>
-                                    </Space>
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                    </Form>
-                </Card>
+                <CreditLogFilterBar keywordText={keywordText} setKeywordText={setKeywordText} date={date} searchLogs={searchLogs} resetFilters={resetFilters} />
                 <ProTable<AdminCreditLog>
                     rowKey="id"
                     columns={columns}
@@ -164,68 +79,8 @@ export default function AdminCreditLogsPage() {
                 />
             </Space>
 
-            <Modal forceRender title={editingLog?.id ? "编辑日志" : "新增日志"} open={Boolean(editingLog)} width={680} onCancel={() => setEditingLog(null)} onOk={() => void saveLog()} okText="保存" cancelText="取消">
-                <Form form={form} layout="vertical" requiredMark={false}>
-                    <Row gutter={14}>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="userId" label="用户 ID" rules={[{ required: true, message: "请输入用户 ID" }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="type" label="类型" rules={[{ required: true, message: "请输入类型" }]}>
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="amount" label="变动数量" rules={[{ required: true, message: "请输入变动数量" }]}>
-                                <InputNumber step={0.01} precision={2} style={{ width: "100%" }} />
-                            </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="balance" label="变动后余额" rules={[{ required: true, message: "请输入变动后余额" }]}>
-                                <InputNumber min={0} step={0.01} precision={2} style={{ width: "100%" }} />
-                            </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="relatedId" label="关联 ID">
-                                <Input />
-                            </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={12}>
-                            <Form.Item name="createdAt" label="创建时间">
-                                <Input placeholder="不填则新增时自动生成" />
-                            </Form.Item>
-                        </Col>
-                        <Col span={24}>
-                            <Form.Item name="remark" label="备注">
-                                <Input.TextArea rows={3} />
-                            </Form.Item>
-                        </Col>
-                        <Col span={24}>
-                            <Form.Item name="extra" label="扩展信息">
-                                <Input.TextArea rows={3} />
-                            </Form.Item>
-                        </Col>
-                    </Row>
-                </Form>
-            </Modal>
-
-            <Modal
-                title="删除日志"
-                open={Boolean(deletingLog)}
-                onCancel={() => setDeletingLog(null)}
-                onOk={async () => {
-                    if (!deletingLog) return;
-                    await deleteLog(deletingLog.id);
-                    setDeletingLog(null);
-                }}
-                okText="删除"
-                okButtonProps={{ danger: true }}
-                cancelText="取消"
-            >
-                确定删除这条算力点日志吗？
-            </Modal>
+            <CreditLogEditorModal editingLog={editingLog} form={form} onCancel={() => setEditingLog(null)} onOk={() => void saveLog()} />
+            <CreditLogDeleteModal deletingLog={deletingLog} onCancel={() => setDeletingLog(null)} onOk={() => void deleteSelectedLog()} />
         </main>
     );
 }

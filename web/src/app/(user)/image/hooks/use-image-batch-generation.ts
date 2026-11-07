@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useRef, type Dispatch, type SetStateAction } from "react";
 import { nanoid } from "nanoid";
 
 import { createCanvasImageTask, type CanvasImageTask } from "@/services/api/image";
@@ -24,7 +24,7 @@ type UseImageBatchGenerationOptions = {
     setPreviewLog: Dispatch<SetStateAction<GenerationLog | null>>;
     setNow: Dispatch<SetStateAction<number>>;
     activeResultCategoryId: string | null;
-    runGenerationTask: (resultId: string, snapshot: RequestSnapshot) => Promise<GeneratedImage>;
+    runGenerationTask: (resultId: string, snapshot: RequestSnapshot, signal?: AbortSignal) => Promise<GeneratedImage>;
     usesBackendImageTasks: (config: AiConfig) => boolean;
     notify: BatchNotify;
 };
@@ -33,6 +33,8 @@ type UseImageBatchGenerationOptions = {
  * 图片批量生成：持久化任务创建、后端任务轮询入口、本地并发生成。
  */
 export function useImageBatchGeneration({ saveLog, setResults, setPreviewLog, setNow, activeResultCategoryId, runGenerationTask, usesBackendImageTasks, notify }: UseImageBatchGenerationOptions) {
+    // 本地直连任务的 AbortController：按结果 id 隔离，停止单个不影响其它并发任务。
+    const localControllersRef = useRef(new Map<string, AbortController>());
     const createPersistentImageTask = useCallback(async (pendingLog: GenerationLog, snapshot: RequestSnapshot, index: number, taskCount: number, workflowToken: string) => {
         const active = () => !snapshot.workflowRef || useUserStore.getState().token === workflowToken;
         try {
@@ -125,16 +127,23 @@ export function useImageBatchGeneration({ saveLog, setResults, setPreviewLog, se
         const taskCount = Math.max(1, Number(snapshot.displayConfig.count) || 1);
         const taskIds = Array.from({ length: taskCount }, () => nanoid());
         const pendingTasks = taskIds.map((id) => createPendingResult(id, snapshot));
+        const controllers = new Map<string, AbortController>();
+        pendingTasks.forEach((result) => {
+            const controller = new AbortController();
+            controllers.set(result.id, controller);
+            localControllersRef.current.set(result.id, controller);
+        });
         setResults((value) => [...pendingTasks, ...value]);
         setNow(Date.now());
 
         await Promise.allSettled(taskIds.map(async (id, index) => {
+            const controller = controllers.get(id)!;
             const taskStartedAt = performance.now();
             try {
                 const image = await runGenerationTask(id, {
                     ...snapshot,
                     requestConfig: { ...snapshot.requestConfig, seedIndex: index, seedCount: taskCount },
-                });
+                }, controller.signal);
                 const durableImage = { ...image, storageKey: image.storageKey || "" };
                 setResults((value) => updateResult(value, id, { image: durableImage }));
                 await saveLog(buildLog({
@@ -153,6 +162,27 @@ export function useImageBatchGeneration({ saveLog, setResults, setPreviewLog, se
                 }));
                 notify.success("图片已生成");
             } catch (error) {
+                if (controller.signal.aborted) {
+                    const durationMs = performance.now() - taskStartedAt;
+                    await saveLog(buildLog({
+                        id,
+                        prompt: snapshot.text,
+                        model: snapshot.displayConfig.imageModel || snapshot.displayConfig.model,
+                        config: { ...snapshot.displayConfig, count: "1" },
+                        references: snapshot.references,
+                        durationMs,
+                        successCount: 0,
+                        failCount: 0,
+                        status: "已停止",
+                        images: [],
+                        errors: [],
+                        errorDetails: [],
+                        categoryIds: activeResultCategoryId ? [activeResultCategoryId] : [],
+                        createdAt: pendingTasks[index].createdAt,
+                    })).catch(() => undefined);
+                    setResults((value) => value.map((item) => (item.id === id ? { ...item, status: "stopped", durationMs } : item)));
+                    return;
+                }
                 const nextError = errorMessage(error);
                 await saveLog(buildLog({
                     prompt: snapshot.text,
@@ -170,10 +200,22 @@ export function useImageBatchGeneration({ saveLog, setResults, setPreviewLog, se
                 }));
                 notify.error(nextError || "生成失败");
             } finally {
-                setResults((value) => value.filter((item) => item.id !== id));
+                localControllersRef.current.delete(id);
+                // 已停止的结果保留在结果区（可重新生成）；成功/失败仍按原逻辑移除。
+                setResults((value) => value.filter((item) => item.id !== id || item.status === "stopped"));
             }
         }));
     }, [activeResultCategoryId, notify, runGenerationTask, saveLog, setNow, setPreviewLog, setResults, submitPersistentGenerationBatch, usesBackendImageTasks]);
 
-    return { submitGenerationBatch };
+    const stopLocalGeneration = useCallback((resultId: string) => {
+        const controller = localControllersRef.current.get(resultId);
+        if (!controller || controller.signal.aborted) return;
+        setResults((value) => value.map((item) => (item.id === resultId ? { ...item, status: "stopping" } : item)));
+        controller.abort(new DOMException("用户停止生成", "AbortError"));
+    }, [setResults]);
+
+    /** 本地直连任务是否仍在运行（用于决定 pending 卡是否显示停止按钮）。 */
+    const isLocalGenerationActive = useCallback((resultId: string) => localControllersRef.current.has(resultId), []);
+
+    return { submitGenerationBatch, stopLocalGeneration, isLocalGenerationActive };
 }

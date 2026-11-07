@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { composeFilmVideoPrompt, createDefaultSegments, mergeVideoSegmentWithPrevious, removeVideoSegment, splitVideoSegment, validateSegments } from "./film-video-segments";
-import type { FilmVideoSegment } from "../types";
+import type { FilmVideoSegment } from "@/lib/film/types";
 
 const segment = (id: string, start: number, end: number, prompt = ""): FilmVideoSegment => ({ id, start, end, prompt });
 

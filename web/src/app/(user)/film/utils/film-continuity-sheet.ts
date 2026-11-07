@@ -1,6 +1,6 @@
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
-import type { FilmContinuitySheet, FilmEpisode, FilmShot } from "../types";
+import type { FilmContinuitySheet, FilmEpisode, FilmShot } from "@/lib/film/types";
 import { flattenFilmShots } from "./parse-script";
 
 const SYSTEM_PROMPT = `你是一名影视场记（continuity supervisor），负责把隐含的连续性显式化、把导演意图约束化。

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { MAX_MEDIA_VERSIONS, withImageVersion, withVideoVersion } from "./film-versions";
-import type { FilmShot } from "../types";
+import type { FilmShot } from "@/lib/film/types";
 
-const shot: FilmShot = { id: "s1", shotNo: "01", shotType: "", cameraMovement: "", duration: 5, description: "", dialogue: "", audio: "", prompt: "", status: "idle" };
+const shot: FilmShot = { id: "s1", shotNo: "01", shotType: "", cameraMovement: "", duration: 5, description: "", dialogue: "", audio: "", prompt: "" };
 
 test("生成图片时保留历史版本", () => {
     const first = withImageVersion(shot, "url-1");
@@ -28,6 +28,6 @@ test("视频同样保留版本并更新状态", () => {
     const result = withVideoVersion(shot, "video-1", "video:key");
     assert.equal(result.videoUrl, "video-1");
     assert.equal(result.videoStorageKey, "video:key");
-    assert.equal(result.status, "video_ready");
+
     assert.equal(result.videoVersions?.length, 1);
 });

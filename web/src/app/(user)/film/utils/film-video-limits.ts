@@ -1,5 +1,5 @@
 import { isSeedanceVideoModel } from "@/lib/seedance-video";
-import { normalizeFilmAspect } from "./film-aspects";
+import { normalizeFilmAspect } from "@/lib/film/film-aspects";
 
 export type FilmVideoLimits = {
     isSeedance: boolean;
@@ -36,4 +36,9 @@ export function filmVideoAspect(aspect: string, videoModel: string) {
 
 export function filmVideoReferenceLimit(videoModel: string) {
     return isSeedanceVideoModel(videoModel || "") ? 10 : 8;
+}
+
+/** 粗略估算：单条视频按 1.5 分钟计（含排队与轮询），用于批量生成前的确认提示。 */
+export function estimateFilmVideoMinutes(count: number) {
+    return Math.max(1, Math.ceil(count * 1.5));
 }

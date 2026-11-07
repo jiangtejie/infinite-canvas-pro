@@ -1,4 +1,4 @@
-import type { FilmAsset, FilmEpisode } from "../types";
+import type { FilmAsset, FilmEpisode } from "@/lib/film/types";
 
 export type FilmBindingIssue = {
     id: string;

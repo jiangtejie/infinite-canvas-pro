@@ -16,6 +16,7 @@ export function CanvasDirectorNodePanel({ onOpen }: { onOpen: () => void }) {
                 type="button"
                 className="rounded-xl border px-6 py-2 text-lg font-medium transition"
                 style={{ background: theme.toolbar.itemHover, borderColor: theme.node.stroke, color: theme.node.text }}
+                onPointerDown={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                     event.stopPropagation();

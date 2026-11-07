@@ -1,0 +1,95 @@
+.characterLayout {
+    display: grid;
+    gap: 12px;
+}
+
+.characterBody {
+    display: grid;
+    gap: 8px;
+}
+
+.slotColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stage {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    background: var(--card);
+    min-height: 420px;
+}
+
+.stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    background:
+        radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--acid) 12%, transparent), transparent 58%),
+        radial-gradient(ellipse at 50% 108%, rgba(0, 0, 0, 0.55), transparent 55%);
+}
+
+.stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.35;
+    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+    background-size: 18px 18px;
+}
+
+.stageFrame {
+    position: relative;
+    border: 1px solid color-mix(in srgb, var(--acid) 28%, var(--border));
+    border-radius: 12px;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.22);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.stageCorner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: var(--acid);
+    border-style: solid;
+    opacity: 0.75;
+}
+
+.stageScan {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 32%;
+    pointer-events: none;
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--acid) 16%, transparent), transparent);
+    animation: filmStageScan 1.8s linear infinite;
+}
+
+@keyframes filmStageScan {
+    from {
+        top: -32%;
+    }
+    to {
+        top: 100%;
+    }
+}
+
+@media (min-width: 1024px) {
+    .characterLayout {
+        grid-template-columns: 190px minmax(0, 1fr) 330px;
+        height: 100%;
+        min-height: 0;
+    }
+
+    .characterBody {
+        grid-template-columns: 104px minmax(0, 1fr) 104px;
+        flex: 1;
+        min-height: 0;
+    }
+}

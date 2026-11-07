@@ -8,6 +8,7 @@ import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
+import { useCanvasStore } from "../../stores/use-canvas-store";
 
 export function CanvasTopBar({
     title,
@@ -62,6 +63,8 @@ export function CanvasTopBar({
     const menuRef = useRef<HTMLDivElement>(null);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
     const setShortcutsOpen = useCanvasUiStore((state) => state.setShortcutsOpen);
+    const saveStatus = useCanvasStore((state) => state.saveStatus);
+    const retrySave = useCanvasStore((state) => state.retrySave);
     const [menuOpen, setMenuOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
     const shortcutsOpen = useCanvasUiStore((state) => state.shortcutsOpen);
@@ -140,7 +143,7 @@ export function CanvasTopBar({
         <>
             <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}>
                 <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3">
-                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)]" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
+                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                         {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                     </button>
                     <div className="relative">
@@ -148,7 +151,7 @@ export function CanvasTopBar({
                             ref={menuButtonRef}
                             type="button"
                             data-canvas-topbar-menu
-                            className="grid size-9 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)]"
+                            className="grid size-9 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10"
                             style={{ color: theme.node.text, background: menuOpen ? theme.toolbar.activeBg : undefined }}
                             aria-label="打开画布菜单"
                             aria-haspopup="menu"
@@ -218,6 +221,13 @@ export function CanvasTopBar({
                 </div>
 
                 <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
+                    {saveStatus === "saving" ? (
+                        <span className="px-1.5 text-xs" style={{ color: theme.node.muted }}>保存中…</span>
+                    ) : saveStatus === "saved" ? (
+                        <span className="px-1.5 text-xs" style={{ color: theme.node.muted }}>已保存</span>
+                    ) : saveStatus === "error" ? (
+                        <button type="button" onClick={retrySave} title="点击重试保存" className="rounded-full px-2 py-1 text-xs transition-colors hover:bg-[var(--canvas-topbar-hover)]" style={{ color: "#f87171" }}>保存失败 · 重试</button>
+                    ) : null}
                     <UserStatusActions
                         variant="canvas"
                         accountOpen={accountOpen}
@@ -253,6 +263,7 @@ export function CanvasTopBar({
                     <Shortcut keys={["Shift", "1 / 2 / 0"]} value="查看全部 / 聚焦选中 / 100%" />
                     <Shortcut keys={["拖动"]} value="使用当前工具操作画布" />
                     <Shortcut keys={[`Shift / ${modifierKey}`, "点击"]} value="追加选择节点" />
+                    <Shortcut keys={["连接点"]} value="拖拽节点左右圆点连线；键盘选中节点后 Tab 到圆点按 Enter，Esc 取消" />
                     <Shortcut keys={[modifierKey, "G"]} value="创建组" />
                     <Shortcut keys={[modifierKey, "C / V"]} value="复制 / 粘贴节点，或粘贴剪切板文本/图片" />
                     <Shortcut keys={[modifierKey, "Z"]} value="撤销" />

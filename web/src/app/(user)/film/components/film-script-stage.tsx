@@ -5,7 +5,7 @@ import { App, Button, Checkbox, Input, InputNumber, Modal, Select } from "antd";
 import { Clapperboard, ClipboardList, FileUp, Link2, Network, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import type { FilmEpisode, FilmProject, FilmShot } from "../types";
+import type { FilmEpisode, FilmProject, FilmShot, FilmShotStatus } from "@/lib/film/types";
 import { addFilmEpisode, addFilmScene, addFilmShot, filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { useFilmAiParse } from "../hooks/use-film-ai-parse";
 import { useFilmContinuity } from "../hooks/use-film-continuity";
@@ -17,11 +17,12 @@ import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
 import { bindFilmCast } from "../utils/film-cast-bind";
 import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
-import { resolveFilmStyleText } from "../utils/film-styles";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { countFilmScenes, flattenFilmShots } from "../utils/parse-script";
-import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFile, scriptTextHash, type FilmScriptDocument } from "../utils/film-script-import";
+import { deriveFilmShotStatus } from "../utils/film-status";
+import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFile, scriptTextHash, type FilmScriptDocument } from "@/lib/film/film-script-import";
 import { buildScriptAnalysisAssets, normalizeEntityKey, validateFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
-import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "../types";
+import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "@/lib/film/types";
 import { FilmShotDetail } from "./film-shot-detail";
 import { FilmScriptGraph } from "./film-script-graph";
 import { FilmContinuityNotebook } from "./film-continuity-notebook";
@@ -35,11 +36,12 @@ type FilmScriptStageProps = {
     batchProgress: FilmImageBatchProgress | null;
     onStopBatch: () => void;
     onGenerateVideo: (shot: FilmShot) => void;
+    onStopVideo?: () => void;
     generatingVideoShotId: string;
     videoProgress: number;
 };
 
-export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerateImageBatch, generatingShotId, batchProgress, onStopBatch, onGenerateVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
+export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerateImageBatch, generatingShotId, batchProgress, onStopBatch, onGenerateVideo, onStopVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
     const { message, modal } = App.useApp();
     const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
     const { analyzingEpisodeId, analyzeEpisode } = useFilmContinuity();
@@ -411,7 +413,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     return (
         <div className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[320px_minmax(0,1fr)_380px] xl:gap-5">
-            <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+            <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                 <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                     <span className="eyebrow">剧本导入</span>
                     <span className="font-mono text-[10px] text-muted-foreground/60 tabular-nums">{project.episodes.length} 集</span>
@@ -445,18 +447,20 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                             type="primary"
                             size="small"
                             loading={parsing}
+                            title="按分镜表直接拆分镜：会提示覆盖或追加到现有分镜"
                             icon={<Sparkles className="size-3.5" />}
                             onClick={() => void parseWithAi(project.scriptText, { pacing, targetDuration })}
                         >
-                            {parsing ? `AI 解析中 ${progress?.done ?? 0}/${progress?.total ?? 1}` : "AI 解析"}
+                            {parsing ? `AI 解析中 ${progress?.done ?? 0}/${progress?.total ?? 1}` : "AI 解析并拆分镜"}
                         </Button>
-                        <Button size="small" icon={<FileUp className="size-3.5" />} onClick={openImport}>
-                            导入剧本
+                        <Button size="small" icon={<FileUp className="size-3.5" />} title="先规则切分场次，可选 AI 语义分析（生成剧情图谱/角色关系），确认后才写分镜" onClick={openImport}>
+                            导入剧本并分析
                         </Button>
                         <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={clearScript}>
                             清空
                         </Button>
                     </div>
+                    <p className="mt-2 text-[11px] leading-5 text-muted-foreground/60">两条入口用途不同：「AI 解析并拆分镜」直接把原文拆成分镜；「导入剧本并分析」先规则切分再可选 AI 语义分析，用于生成剧情图谱与角色关系，分镜确认后才写入。</p>
                     <div className="mt-4 flex flex-wrap gap-2">
                         <span className="chip chip-acid">{countFilmScenes(episodes)} 场</span>
                         <span className="chip">{shots.length} 个分镜</span>
@@ -464,7 +468,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 </div>
             </section>
 
-            <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+            <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                 <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
                     <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">剧集结构</span>
@@ -606,7 +610,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                             <span className="w-12 shrink-0 font-mono text-[9px] tracking-wide text-muted-foreground/70">{shot.shotType ? filmShotTypeLabel(shot.shotType) : "—"}</span>
                                             <span className="min-w-0 flex-1 truncate text-xs text-foreground/80">{shot.description || "未填写描述"}</span>
                                             {shot.continuity ? <span className="shrink-0 font-mono text-[9px] text-acid/80">场记</span> : null}
-                                            <StatusDot status={shot.status} />
+                                            <StatusDot status={deriveFilmShotStatus(shot)} />
                                         </button>
                                     ))}
                                     {scene.shots.length === 0 ? <p className="border-t border-border/30 px-3 py-2 pl-9 text-[11px] text-muted-foreground/60">还没有分镜</p> : null}
@@ -618,7 +622,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 </div>
             </section>
 
-            <section className="punk-panel flex max-h-[70vh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
+            <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
                 <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
                     <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                     <span className="eyebrow">分镜详情</span>
@@ -632,6 +636,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                         onGenerate={() => onGenerateImage(selectedShot)}
                         generating={generatingShotId === selectedShot.id}
                         onGenerateVideo={() => onGenerateVideo(selectedShot)}
+                        onStopVideo={onStopVideo}
                         generatingVideo={generatingVideoShotId === selectedShot.id}
                         videoProgress={videoProgress}
                         characters={project.characters || []}
@@ -907,7 +912,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     );
 }
 
-function StatusDot({ status }: { status: FilmShot["status"] }) {
-    const tone = status === "video_ready" ? "bg-acid" : status === "image_ready" ? "bg-acid/60" : status === "failed" ? "bg-hot" : "bg-border";
+function StatusDot({ status }: { status: FilmShotStatus }) {
+    const tone = status === "video_ready" ? "bg-acid" : status === "image_ready" ? "bg-acid/60" : status === "generating" ? "bg-acid/40 animate-pulse" : status === "failed" ? "bg-hot" : "bg-border";
     return <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", tone)} />;
 }

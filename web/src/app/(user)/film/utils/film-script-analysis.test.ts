@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { collectReusableScenePayloads, mergeFilmSceneSemantics, parseSceneSemanticPayload, validateFilmScriptAnalysis } from "./film-script-analysis";
-import { parseFilmScriptDocument } from "./film-script-import";
+import { parseFilmScriptDocument } from "@/lib/film/film-script-import";
 import type { FilmSceneSemanticEntry } from "./film-script-analysis";
 
 const document = parseFilmScriptDocument(`1-1 内景 咖啡馆 日

@@ -6,9 +6,9 @@ import { Clapperboard, ListVideo, Play, SkipForward } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
-import type { FilmProject, FilmShot } from "../types";
+import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
-import { filmAspectCssRatio, filmAspectLabel } from "../utils/film-aspects";
+import { filmAspectCssRatio, filmAspectLabel } from "@/lib/film/film-aspects";
 import { flattenFilmShots } from "../utils/parse-script";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 

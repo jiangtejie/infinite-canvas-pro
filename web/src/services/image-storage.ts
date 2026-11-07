@@ -66,6 +66,7 @@ const previewDeletes = new Map<string, Promise<void>>();
 const previewEpochs = new Map<string, number>();
 const previewListeners = new Set<() => void>();
 const serverUrls = new Map<string, string>();
+const serverUrlRequests = new Map<string, Promise<string | undefined>>();
 const previewQueue: Array<() => void> = [];
 const IMAGE_PREVIEW_VERSION = 1;
 const IMAGE_PREVIEW_CONCURRENCY = 2;
@@ -441,22 +442,32 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
         if (localUrl) return localUrl;
         const cachedUrl = serverUrls.get(id);
         if (cachedUrl) return cachedUrl;
-        const { getStorageObjectInfo } = await import("@/services/api/storage");
-        const info = await getStorageObjectInfo(id).catch(() => null);
-        if (!info) return fallback;
-        const provider = loadUserStorageProvider();
-        if (info.direct && provider?.type === "webdav") {
-            const direct = await import("@/services/webdav-direct-storage");
-            try {
-                const blob = await direct.readDirectWebDAV(provider, info.objectKey, info.mimeType);
-                return setImageBlob(storageKey, blob);
-            } catch (error) {
-                if (!useUserStore.getState().token || !direct.isWebDAVDirectUnavailable(error)) throw error;
+        const cachedRequest = serverUrlRequests.get(id);
+        if (cachedRequest) return (await cachedRequest) || fallback;
+        const request = (async () => {
+            const { getStorageObjectInfo } = await import("@/services/api/storage");
+            const info = await getStorageObjectInfo(id).catch(() => null);
+            if (!info) return undefined;
+            const provider = loadUserStorageProvider();
+            if (info.direct && provider?.type === "webdav") {
+                const direct = await import("@/services/webdav-direct-storage");
+                try {
+                    const blob = await direct.readDirectWebDAV(provider, info.objectKey, info.mimeType);
+                    return setImageBlob(storageKey, blob);
+                } catch (error) {
+                    if (!useUserStore.getState().token || !direct.isWebDAVDirectUnavailable(error)) throw error;
+                }
             }
+            const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
+            serverUrls.set(id, url);
+            return url;
+        })();
+        serverUrlRequests.set(id, request);
+        try {
+            return (await request) || fallback;
+        } finally {
+            if (serverUrlRequests.get(id) === request) serverUrlRequests.delete(id);
         }
-        const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
-        serverUrls.set(id, url);
-        return url;
     }
     return await resolveLocalImageUrl(storageKey) || fallback;
 }

@@ -76,14 +76,14 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
         });
     };
 
-    const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
         pointerStartRef.current = event.clientX;
         draggedRef.current = false;
         setCardTransitionDuration("0ms");
         event.currentTarget.setPointerCapture(event.pointerId);
     };
 
-    const handlePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
         const start = pointerStartRef.current;
         if (start === null) return;
         const distance = Math.max(-180, Math.min(180, event.clientX - start));
@@ -98,7 +98,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
         window.requestAnimationFrame(() => setDragOffset(0));
     };
 
-    const handlePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
         const start = pointerStartRef.current;
         if (start === null) return;
         const distance = event.clientX - start;
@@ -159,15 +159,18 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
             <div ref={carouselRef} role="region" aria-roledescription="轮播" aria-label="创作工具与案例" className="relative h-[calc((100vw-2rem)*.5625+24px)] w-screen overflow-hidden sm:h-[clamp(240px,20vw,290px)] sm:overflow-visible">
                 {visibleBanners.map(({ banner, index, offset, position }) => {
                     const active = offset === 0;
+                    const interactive = Boolean(banner.linkUrl || banner.videoUrl);
+                    const external = /^https?:\/\//.test(banner.linkUrl || "");
                     return (
-                        <button
+                        <div
                             key={position}
-                            type="button"
                             data-banner-card
                             data-banner-offset={offset}
+                            role={interactive ? "button" : undefined}
+                            tabIndex={interactive ? 0 : undefined}
                             className={cn(
                                 "home-banner-carousel-card absolute top-1/2 aspect-video rounded-2xl outline-none transition-[left,width,transform] duration-300 ease-out focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background motion-reduce:!transition-none",
-                                (banner.linkUrl || banner.videoUrl) && "cursor-pointer",
+                                interactive ? "cursor-pointer" : "cursor-default",
                             )}
                             style={{
                                 left: offset === 0 ? "calc(50% + var(--banner-drag-x, 0px))" : offset < 0 ? `calc(50% - ${SIDE_BANNER_WIDTH} + 16px + var(--banner-drag-x, 0px))` : `calc(50% + ${SIDE_BANNER_WIDTH} - 16px + var(--banner-drag-x, 0px))`,
@@ -183,8 +186,13 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                             onPointerMove={handlePointerMove}
                             onPointerUp={handlePointerUp}
                             onPointerCancel={handlePointerCancel}
-                            onClick={() => openBanner(banner, index, position)}
-                            aria-label={banner.alt}
+                            onClick={interactive ? () => openBanner(banner, index, position) : undefined}
+                            onKeyDown={interactive ? (event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                openBanner(banner, index, position);
+                            } : undefined}
+                            aria-label={interactive ? banner.alt : undefined}
                         >
                             <span
                                 aria-hidden
@@ -197,6 +205,11 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                                 className="relative isolate block size-full overflow-hidden rounded-2xl bg-muted"
                             >
                                 <AnimatedBannerImage src={banner.imageUrl} srcSet={banner.imageSrcSet} alt={banner.alt} eager={active} />
+                                {external ? (
+                                    <span className="absolute left-2.5 top-2.5 z-10 inline-flex h-5 items-center rounded-[3px] border border-white/20 bg-black/55 px-1.5 font-mono text-[10px] tracking-[0.08em] text-white/90 backdrop-blur">
+                                        广告 / 合作
+                                    </span>
+                                ) : null}
                                 {banner.videoUrl ? (
                                     <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10">
                                         <span className={cn("grid place-items-center rounded-full bg-black/55 text-white backdrop-blur", active ? "size-12" : "size-9 opacity-80")}>
@@ -205,7 +218,7 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                                     </span>
                                 ) : null}
                             </span>
-                        </button>
+                        </div>
                     );
                 })}
                 <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ left: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronLeft className="size-5" />} onClick={() => changeBanner(-1)} aria-label="上一张" />

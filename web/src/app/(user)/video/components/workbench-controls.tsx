@@ -54,7 +54,7 @@ function FrameReferenceSlot({ label, reference, compact, onUpload, onRemove }: {
                     <img loading="lazy" decoding="async" src={reference.dataUrl} alt={reference.name} className="size-full object-cover" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{label}</span>
                     <span className="absolute inset-x-1 bottom-1 truncate rounded bg-black/60 px-1 py-0.5 text-[10px] text-white">{reference.name}</span>
-                    <button type="button" className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex" onClick={onRemove} aria-label={`移除${label}`}>
+                    <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={onRemove} aria-label={`移除${label}`}>
                         <Trash2 className="size-3.5" />
                     </button>
                 </>

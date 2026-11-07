@@ -3,25 +3,29 @@
 import { useRef, useState } from "react";
 import { App } from "antd";
 
-import { requestVideoGeneration } from "@/services/api/video";
 import { imageToDataUrl } from "@/services/image-storage";
 import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
-import type { FilmFrameSource, FilmProject, FilmShot } from "../types";
+import type { FilmFrameSource, FilmProject, FilmShot, FilmShotTask } from "@/lib/film/types";
 import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { withVideoVersion } from "../utils/film-versions";
-
-import { resolveFilmStyleText } from "../utils/film-styles";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { collectFilmShotReferences } from "../utils/film-references";
 import { compressFilmReference } from "../utils/film-image-compress";
 import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from "../utils/film-video-segments";
 import { formatFilmContinuityPrompt } from "../utils/film-continuity-sheet";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "../utils/film-video-limits";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
+import { FilmVideoStoppedError, startFilmVideoTask, stopFilmVideoTask } from "../utils/film-video-task";
 import { useModelConfig } from "@/hooks/use-model-config";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
+
+type ShotVideoHandlers = {
+    signal?: AbortSignal;
+    onTask?: (task: FilmShotTask) => void;
+};
 
 function friendlyVideoError(error: unknown) {
     const message = error instanceof Error ? error.message : "分镜视频生成失败";
@@ -32,7 +36,7 @@ function friendlyVideoError(error: unknown) {
 }
 
 async function frameToReference(frame: FilmFrameSource | undefined, name: string): Promise<ReferenceImage | null> {
-    if (!frame?.url && !frame?.storageKey) return null;
+    if (!frame || (!frame.url && !frame.storageKey)) return null;
     try {
         const dataUrl = await imageToDataUrl({ url: frame.url, storageKey: frame.storageKey });
         if (!dataUrl) return null;
@@ -52,6 +56,9 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     const [batchProgress, setBatchProgress] = useState<FilmVideoBatchProgress | null>(null);
     const projectRef = useRef(project);
     projectRef.current = project;
+    const stopRequestedRef = useRef(false);
+    const controllerRef = useRef<AbortController | null>(null);
+    const currentTaskRef = useRef<FilmShotTask | null>(null);
     const busy = Boolean(generatingShotId) || Boolean(batchProgress);
 
     const buildVideoConfig = (current: FilmProject) => {
@@ -65,23 +72,12 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                 configuredModel: effectiveConfig.model,
                 resolvedModel: model,
                 videoModels: (effectiveConfig.videoModels || []).slice(0, 10),
-                publicChannels: (effectiveConfig.publicChannels || []).map((channel) => ({
-                    id: channel.id,
-                    modelCount: channel.models?.length || 0,
-                    hasResolvedModel: Boolean(model && channel.models?.includes(model)),
-                })),
-                localChannels: (effectiveConfig.localChannels || []).map((channel) => ({
-                    id: channel.id,
-                    protocol: channel.protocol,
-                    modelCount: channel.models?.length || 0,
-                    hasResolvedModel: Boolean(model && channel.models?.includes(model)),
-                })),
             });
         }
         return { ...config, size: filmVideoAspect(current.aspect, model) } as AiConfig;
     };
 
-    const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot) => {
+    const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot, handlers: ShotVideoHandlers = {}) => {
         const shotConfig: AiConfig = { ...config, videoSeconds: String(clampFilmVideoDuration(shot.duration, config.model || config.videoModel || "")) };
         const model = config.model || config.videoModel || "";
         const mode = shot.videoMode === "frames" ? "frames" : "reference";
@@ -120,10 +116,16 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
         const prompt = continuityText ? `${continuityText}\n\n${composedPrompt}` : composedPrompt;
 
         setProgress(0);
-        const result = await requestVideoGeneration(shotConfig, prompt, input, (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))));
-        const videoUrl = result.url || result.task.video_url || result.task.url || "";
-        if (!videoUrl) throw new Error("视频接口没有返回地址");
-        return { videoUrl, storageKey: result.task.storageKey || "" };
+        const result = await startFilmVideoTask(shotConfig, prompt, input, {
+            signal: handlers.signal,
+            onProgress: (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))),
+            onTask: (task) => handlers.onTask?.(task),
+        });
+        return result;
+    };
+
+    const clearPendingTask = (shotId: string) => {
+        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shotId, { pendingTask: undefined }) });
     };
 
     const generateVideo = async (shot: FilmShot) => {
@@ -146,31 +148,41 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                 duration: shot.duration,
                 model: config.model,
                 videoModel: config.videoModel,
-                channelMode: config.channelMode,
-                size: config.size,
-                videoSeconds: config.videoSeconds,
             });
         }
+        stopRequestedRef.current = false;
+        const controller = new AbortController();
+        controllerRef.current = controller;
         setGeneratingShotId(shot.id);
         message.info("已提交视频生成，等待模型返回…");
         try {
-            const { videoUrl, storageKey } = await runShotVideo(current, config, shot);
+            const { videoUrl, storageKey } = await runShotVideo(current, config, shot, {
+                signal: controller.signal,
+                onTask: (task) => {
+                    currentTaskRef.current = task;
+                    onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: task }) });
+                },
+            });
             const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
             onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withVideoVersion(latestShot, videoUrl, storageKey)),
+                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey), pendingTask: undefined }),
             });
             message.success("分镜视频已生成");
         } catch (error) {
-            const reason = friendlyVideoError(error);
-            if (typeof window !== "undefined") console.warn("[film-video] 生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, channelMode: config.channelMode, reason });
-            onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
-                    errorMessage: reason,
-                    status: shot.imageUrl ? "image_ready" : "failed",
-                }),
-            });
-            message.error(reason);
+            if (error instanceof FilmVideoStoppedError || stopRequestedRef.current) {
+                clearPendingTask(shot.id);
+                message.info("已停止生成，未完成的任务已取消");
+            } else {
+                const reason = friendlyVideoError(error);
+                if (typeof window !== "undefined") console.warn("[film-video] 生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, reason });
+                onUpdate({
+                    episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: reason, pendingTask: undefined }),
+                });
+                message.error(reason);
+            }
         } finally {
+            controllerRef.current = null;
+            currentTaskRef.current = null;
             setGeneratingShotId("");
             setProgress(0);
         }
@@ -188,37 +200,86 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             message.info("请先配置可用的视频模型");
             return;
         }
+        stopRequestedRef.current = false;
         let failed = 0;
+        let succeeded = 0;
+        let done = 0;
+        let stopped = false;
         setBatchProgress({ done: 0, total: targets.length });
         try {
-            for (const [index, shot] of targets.entries()) {
+            for (const shot of targets) {
+                if (stopRequestedRef.current) {
+                    stopped = true;
+                    break;
+                }
                 setGeneratingShotId(shot.id);
+                setProgress(0);
+                const controller = new AbortController();
+                controllerRef.current = controller;
                 try {
-                    const { videoUrl, storageKey } = await runShotVideo(projectRef.current || current, config, shot);
+                    const { videoUrl, storageKey } = await runShotVideo(projectRef.current || current, config, shot, {
+                        signal: controller.signal,
+                        onTask: (task) => {
+                            currentTaskRef.current = task;
+                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: task }) });
+                        },
+                    });
                     const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
                     onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, withVideoVersion(latestShot, videoUrl, storageKey)),
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey), pendingTask: undefined }),
                     });
+                    succeeded += 1;
                 } catch (error) {
-                    failed += 1;
-                    if (typeof window !== "undefined") console.warn("[film-video] 批量生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, channelMode: config.channelMode, reason: friendlyVideoError(error) });
-                    onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, {
-                            errorMessage: friendlyVideoError(error),
-                            status: shot.imageUrl ? "image_ready" : "failed",
-                        }),
-                    });
+                    if (error instanceof FilmVideoStoppedError || stopRequestedRef.current) {
+                        stopped = true;
+                        clearPendingTask(shot.id);
+                    } else {
+                        failed += 1;
+                        const reason = friendlyVideoError(error);
+                        if (typeof window !== "undefined") console.warn("[film-video] 批量生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, reason });
+                        onUpdate({
+                            episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: reason, pendingTask: undefined }),
+                        });
+                    }
                 } finally {
-                    setBatchProgress({ done: index + 1, total: targets.length });
+                    controllerRef.current = null;
+                    currentTaskRef.current = null;
+                    done += 1;
+                    setGeneratingShotId("");
+                    setProgress(0);
+                    setBatchProgress({ done, total: targets.length });
                 }
+                if (stopped) break;
             }
         } finally {
             setGeneratingShotId("");
             setProgress(0);
             setBatchProgress(null);
         }
-        message.success(`批量视频完成：成功 ${targets.length - failed} 个${failed ? `，失败 ${failed} 个` : ""}`);
+        if (stopped) {
+            message.info(`已停止批量视频：完成 ${succeeded}/${targets.length} 条`);
+        } else {
+            message.success(`批量视频完成：成功 ${succeeded} 个${failed ? `，失败 ${failed} 个` : ""}`);
+        }
     };
 
-    return { generatingShotId, videoProgress: progress, batchProgress, generateVideo, generateVideoBatch };
+    /** 停止当前单条或批量视频：中断等待，并尽力取消账号渠道上的远端任务。 */
+    const stopVideo = () => {
+        if (!generatingShotId && !batchProgress) {
+            message.info("当前没有正在生成的分镜视频");
+            return;
+        }
+        stopRequestedRef.current = true;
+        controllerRef.current?.abort();
+        const task = currentTaskRef.current;
+        if (task) {
+            const stopConfig = { ...effectiveConfig, model: effectiveConfig.videoModel || effectiveConfig.model } as AiConfig;
+            void stopFilmVideoTask(stopConfig, task).then((cancelled) => {
+                if (!cancelled) message.warning("取消服务端任务失败，模型侧任务可能仍在运行");
+            });
+        }
+        message.info("正在停止生成…");
+    };
+
+    return { generatingShotId, videoProgress: progress, batchProgress, generateVideo, generateVideoBatch, stopVideo };
 }

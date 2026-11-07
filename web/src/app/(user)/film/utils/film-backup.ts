@@ -1,6 +1,6 @@
-import type { FilmProject } from "../types";
-import { normalizeFilmAspect } from "./film-aspects";
-import { normalizeFilmStylePreset } from "./film-styles";
+import type { FilmProject } from "@/lib/film/types";
+import { normalizeFilmAspect } from "@/lib/film/film-aspects";
+import { normalizeFilmStylePreset } from "@/lib/film/film-styles";
 
 type FilmBackup = {
     app: "film";
@@ -30,6 +30,10 @@ export function parseFilmProjectBackup(text: string): FilmProject {
         stylePreset: normalizeFilmStylePreset(project.stylePreset),
         stage,
         scriptText: project.scriptText || "",
+        ...(typeof project.scriptProjectId === "string" && project.scriptProjectId ? { scriptProjectId: project.scriptProjectId } : {}),
+        ...(typeof project.scriptHash === "string" && project.scriptHash ? { scriptHash: project.scriptHash } : {}),
+        ...(Array.isArray(project.shotGroups) ? { shotGroups: project.shotGroups } : {}),
+        ...(Array.isArray(project.shotConnections) ? { shotConnections: project.shotConnections } : {}),
         episodes: project.episodes,
         characters: Array.isArray(project.characters) ? project.characters : [],
         locations: Array.isArray(project.locations) ? project.locations : [],

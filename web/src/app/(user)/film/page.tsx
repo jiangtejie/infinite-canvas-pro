@@ -7,13 +7,14 @@ import { App, Button, Input, Modal, Select } from "antd";
 import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { FilmAmbient } from "./components/film-ambient";
+import { FilmAmbient } from "@/components/film/film-ambient";
+import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
-import { useFilmStore } from "./stores/use-film-store";
+import { useFilmStore } from "@/stores/use-film-store";
 import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
-import type { FilmAspect, FilmProject, FilmStylePresetId } from "./types";
-import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel } from "./utils/film-aspects";
-import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel } from "./utils/film-styles";
+import type { FilmAspect, FilmProject, FilmStylePresetId } from "@/lib/film/types";
+import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel } from "@/lib/film/film-aspects";
+import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel } from "@/lib/film/film-styles";
 import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
 
@@ -127,12 +128,13 @@ export default function FilmListPage() {
                             <PageHeader
                                 eyebrow="FILM / 影视"
                                 title="我的影视项目"
-                                description="剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台。"
+                                description="剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台；数据仅保存在本机浏览器。"
                                 meta={
                                     <>
                                         <span className="chip chip-acid inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{projects.length} 个项目</span>
                                         <span className="chip">{totalShots} 个分镜</span>
                                         <span className="chip">{readyRate}% 完成</span>
+                                        <LocalSaveIndicator className="self-center" />
                                     </>
                                 }
                                 actions={
@@ -223,7 +225,7 @@ export default function FilmListPage() {
                                         <div className="p-5">
                                             <div className="flex items-start justify-between gap-3">
                                                 <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight text-foreground">{project.title}</h2>
-                                                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                                                <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity duration-200 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
                                                     <button
                                                         type="button"
                                                         aria-label={`重命名 ${project.title}`}

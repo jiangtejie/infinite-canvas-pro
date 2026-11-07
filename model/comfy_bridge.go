@@ -20,16 +20,16 @@ type ComfyBridgeRequest struct {
 	BridgeID       string     `json:"bridgeId" gorm:"index:idx_comfy_bridge_queue,priority:1;size:64"`
 	OwnerScope     string     `json:"ownerScope" gorm:"size:16"`
 	OwnerID        string     `json:"ownerId" gorm:"size:64"`
-	TaskID         string     `json:"taskId" gorm:"index;size:64"`
+	TaskID         string     `json:"taskId" gorm:"index;size:191"`
 	Kind           string     `json:"kind" gorm:"size:32"`
 	Status         string     `json:"status" gorm:"index:idx_comfy_bridge_queue,priority:2;size:24"`
 	PayloadJSON    string     `json:"-" gorm:"size:134217728"`
 	ResultJSON     string     `json:"-" gorm:"size:134217728"`
-	Error          string     `json:"error,omitempty" gorm:"type:text"`
+	Error          string     `json:"error,omitempty"`
 	ClaimedAt      *time.Time `json:"claimedAt,omitempty"`
 	LeaseToken     string     `json:"-" gorm:"size:64"`
 	LeaseExpiresAt *time.Time `json:"leaseExpiresAt,omitempty" gorm:"index"`
-	CheckpointJSON string     `json:"-" gorm:"type:text"`
+	CheckpointJSON string     `json:"-"`
 	CompletedAt    *time.Time `json:"completedAt,omitempty"`
 	CleanupReadyAt *time.Time `json:"cleanupReadyAt,omitempty" gorm:"index"`
 	ExpiresAt      time.Time  `json:"expiresAt" gorm:"index"`

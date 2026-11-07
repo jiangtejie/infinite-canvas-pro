@@ -5,21 +5,14 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ImagePlus, Trash2, X } f
 import { AutoComplete, Button, Image, Input, InputNumber, Select, Spin } from "antd";
 
 import { cn } from "@/lib/utils";
-import type { FilmAsset, FilmContinuitySheet, FilmShot, FilmShotStatus } from "../types";
+import type { FilmAsset, FilmContinuitySheet, FilmShot } from "@/lib/film/types";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
 import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
-import { filmAspectCssRatio } from "../utils/film-aspects";
+import { filmAspectCssRatio } from "@/lib/film/film-aspects";
 import { FILM_CAMERA_MOVEMENT_OPTIONS, FILM_SHOT_TYPE_OPTIONS } from "../utils/film-shot-types";
 import { FILM_CONTINUITY_FIELDS } from "../utils/film-continuity-sheet";
 import { FilmImageThumbnail } from "./film-asset-thumbnail";
 import { FilmShotVideoPanel } from "./film-shot-video-panel";
-
-const STATUS_OPTIONS: Array<{ value: FilmShotStatus; label: string }> = [
-    { value: "idle", label: "未开始" },
-    { value: "image_ready", label: "分镜图已生成" },
-    { value: "video_ready", label: "视频已生成" },
-    { value: "failed", label: "失败" },
-];
 
 type FilmShotDetailProps = {
     shot: FilmShot;
@@ -28,6 +21,7 @@ type FilmShotDetailProps = {
     onGenerate?: () => void;
     generating?: boolean;
     onGenerateVideo?: () => void;
+    onStopVideo?: () => void;
     generatingVideo?: boolean;
     videoProgress?: number;
     characters?: FilmAsset[];
@@ -41,7 +35,7 @@ type FilmShotDetailProps = {
     styleText?: string;
 };
 
-export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, generatingVideo, videoProgress, characters = [], locations = [], onMove, canMoveUp, canMoveDown, onMoveToScene, sceneTargets = [], aspect, styleText = "" }: FilmShotDetailProps) {
+export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, onStopVideo, generatingVideo, videoProgress, characters = [], locations = [], onMove, canMoveUp, canMoveDown, onMoveToScene, sceneTargets = [], aspect, styleText = "" }: FilmShotDetailProps) {
     const imageSrc = useFilmImageUrl(shot.imageUrl, shot.storageKey);
     const { checkingShotId, checkShot } = useFilmContinuityCheck();
     const [tab, setTab] = useState<"basic" | "image" | "video">("basic");
@@ -76,7 +70,6 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
             const fallback = versions[versions.length - 1];
             patch.imageUrl = fallback?.url || "";
             patch.storageKey = fallback?.storageKey || "";
-            patch.status = fallback ? "image_ready" : "idle";
         }
         onChange(patch);
     };
@@ -117,9 +110,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                         <InputNumber className="w-full" min={1} max={120} value={shot.duration} onChange={(value) => onChange({ duration: Number(value) || 5 })} />
                     </Field>
                 </div>
-                <Field label="状态">
-                    <Select value={shot.status} options={STATUS_OPTIONS} onChange={(value: FilmShotStatus) => onChange({ status: value })} />
-                </Field>
+                <p className="text-[11px] leading-5 text-muted-foreground/60">镜头状态由是否已有分镜图 / 视频自动派生，无需手动设置。</p>
                 {characters.length || locations.length ? (
                     <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">参考对象</span>
@@ -202,7 +193,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                                                 <button
                                                     type="button"
                                                     title={`第 ${index + 1} 版 · ${formatVersionTime(version.createdAt)}`}
-                                                    onClick={() => onChange({ imageUrl: version.url, storageKey: version.storageKey || "", status: "image_ready", errorMessage: "" })}
+                                                    onClick={() => onChange({ imageUrl: version.url, storageKey: version.storageKey || "", errorMessage: "" })}
                                                     className={cn("relative h-12 w-16 overflow-hidden rounded border transition-colors", current ? "border-acid" : "border-border/60 hover:border-acid/50")}
                                                 >
                                                     <FilmImageThumbnail url={version.url} storageKey={version.storageKey} className="h-12 w-full" />
@@ -232,6 +223,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                         shot={shot}
                         onChange={onChange}
                         onGenerate={onGenerateVideo}
+                        onStop={onStopVideo}
                         generating={Boolean(generatingVideo)}
                         progress={videoProgress ?? 0}
                         aspect={aspect}
@@ -336,7 +328,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
             type="button"
             onClick={onClick}
             aria-pressed={active}
-            className={cn("flex-1 rounded px-2 py-1 text-[11px] transition-colors", active ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}
+            className={cn("inline-flex flex-1 items-center justify-center rounded px-2 py-1 text-[11px] transition-colors [@media(pointer:coarse)]:min-h-9", active ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}
         >
             {children}
         </button>

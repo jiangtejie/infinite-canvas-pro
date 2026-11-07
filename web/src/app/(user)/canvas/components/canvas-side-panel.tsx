@@ -144,7 +144,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
                 style={{ overflow: "clip", pointerEvents: closing ? "none" : undefined }}
             >
                 <motion.aside
-                    className="relative flex h-full shrink-0 flex-col overflow-hidden border-r max-md:!max-w-[85vw] max-md:shadow-2xl"
+                    className="relative flex h-full shrink-0 flex-col overflow-hidden border-r max-md:!max-w-[85vw] max-md:pb-[env(safe-area-inset-bottom)] max-md:shadow-2xl"
                     initial={{ x: -48 }}
                     animate={{ x: closing ? -28 : 0 }}
                     transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}

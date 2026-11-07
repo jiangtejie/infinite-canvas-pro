@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { applyFilmContinuity, applyFilmContinuityChecks, formatFilmContinuityPrompt, parseFilmContinuitySheets, previousFilmShot } from "./film-continuity-sheet";
-import type { FilmContinuitySheet, FilmEpisode } from "../types";
+import type { FilmContinuitySheet, FilmEpisode } from "@/lib/film/types";
 
 const sheet = (shotNo: string, overrides: Partial<FilmContinuitySheet> = {}): FilmContinuitySheet => ({
     shotNo,
@@ -32,8 +32,8 @@ const episode = (): FilmEpisode => ({
             time: "白天",
             mood: "",
             shots: [
-                { id: "s1", shotNo: "01", shotType: "MS", cameraMovement: "", duration: 4, description: "钓鱼", dialogue: "", audio: "", prompt: "", status: "idle" },
-                { id: "s2", shotNo: "02", shotType: "CU", cameraMovement: "", duration: 3, description: "鱼的近景", dialogue: "", audio: "", prompt: "", status: "idle" },
+                { id: "s1", shotNo: "01", shotType: "MS", cameraMovement: "", duration: 4, description: "钓鱼", dialogue: "", audio: "", prompt: "" },
+                { id: "s2", shotNo: "02", shotType: "CU", cameraMovement: "", duration: 3, description: "鱼的近景", dialogue: "", audio: "", prompt: "" },
             ],
         },
     ],

@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { FilmAsset, FilmAssetKind, FilmEpisode, FilmScene, FilmShot } from "../types";
+import type { FilmAsset, FilmAssetKind, FilmEpisode, FilmScene, FilmShot } from "@/lib/film/types";
 
 export function addFilmEpisode(episodes: FilmEpisode[]): FilmEpisode[] {
     return [
@@ -33,7 +33,6 @@ export function addFilmShot(episodes: FilmEpisode[], sceneId: string): FilmEpiso
                     dialogue: "",
                     audio: "",
                     prompt: "",
-                    status: "idle",
                 }],
             };
         }),

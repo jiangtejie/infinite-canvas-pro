@@ -13,6 +13,7 @@ import type { CanvasNodeTaskRun } from "./use-canvas-tasks";
 type CanvasTaskSystemOptions = {
     projectLoaded: boolean;
     nodesRef: MutableRefObject<CanvasNodeData[]>;
+    nodeTaskRunsRef: MutableRefObject<Map<string, CanvasNodeTaskRun>>;
     historyRef: MutableRefObject<{ past: Array<{ nodes: CanvasNodeData[] }>; future: Array<{ nodes: CanvasNodeData[] }> }>;
     lastHistoryRef: MutableRefObject<{ nodes: CanvasNodeData[] } | null>;
     setNodes: Dispatch<SetStateAction<CanvasNodeData[]>>;
@@ -25,10 +26,9 @@ type CanvasTaskSystemOptions = {
 /**
  * 画布任务系统门面：注册表、提交、停止、轮询与轮询 ref 统一在这里组合。
  */
-export function useCanvasTaskSystem({ projectLoaded, nodesRef, historyRef, lastHistoryRef, setNodes, setConnections, effectiveConfig, isAiConfigReady, onError }: CanvasTaskSystemOptions) {
+export function useCanvasTaskSystem({ projectLoaded, nodesRef, nodeTaskRunsRef, historyRef, lastHistoryRef, setNodes, setConnections, effectiveConfig, isAiConfigReady, onError }: CanvasTaskSystemOptions) {
     const [runningNodeId, setRunningNodeId] = useState<string | null>(null);
     const runningRequestRef = useRef<symbol | null>(null);
-    const nodeTaskRunsRef = useRef(new Map<string, CanvasNodeTaskRun>());
     const pollingVideoNodeIdsRef = useRef(new Map<string, AbortController>());
     const pollingImageNodeIdsRef = useRef(new Map<string, AbortController>());
     const pollingAudioNodeIdsRef = useRef(new Map<string, AbortController>());

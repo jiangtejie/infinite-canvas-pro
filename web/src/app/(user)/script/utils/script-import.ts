@@ -1,5 +1,5 @@
-import { parseFilmScriptDocument, readFilmScriptFile } from "../../film/utils/film-script-import";
-import type { FilmScriptDocument, FilmScriptScene } from "../../film/types";
+import { parseFilmScriptDocument, readFilmScriptFile } from "@/lib/film/film-script-import";
+import type { FilmScriptDocument, FilmScriptScene } from "@/lib/film/types";
 import type { ScriptProject } from "../types";
 import { createScriptCharacter, createScriptProject, createScriptScene } from "./script-project";
 

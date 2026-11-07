@@ -11,19 +11,19 @@ type CanvasImageTask struct {
 	ChannelID       string   `json:"channelId"`
 	UserChannelID   string   `json:"userChannelId"`
 	ChannelName     string   `json:"channelName"`
-	WorkflowRef     string   `json:"workflowRef,omitempty" gorm:"type:text"`
+	WorkflowRef     string   `json:"workflowRef,omitempty"`
 	Credits         float64  `json:"credits,omitempty" gorm:"type:decimal(20,2)"`
 	Status          string   `json:"status"`
 	Progress        int      `json:"progress"`
-	Prompt          string   `json:"prompt" gorm:"type:text"`
+	Prompt          string   `json:"prompt"`
 	GenerationType  string   `json:"generationType"`
 	Endpoint        string   `json:"endpoint"`
 	ContentType     string   `json:"contentType"`
-	RequestBody     string   `json:"requestBody" gorm:"type:text"`
-	ResponseBody    string   `json:"responseBody" gorm:"type:text"`
-	Error           string   `json:"error" gorm:"type:text"`
-	ErrorDetail     string   `json:"errorDetail" gorm:"type:text"`
-	ImageURL        string   `json:"imageUrl" gorm:"type:text"`
+	RequestBody     string   `json:"requestBody"`
+	ResponseBody    string   `json:"responseBody"`
+	Error           string   `json:"error"`
+	ErrorDetail     string   `json:"errorDetail"`
+	ImageURL        string   `json:"imageUrl"`
 	ImageURLs       []string `json:"imageUrls" gorm:"serializer:json"`
 	StorageKey      string   `json:"storageKey"`
 	Width           int      `json:"width"`

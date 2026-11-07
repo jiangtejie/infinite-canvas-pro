@@ -1,7 +1,7 @@
 import { imageToDataUrl } from "@/services/image-storage";
 import type { ReferenceImage } from "@/types/image";
 import { compressFilmReference } from "./film-image-compress";
-import type { FilmAsset, FilmImageRef, FilmProject, FilmShot } from "../types";
+import type { FilmAsset, FilmImageRef, FilmProject, FilmShot } from "@/lib/film/types";
 import { characterShotReferenceImages } from "./film-character";
 
 const MAX_SHOT_REFERENCES = 6;

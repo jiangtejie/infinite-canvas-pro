@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { App } from "antd";
 
-import type { FilmScriptAnalysis } from "../types";
+import type { FilmScriptAnalysis } from "@/lib/film/types";
 import { requestFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
-import type { FilmScriptDocument } from "../utils/film-script-import";
+import type { FilmScriptDocument } from "@/lib/film/film-script-import";
 import { useModelConfig } from "@/hooks/use-model-config";
 
 export function useFilmScriptAnalysis() {
