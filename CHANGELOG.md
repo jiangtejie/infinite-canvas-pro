@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] 提示词库新增 Banana Prompt Quicker、Freestylefly GPT Image 2、Transcendo Nano Banana 三个第三方数据源，并支持 yukkcat/image-prompts 标准 JSON
+
 + [优化] 统一全站删除/危险操作确认弹窗：新增共享 ConfirmDialog / useConfirm 与输入型 PromptDialog，替换默认 antd 确认框
 + [优化] 生图、视频、影视、画布、脚本、后台与工作流的删除确认全部使用同一视觉与交互
 

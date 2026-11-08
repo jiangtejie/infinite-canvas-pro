@@ -22,6 +22,8 @@ const (
 	youMindNanoBananaProRawBase   = "https://raw.githubusercontent.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts/main"
 	xianyuAwesomeGptImage2RawBase = "https://raw.githubusercontent.com/xianyu110/awesome-gptimage2/main"
 	davidWuGptImage2RawBase       = "https://raw.githubusercontent.com/davidwuw0811-boop/awesome-gpt-image2-prompts/main"
+	imagePromptRegistryBase       = "https://raw.githubusercontent.com/yukkcat/image-prompts/main/dist/sources"
+	transcendoNanoBananaRawBase   = "https://raw.githubusercontent.com/Transcendo/awesome-nanobanana-prompts/main"
 )
 
 var gptImage2CaseFiles = []string{"README.md", "cases/ad-creative.md", "cases/character.md", "cases/comparison.md", "cases/ecommerce.md", "cases/portrait.md", "cases/poster.md", "cases/ui.md"}
@@ -101,6 +103,12 @@ func buildPromptCategory(category string) ([]model.Prompt, error) {
 		return buildYouMindNanoBananaProPrompts()
 	case "davidwu-gpt-image2-prompts":
 		return buildDavidWuGptImage2Prompts()
+	case "banana-prompt-quicker":
+		return buildRegistryPrompts("banana-prompt-quicker", "banana-prompt-quicker", "")
+	case "freestylefly-gpt-image-2":
+		return buildRegistryPrompts("freestylefly-gpt-image-2", "freestylefly-gpt-image-2", "gpt-image-2")
+	case "transcendo-nano-banana":
+		return buildTranscendoNanoBananaPrompts()
 	}
 	return nil, errors.New("未知提示词分类")
 }
@@ -617,6 +625,116 @@ func absoluteImage(baseURL, image string) string {
 		return image
 	}
 	return baseURL + "/" + strings.TrimLeft(strings.TrimPrefix(image, "."), "/")
+}
+
+type imagePromptRegistryRecord struct {
+	ID                 string   `json:"id"`
+	Title              string   `json:"title"`
+	Prompt             string   `json:"prompt"`
+	Description        string   `json:"description"`
+	CoverURL           string   `json:"coverUrl"`
+	ReferenceImageURLs []string `json:"referenceImageUrls"`
+	Tags               []string `json:"tags"`
+	Author             string   `json:"author"`
+	SourceURL          string   `json:"sourceUrl"`
+	CreatedAt          string   `json:"createdAt"`
+	UpdatedAt          string   `json:"updatedAt"`
+	ImageModel         string   `json:"imageModel"`
+}
+
+// buildRegistryPrompts 读取 yukkcat/image-prompts 注册表中的标准 JSON 数据源。
+func buildRegistryPrompts(sourceID, idPrefix, modelTag string) ([]model.Prompt, error) {
+	raw, err := fetchText(imagePromptRegistryBase, sourceID+".json")
+	if err != nil {
+		return nil, err
+	}
+	return parseRegistryPrompts([]byte(raw), idPrefix, modelTag)
+}
+
+func parseRegistryPrompts(raw []byte, idPrefix, modelTag string) ([]model.Prompt, error) {
+	records := []imagePromptRegistryRecord{}
+	if err := json.Unmarshal(raw, &records); err != nil {
+		return nil, err
+	}
+	items := []model.Prompt{}
+	for _, record := range records {
+		title := strings.TrimSpace(record.Title)
+		prompt := strings.TrimSpace(record.Prompt)
+		if title == "" || prompt == "" {
+			continue
+		}
+		tags := dedupePromptTags(append(append([]string{}, record.Tags...), modelTag, record.ImageModel))
+		images := []string{}
+		if cover := strings.TrimSpace(record.CoverURL); cover != "" {
+			images = append(images, cover)
+		}
+		for _, ref := range record.ReferenceImageURLs {
+			if ref = strings.TrimSpace(ref); ref != "" {
+				images = append(images, ref)
+			}
+		}
+		cover := ""
+		if len(images) > 0 {
+			cover = images[0]
+		}
+		createdAt := normalizePromptTime(record.CreatedAt)
+		updatedAt := normalizePromptTime(firstXianyuNonEmpty(record.UpdatedAt, record.CreatedAt))
+		items = append(items, model.Prompt{ID: idPrefix + "-" + leftPad(len(items)+1), Title: title, CoverURL: cover, Prompt: prompt, Tags: tags, Preview: markdownPreview(images), CreatedAt: createdAt, UpdatedAt: updatedAt})
+	}
+	if len(items) == 0 {
+		return nil, errors.New("提示词数据源返回空列表")
+	}
+	return items, nil
+}
+
+// buildTranscendoNanoBananaPrompts 解析 Transcendo/awesome-nanobanana-prompts 的 README。
+func buildTranscendoNanoBananaPrompts() ([]model.Prompt, error) {
+	markdown, err := fetchText(transcendoNanoBananaRawBase, "README.md")
+	if err != nil {
+		return nil, err
+	}
+	items := parseTranscendoPrompts(markdown, transcendoNanoBananaRawBase)
+	if len(items) == 0 {
+		return nil, errors.New("提示词数据源返回空列表")
+	}
+	return items, nil
+}
+
+var (
+	transcendoImagePattern  = regexp.MustCompile(`(?s)<a id="card-([a-z0-9-]+)"></a>.*?<img[^>]+src="([^"]+)"`)
+	transcendoPromptPattern = regexp.MustCompile("(?s)<a id=\"prompt-([a-z0-9-]+)\"></a>\\s*####\\s*Example:\\s*(.+?)\\r?\\n(.*?)```[a-zA-Z-]*\\r?\\n(.*?)\\r?\\n```")
+)
+
+func parseTranscendoPrompts(markdown, baseURL string) []model.Prompt {
+	images := map[string]string{}
+	for _, match := range transcendoImagePattern.FindAllStringSubmatch(markdown, -1) {
+		images[match[1]] = absoluteImage(baseURL, match[2])
+	}
+	items := []model.Prompt{}
+	for _, match := range transcendoPromptPattern.FindAllStringSubmatch(markdown, -1) {
+		title := strings.TrimSpace(match[2])
+		prompt := strings.TrimSpace(match[4])
+		if title == "" || prompt == "" {
+			continue
+		}
+		cover := images[match[1]]
+		items = append(items, model.Prompt{ID: "transcendo-nano-banana-" + leftPad(len(items)+1), Title: title, CoverURL: cover, Prompt: prompt, Tags: []string{"nano-banana"}, Preview: markdownPreview([]string{cover})})
+	}
+	return items
+}
+
+func dedupePromptTags(tags []string) []string {
+	seen := map[string]bool{}
+	result := []string{}
+	for _, tag := range tags {
+		tag = strings.ToLower(strings.TrimSpace(tag))
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		result = append(result, tag)
+	}
+	return result
 }
 
 func leftPad(value int) string {

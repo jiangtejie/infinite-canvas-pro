@@ -3,6 +3,20 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 提示词库新增第三方数据源
+
+- 新增 3 个第三方提示词数据源，均支持后台「同步远程源」与每日定时同步：
+  - Banana Prompt Quicker（323 条，来自 yukkcat/image-prompts 标准 JSON）
+  - Freestylefly GPT Image 2（541 条，来自 yukkcat/image-prompts 标准 JSON）
+  - Transcendo Nano Banana（43 条，解析 README 的图片卡片与 JSON 提示词块）
+- 新增标准 JSON 解析器：读取 yukkcat/image-prompts 的 dist/sources/<source-id>.json，映射标题、提示词、封面、参考图、标签、作者与时间；后续接新源只需加分类和 source id。
+- 全量同步后提示词库共 2514 条 / 10 个有数据分类；旧 7 个数据源也已一并同步成功（部分条目缺封面属上游数据问题）。
+- 文档同步更新第三方提示词仓库清单。
+
+需验证：
+- 后台「提示词管理 → 同步远程源」各分类同步结果与错误提示；每日定时同步仍正常。
+- 提示词库新分类筛选、搜索、标签、加入素材与详情弹窗。
+- 封面图来自上游 CDN/GitHub raw，弱网或被墙时可能裂图（后续可加图片代理）。
 ## 统一确认弹窗风格
 
 - 新增全局确认弹窗组件（components/ui/confirm-dialog.tsx）：400px 圆角卡片、图标色块、标题/描述层级、右对齐按钮；提供 ConfirmDialog（受控）与 useConfirm()（Promise 返回值）两种用法，ConfirmProvider 已挂载到应用根部。

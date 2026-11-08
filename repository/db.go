@@ -32,6 +32,9 @@ var promptCategories = []model.PromptCategory{
 	{Category: "youmind-gpt-image-2", Name: "YouMind GPT Image 2", Description: "YouMind OpenLab 的 GPT Image 2 中文提示词分类", GithubURL: "https://github.com/YouMind-OpenLab/awesome-gpt-image-2", Remote: true},
 	{Category: "youmind-nano-banana-pro", Name: "YouMind Nano Banana Pro", Description: "YouMind OpenLab 的 Nano Banana Pro 中文提示词分类", GithubURL: "https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts", Remote: true},
 	{Category: "davidwu-gpt-image2-prompts", Name: "awesome-gpt-image2-prompts", Description: "davidwuw0811-boop 整理的 GPT Image 2 提示词分类", GithubURL: "https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts", Remote: true},
+	{Category: "banana-prompt-quicker", Name: "Banana Prompt Quicker", Description: "Glidea 的 Nano Banana 提示词合集", GithubURL: "https://glidea.github.io/banana-prompt-quicker/", Remote: true},
+	{Category: "freestylefly-gpt-image-2", Name: "Freestylefly GPT Image 2", Description: "Freestylefly 的 GPT Image 2 提示词分类", GithubURL: "https://github.com/freestylefly/awesome-gpt-image-2", Remote: true},
+	{Category: "transcendo-nano-banana", Name: "Transcendo Nano Banana", Description: "Transcendo 的 Nano Banana / Nano Banana Pro 提示词分类", GithubURL: "https://github.com/Transcendo/awesome-nanobanana-prompts", Remote: true},
 }
 
 var (
