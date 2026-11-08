@@ -41,11 +41,17 @@ test("拼装视频提示词包含时间段与禁止项", () => {
         cameraMovement: "缓慢推进",
         description: "雨夜的海边",
         styleText: "暗黑写实风格",
+        performance: { objective: "留住对方", emotion: "克制", subtext: "别走", bodyLanguage: "手指收紧", intensity: 4 },
+        soundDesign: { ambience: "雨声", sfx: "伞骨合拢", music: "", dialogueTone: "压低" },
         mode: "reference",
     });
     assert.ok(prompt.includes("0-2s：人物缓慢转头"));
     assert.ok(prompt.includes("2-5s：镜头推进"));
     assert.ok(prompt.includes("暗黑写实风格"));
+    assert.ok(prompt.includes("表演："));
+    assert.ok(prompt.includes("目标 留住对方"));
+    assert.ok(prompt.includes("声音意图："));
+    assert.ok(prompt.includes("环境声 雨声"));
     assert.ok(prompt.includes("避免画面跳变"));
 });
 

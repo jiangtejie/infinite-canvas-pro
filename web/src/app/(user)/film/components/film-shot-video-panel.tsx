@@ -63,6 +63,8 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generat
         description: shot.description || "",
         videoPrompt: shot.videoPrompt || "",
         styleText,
+        performance: shot.performance,
+        soundDesign: shot.soundDesign,
         mode,
         hasFirstFrame: mode === "frames" && Boolean(shot.firstFrame),
     });

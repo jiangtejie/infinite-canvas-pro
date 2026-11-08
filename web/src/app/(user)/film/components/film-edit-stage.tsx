@@ -11,12 +11,14 @@ import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { filmAspectCssRatio, filmAspectLabel } from "@/lib/film/film-aspects";
 import { flattenFilmShots } from "../utils/parse-script";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
+import { FilmPrevisDrawer } from "./film-previs-drawer";
 
 export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProject; onGoStoryboard: () => void }) {
     const shots = useMemo(() => flattenFilmShots(project.episodes), [project.episodes]);
     const videoShots = useMemo(() => shots.filter((shot) => shot.videoUrl || shot.videoStorageKey), [shots]);
     const [selectedShotId, setSelectedShotId] = useState("");
     const [autoplay, setAutoplay] = useState(true);
+    const [previsOpen, setPrevisOpen] = useState(false);
     const selectedShot = shots.find((shot) => shot.id === selectedShotId) ?? videoShots[0] ?? shots[0] ?? null;
     const totalDuration = shots.reduce((sum, shot) => sum + shot.duration, 0);
 
@@ -58,6 +60,7 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                     <Button size="small" type={autoplay ? "primary" : "default"} icon={<ListVideo className="size-3.5" />} onClick={() => setAutoplay((value) => !value)}>
                         {autoplay ? "连播：开" : "连播：关"}
                     </Button>
+                    <Button size="small" type="primary" ghost icon={<Clapperboard className="size-3.5" />} onClick={() => setPrevisOpen(true)}>故事板预演</Button>
                     <Button size="small" onClick={onGoStoryboard}>去导演台</Button>
                 </div>
             </div>
@@ -125,6 +128,16 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
                     </div>
                 </section>
             </div>
+
+            <FilmPrevisDrawer
+                open={previsOpen}
+                project={project}
+                onClose={() => setPrevisOpen(false)}
+                onJumpToShot={() => {
+                    setPrevisOpen(false);
+                    onGoStoryboard();
+                }}
+            />
         </div>
     );
 }

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
-import { App, Button, Input, Modal, Select } from "antd";
+import { App, Button, Input, InputNumber, Modal, Select } from "antd";
 import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,6 +14,7 @@ import { useFilmStore } from "@/stores/use-film-store";
 import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
 import type { FilmAspect, FilmProject, FilmStylePresetId } from "@/lib/film/types";
 import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel } from "@/lib/film/film-aspects";
+import { DEFAULT_DIRECTOR_STYLE_ID, DIRECTOR_STYLES, directorStyleLabel } from "@/lib/film/director-styles";
 import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel } from "@/lib/film/film-styles";
 import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
@@ -40,6 +41,8 @@ export default function FilmListPage() {
     const [visualStyle, setVisualStyle] = useState("");
     const [aspect, setAspect] = useState<FilmAspect>(DEFAULT_FILM_ASPECT);
     const [stylePreset, setStylePreset] = useState<FilmStylePresetId>(DEFAULT_FILM_STYLE);
+    const [directorStyleId, setDirectorStyleId] = useState(DEFAULT_DIRECTOR_STYLE_ID);
+    const [targetDuration, setTargetDuration] = useState<number | undefined>(undefined);
     const [renameTarget, setRenameTarget] = useState<FilmProject | null>(null);
     const [renameTitle, setRenameTitle] = useState("");
     const importInputRef = useRef<HTMLInputElement>(null);
@@ -56,11 +59,14 @@ export default function FilmListPage() {
             return;
         }
         const id = createProject(title, visualStyle, aspect, stylePreset);
+        updateProject(id, { directorStyleId, targetDuration });
         setCreateOpen(false);
         setTitle("");
         setVisualStyle("");
         setAspect(DEFAULT_FILM_ASPECT);
         setStylePreset(DEFAULT_FILM_STYLE);
+        setDirectorStyleId(DEFAULT_DIRECTOR_STYLE_ID);
+        setTargetDuration(undefined);
         router.push(`/film/${id}`);
     };
 
@@ -261,6 +267,12 @@ export default function FilmListPage() {
                                                     </button>
                                                 </div>
                                             </div>
+                                            {directorStyleLabel(project.directorStyleId) || project.targetDuration ? (
+                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                                    {directorStyleLabel(project.directorStyleId) ? <span className="chip">{directorStyleLabel(project.directorStyleId)}</span> : null}
+                                                    {project.targetDuration ? <span className="chip">目标 {project.targetDuration} 秒</span> : null}
+                                                </div>
+                                            ) : null}
                                             <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-muted-foreground/70 uppercase">
                                                 {project.episodes.length} 集 · {countFilmScenes(project.episodes)} 场 · {shots.length} 镜 · {filmAspectLabel(project.aspect)}
                                             </p>
@@ -308,6 +320,18 @@ export default function FilmListPage() {
                     <label className="grid gap-1.5">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">风格补充（可选）</span>
                         <Input value={visualStyle} placeholder="例如：低饱和、冷色调、颗粒感" onChange={(event) => setVisualStyle(event.target.value)} />
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">导演风格</span>
+                        <Select
+                            value={directorStyleId}
+                            options={DIRECTOR_STYLES.map((style) => ({ value: style.id, label: `${style.name} · ${style.tagline}` }))}
+                            onChange={(value: string) => setDirectorStyleId(value)}
+                        />
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">目标时长（可选）</span>
+                        <InputNumber className="!w-full" min={1} max={7200} placeholder="成片目标秒数，例如 180" addonAfter="秒" value={targetDuration} onChange={(value) => setTargetDuration(typeof value === "number" ? value : undefined)} />
                     </label>
                 </div>
             </Modal>

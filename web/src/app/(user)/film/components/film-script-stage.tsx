@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, Input, InputNumber, Modal, Select } from "antd";
-import { Clapperboard, ClipboardList, FileUp, Link2, Network, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
+import { Clapperboard, ClipboardList, FileUp, Link2, ListTree, Network, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,7 @@ import { bindFilmCast } from "../utils/film-cast-bind";
 import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { resolveFilmStyleText } from "@/lib/film/film-styles";
+import { appendDirectorStyleToPrompt, directorStyleFor } from "@/lib/film/director-styles";
 import { countFilmScenes, flattenFilmShots } from "../utils/parse-script";
 import { deriveFilmShotStatus } from "../utils/film-status";
 import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFile, scriptTextHash, type FilmScriptDocument } from "@/lib/film/film-script-import";
@@ -27,6 +28,10 @@ import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "@/lib/f
 import { FilmShotDetail } from "./film-shot-detail";
 import { FilmScriptGraph } from "./film-script-graph";
 import { FilmContinuityNotebook } from "./film-continuity-notebook";
+import { FilmStructurePlanModal } from "./film-structure-plan-modal";
+import { FilmConsistencyReviewModal } from "./film-consistency-review-modal";
+import { useFilmAiStructure } from "../hooks/use-film-ai-structure";
+import { useFilmConsistencyReview } from "../hooks/use-film-consistency-review";
 
 type FilmScriptStageProps = {
     project: FilmProject;
@@ -50,10 +55,15 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const { batchProgress: checkingBatchProgress, checkShots } = useFilmContinuityCheck();
     const { analyzing: analyzingScript, progress: analysisProgress, analyzeDocument } = useFilmScriptAnalysis();
     const episodes = project.episodes;
+    const directorStyle = directorStyleFor(project.directorStyleId);
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
     const [selectedShotId, setSelectedShotId] = useState("");
     const [continuityPreviewEpisodeId, setContinuityPreviewEpisodeId] = useState("");
     const [graphOpen, setGraphOpen] = useState(false);
+    const [structureOpen, setStructureOpen] = useState(false);
+    const [consistencyOpen, setConsistencyOpen] = useState(false);
+    const { generating: generatingStructure, regeneratingScene, generate: generateStructure, regenerateScene } = useFilmAiStructure((plan) => onUpdate({ structurePlan: plan }));
+    const { reviewing, review } = useFilmConsistencyReview((review) => onUpdate({ consistencyReview: review }));
     const selectedShot = shots.find((shot) => shot.id === selectedShotId) ?? null;
     const previewEpisode = episodes.find((episode) => episode.id === continuityPreviewEpisodeId) || null;
     const previewSheets = previewEpisode
@@ -445,9 +455,9 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                             loading={parsing}
                             title="按分镜表直接拆分镜：会提示覆盖或追加到现有分镜"
                             icon={<Sparkles className="size-3.5" />}
-                            onClick={() => void parseWithAi(project.scriptText, { pacing, targetDuration })}
+                            onClick={() => void parseWithAi(project.scriptText, { pacing, targetDuration, structurePlan: project.structurePlan, directorStyle })}
                         >
-                            {parsing ? `AI 解析中 ${progress?.done ?? 0}/${progress?.total ?? 1}` : "AI 解析并拆分镜"}
+                            {parsing ? `AI 解析中 ${progress?.done ?? 0}/${progress?.total ?? 1}` : project.structurePlan ? "按结构计划生成分镜" : "AI 解析并拆分镜"}
                         </Button>
                         <Button size="small" icon={<FileUp className="size-3.5" />} title="先规则切分场次，可选 AI 语义分析（生成剧情图谱/角色关系），确认后才写分镜" onClick={openImport}>
                             导入剧本并分析
@@ -455,6 +465,15 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                         <Button size="small" icon={<Trash2 className="size-3.5" />} onClick={clearScript}>
                             清空
                         </Button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <Button size="small" icon={<ListTree className="size-3.5" />} onClick={() => setStructureOpen(true)}>
+                            结构计划{project.structurePlan ? ` · ${project.structurePlan.scenes.length} 场` : ""}
+                        </Button>
+                        <Button size="small" icon={<ShieldCheck className="size-3.5" />} loading={reviewing} onClick={() => { setConsistencyOpen(true); if (!project.consistencyReview) void review(project); }}>
+                            一致性检查{project.consistencyReview ? ` · ${project.consistencyReview.issues.length} 条` : ""}
+                        </Button>
+                        {project.structurePlan ? <span className="text-[10px] text-muted-foreground/60">结构已就绪：生成分镜时只会按计划做视觉化</span> : null}
                     </div>
                     <p className="mt-2 text-[11px] leading-[1.7] text-muted-foreground/55">两条入口用途不同：「AI 解析并拆分镜」直接把原文拆成分镜；「导入剧本并分析」先规则切分再可选 AI 语义分析，用于生成剧情图谱与角色关系，分镜确认后才写入。</p>
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -639,6 +658,14 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                         locations={project.locations || []}
                         aspect={project.aspect}
                         styleText={resolveFilmStyleText(project)}
+                        directorStyle={directorStyle}
+                        branchTargets={shots.filter((shot) => shot.id !== selectedShot.id).map((shot) => ({ id: shot.id, label: shot.shotNo + " · " + (shot.description || "未填写画面") }))}
+                        variables={project.interactiveVariables || []}
+                        onApplyStylePrompt={() => {
+                            if (!directorStyle) return;
+                            onUpdate({ episodes: updateFilmShot(episodes, selectedShot.id, { prompt: appendDirectorStyleToPrompt(selectedShot.prompt, directorStyle) }) });
+                            message.success("已把导演风格提示补进镜头 prompt");
+                        }}
                         onMove={moveSelectedShot}
                         canMoveUp={Boolean(selectedPosition && selectedPosition.shotIndex > 0)}
                         canMoveDown={Boolean(selectedPosition && selectedPosition.shotIndex < selectedPosition.sceneShotCount - 1)}
@@ -657,6 +684,27 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
             </section>
 
             <FilmScriptGraph analysis={project.scriptAnalysis || null} open={graphOpen} onClose={() => setGraphOpen(false)} onApplyAssets={applyGraphAssets} />
+
+            <FilmStructurePlanModal
+                open={structureOpen}
+                plan={project.structurePlan}
+                generating={generatingStructure}
+                onClose={() => setStructureOpen(false)}
+                onGenerate={() => void generateStructure(project)}
+                regeneratingScene={regeneratingScene}
+                onRegenerateScene={(index) => void regenerateScene(project, index)}
+                onChange={(plan) => onUpdate({ structurePlan: plan })}
+                characterNames={(project.characters || []).map((asset) => asset.name).filter(Boolean)}
+            />
+
+            <FilmConsistencyReviewModal
+                open={consistencyOpen}
+                review={project.consistencyReview}
+                reviewing={reviewing}
+                onClose={() => setConsistencyOpen(false)}
+                onReview={() => void review(project)}
+                onJumpToShot={(shotId) => setSelectedShotId(shotId)}
+            />
 
             <Modal
                 title="导入剧本"

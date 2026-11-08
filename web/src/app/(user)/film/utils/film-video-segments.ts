@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { FilmVideoSegment } from "@/lib/film/types";
+import type { FilmPerformance, FilmSoundDesign, FilmVideoSegment } from "@/lib/film/types";
 
 export function createDefaultSegments(duration: number): FilmVideoSegment[] {
     return [{ id: nanoid(), start: 0, end: Math.max(1, Math.round(duration)), prompt: "" }];
@@ -69,6 +69,8 @@ export type ComposeVideoPromptInput = {
     description: string;
     videoPrompt?: string;
     styleText?: string;
+    performance?: FilmPerformance;
+    soundDesign?: FilmSoundDesign;
     mode: "reference" | "frames";
     hasFirstFrame?: boolean;
     hints?: string;
@@ -86,6 +88,19 @@ export function composeFilmVideoPrompt(input: ComposeVideoPromptInput): string {
         input.shotTypeLabel ? `景别：${input.shotTypeLabel}` : "",
         input.cameraMovement ? `运镜：${input.cameraMovement}` : "",
         input.videoPrompt?.trim() ? `补充动作：${input.videoPrompt.trim()}` : "",
+        input.performance ? `表演：${[
+            input.performance.objective ? `目标 ${input.performance.objective}` : "",
+            input.performance.emotion ? `情绪 ${input.performance.emotion}` : "",
+            input.performance.subtext ? `潜台词 ${input.performance.subtext}` : "",
+            input.performance.bodyLanguage ? `肢体 ${input.performance.bodyLanguage}` : "",
+            input.performance.intensity ? `强度 ${input.performance.intensity}/5` : "",
+        ].filter(Boolean).join("；")}` : "",
+        input.soundDesign ? `声音意图：${[
+            input.soundDesign.ambience ? `环境声 ${input.soundDesign.ambience}` : "",
+            input.soundDesign.sfx ? `音效 ${input.soundDesign.sfx}` : "",
+            input.soundDesign.music ? `音乐 ${input.soundDesign.music}` : "",
+            input.soundDesign.dialogueTone ? `台词语气 ${input.soundDesign.dialogueTone}` : "",
+        ].filter(Boolean).join("；")}` : "",
         input.hints ? `参考角色与场景：${input.hints}` : "",
     ].filter(Boolean);
     if (sceneLines.length) parts.push(sceneLines.join("；"));

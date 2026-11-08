@@ -33,6 +33,22 @@ test("保留规则快照和语义分析", () => {
     assert.equal(parsed.scriptAnalysis?.scenes[0].sourceHash, document.episodes[0].scenes[0].hash);
 });
 
+test("保留导演风格与目标时长", () => {
+    const structurePlan = { scriptHash: "hash", createdAt: "2026-01-01T00:00:00.000Z", scenes: [{ episodeTitle: "第1集", sceneNo: 1, sceneName: "1-1 街道", purpose: "建立关系", beats: [{ type: "信息", summary: "两人见面" }], coverage: ["建立镜头"], characters: ["阿青"], estimatedDuration: 20 }] };
+    const consistencyReview = { scriptHash: "hash", reviewedAt: "2026-01-01T00:00:00.000Z", summary: "有一处不连续", issues: [{ id: "i1", level: "warning" as const, category: "continuity" as const, message: "雨伞颜色不一致" }] };
+    const interactiveVariables = [{ id: "v1", name: "好感", type: "number" as const, initialValue: "0" }];
+    const project = { ...sample, directorStyleId: "hk-neon", targetDuration: 180, structurePlan, consistencyReview, interactiveVariables };
+    const parsed = parseFilmProjectBackup(serializeFilmProject(project));
+    assert.equal(parsed.directorStyleId, "hk-neon");
+    assert.equal(parsed.targetDuration, 180);
+    assert.equal(parsed.structurePlan?.scenes[0].sceneName, "1-1 街道");
+    assert.equal(parsed.consistencyReview?.issues[0].message, "雨伞颜色不一致");
+    assert.equal(parsed.interactiveVariables?.[0].name, "好感");
+    const legacy = parseFilmProjectBackup(JSON.stringify(sample));
+    assert.equal(legacy.directorStyleId, undefined);
+    assert.equal(legacy.targetDuration, undefined);
+});
+
 test("兼容直接传入项目对象", () => {
     const parsed = parseFilmProjectBackup(JSON.stringify(sample));
     assert.equal(parsed.title, "灌篮少女");

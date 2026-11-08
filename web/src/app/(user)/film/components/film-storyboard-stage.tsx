@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { App, Button, InputNumber, Modal, Select } from "antd";
-import { Check, Clapperboard, ImageIcon, LayoutGrid, Link2, List, Maximize2, Pencil, ShieldAlert, Table2, Trash2 } from "lucide-react";
+import { Check, Clapperboard, GitBranch, ImageIcon, LayoutGrid, Link2, List, Maximize2, Pencil, ShieldAlert, Table2, Trash2 } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
@@ -18,9 +18,14 @@ import { estimateFilmVideoMinutes } from "../utils/film-video-limits";
 import { countFilmShotConnections, pruneFilmEdges } from "../utils/film-shot-groups";
 import { FilmShotDetail } from "./film-shot-detail";
 import { FilmShotStatusChip } from "./film-shot-status-chip";
+import { FilmBranchPanel } from "./film-branch-panel";
+import { FilmPrevisDrawer } from "./film-previs-drawer";
+import { collectFilmBranches } from "../utils/film-branch";
 import { FilmShotGroupPanel } from "./film-shot-group-panel";
 import { FilmStoryboardBoard } from "./film-storyboard-board";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
+import { checkFilmStyle } from "../utils/film-style-check";
+import { appendDirectorStyleToPrompt } from "@/lib/film/director-styles";
 
 type ViewMode = "list" | "groups" | "table" | "board";
 
@@ -55,6 +60,10 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
     const [selectedShotId, setSelectedShotId] = useState("");
     const [batchEditOpen, setBatchEditOpen] = useState(false);
     const [continuityOpen, setBindingOpen] = useState(false);
+    const [previsOpen, setPrevisOpen] = useState(false);
+    const [branchOpen, setBranchOpen] = useState(false);
+    const styleReport = useMemo(() => checkFilmStyle(project), [project]);
+    const branchEdges = useMemo(() => collectFilmBranches(project), [project]);
     const bindingIssues = useMemo(() => checkFilmBindingIssues(project.episodes, project.characters || [], project.locations || []), [project.episodes, project.characters, project.locations]);
     const connectionCounts = useMemo(() => countFilmShotConnections(project.shotConnections), [project.shotConnections]);
     const [batchDuration, setBatchDuration] = useState<number | undefined>(undefined);
@@ -170,6 +179,13 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                 <span className="chip">{countFilmScenes(project.episodes)} 场</span>
                 <span className="chip">{readyCount}/{shots.length} 已完成</span>
                 <span className="chip">{filmAspectLabel(project.aspect)}</span>
+                {styleReport.style ? (
+                    <span className="chip border-acid/30 text-acid" title={"风格规则 " + styleReport.passed + "/" + styleReport.total + " 通过"}>
+                        {styleReport.style.name} · {styleReport.score}%
+                    </span>
+                ) : (
+                    <span className="chip text-muted-foreground/60">未选导演风格</span>
+                )}
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                     {view === "list" && selectedIds.length > 0 ? (
                         <>
@@ -223,7 +239,15 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         />
                     ) : null}
                     <Button size="small" icon={<ShieldAlert className="size-3.5" />} onClick={() => setBindingOpen(true)}>
-                        绑定检查{bindingIssues.length ? ` (${bindingIssues.length})` : ""}
+                        绑定检查{bindingIssues.length ? " (" + bindingIssues.length + ")" : ""}
+                    </Button>
+                    {branchEdges.length ? (
+                        <Button size="small" icon={<GitBranch className="size-3.5" />} onClick={() => setBranchOpen(true)}>
+                            分支 {branchEdges.length}
+                        </Button>
+                    ) : null}
+                    <Button size="small" type="primary" ghost icon={<Clapperboard className="size-3.5" />} onClick={() => setPrevisOpen(true)}>
+                        预演
                     </Button>
                     <div className="flex items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
                         <ViewButton active={view === "list"} onClick={() => setView("list")} icon={<List className="size-3.5" />}>列表</ViewButton>
@@ -472,6 +496,14 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                             locations={project.locations || []}
                             aspect={project.aspect}
                             styleText={resolveFilmStyleText(project)}
+                            directorStyle={styleReport.style}
+                            branchTargets={shots.filter((shot) => shot.id !== selectedShot.id).map((shot) => ({ id: shot.id, label: shot.shotNo + " · " + (shot.description || "未填写画面") }))}
+                            variables={project.interactiveVariables || []}
+                            onApplyStylePrompt={() => {
+                                if (!styleReport.style) return;
+                                onUpdate({ episodes: updateFilmShot(project.episodes, selectedShot.id, { prompt: appendDirectorStyleToPrompt(selectedShot.prompt, styleReport.style) }) });
+                                message.success("已把导演风格提示补进镜头 prompt");
+                            }}
                             onMove={moveSelectedShot}
                             canMoveUp={Boolean(selectedPosition && selectedPosition.shotIndex > 0)}
                             canMoveDown={Boolean(selectedPosition && selectedPosition.shotIndex < selectedPosition.sceneShotCount - 1)}
@@ -533,6 +565,27 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                     <p className="text-[11px] leading-5 text-muted-foreground/70">镜头状态由「是否有分镜图 / 视频」自动派生，不再手动设置。</p>
                 </div>
             </Modal>
+
+            <FilmBranchPanel
+                open={branchOpen}
+                project={project}
+                onClose={() => setBranchOpen(false)}
+                onJumpToShot={(shotId) => {
+                    setSelectedShotId(shotId);
+                    setView("list");
+                }}
+                onVariablesChange={(variables) => onUpdate({ interactiveVariables: variables })}
+            />
+
+            <FilmPrevisDrawer
+                open={previsOpen}
+                project={project}
+                onClose={() => setPrevisOpen(false)}
+                onJumpToShot={(shotId) => {
+                    setSelectedShotId(shotId);
+                    setView("list");
+                }}
+            />
         </div>
     );
 }

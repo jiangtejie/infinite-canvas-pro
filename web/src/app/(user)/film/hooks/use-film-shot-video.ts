@@ -109,6 +109,8 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             description: shot.description || "",
             videoPrompt: shot.videoPrompt || "",
             styleText: resolveFilmStyleText(current),
+            performance: shot.performance,
+            soundDesign: shot.soundDesign,
             mode,
             hasFirstFrame: mode === "frames" && Boolean(shot.firstFrame),
             hints,

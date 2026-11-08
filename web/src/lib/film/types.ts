@@ -193,6 +193,58 @@ export type FilmContinuitySheet = {
     referenceAssets: string;
 };
 
+/** 表演意图：给演员/视频模型的情绪与动作指令。 */
+export type FilmPerformance = {
+    objective: string;
+    emotion: string;
+    subtext: string;
+    bodyLanguage: string;
+    intensity: number;
+};
+
+/** 声音设计：环境声、音效、音乐与台词语气。 */
+export type FilmSoundDesign = {
+    ambience: string;
+    sfx: string;
+    music: string;
+    dialogueTone: string;
+};
+
+export type FilmInteractiveVariableType = "boolean" | "number" | "string";
+
+export type FilmInteractiveVariable = {
+    id: string;
+    name: string;
+    type: FilmInteractiveVariableType;
+    initialValue: string;
+};
+
+export type FilmBranchConditionOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "truthy" | "falsy";
+
+export type FilmBranchCondition = {
+    variableId: string;
+    operator: FilmBranchConditionOperator;
+    value?: string;
+};
+
+export type FilmBranchEffect = {
+    variableId: string;
+    operation: "set" | "add";
+    value: string;
+};
+
+/** 互动分支：一个选项可以选择目标镜头，并按条件显示、选择后修改变量。 */
+export type FilmShotBranch = {
+    label: string;
+    condition: string;
+    nextShotId?: string;
+    /** 结构化显示条件；为空表示总是显示。 */
+    conditions?: FilmBranchCondition[];
+    conditionLogic?: "all" | "any";
+    /** 选择该分支后对互动变量生效。 */
+    effects?: FilmBranchEffect[];
+};
+
 export type FilmShot = {
     id: string;
     shotNo: string;
@@ -203,6 +255,21 @@ export type FilmShot = {
     dialogue: string;
     audio: string;
     prompt: string;
+    negativePrompt?: string;
+    performance?: FilmPerformance;
+    soundDesign?: FilmSoundDesign;
+    /** 单个分支（旧字段，仍兼容；新数据优先用 branches）。 */
+    branch?: FilmShotBranch;
+    /** 一个镜头上的多个互动分支选项。 */
+    branches?: FilmShotBranch[];
+    /** 结构层标记：建立/反应/细节/关系/过渡，用于覆盖检查。 */
+    coverage?: string;
+    /** 视觉层补充：构图/光线/色彩/镜头/转场，来自视觉代理。 */
+    composition?: string;
+    lighting?: string;
+    colorTone?: string;
+    lens?: string;
+    transition?: string;
     characterIds?: string[];
     locationId?: string;
     videoMode?: FilmVideoMode;
@@ -275,12 +342,66 @@ export type FilmShotConnection = {
     createdAt: string;
 };
 
+export type FilmStructureBeat = {
+    type: string;
+    summary: string;
+    infoPoint?: string;
+    emotion?: string;
+};
+
+/** 结构代理的中间表示：只回答“这场戏要表达什么/需要哪些信息点”，不写画面。 */
+export type FilmStructureScene = {
+    episodeTitle: string;
+    sceneNo: number;
+    sceneName: string;
+    purpose: string;
+    beats: FilmStructureBeat[];
+    coverage: string[];
+    characters: string[];
+    estimatedDuration: number;
+};
+
+export type FilmStructurePlan = {
+    scriptHash: string;
+    scenes: FilmStructureScene[];
+    createdAt: string;
+    model?: string;
+};
+
+export type FilmConsistencyIssue = {
+    id: string;
+    level: "error" | "warning" | "info";
+    category: "structure" | "continuity" | "style" | "binding";
+    message: string;
+    suggestion?: string;
+    shotId?: string;
+    sceneId?: string;
+};
+
+/** 一致性代理：把结构覆盖、连续性、风格漂移的结论聚合到项目上。 */
+export type FilmConsistencyReview = {
+    scriptHash: string;
+    reviewedAt: string;
+    summary?: string;
+    issues: FilmConsistencyIssue[];
+};
+
 export type FilmProject = {
     id: string;
     title: string;
     visualStyle: string;
     aspect: FilmAspect;
     stylePreset: FilmStylePresetId;
+    /** 导演风格语法预设 id（可选；旧项目没有该字段时按普通电影感处理）。 */
+    directorStyleId?: string;
+    /** 目标成片时长（秒），用于预演验证时长偏差；为空则不校验。 */
+    targetDuration?: number;
+    /** 结构代理生成的场次计划（中间表示，不直接展示为画面）。 */
+    structurePlan?: FilmStructurePlan;
+    /** 一致性代理最近一次检查结果。 */
+    consistencyReview?: FilmConsistencyReview;
+    /** 互动影游变量表；分支条件与效果引用这些变量。 */
+    interactiveVariables?: FilmInteractiveVariable[];
     stage: FilmStage;
     scriptText: string;
     /** 来源剧本项目，用于从影视工作台回看剧本并按最新剧本重新解析。 */

@@ -5,7 +5,11 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ImagePlus, Trash2, X } f
 import { AutoComplete, Button, Image, Input, InputNumber, Select, Spin } from "antd";
 
 import { cn } from "@/lib/utils";
-import type { FilmAsset, FilmContinuitySheet, FilmShot } from "@/lib/film/types";
+import type { FilmAsset, FilmContinuitySheet, FilmInteractiveVariable, FilmShot, FilmShotBranch } from "@/lib/film/types";
+import type { DirectorStyle } from "@/lib/film/director-styles";
+import { checkShotStyle } from "../utils/film-style-check";
+import { shotBranchList } from "../utils/film-branch";
+import { FilmBranchRuleEditor } from "./film-branch-rule-editor";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
 import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
 import { filmAspectCssRatio } from "@/lib/film/film-aspects";
@@ -33,17 +37,36 @@ type FilmShotDetailProps = {
     sceneTargets?: Array<{ value: string; label: string }>;
     aspect?: string;
     styleText?: string;
+    directorStyle?: DirectorStyle;
+    onApplyStylePrompt?: () => void;
+    branchTargets?: Array<{ id: string; label: string }>;
+    variables?: FilmInteractiveVariable[];
 };
 
-export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, onStopVideo, generatingVideo, videoProgress, characters = [], locations = [], onMove, canMoveUp, canMoveDown, onMoveToScene, sceneTargets = [], aspect, styleText = "" }: FilmShotDetailProps) {
+export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, onStopVideo, generatingVideo, videoProgress, characters = [], locations = [], onMove, canMoveUp, canMoveDown, onMoveToScene, sceneTargets = [], aspect, styleText = "", directorStyle, onApplyStylePrompt, branchTargets = [], variables = [] }: FilmShotDetailProps) {
     const imageSrc = useFilmImageUrl(shot.imageUrl, shot.storageKey);
     const { checkingShotId, checkShot } = useFilmContinuityCheck();
-    const [tab, setTab] = useState<"basic" | "image" | "video">("basic");
+    const [tab, setTab] = useState<"basic" | "performance" | "image" | "video">("basic");
     const [continuityEditing, setContinuityEditing] = useState(false);
     const continuityCheck = shot.continuityCheck || "";
     const imageVersionsRef = useRef<HTMLDivElement>(null);
     const imageElapsed = useElapsedSeconds(Boolean(generating));
     const frameStyle = { aspectRatio: aspect ? filmAspectCssRatio(aspect) : "16 / 9" };
+    const styleIssues = checkShotStyle(shot, directorStyle);
+    const updatePerformance = (patch: Partial<NonNullable<FilmShot["performance"]>>) => {
+        onChange({ performance: { objective: "", emotion: "", subtext: "", bodyLanguage: "", intensity: 3, ...shot.performance, ...patch } });
+    };
+    const updateSoundDesign = (patch: Partial<NonNullable<FilmShot["soundDesign"]>>) => {
+        onChange({ soundDesign: { ambience: "", sfx: "", music: "", dialogueTone: "", ...shot.soundDesign, ...patch } });
+    };
+    const branches = shotBranchList(shot);
+    const updateBranches = (list: FilmShotBranch[]) => {
+        const cleaned = list.filter((branch) => (branch.label || "").trim() || (branch.condition || "").trim() || branch.nextShotId);
+        onChange({ branches: cleaned, branch: undefined });
+    };
+    const updateBranchAt = (index: number, patch: Partial<FilmShotBranch>) => {
+        updateBranches(branches.map((branch, branchIndex) => branchIndex === index ? { ...branch, ...patch } : branch));
+    };
 
     useEffect(() => {
         setContinuityEditing(false);
@@ -78,6 +101,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
             <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-3 flex items-center gap-0.5 border-b border-border/50 bg-background/85 px-4 py-2.5 backdrop-blur-xl">
                 <TabButton active={tab === "basic"} onClick={() => setTab("basic")}>基础</TabButton>
+                <TabButton active={tab === "performance"} onClick={() => setTab("performance")}>表演/声音</TabButton>
                 <TabButton active={tab === "image"} onClick={() => setTab("image")}>
                     画面{shot.imageVersions && shot.imageVersions.length > 1 ? ` ${shot.imageVersions.length}` : ""}
                 </TabButton>
@@ -141,6 +165,36 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                                 />
                             </div>
                         ) : null}
+                    </div>
+                ) : null}
+                {directorStyle ? (
+                    <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">导演风格</span>
+                            <span className="text-[11px] text-foreground/80">{directorStyle.name}</span>
+                            {onApplyStylePrompt ? (
+                                <Button size="small" type="text" className="!ml-auto !h-6 !px-1.5 !text-[10px]" onClick={onApplyStylePrompt}>
+                                    应用风格提示
+                                </Button>
+                            ) : null}
+                        </div>
+                        <p className="text-[10px] leading-4 text-muted-foreground/70">{directorStyle.tagline}</p>
+                        {styleIssues.map((issue) => (
+                            <p key={issue.id} className="text-[10px] leading-4 text-amber-500">{issue.message}</p>
+                        ))}
+                    </div>
+                ) : null}
+                {shot.coverage || shot.composition || shot.lighting || shot.colorTone || shot.lens || shot.transition ? (
+                    <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">镜头语言</span>
+                        <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground/80">
+                            {shot.coverage ? <span className="rounded bg-muted/60 px-1.5 py-0.5">覆盖 · {shot.coverage}</span> : null}
+                            {shot.lens ? <span className="rounded bg-muted/60 px-1.5 py-0.5">镜头 · {shot.lens}</span> : null}
+                            {shot.composition ? <span className="rounded bg-muted/60 px-1.5 py-0.5">构图 · {shot.composition}</span> : null}
+                            {shot.lighting ? <span className="rounded bg-muted/60 px-1.5 py-0.5">光线 · {shot.lighting}</span> : null}
+                            {shot.colorTone ? <span className="rounded bg-muted/60 px-1.5 py-0.5">色彩 · {shot.colorTone}</span> : null}
+                            {shot.transition ? <span className="rounded bg-muted/60 px-1.5 py-0.5">转场 · {shot.transition}</span> : null}
+                        </div>
                     </div>
                 ) : null}
                 </>
@@ -216,6 +270,66 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                                 </div>
                             </div>
                         ) : null}
+                    </div>
+                ) : null}
+                {tab === "performance" ? (
+                    <div className="grid gap-3">
+                        <section className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">表演意图</span>
+                            <Field label="目标（这场戏想要什么）">
+                                <Input value={shot.performance?.objective || ""} placeholder="例如：留住对方" onChange={(event) => updatePerformance({ objective: event.target.value })} />
+                            </Field>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label="表层情绪">
+                                    <Input value={shot.performance?.emotion || ""} placeholder="例如：克制" onChange={(event) => updatePerformance({ emotion: event.target.value })} />
+                                </Field>
+                                <Field label="强度（1-5）">
+                                    <InputNumber className="w-full" min={1} max={5} value={shot.performance?.intensity ?? 3} onChange={(value) => updatePerformance({ intensity: Number(value) || 3 })} />
+                                </Field>
+                            </div>
+                            <Field label="潜台词">
+                                <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} value={shot.performance?.subtext || ""} placeholder="角色没有说出口的东西" onChange={(event) => updatePerformance({ subtext: event.target.value })} />
+                            </Field>
+                            <Field label="肢体 / 眼神">
+                                <Input value={shot.performance?.bodyLanguage || ""} placeholder="例如：手指收紧，视线躲开" onChange={(event) => updatePerformance({ bodyLanguage: event.target.value })} />
+                            </Field>
+                        </section>
+                        <section className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">声音设计</span>
+                            <Field label="环境声">
+                                <Input value={shot.soundDesign?.ambience || ""} placeholder="例如：雨声、远处车流" onChange={(event) => updateSoundDesign({ ambience: event.target.value })} />
+                            </Field>
+                            <div className="grid grid-cols-2 gap-3">
+                                <Field label="音效">
+                                    <Input value={shot.soundDesign?.sfx || ""} placeholder="例如：伞骨合拢" onChange={(event) => updateSoundDesign({ sfx: event.target.value })} />
+                                </Field>
+                                <Field label="音乐">
+                                    <Input value={shot.soundDesign?.music || ""} placeholder="例如：低频弦乐" onChange={(event) => updateSoundDesign({ music: event.target.value })} />
+                                </Field>
+                            </div>
+                            <Field label="台词语气">
+                                <Input value={shot.soundDesign?.dialogueTone || ""} placeholder="例如：压低、停顿" onChange={(event) => updateSoundDesign({ dialogueTone: event.target.value })} />
+                            </Field>
+                        </section>
+                        <section className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">互动分支（可选）</span>
+                                <Button size="small" type="text" className="!ml-auto !h-6 !px-2 !text-[10px]" icon={<span className="text-sm leading-none">+</span>} onClick={() => updateBranches([...branches, { label: "新分支", condition: "" }])}>添加分支</Button>
+                            </div>
+                            {!branches.length ? <p className="text-[10px] leading-4 text-muted-foreground/60">普通镜头留空即可；多结局项目在这里添加多个选项，预演时会出现分支选择。</p> : null}
+                            {branches.map((branch, index) => (
+                                <div key={index} className="grid gap-2 rounded-md border border-border/50 bg-background/40 p-2">
+                                    <div className="flex items-center gap-2">
+                                        <Input size="small" className="flex-1" value={branch.label} placeholder="分支标签，例如：跟上去" onChange={(event) => updateBranchAt(index, { label: event.target.value })} />
+                                        <Select size="small" allowClear className="!w-44" placeholder="目标镜头" value={branch.nextShotId} options={branchTargets.map((target) => ({ value: target.id, label: target.label }))} onChange={(value?: string) => updateBranchAt(index, { nextShotId: value })} />
+                                        <Button size="small" type="text" className="!size-7 !min-w-7 !px-0" icon={<Trash2 className="size-3" />} onClick={() => updateBranches(branches.filter((_, branchIndex) => branchIndex !== index))} />
+                                    </div>
+                                    <Input size="small" value={branch.condition} placeholder="条件说明（可选），例如：观众选择相信阿青" onChange={(event) => updateBranchAt(index, { condition: event.target.value })} />
+                                    <FilmBranchRuleEditor branch={branch} variables={variables} onChange={(patch) => updateBranchAt(index, patch)} />
+                                </div>
+                            ))}
+                            <p className="text-[10px] leading-4 text-muted-foreground/60">分支用于标注、分支总览和预演试走；播放器会按选择的选项跳到目标镜头。</p>
+                        </section>
                     </div>
                 ) : null}
                 {tab === "video" && onGenerateVideo ? (

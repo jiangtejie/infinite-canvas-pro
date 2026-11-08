@@ -2,8 +2,11 @@ import { nanoid } from "nanoid";
 
 import { isCanvasAgentContextLimitError, requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
-import type { FilmEpisode, FilmScene } from "@/lib/film/types";
+import type { FilmEpisode, FilmScene, FilmStructurePlan } from "@/lib/film/types";
+import type { DirectorStyle } from "@/lib/film/director-styles";
+import { appendDirectorStyleToPrompt } from "@/lib/film/director-styles";
 import { filmShotTypeCodeFromLabel } from "./film-shot-types";
+import { structurePlanPromptContext } from "./film-ai-structure";
 
 export type FilmAiShotRow = {
     episode?: string;
@@ -14,6 +17,30 @@ export type FilmAiShotRow = {
     description?: string;
     sound?: string;
     duration?: number | string;
+    dialogue?: string;
+    audio?: string;
+    lens?: string;
+    composition?: string;
+    lighting?: string;
+    color?: string;
+    transition?: string;
+    coverage?: string;
+    imagePrompt?: string;
+    videoPrompt?: string;
+    negativePrompt?: string;
+    performance?: {
+        objective?: string;
+        emotion?: string;
+        subtext?: string;
+        bodyLanguage?: string;
+        intensity?: number | string;
+    };
+    soundDesign?: {
+        ambience?: string;
+        sfx?: string;
+        music?: string;
+        dialogueTone?: string;
+    };
 };
 
 export type FilmParsePacing = "fast" | "normal" | "slow";
@@ -21,6 +48,10 @@ export type FilmParsePacing = "fast" | "normal" | "slow";
 export type FilmParseOptions = {
     pacing?: FilmParsePacing;
     targetDuration?: number;
+    /** 结构代理生成的场次计划；有值时视觉代理按计划生成镜头。 */
+    structurePlan?: FilmStructurePlan;
+    /** 导演风格语法；用于约束景别/运镜/光线并补齐 prompt。 */
+    directorStyle?: DirectorStyle;
 };
 
 const MAX_AI_SHOTS = 500;
@@ -38,6 +69,19 @@ const BASE_PROMPT = `你是一名专业的影视分镜师。把用户提供的�
 - description：画面内容，写清楚人物动作、环境、光线；
 - sound：声音/台词，例如环境声、音效、角色台词；
 - duration：时长，数字，单位为秒。
+- dialogue：角色台词原文（没有则空字符串）；
+- audio：环境声/音效/音乐；
+- lens：镜头焦段或景深，例如 35mm 浅景深；
+- composition：构图，例如 中心对称 / 三分法 / 前景遮挡；
+- lighting：光线，例如 强对比侧光 / 柔光逆光；
+- color：色彩，例如 红金高饱和 / 冷灰低饱和；
+- transition：转场，例如 硬切 / 叠化；
+- coverage：该镜在叙事中的作用，建立/反应/细节/关系/过渡；
+- imagePrompt：可直接用于生图的完整中文 prompt，包含导演风格关键词；
+- videoPrompt：视频生成用 prompt，强调运镜与动作；
+- negativePrompt：负向提示词。
+- performance：表演意图对象 {"objective":"角色这场戏想要什么","emotion":"表层情绪","subtext":"潜台词","bodyLanguage":"肢体/眼神动作","intensity":1-5}；
+- soundDesign：声音设计对象 {"ambience":"环境声","sfx":"音效","music":"音乐","dialogueTone":"台词语气"}。
 用户输入可能是普通剧本，也可能是已经排好的分镜表格（列：镜号/景别/运镜/画面内容/声音台词/时长）。
 - 普通剧本：由你按镜头语言拆分，一个镜头只表达一个动作或信息点，不要合并镜头；
 - 分镜表格：保留原有镜头顺序与内容，只做规范化与补全，不要合并或重新拆分；
@@ -63,7 +107,7 @@ async function requestChunk(config: AiConfig, chunk: string, options: FilmParseO
     const partHint = total > 1 ? `【这是剧本第 ${index + 1}/${total} 段，只拆这一段的镜头，保持整体风格与编号连续】\n` : "";
     const messages: Array<{ role: "user"; content: string }> = [{ role: "user", content: `${partHint}【剧本】\n${chunk}` }];
     try {
-        return await requestOnce(config, systemPrompt, messages);
+        return await requestOnce(config, systemPrompt, messages, options);
     } catch (error) {
         if (isCanvasAgentContextLimitError(error) && chunk.length > MIN_CONTEXT_RETRY_CHARS) {
             const [left, right] = splitChunkInHalf(chunk);
@@ -74,7 +118,7 @@ async function requestChunk(config: AiConfig, chunk: string, options: FilmParseO
         }
         if (!isCanvasAgentContextLimitError(error)) {
             try {
-                return await requestOnce(config, `${systemPrompt}${STRICT_RETRY_HINT}`, messages);
+                return await requestOnce(config, `${systemPrompt}${STRICT_RETRY_HINT}`, messages, options);
             } catch {
                 throw error;
             }
@@ -83,9 +127,9 @@ async function requestChunk(config: AiConfig, chunk: string, options: FilmParseO
     }
 }
 
-async function requestOnce(config: AiConfig, systemPrompt: string, messages: Array<{ role: "user"; content: string }>): Promise<FilmEpisode[]> {
+async function requestOnce(config: AiConfig, systemPrompt: string, messages: Array<{ role: "user"; content: string }>, options: FilmParseOptions = {}): Promise<FilmEpisode[]> {
     const turn = await requestCanvasAgentTurn({ config, systemPrompt, messages, tools: [], toolMode: "prompt-json" });
-    const episodes = filmAiRowsToEpisodes(parseFilmAiShotRows(turn.content));
+    const episodes = filmAiRowsToEpisodes(parseFilmAiShotRows(turn.content), options);
     if (!episodes.length) throw new Error("AI 返回的分镜为空");
     return episodes;
 }
@@ -97,7 +141,20 @@ function buildSystemPrompt(options: FilmParseOptions) {
             ? "慢节奏：平均每镜 6-10 秒，允许长镜头和缓慢运镜。"
             : "常规：平均每镜 4-6 秒。";
     const duration = options.targetDuration ? `\n【时长目标】所有镜头 duration 相加尽量接近 ${options.targetDuration} 秒，允许 ±20% 误差。` : "";
-    return `${BASE_PROMPT}\n【节奏要求】${pacing}${duration}`;
+    const style = options.directorStyle;
+    const styleHint = style ? `\n【导演风格语法】${JSON.stringify({
+        name: style.name,
+        camera: style.camera,
+        visual: style.visual,
+        performance: style.performance,
+        sound: style.sound,
+        imageSuffix: style.prompts.imageSuffix,
+        negativePrompt: style.prompts.negative,
+        rules: style.rules.map((rule) => rule.label),
+    })}\n要求：景别、运镜、构图、光线、色彩必须服从这套语法；imagePrompt 末尾带上风格后缀（不要重复）。` : "";
+    const structure = structurePlanPromptContext(options.structurePlan);
+    const structureHint = structure ? `\n【场次结构计划】${structure}\n要求：只把结构计划里的 beats 可视化，不增加新的叙事信息；每场至少覆盖计划里的 coverage 类型；镜头 coverage 字段填写 建立/反应/细节/关系/过渡。` : "";
+    return `${BASE_PROMPT}\n【节奏要求】${pacing}${duration}${styleHint}${structureHint}`;
 }
 
 export function parseFilmAiShotRows(content: string): FilmAiShotRow[] {
@@ -119,7 +176,7 @@ export function parseFilmAiShotRows(content: string): FilmAiShotRow[] {
     return parsed.filter((item): item is FilmAiShotRow => Boolean(item) && typeof item === "object").slice(0, MAX_AI_SHOTS);
 }
 
-export function filmAiRowsToEpisodes(rows: FilmAiShotRow[]): FilmEpisode[] {
+export function filmAiRowsToEpisodes(rows: FilmAiShotRow[], options: FilmParseOptions = {}): FilmEpisode[] {
     const episodes: FilmEpisode[] = [];
     const episodeMap = new Map<string, FilmEpisode>();
     const sceneMap = new Map<string, FilmScene>();
@@ -152,14 +209,47 @@ export function filmAiRowsToEpisodes(rows: FilmAiShotRow[]): FilmEpisode[] {
             cameraMovement: (row.cameraMovement || "").trim(),
             duration: parseDuration(row.duration),
             description: (row.description || "").trim(),
-            dialogue: (row.sound || "").trim(),
-            audio: "",
-            prompt: "",
+            dialogue: (row.dialogue || row.sound || "").trim(),
+            audio: (row.audio || "").trim(),
+            prompt: appendDirectorStyleToPrompt((row.imagePrompt || row.description || "").trim(), options.directorStyle),
+            ...(row.videoPrompt ? { videoPrompt: row.videoPrompt.trim() } : {}),
+            ...(row.negativePrompt ? { negativePrompt: row.negativePrompt.trim() } : {}),
+            ...(normalizePerformance(row.performance) ? { performance: normalizePerformance(row.performance) } : {}),
+            ...(normalizeSoundDesign(row.soundDesign) ? { soundDesign: normalizeSoundDesign(row.soundDesign) } : {}),
+            ...(row.coverage ? { coverage: row.coverage.trim() } : {}),
+            ...(row.composition ? { composition: row.composition.trim() } : {}),
+            ...(row.lighting ? { lighting: row.lighting.trim() } : {}),
+            ...(row.color ? { colorTone: row.color.trim() } : {}),
+            ...(row.lens ? { lens: row.lens.trim() } : {}),
+            ...(row.transition ? { transition: row.transition.trim() } : {}),
         });
         count += 1;
     }
 
     return episodes;
+}
+
+function normalizePerformance(value: FilmAiShotRow["performance"]) {
+    if (!value || typeof value !== "object") return undefined;
+    const performance = {
+        objective: (value.objective || "").trim(),
+        emotion: (value.emotion || "").trim(),
+        subtext: (value.subtext || "").trim(),
+        bodyLanguage: (value.bodyLanguage || "").trim(),
+        intensity: Math.max(1, Math.min(5, Math.round(Number(value.intensity) || 3))),
+    };
+    return performance.objective || performance.emotion || performance.subtext || performance.bodyLanguage ? performance : undefined;
+}
+
+function normalizeSoundDesign(value: FilmAiShotRow["soundDesign"]) {
+    if (!value || typeof value !== "object") return undefined;
+    const soundDesign = {
+        ambience: (value.ambience || "").trim(),
+        sfx: (value.sfx || "").trim(),
+        music: (value.music || "").trim(),
+        dialogueTone: (value.dialogueTone || "").trim(),
+    };
+    return soundDesign.ambience || soundDesign.sfx || soundDesign.music || soundDesign.dialogueTone ? soundDesign : undefined;
 }
 
 /** 长剧本按集/场标题切块，块内尽量保留完整场次。 */

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Input, Modal, Select } from "antd";
+import { Input, InputNumber, Modal, Select } from "antd";
 import { ArrowLeft } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
@@ -21,6 +21,7 @@ import { useFilmShotVideo } from "../hooks/use-film-shot-video";
 import { useFilmTaskRecovery } from "../hooks/use-film-task-recovery";
 import { useFilmStore } from "@/stores/use-film-store";
 import type { FilmAspect, FilmStage, FilmStylePresetId } from "@/lib/film/types";
+import { DEFAULT_DIRECTOR_STYLE_ID, DIRECTOR_STYLES, directorStyleLabel } from "@/lib/film/director-styles";
 import { FILM_ASPECT_OPTIONS, filmAspectLabel, normalizeFilmAspect } from "@/lib/film/film-aspects";
 import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel, normalizeFilmStylePreset } from "@/lib/film/film-styles";
 
@@ -43,6 +44,8 @@ export default function FilmProjectPage() {
     const [aspectDraft, setAspectDraft] = useState<FilmAspect>("16:9");
     const [stylePresetDraft, setStylePresetDraft] = useState<FilmStylePresetId>(DEFAULT_FILM_STYLE);
     const [visualStyleDraft, setVisualStyleDraft] = useState("");
+    const [directorStyleIdDraft, setDirectorStyleIdDraft] = useState(DEFAULT_DIRECTOR_STYLE_ID);
+    const [targetDurationDraft, setTargetDurationDraft] = useState<number | undefined>(undefined);
     const currentStage = stage ?? project?.stage ?? "script";
     const imageGeneration = useFilmShotImage(project, (patch) => {
         if (project) updateProject(project.id, patch);
@@ -116,12 +119,19 @@ export default function FilmProjectPage() {
                             setAspectDraft(normalizeFilmAspect(project.aspect));
                             setStylePresetDraft(normalizeFilmStylePreset(project.stylePreset));
                             setVisualStyleDraft(project.visualStyle || "");
+                            setDirectorStyleIdDraft(project.directorStyleId || DEFAULT_DIRECTOR_STYLE_ID);
+                            setTargetDurationDraft(project.targetDuration);
                             setAspectOpen(true);
                         }}
                         className="ml-auto hidden items-center gap-1.5 rounded-full border border-border/70 px-2.5 py-1 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/80 uppercase transition-colors hover:border-acid/50 hover:text-foreground sm:flex"
                     >
                         画幅 {filmAspectLabel(project.aspect)} · {filmStyleLabel(project.stylePreset)}
                     </button>
+                    {directorStyleLabel(project.directorStyleId) ? (
+                        <span className="hidden items-center gap-1.5 rounded-full border border-acid/30 bg-acid/[0.06] px-2.5 py-1 font-mono text-[10px] tracking-[0.14em] text-acid/85 sm:flex" title="导演风格（只影响后续生成与预演校验）">
+                            {directorStyleLabel(project.directorStyleId)}
+                        </span>
+                    ) : null}
                     <span className="hidden sm:block">
                         <LocalSaveIndicator compact />
                     </span>
@@ -202,13 +212,15 @@ export default function FilmProjectPage() {
                         aspect: normalizeFilmAspect(aspectDraft),
                         stylePreset: normalizeFilmStylePreset(stylePresetDraft),
                         visualStyle: visualStyleDraft.trim(),
+                        directorStyleId: directorStyleIdDraft,
+                        targetDuration: targetDurationDraft,
                     });
                     setAspectOpen(false);
                 }}
                 onCancel={() => setAspectOpen(false)}
             >
                 <div className="grid gap-3 py-2">
-                    <p className="text-xs leading-6 text-muted-foreground">画幅和风格只影响之后生成的图片（分镜图、角色/场景设定图），已经生成的结果不会自动重做。</p>
+                    <p className="text-xs leading-6 text-muted-foreground">画幅、视觉风格与导演风格只影响之后的生成和预演校验，已经生成的结果不会自动重做。</p>
                     <label className="grid gap-1.5">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">画幅</span>
                         <Select value={normalizeFilmAspect(aspectDraft)} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspectDraft(value)} />
@@ -224,6 +236,20 @@ export default function FilmProjectPage() {
                     <label className="grid gap-1.5">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">风格补充</span>
                         <Input value={visualStyleDraft} placeholder="例如：低饱和、冷色调、颗粒感" onChange={(event) => setVisualStyleDraft(event.target.value)} />
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">导演风格</span>
+                        <Select
+                            value={directorStyleIdDraft}
+                            options={DIRECTOR_STYLES.map((style) => ({ value: style.id, label: `${style.name} · ${style.tagline}` }))}
+                            onChange={(value: string) => setDirectorStyleIdDraft(value)}
+                        />
+                        <span className="text-[11px] leading-5 text-muted-foreground/60">{DIRECTOR_STYLES.find((style) => style.id === directorStyleIdDraft)?.description || ""}</span>
+                    </label>
+                    <label className="grid gap-1.5">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">目标时长（可选）</span>
+                        <InputNumber className="!w-full" min={1} max={7200} placeholder="成片目标秒数，例如 180" addonAfter="秒" value={targetDurationDraft} onChange={(value) => setTargetDurationDraft(typeof value === "number" ? value : undefined)} />
+                        <span className="text-[11px] leading-5 text-muted-foreground/60">用于预演校验总时长偏差；留空表示不校验。</span>
                     </label>
                 </div>
             </Modal>
