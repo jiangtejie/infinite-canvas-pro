@@ -223,7 +223,7 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-2 overflow-visible rounded-xl border border-white/10 bg-[#242424] px-2 text-[13px] text-[#f3f3f3] shadow-[0_8px_28px_rgba(0,0,0,.28)]"
+                className="absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-2 overflow-visible rounded-xl border border-border/70 bg-popover px-2 text-[13px] text-popover-foreground shadow-xl"
                 style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
@@ -329,7 +329,7 @@ function ToolbarAction({ title, label, icon, onClick, showLabel, active = false,
     return (
         <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff">
             <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap ${danger ? "text-destructive" : ""}`} onClick={onClick} aria-label={title}>
-                <span className={`flex h-8 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition group-hover:bg-white/10 ${active ? "bg-white/10" : ""}`}>
+                <span className={`flex h-8 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition group-hover:bg-foreground/10 ${active ? "bg-foreground/10" : ""}`}>
                     {icon}
                     {hasText ? <span>{label}</span> : null}
                 </span>

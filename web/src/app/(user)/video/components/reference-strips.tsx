@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "antd";
-import { ArrowLeft, ArrowRight, Music2, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Film, ImagePlus, Music2, Trash2 } from "lucide-react";
 
 import { ReferenceStripShell } from "@/components/workbench/reference-strip";
 import { SEEDANCE_REFERENCE_LIMITS, seedanceReferenceLabel } from "@/lib/seedance-video";
@@ -21,7 +21,15 @@ export function ReferenceImageStrip({ references, compact = false, maxCount = SE
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">暂无参考图，最多 {maxCount} 张</div> : null}
+            {!references.length ? (
+                <div className={`flex min-w-full flex-col items-center justify-center gap-1.5 text-center ${compact ? "py-1" : "py-3"}`}>
+                    <span className="flex size-8 items-center justify-center rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground">
+                        <ImagePlus className="size-4" aria-hidden />
+                    </span>
+                    <span className="text-xs text-muted-foreground">暂无参考图</span>
+                    {compact ? null : <span className="text-[10px] text-muted-foreground/70">最多 {maxCount} 张</span>}
+                </div>
+            ) : null}
         </ReferenceStripShell>
     );
 }
@@ -39,7 +47,15 @@ export function ReferenceVideoStrip({ references, compact = false, maxCount = SE
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">暂无参考视频，最多 {maxCount} 个</div> : null}
+            {!references.length ? (
+                <div className={`flex min-w-full flex-col items-center justify-center gap-1.5 text-center ${compact ? "py-1" : "py-3"}`}>
+                    <span className="flex size-8 items-center justify-center rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground">
+                        <Film className="size-4" aria-hidden />
+                    </span>
+                    <span className="text-xs text-muted-foreground">暂无参考视频</span>
+                    {compact ? null : <span className="text-[10px] text-muted-foreground/70">最多 {maxCount} 个</span>}
+                </div>
+            ) : null}
         </ReferenceStripShell>
     );
 }
@@ -61,7 +77,15 @@ export function ReferenceAudioStrip({ references, compact = false, maxCount = SE
                     </button>
                 </div>
             ))}
-            {!references.length ? <div className="flex min-w-full items-center justify-center text-center text-sm text-muted-foreground">暂无参考音频，最多 {maxCount} 个，mp3/wav，单个 15MB 内</div> : null}
+            {!references.length ? (
+                <div className={`flex min-w-full flex-col items-center justify-center gap-1.5 text-center ${compact ? "py-1" : "py-3"}`}>
+                    <span className="flex size-8 items-center justify-center rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground">
+                        <Music2 className="size-4" aria-hidden />
+                    </span>
+                    <span className="text-xs text-muted-foreground">暂无参考音频</span>
+                    {compact ? null : <span className="text-[10px] text-muted-foreground/70">最多 {maxCount} 个 · mp3/wav · 单个 15MB 内</span>}
+                </div>
+            ) : null}
         </ReferenceStripShell>
     );
 }

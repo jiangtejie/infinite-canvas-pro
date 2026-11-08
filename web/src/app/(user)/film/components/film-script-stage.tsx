@@ -441,6 +441,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                         <Button
                             type="primary"
                             size="small"
+                            className="w-full justify-center"
                             loading={parsing}
                             title="按分镜表直接拆分镜：会提示覆盖或追加到现有分镜"
                             icon={<Sparkles className="size-3.5" />}
@@ -455,7 +456,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                             清空
                         </Button>
                     </div>
-                    <p className="mt-2 text-[11px] leading-5 text-muted-foreground/60">两条入口用途不同：「AI 解析并拆分镜」直接把原文拆成分镜；「导入剧本并分析」先规则切分再可选 AI 语义分析，用于生成剧情图谱与角色关系，分镜确认后才写入。</p>
+                    <p className="mt-2 text-[11px] leading-[1.7] text-muted-foreground/55">两条入口用途不同：「AI 解析并拆分镜」直接把原文拆成分镜；「导入剧本并分析」先规则切分再可选 AI 语义分析，用于生成剧情图谱与角色关系，分镜确认后才写入。</p>
                     <div className="mt-4 flex flex-wrap gap-2">
                         <span className="chip chip-acid">{countFilmScenes(episodes)} 场</span>
                         <span className="chip">{shots.length} 个分镜</span>

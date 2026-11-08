@@ -59,7 +59,7 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
                         checked={selected}
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) => toggleSelected(project.id, event.target.checked)}
-                        className="mt-1.5 size-3.5 shrink-0 cursor-pointer accent-[var(--acid)]"
+                        className="mt-1.5 size-4 shrink-0 cursor-pointer accent-[var(--acid)]"
                         aria-label={`选择 ${project.title}`}
                     />
                     {editing ? (
@@ -83,20 +83,20 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
                 </div>
 
                 <div className="flex items-end justify-between gap-3">
-                    <p className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground/80 uppercase">
+                    <p className="font-mono text-[11px] tracking-[0.1em] text-muted-foreground/75 uppercase">
                         {new Date(project.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     </p>
                     <div className="flex items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100 focus-within:opacity-100" onClick={(event) => event.stopPropagation()}>
                         {editing ? (
                             <>
-                                <Button type="text" size="small" shape="circle" icon={<Check className="size-4" />} onClick={saveTitle} aria-label="保存名称" />
-                                <Button type="text" size="small" shape="circle" icon={<X className="size-4" />} onClick={stopEditing} aria-label="取消重命名" />
+                                <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Check className="size-4" />} onClick={saveTitle} aria-label="保存名称" />
+                                <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<X className="size-4" />} onClick={stopEditing} aria-label="取消重命名" />
                             </>
                         ) : (
                             <>
-                                <Button type="text" size="small" shape="circle" icon={<Download className="size-4" />} onClick={() => void exportCanvasProjects([project], project.title || "矩灵画布")} aria-label="导出" />
-                                <Button type="text" size="small" shape="circle" icon={<Pencil className="size-4" />} onClick={() => startEditing(project.id, project.title)} aria-label="重命名" />
-                                <Button type="text" size="small" shape="circle" icon={<Trash2 className="size-4" />} onClick={() => setDeleteIds([project.id])} aria-label="删除" />
+                                <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Download className="size-4" />} onClick={() => void exportCanvasProjects([project], project.title || "矩灵画布")} aria-label="导出" />
+                                <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Pencil className="size-4" />} onClick={() => startEditing(project.id, project.title)} aria-label="重命名" />
+                                <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Trash2 className="size-4" />} onClick={() => setDeleteIds([project.id])} aria-label="删除" />
                             </>
                         )}
                     </div>

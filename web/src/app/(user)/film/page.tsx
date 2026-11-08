@@ -161,12 +161,12 @@ export default function FilmListPage() {
                                 { label: "场次", value: String(totalScenes), hint: "已拆解的场景" },
                                 { label: "分镜完成", value: `${readyRate}%`, hint: `${totalReady} / ${totalShots} 镜已出图或视频` },
                             ].map((item, index) => (
-                                <div key={item.label} className="punk-card enter-up relative overflow-hidden rounded-xl border border-border/70 bg-card/40 px-4 py-3.5" style={{ "--enter-index": index } as CSSProperties}>
-                                    <div className="flex items-baseline justify-between gap-2">
+                                <div key={item.label} className="film-card-hover punk-card enter-up relative overflow-hidden rounded-xl border border-border/70 bg-card/40 px-4 py-3.5" style={{ "--enter-index": index } as CSSProperties}>
+                                    <div className="flex items-baseline justify-between gap-3">
                                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">{item.label}</span>
-                                        <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">{item.value}</span>
+                                        <span className="font-mono text-[26px] font-semibold leading-none tabular-nums text-foreground">{item.value}</span>
                                     </div>
-                                    <p className="mt-1 text-[10px] leading-5 text-muted-foreground/60">{item.hint}</p>
+                                    <p className="mt-2 text-[10px] leading-5 text-muted-foreground/65">{item.hint}</p>
                                     <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/50 via-acid/15 to-transparent" />
                                 </div>
                             ))}
@@ -206,13 +206,13 @@ export default function FilmListPage() {
                                                 router.push(`/film/${project.id}`);
                                             }
                                         }}
-                                        className="punk-card brackets enter-up group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-card/60 transition-colors hover:border-acid/40"
+                                        className="film-card-hover punk-card brackets enter-up group relative cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-card/60"
                                         style={{ "--enter-index": Math.min(index, 12) } as CSSProperties}
                                     >
-                                        <div className="relative h-32 overflow-hidden border-b border-border/60 bg-background/40">
-                                            <div aria-hidden className="absolute inset-0" style={{ backgroundImage: "radial-gradient(ellipse at 20% 0%, color-mix(in oklch, var(--acid) 8%, transparent), transparent 62%)" }} />
+                                        <div className="film-cover-grid relative h-32 overflow-hidden border-b border-border/60 bg-background/40">
+                                            <div aria-hidden className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-80" style={{ backgroundImage: "radial-gradient(ellipse at 20% 0%, color-mix(in oklch, var(--acid) 10%, transparent), transparent 62%)" }} />
                                             <span aria-hidden className="absolute font-mono font-bold tabular-nums" style={{ right: -8, top: -32, fontSize: 112, lineHeight: 1, color: "color-mix(in oklch, var(--foreground) 5%, transparent)" }}>{String(index + 1).padStart(2, "0")}</span>
-                                            <div className="absolute left-4 top-4 grid size-10 place-items-center rounded-[6px] border border-border bg-card text-foreground/70">
+                                            <div className="absolute left-4 top-4 grid size-10 place-items-center rounded-lg border border-border/70 bg-card/80 text-foreground/60 backdrop-blur-sm transition-colors duration-300 group-hover:border-acid/40 group-hover:text-acid/80">
                                                 <Clapperboard className="size-[18px]" />
                                             </div>
                                             <span className="chip chip-acid absolute bottom-3 left-4 inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{STAGE_LABEL[project.stage]}</span>

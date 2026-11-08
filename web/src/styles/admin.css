@@ -100,3 +100,47 @@
     border-bottom-color: var(--border);
     font-weight: 600;
 }
+
+/* 移动端顶部横向导航：右缘渐隐，提示可横向滑动 */
+@media (max-width: 1023px) {
+    .admin-shell nav[aria-label="后台分区"] {
+        mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    }
+}
+
+/* 页头右侧账号 chip：取消全大写，避免被误读为状态徽标 */
+.admin-shell main > div > header .chip {
+    text-transform: none;
+    letter-spacing: 0.04em;
+}
+
+/* 筛选卡（内部为表单）收紧留白，表格卡保持原有呼吸感 */
+.admin-shell .ant-card:has(form) .ant-card-body {
+    padding: 16px 20px;
+}
+
+.admin-shell .ant-card:has(form) .ant-form-item {
+    margin-bottom: 12px;
+}
+
+.admin-shell .ant-card:has(form) .ant-form-item:last-child {
+    margin-bottom: 0;
+}
+
+/* 表格行 hover 明确一档，移动端横向滚动可用细滚动条 */
+.admin-shell .ant-table-tbody > tr > td {
+    transition: background-color 0.18s ease;
+}
+
+.admin-shell .ant-table-tbody > tr:hover > td {
+    background: color-mix(in oklch, var(--foreground) 5%, transparent) !important;
+}
+
+.admin-shell .ant-table-content {
+    scrollbar-width: thin;
+}
+
+/* 后台移动端抽屉底部留出安全区 */
+.admin-shell .ant-drawer-section {
+    padding-bottom: env(safe-area-inset-bottom);
+}

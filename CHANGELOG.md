@@ -2,6 +2,10 @@
 
 ## Unreleased
 
++ [优化] 逐页 CSS 视觉打磨：统一卡片/筛选/空状态与 hover，优化提示词筛选、画布移动端底栏、影视/剧本与后台页面细节
+
++ [优化] 移除全站装饰性 WebGL 光场（PunkAura），改为静态 CSS 渐变，减少持续 GPU/CPU 开销
+
 + [新增] 提示词库新增 Banana Prompt Quicker、Freestylefly GPT Image 2、Transcendo Nano Banana 三个第三方数据源，并支持 yukkcat/image-prompts 标准 JSON
 
 + [优化] 统一全站删除/危险操作确认弹窗：新增共享 ConfirmDialog / useConfirm 与输入型 PromptDialog，替换默认 antd 确认框

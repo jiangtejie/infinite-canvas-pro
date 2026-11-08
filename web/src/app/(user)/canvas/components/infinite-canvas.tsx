@@ -335,7 +335,7 @@ function CanvasGrid({ viewport, mode }: { viewport: ViewportTransform; mode: Can
 
     return (
         <div
-            className="pointer-events-none absolute inset-0 opacity-40"
+            className="canvas-grid-layer pointer-events-none absolute inset-0 opacity-40"
             style={{
                 backgroundImage,
                 backgroundSize: `${gridSize}px ${gridSize}px`,

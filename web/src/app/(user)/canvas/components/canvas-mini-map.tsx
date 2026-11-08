@@ -99,7 +99,7 @@ export function Minimap({ nodes, viewport, viewportSize, onViewportChange }: { n
     };
 
     return (
-        <div className="absolute bottom-[calc(11rem+env(safe-area-inset-bottom))] left-4 z-50 overflow-hidden rounded-lg border shadow-2xl backdrop-blur-sm sm:bottom-[calc(6rem+env(safe-area-inset-bottom))] sm:left-5" style={{ width, height, background: theme.toolbar.panel, borderColor: theme.toolbar.border }}>
+        <div className="absolute bottom-[calc(13rem+env(safe-area-inset-bottom))] left-4 z-50 overflow-hidden rounded-xl border shadow-2xl backdrop-blur-md sm:bottom-[calc(6rem+env(safe-area-inset-bottom))] sm:left-5" style={{ width, height, background: theme.toolbar.panel, borderColor: theme.toolbar.border }}>
             <div
                 ref={containerRef}
                 className="relative h-full w-full cursor-crosshair"

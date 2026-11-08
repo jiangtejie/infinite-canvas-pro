@@ -3,7 +3,7 @@
 import { PunkAura } from "@/components/ui/punk-aura";
 import { cn } from "@/lib/utils";
 
-/** 影视模块的环境层：WebGL 朋克光场 + 扫描线 + 移动高光。内容需压在它上面。 */
+/** 影视模块的环境层：CSS 朋克光场 + 扫描线 + 移动高光。内容需压在它上面。 */
 export function FilmAmbient({ className }: { className?: string }) {
     return (
         <div aria-hidden className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}>

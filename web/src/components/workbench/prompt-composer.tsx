@@ -10,19 +10,19 @@ export function WorkbenchSection({ title, count, children, collapsible = false, 
         <section className="border-b border-border/60 pb-4 last:border-0 last:pb-0">
             <div className="flex items-center gap-2 pb-2.5">
                 {collapsible ? (
-                    <button type="button" className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-                        <span className="font-mono text-[10px] font-medium tracking-[0.16em] text-muted-foreground/80 uppercase">{title}</span>
+                    <button type="button" className="group/section flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left outline-none focus-visible:text-foreground" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+                        <span className="font-mono text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase transition-colors group-hover/section:text-foreground">{title}</span>
                         {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
-                        <ChevronDown className={`ml-auto size-3.5 text-muted-foreground/60 transition-transform ${open ? "" : "-rotate-90"}`} aria-hidden />
+                        <ChevronDown className={`ml-auto size-3.5 text-muted-foreground/70 transition-[transform,color] duration-200 group-hover/section:text-foreground ${open ? "" : "-rotate-90"}`} aria-hidden />
                     </button>
                 ) : (
                     <>
-                        <span className="font-mono text-[10px] font-medium tracking-[0.16em] text-muted-foreground/80 uppercase">{title}</span>
+                        <span className="font-mono text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">{title}</span>
                         {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
                     </>
                 )}
             </div>
-            {(!collapsible || open) ? <div className="space-y-2">{children}</div> : null}
+            {(!collapsible || open) ? <div className="space-y-2.5">{children}</div> : null}
         </section>
     );
 }
@@ -34,7 +34,7 @@ export function PromptQuickActions({ onPaste, onClear, onOpenPromptLibrary, onOp
     onOpenAssetPicker: () => void;
 }) {
     return (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
             <Button size="small" className="!text-[11px]" icon={<ClipboardPaste className="size-3.5" />} onClick={onPaste}>
                 读取剪贴板
             </Button>
@@ -68,7 +68,7 @@ export function WorkbenchPromptSection({ prompt, placeholder, onPromptChange, on
                 onChange={(event) => onPromptChange(event.target.value)}
                 rows={5}
                 placeholder={placeholder}
-                className="!rounded-lg !bg-background/60 !text-[13px] !leading-6"
+                className="!rounded-lg !border-border/70 !bg-background/60 !text-[13px] !leading-6"
             />
         </WorkbenchSection>
     );
@@ -99,7 +99,7 @@ export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canG
                             onChange={(event) => onPromptChange(event.target.value)}
                             placeholder={placeholder}
                             autoSize={{ minRows: 2, maxRows: 4 }}
-                            className="!rounded-lg !bg-background/60 !text-[13px] !leading-6"
+                            className="!rounded-lg !border-border/70 !bg-background/60 !text-[13px] !leading-6"
                             onPressEnter={(event) => {
                                 if (!event.shiftKey && canGenerate) onGenerate();
                             }}

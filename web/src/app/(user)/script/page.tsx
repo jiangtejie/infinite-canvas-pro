@@ -155,7 +155,7 @@ export default function ScriptListPage() {
                     {hydrated && projects.length > 0 ? (
                         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             {ordered.map((project, index) => (
-                                <article key={project.id} style={{ "--enter-index": Math.min(index, 12) } as CSSProperties} className="punk-card enter-up group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+                                <article key={project.id} style={{ "--enter-index": Math.min(index, 12) } as CSSProperties} className="film-card-hover punk-card enter-up group relative flex flex-col overflow-hidden rounded-xl border border-border/70 bg-card">
                                     <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-acid/50 via-border/60 to-transparent" />
                                     <Link href={`/script/${project.id}`} className="flex flex-1 flex-col p-5">
                                         <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export default function ScriptListPage() {
                                             {project.genre ? <span className="chip">{project.genre}</span> : null}
                                             <ArrowUpRight className="ml-auto size-3.5 text-muted-foreground/30 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-acid" />
                                         </div>
-                                        <h2 className="mt-4 line-clamp-1 text-base font-semibold text-foreground">{project.title}</h2>
+                                        <h2 className="mt-3.5 line-clamp-1 text-[17px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-acid/90">{project.title}</h2>
                                         <p className="mt-1.5 line-clamp-2 min-h-10 text-[11px] leading-5 text-muted-foreground">
                                             {project.logline || project.synopsis || "还没有写 logline，点开先把一句话故事写下来。"}
                                         </p>

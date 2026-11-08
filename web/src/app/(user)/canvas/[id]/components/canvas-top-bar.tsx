@@ -141,8 +141,8 @@ export function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}>
-                <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3">
+            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}>
+                <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3 max-sm:w-full">
                     <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                         {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                     </button>
@@ -200,13 +200,13 @@ export function CanvasTopBar({
                                     if (event.key === "Enter") { event.preventDefault(); onFinishTitleEditing(); }
                                     if (event.key === "Escape") { event.preventDefault(); onCancelTitleEditing(); }
                                 }}
-                                className="min-w-0 max-w-[280px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none"
+                                className="min-w-0 max-w-[280px] bg-transparent p-0 text-left text-lg font-semibold tracking-normal outline-none max-sm:text-sm"
                                 style={{ color: theme.node.text }}
                             />
                         ) : (
                             <button
                                 type="button"
-                                className="min-w-0 max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
+                                className="min-w-0 max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current max-sm:text-sm"
                                 onClick={onStartTitleEditing}
                                 onKeyDown={(event) => {
                                     if (event.key === "F2") { event.preventDefault(); onStartTitleEditing(); }
@@ -220,11 +220,11 @@ export function CanvasTopBar({
                     </div>
                 </div>
 
-                <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
+                <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 max-sm:ml-auto">
                     {saveStatus === "saving" ? (
-                        <span className="px-1.5 text-xs" style={{ color: theme.node.muted }}>保存中…</span>
+                        <span className="hidden px-1.5 text-xs sm:inline" style={{ color: theme.node.muted }}>保存中…</span>
                     ) : saveStatus === "saved" ? (
-                        <span className="px-1.5 text-xs" style={{ color: theme.node.muted }}>已保存</span>
+                        <span className="hidden px-1.5 text-xs sm:inline" style={{ color: theme.node.muted }}>已保存</span>
                     ) : saveStatus === "error" ? (
                         <button type="button" onClick={retrySave} title="点击重试保存" className="rounded-full px-2 py-1 text-xs transition-colors hover:bg-[var(--canvas-topbar-hover)]" style={{ color: "#f87171" }}>保存失败 · 重试</button>
                     ) : null}

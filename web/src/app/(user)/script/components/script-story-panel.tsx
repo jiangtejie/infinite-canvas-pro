@@ -23,14 +23,14 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
     return (
         <div className="grid gap-4 xl:grid-cols-3">
             <div className="grid gap-4 lg:col-span-2">
-                <section className="punk-panel rounded-xl p-4">
+                <section className="punk-panel rounded-xl p-4 transition-colors hover:border-border/80">
                     <div className="flex items-center justify-between gap-2">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">一句话故事 / LOGLINE</span>
                         <span className="font-mono text-[9px] text-muted-foreground/50">{project.logline.length} 字</span>
                     </div>
                     <textarea
-                        style={{ minHeight: 96 }}
-                        className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors focus:border-acid/50"
+                        style={{ minHeight: 72 }}
+                        className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors hover:border-border focus:border-acid/50 focus:ring-2 focus:ring-acid/10"
                         value={project.logline}
                         placeholder="例如：一个过气的拳击手为了给女儿治病，接下最后一场假拳，却在擂台上发现对手是女儿的父亲。"
                         onChange={(event) => onUpdate({ logline: event.target.value })}
@@ -40,8 +40,8 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                 <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">主题</span>
                     <textarea
-                        style={{ minHeight: 120 }}
-                        className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors focus:border-acid/50"
+                        style={{ minHeight: 88 }}
+                        className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors hover:border-border focus:border-acid/50 focus:ring-2 focus:ring-acid/10"
                         value={project.theme}
                         placeholder="这个故事真正想说的是什么？主角最后明白了什么？"
                         onChange={(event) => onUpdate({ theme: event.target.value })}
@@ -51,8 +51,8 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                 <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-acid/80 uppercase">故事梗概</span>
                     <textarea
-                        style={{ minHeight: 180 }}
-                        className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors focus:border-acid/50"
+                        style={{ minHeight: 140 }}
+                        className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors hover:border-border focus:border-acid/50 focus:ring-2 focus:ring-acid/10"
                         value={project.synopsis}
                         placeholder="用 300–800 字把故事从头到尾讲一遍，先不写对白。"
                         onChange={(event) => onUpdate({ synopsis: event.target.value })}

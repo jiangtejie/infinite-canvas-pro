@@ -23,7 +23,7 @@ export function FrameReferenceStrip({ firstFrame, lastFrame, compact = false, on
         );
     }
     return (
-        <div className={`grid grid-cols-2 gap-2 rounded-lg border border-dashed border-border p-2 ${compact ? "min-h-14" : "min-h-24"}`}>
+        <div className={`grid grid-cols-2 gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 p-2 ${compact ? "min-h-14" : "min-h-24"}`}>
             <FrameReferenceSlot label="首帧" reference={firstFrame} compact={compact} onUpload={() => onUploadFrame("first")} onRemove={() => onRemoveFrame("first")} />
             <FrameReferenceSlot label="尾帧" reference={lastFrame} compact={compact} onUpload={() => onUploadFrame("last")} onRemove={() => onRemoveFrame("last")} />
         </div>
@@ -32,7 +32,7 @@ export function FrameReferenceStrip({ firstFrame, lastFrame, compact = false, on
 
 function FrameReferenceRow({ label, slot, reference, onPasteFrame, onUploadFrame, onOpenAssetPicker, onRemoveFrame }: { label: string; slot: "first" | "last"; reference: ReferenceImage | null; onPasteFrame?: (slot: "first" | "last") => void; onUploadFrame: (slot: "first" | "last") => void; onOpenAssetPicker?: (target?: AssetPickerTarget) => void; onRemoveFrame: (slot: "first" | "last") => void }) {
     return (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-2">
+        <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-medium text-muted-foreground">{label}</span>
                 <div className="flex flex-wrap gap-1">
@@ -48,7 +48,7 @@ function FrameReferenceRow({ label, slot, reference, onPasteFrame, onUploadFrame
 
 function FrameReferenceSlot({ label, reference, compact, onUpload, onRemove }: { label: string; reference: ReferenceImage | null; compact: boolean; onUpload: () => void; onRemove: () => void }) {
     return (
-        <div className={`group relative flex min-w-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted text-xs text-muted-foreground ${compact ? "h-12" : "h-20"}`}>
+        <div className={`group relative flex min-w-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40 text-xs text-muted-foreground transition-[border-color,background-color] duration-200 ${reference ? "border-border" : "border-dashed border-border/70 hover:border-acid/40 hover:bg-muted/60"} ${compact ? "h-12" : "h-20"}`}>
             {reference ? (
                 <>
                     <img loading="lazy" decoding="async" src={reference.dataUrl} alt={reference.name} className="size-full object-cover" />
@@ -82,7 +82,7 @@ export function GenerationSettings({ config, model, updateConfig, openConfigDial
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
             <WorkbenchSection title="模型">
                 <ModelPicker config={config} value={model} channelId={config.videoChannelId} workflowRef={config.videoWorkflowRef} onWorkflowChange={(value) => updateConfig("videoWorkflowRef", value)} onChange={(value, channelId) => { updateConfig("videoModel", value); if (channelId) updateConfig("videoChannelId", channelId); }} capability="video" fullWidth onMissingConfig={() => openConfigDialog(false)} />
             </WorkbenchSection>

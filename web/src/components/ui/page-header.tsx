@@ -15,17 +15,17 @@ export function PageHeader({ eyebrow, title, description, meta, actions, classNa
     className?: string;
 }) {
     return (
-        <header className={cn("pb-7", className)}>
+        <header className={cn("pb-8", className)}>
             <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
                     {eyebrow ? <p className="eyebrow inline-flex items-center gap-2"><span className="punk-signal" aria-hidden />{eyebrow}</p> : null}
-                    <h1 className="page-title mt-4 text-foreground">{title}</h1>
-                    {description ? <p className="page-lede mt-3">{description}</p> : null}
-                    {meta ? <div className="mt-4 flex flex-wrap items-center gap-2">{meta}</div> : null}
+                    <h1 className="page-title mt-3.5 text-foreground">{title}</h1>
+                    {description ? <p className="page-lede mt-2.5">{description}</p> : null}
+                    {meta ? <div className="mt-3.5 flex flex-wrap items-center gap-2">{meta}</div> : null}
                 </div>
                 {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
             </div>
-            <div aria-hidden className="punk-rule mt-6" />
+            <div aria-hidden className="punk-rule mt-7" />
         </header>
     );
 }

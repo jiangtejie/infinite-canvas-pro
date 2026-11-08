@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Image, Segmented } from "antd";
-import { LoaderCircle, Trash2, Upload } from "lucide-react";
+import { ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
 
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
@@ -38,7 +38,15 @@ export function ReferenceStrip({ references, compact = false, className = "", on
                     <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
                 </div>
             ))}
-            {!references.length && !uploadingCount ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">暂无参考图</div> : null}
+            {!references.length && !uploadingCount ? (
+                <div className={`flex min-w-full flex-col items-center justify-center gap-1.5 text-center ${compact ? "py-1" : "py-3"}`}>
+                    <span className="flex size-8 items-center justify-center rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground">
+                        <ImagePlus className="size-4" aria-hidden />
+                    </span>
+                    <span className="text-xs text-muted-foreground">暂无参考图</span>
+                    {compact ? null : <span className="text-[10px] text-muted-foreground/70">可粘贴、上传或从素材库选择</span>}
+                </div>
+            ) : null}
         </ReferenceStripShell>
     );
 }
@@ -57,7 +65,7 @@ export function GenerationSettings({ config, model, updateConfig, openConfigDial
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-5">
             <WorkbenchSection title="模型">
                 <ModelPicker config={config} value={model} capability="image" channelId={config.imageChannelId} workflowRef={config.imageWorkflowRef} onWorkflowChange={(value) => updateConfig("imageWorkflowRef", value)} onChange={(value, channelId) => { updateConfig("imageModel", value); if (channelId) updateConfig("imageChannelId", channelId); }} fullWidth onMissingConfig={() => openConfigDialog(false)} />
                 <div className="flex items-center justify-between gap-3 pt-1">

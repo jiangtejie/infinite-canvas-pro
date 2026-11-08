@@ -88,7 +88,7 @@ export default function PromptsPage() {
                             />
                             <Button type="primary" size="small" onClick={searchByTitleInput}>搜索</Button>
                         </div>
-                        <div className="grid gap-2.5 rounded-lg border border-border/70 bg-card/40 p-4">
+                        <div className="filter-tag-sheet grid gap-2 rounded-xl border border-border/70 bg-card/40 p-3.5 sm:gap-2.5 sm:p-4">
                             <FilterTagGroup label="分类" options={promptCategoryOptions} isSelected={(value) => selectedCategory === value} onSelect={setSelectedCategory} />
                             <FilterTagGroup label="标签" options={promptTags} isSelected={(value) => value === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(value)} onSelect={toggleTag} />
                         </div>

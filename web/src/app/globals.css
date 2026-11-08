@@ -201,6 +201,12 @@
         background-repeat: repeat, repeat, repeat, no-repeat, no-repeat, no-repeat;
         background-attachment: scroll, scroll, scroll, fixed, fixed, fixed;
     }
+    /* 移动端关闭固定背景，避免滚动时整屏重绘（iOS 上尤其明显） */
+    @media (max-width: 640px) {
+        body {
+            background-attachment: scroll, scroll, scroll, scroll, scroll, scroll;
+        }
+    }
     ::selection {
         background: var(--acid);
         color: oklch(0.15 0.02 118);
@@ -262,6 +268,13 @@
     @media (min-width: 640px) {
         .page-shell {
             padding-inline: 32px;
+        }
+    }
+
+    @media (min-width: 1536px) {
+        .page-shell {
+            max-width: 1360px;
+            padding-inline: 40px;
         }
     }
 
@@ -331,9 +344,15 @@
     }
 
     .punk-card:hover {
-        transform: translate(-2px, -2px);
-        border-color: color-mix(in oklch, var(--acid) 46%, var(--border));
-        box-shadow: 4px 4px 0 -1px color-mix(in oklch, var(--acid) 20%, transparent);
+        transform: translate(-1px, -1px);
+        border-color: color-mix(in oklch, var(--acid) 42%, var(--border));
+        box-shadow: 3px 3px 0 -1px color-mix(in oklch, var(--acid) 18%, transparent);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .punk-card:hover {
+            transform: none;
+        }
     }
 
     /* 四角准星：悬停出现的朋克取景框 */
@@ -544,7 +563,7 @@
         opacity: 0.78;
     }
 
-    /* WebGL 朋克光场：只做氛围层，内容始终压在它上面 */
+    /* CSS 朋克光场：只做氛围层，内容始终压在它上面（纯静态，不再使用 WebGL） */
     .punk-aura {
         position: absolute;
         inset: 0;

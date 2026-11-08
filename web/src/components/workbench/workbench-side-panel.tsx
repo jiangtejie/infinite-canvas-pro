@@ -18,13 +18,13 @@ export function WorkbenchSidePanel({ title, currentLayout, onLayoutChange, canGe
     children: ReactNode;
 }) {
     return (
-        <div className="punk-panel flex min-h-[420px] flex-col overflow-hidden rounded-xl lg:min-h-0">
-            <div className="relative shrink-0 overflow-hidden border-b border-border/70 px-4 py-3">
+        <div className="punk-panel flex min-h-[460px] flex-col overflow-hidden rounded-xl lg:min-h-0">
+            <div className="relative shrink-0 overflow-hidden border-b border-border/70 px-4 py-3.5">
                 <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden"><PunkAura className="punk-aura opacity-60" /></div>
                 <div className="relative"><WorkbenchHeader title={title} currentLayout={currentLayout} onLayoutChange={onLayoutChange} /></div>
             </div>
-            <div className="thin-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">{children}</div>
-            <div className="shrink-0 border-t border-border/70 px-4 py-3">
+            <div className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">{children}</div>
+            <div className="shrink-0 border-t border-border/70 px-4 py-3.5">
                 <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                     {generateLabel}
                 </Button>

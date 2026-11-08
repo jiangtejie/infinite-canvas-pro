@@ -162,7 +162,7 @@ export default function AccountPage() {
                                 </div>
                             </div>
                         </div>
-                        <div className="punk-panel flex min-w-[220px] flex-col gap-2 rounded-xl px-5 py-4">
+                        <div className="punk-panel flex w-full flex-col gap-2 rounded-xl px-5 py-4 sm:w-auto sm:min-w-[220px]">
                             <div className={LABEL}>
                                 <Wallet className="size-3.5" />
                                 算力点余额
@@ -173,7 +173,7 @@ export default function AccountPage() {
                     <div aria-hidden className="punk-rule mt-8" />
                 </section>
 
-                <div role="tablist" aria-label="用户中心分区" className="hide-scrollbar -mt-1 flex gap-1 overflow-x-auto border-b border-border/70">
+                <div role="tablist" aria-label="用户中心分区" className="hide-scrollbar -mt-1 flex gap-1 overflow-x-auto scroll-px-3 border-b border-border/70 pr-8 [mask-image:linear-gradient(to_right,black_calc(100%_-_28px),transparent)] sm:pr-0 sm:[mask-image:none]">
                     {TABS.map((item) => (
                         <button
                             key={item}
@@ -181,7 +181,7 @@ export default function AccountPage() {
                             role="tab"
                             aria-selected={tab === item}
                             className={cn(
-                                "relative shrink-0 px-3.5 pb-3 pt-2 text-[13px] transition-colors focus-visible:outline-none",
+                                "relative inline-flex min-h-10 shrink-0 items-center px-3 pb-2.5 pt-1.5 text-[13px] transition-colors focus-visible:outline-none sm:px-3.5 sm:pb-3 sm:pt-2",
                                 tab === item ? "font-medium text-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:bg-acid" : "text-muted-foreground hover:text-foreground",
                             )}
                             onClick={() => setTab(item)}
@@ -194,22 +194,22 @@ export default function AccountPage() {
                 <div className="mt-6 pb-10">
                     {tab === "概览" ? (
                         <div className="grid gap-4 sm:grid-cols-3">
-                            <div className={cn(CARD, "flex items-center gap-4 p-5")}>
-                                <span className="grid size-10 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70"><UserRound className="size-4.5" /></span>
+                            <div className={cn(CARD, "flex min-h-[92px] items-center gap-4 p-5 transition-colors hover:border-acid/40")}>
+                                <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-border bg-background text-foreground/70"><UserRound className="size-4.5" /></span>
                                 <div className="min-w-0">
                                     <div className={LABEL}>账户</div>
                                     <div className="mt-1 truncate text-lg font-semibold">{displayName}</div>
                                 </div>
                             </div>
-                            <div className={cn(CARD, "flex items-center gap-4 p-5")}>
-                                <span className="grid size-10 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70"><CreditCard className="size-4.5" /></span>
+                            <div className={cn(CARD, "flex min-h-[92px] items-center gap-4 p-5 transition-colors hover:border-acid/40")}>
+                                <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-border bg-background text-foreground/70"><CreditCard className="size-4.5" /></span>
                                 <div>
                                     <div className={LABEL}>算力点余额</div>
                                     <div className="mt-1 text-2xl font-semibold tabular-nums">{balance}</div>
                                 </div>
                             </div>
-                            <div className={cn(CARD, "flex items-center gap-4 p-5")}>
-                                <span className="grid size-10 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70"><FileText className="size-4.5" /></span>
+                            <div className={cn(CARD, "flex min-h-[92px] items-center gap-4 p-5 transition-colors hover:border-acid/40")}>
+                                <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-border bg-background text-foreground/70"><FileText className="size-4.5" /></span>
                                 <div>
                                     <div className={LABEL}>充值记录</div>
                                     <div className="mt-1 text-2xl font-semibold tabular-nums">{orders.length} <span className="text-sm font-normal text-foreground/55">笔订单</span></div>
@@ -269,7 +269,7 @@ export default function AccountPage() {
                     ) : null}
 
                     {tab === "充值订单" ? (
-                        <div className={cn(CARD, "overflow-hidden p-2")}>
+                        <div className={cn(CARD, "thin-scrollbar overflow-x-auto p-2 [&_.ant-table]:min-w-[760px] [&_.ant-table-cell]:whitespace-nowrap")}>
                             <Table
                                 rowKey="id"
                                 size="middle"
@@ -289,7 +289,7 @@ export default function AccountPage() {
                     ) : null}
 
                     {tab === "积分流水" ? (
-                        <div className={cn(CARD, "overflow-hidden p-2")}>
+                        <div className={cn(CARD, "thin-scrollbar overflow-x-auto p-2 [&_.ant-table]:min-w-[720px] [&_.ant-table-cell]:whitespace-nowrap")}>
                             <Table
                                 rowKey="id"
                                 size="middle"

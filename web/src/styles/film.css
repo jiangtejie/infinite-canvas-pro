@@ -72,6 +72,32 @@
         pointer-events: none;
     }
 
+    /* 卡片悬停：只做位移/描边/阴影，避免网格抖动；尊重减少动效 */
+    .film-card-hover {
+        transition: translate 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .film-card-hover:hover {
+        translate: 0 -2px;
+        border-color: color-mix(in oklch, var(--acid) 40%, var(--border));
+        box-shadow: 0 12px 32px -20px rgba(0, 0, 0, 0.5);
+    }
+
+    .film-card-hover:focus-visible {
+        outline: none;
+        border-color: color-mix(in oklch, var(--acid) 55%, var(--border));
+        box-shadow: 0 0 0 2px color-mix(in oklch, var(--acid) 18%, transparent);
+    }
+
+    /* 影视项目封面占位：细网格 + 酸性光晕，避免大片纯色空块 */
+    .film-cover-grid {
+        background-image:
+            linear-gradient(to right, color-mix(in oklch, var(--border) 32%, transparent) 1px, transparent 1px),
+            linear-gradient(to bottom, color-mix(in oklch, var(--border) 32%, transparent) 1px, transparent 1px),
+            radial-gradient(ellipse at 20% 0%, color-mix(in oklch, var(--acid) 10%, transparent), transparent 62%);
+        background-size: 24px 24px, 24px 24px, 100% 100%;
+    }
+
     /* 剧本工作区：桌面端编辑器撑满剩余高度，保持写作专注 */
     @media (min-width: 1024px) {
         .script-editor-shell {
@@ -86,6 +112,12 @@
         .film-shimmer::after,
         .film-scan::after {
             animation: none !important;
+        }
+
+        .film-card-hover,
+        .film-card-hover:hover {
+            transition: none !important;
+            translate: none !important;
         }
     }
 }

@@ -52,7 +52,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
 
     return (
-        <div data-canvas-no-zoom className="absolute bottom-[calc(6rem+env(safe-area-inset-bottom))] left-4 z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:left-5" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <div data-canvas-no-zoom className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom))] left-4 z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:left-5" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button

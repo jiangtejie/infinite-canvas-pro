@@ -91,7 +91,7 @@ export default function FilmProjectPage() {
                     </Link>
                     <div className="min-w-0">
                         <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">FILM / PROJECT</p>
-                        <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{project.title}</h1>
+                        <h1 className="truncate text-[15px] font-semibold tracking-tight text-foreground">{project.title}</h1>
                     </div>
                     <nav className="ml-3 hidden h-16 items-center gap-1 sm:flex" aria-label="影视阶段">
                         {STAGES.map((item, index) => (

@@ -85,39 +85,43 @@ export function HistoryLogCard({
     }, [categoryOpen]);
 
     return (
-        <div className={`group flex h-full flex-col overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] hover:shadow-sm ${active ? "border-foreground" : "border-border hover:border-border/70"}`}>
+        <div className={`group flex h-full flex-col overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] duration-200 hover:shadow-sm ${active ? "border-acid/60 shadow-sm" : "border-border/70 hover:border-acid/40"}`}>
             <div className="relative aspect-[4/3] shrink-0 bg-muted">
                 <div className={`absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 ${selected ? "sm:opacity-100" : ""}`}>
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />
                     {selected ? <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
                 </div>
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
-                    {firstImage && !firstImage.storageKey?.startsWith("server:") ? <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag> : null}
+                    {firstImage && !firstImage.storageKey?.startsWith("server:") ? <Tag className="m-0 !text-[10px]" color="gold">临时URL</Tag> : null}
                     {log.status === "生成中" || log.status === "停止中" ? (
-                        <Tag className="m-0 text-[10px]" color="processing">
+                        <Tag className="m-0 !text-[10px]" color="processing">
                             生成中
                         </Tag>
                     ) : log.status === "已停止" ? (
-                        <Tag className="m-0 text-[10px]">已停止</Tag>
+                        <Tag className="m-0 !text-[10px]">已停止</Tag>
                     ) : log.failCount ? (
-                        <Tag className="m-0 text-[10px]" color="red">
+                        <Tag className="m-0 !text-[10px]" color="red">
                             失败 {log.failCount}
                         </Tag>
                     ) : log.imageCount > 1 ? (
-                        <Tag className="m-0 text-[10px]">{log.imageCount} 张</Tag>
+                        <Tag className="m-0 !text-[10px]">{log.imageCount} 张</Tag>
                     ) : null}
                 </div>
                 {firstImage ? (
                     <HistoryPreviewImage image={firstImage} preview alt={`历史结果 ${index + 1}`} className="aspect-[4/3] object-cover" />
                 ) : log.status === "已停止" || log.status === "停止中" ? (
-                    <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center text-sm text-muted-foreground">
-                        <AlertCircle className="size-7" />
-                        <span>{log.status === "停止中" ? "正在停止" : "已停止生成"}</span>
+                    <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center">
+                        <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+                            <AlertCircle className="size-4" aria-hidden />
+                        </span>
+                        <span className="text-[13px] text-muted-foreground">{log.status === "停止中" ? "正在停止" : "已停止生成"}</span>
                     </div>
                 ) : (
-                    <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center text-sm text-red-500">
-                        <AlertCircle className="size-7" />
-                        <span>{log.errors[0] || "没有可显示的图片"}</span>
+                    <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center">
+                        <span className="flex size-9 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
+                            <AlertCircle className="size-4" aria-hidden />
+                        </span>
+                        <span className="text-[13px] text-red-500">{log.errors[0] || "没有可显示的图片"}</span>
                     </div>
                 )}
                 {displayImages.length > 1 ? (
@@ -129,16 +133,16 @@ export function HistoryLogCard({
                 ) : null}
                 <ReferenceThumbnailOverlay references={log.references} className="bottom-1.5 right-1.5" />
             </div>
-            <div className="flex-1 space-y-2 border-t border-border p-3 text-xs">
+            <div className="flex-1 space-y-2 border-t border-border/70 p-3 text-xs">
                 <ImagePromptBlock prompt={log.prompt} onCopyPrompt={onCopyPrompt} />
                 {logCategories.length ? (
                     <div className="flex flex-wrap gap-1">
                         {logCategories.slice(0, 3).map((category) => (
-                            <Tag key={category.id} className="m-0 text-[10px]" color="purple">
+                            <Tag key={category.id} className="m-0 !text-[10px]" color="purple">
                                 {category.name}
                             </Tag>
                         ))}
-                        {logCategories.length > 3 ? <Tag className="m-0 text-[10px]">+{logCategories.length - 3}</Tag> : null}
+                        {logCategories.length > 3 ? <Tag className="m-0 !text-[10px]">+{logCategories.length - 3}</Tag> : null}
                     </div>
                 ) : null}
                 {log.errors[0] ? <TaskErrorLine error={log.errors[0]} onDetail={() => setDetailOpen(true)} /> : null}
@@ -147,7 +151,7 @@ export function HistoryLogCard({
                     items={[formatTaskTime(log.createdAt), log.model, log.workflowName ? `工作流 ${log.workflowName}` : "", log.config.size || "auto", formatDuration(log.durationMs)]}
                 />
             </div>
-            <div className="flex items-center justify-between gap-1 border-t border-border px-2 py-1.5">
+            <div className="flex items-center justify-between gap-1.5 border-t border-border/70 px-3 py-2.5">
                 <div ref={categoryMenuRef} className="relative flex items-center gap-1">
                     <Button size="small" onClick={() => closeThen(onPreview)}>
                         载入

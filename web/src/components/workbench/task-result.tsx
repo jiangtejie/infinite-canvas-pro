@@ -26,8 +26,8 @@ export function ReferenceThumbnailOverlay({ references, className = "" }: { refe
 export function TaskPromptBlock({ prompt, onCopyPrompt }: { prompt: string; onCopyPrompt: (text: string) => void | Promise<void> }) {
     const [expanded, setExpanded] = useState(false);
     return (
-        <div className="rounded-md bg-muted p-2">
-            <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-foreground/80`}>{prompt}</div>
+        <div className="rounded-lg border border-border/50 bg-muted/60 p-2.5">
+            <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-[12px] leading-5 text-foreground/80`}>{prompt}</div>
             <div className="mt-2 flex justify-end gap-1">
                 <Button size="small" type="text" icon={<Copy className="size-3.5" />} onClick={() => void onCopyPrompt(prompt)}>
                     复制
@@ -47,7 +47,7 @@ export function TaskResultInfo({ prompt, tags, error, onCopyPrompt }: {
     onCopyPrompt: (text: string) => void | Promise<void>;
 }) {
     return (
-        <div className="space-y-2 border-t border-border px-3 py-2.5 text-xs text-muted-foreground">
+        <div className="space-y-2.5 border-t border-border/70 px-3 py-3 text-xs text-muted-foreground">
             <TaskPromptBlock prompt={prompt} onCopyPrompt={onCopyPrompt} />
             {tags ? <div className="flex flex-wrap gap-1.5">{tags}</div> : null}
             {error ? <TaskErrorLine error={error} /> : null}
@@ -57,7 +57,7 @@ export function TaskResultInfo({ prompt, tags, error, onCopyPrompt }: {
 
 export function TaskErrorLine({ error, onDetail }: { error: string; onDetail?: () => void }) {
     return (
-        <div className="flex items-start justify-between gap-2 rounded-md bg-red-100 px-2 py-1.5 text-red-600 dark:bg-red-950/40 dark:text-red-300">
+        <div className="flex items-start justify-between gap-2 rounded-lg border border-red-200/70 bg-red-50 px-2.5 py-2 text-red-600 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300">
             <span className="line-clamp-2 min-w-0">{error}</span>
             {onDetail ? (
                 <Button size="small" type="text" className="!h-auto !p-0 text-xs" onClick={onDetail}>
@@ -71,7 +71,7 @@ export function TaskErrorLine({ error, onDetail }: { error: string; onDetail?: (
 export function FailureDetailModal({ open, detail, onClose }: { open: boolean; detail: string; onClose: () => void }) {
     return (
         <Modal title="失败详情" open={open} width={760} onCancel={onClose} footer={null} destroyOnHidden>
-            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs text-foreground">{detail || "没有详情"}</pre>
+            <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/60 p-3 text-xs text-foreground">{detail || "没有详情"}</pre>
         </Modal>
     );
 }
@@ -87,8 +87,8 @@ export function FailedResultCard({ mediaClassName, references, error, detail, in
 }) {
     const [detailOpen, setDetailOpen] = useState(false);
     return (
-        <div role="alert" className="overflow-hidden rounded-lg border border-red-200 bg-red-50 dark:border-red-950 dark:bg-red-950/20">
-            <div className={`relative flex flex-col items-center justify-center gap-3 p-5 text-center ${mediaClassName}`}>
+        <div role="alert" className="overflow-hidden rounded-lg border border-red-200/70 bg-red-50 dark:border-red-950 dark:bg-red-950/20">
+            <div className={`relative flex flex-col items-center justify-center gap-3 p-6 text-center ${mediaClassName}`}>
                 <ReferenceThumbnailOverlay references={references} className="left-1.5 top-1.5" />
                 <AlertCircle className="size-7 text-red-500" aria-hidden />
                 <div className="text-sm font-medium text-red-600 dark:text-red-300">生成失败</div>
@@ -97,7 +97,7 @@ export function FailedResultCard({ mediaClassName, references, error, detail, in
                 </Typography.Paragraph>
             </div>
             {info}
-            <div className="flex items-center justify-between gap-2 border-t border-red-200 p-3 dark:border-red-950">
+            <div className="flex items-center justify-between gap-2 border-t border-red-200/70 p-3.5 dark:border-red-950">
                 <div className="flex gap-2">{extraActions}</div>
                 <div className="flex gap-2">
                     <Button size="small" onClick={() => setDetailOpen(true)}>
@@ -128,7 +128,7 @@ export function MediaResultCard({ media, mediaClassName, mediaBackgroundClassNam
     onCopyPrompt: (text: string) => void | Promise<void>;
 }) {
     return (
-        <div className="overflow-hidden rounded-xl border border-border bg-background transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-border/70 bg-background transition-[border-color,box-shadow] duration-200 hover:border-acid/40 hover:shadow-sm">
             <div className={`relative ${mediaClassName} ${mediaBackgroundClassName}`}>
                 {overlay}
                 <ReferenceThumbnailOverlay references={references} className="left-1.5 top-1.5" />
@@ -148,7 +148,7 @@ export function PendingMediaCard({ mediaClassName, prompt, tags, onCopyPrompt, c
     children: ReactNode;
 }) {
     return (
-        <div className="overflow-hidden rounded-xl border border-dashed border-border bg-muted/50">
+        <div className="overflow-hidden rounded-xl border border-dashed border-border/70 bg-muted/40">
             <div className={`relative ${mediaClassName}`}>{children}</div>
             <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} />
         </div>
@@ -157,9 +157,9 @@ export function PendingMediaCard({ mediaClassName, prompt, tags, onCopyPrompt, c
 
 export function ResultMediaMeta({ meta, actions }: { meta: ReactNode; actions?: ReactNode }) {
     return (
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border px-2.5 py-2">
-            <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-[10px] text-muted-foreground">{meta}</div>
-            {actions ? <div className="flex shrink-0 gap-1">{actions}</div> : null}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border/70 px-3 py-2.5">
+            <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-[10px] text-muted-foreground/90">{meta}</div>
+            {actions ? <div className="flex shrink-0 gap-1.5">{actions}</div> : null}
         </div>
     );
 }

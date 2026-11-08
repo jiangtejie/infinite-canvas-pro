@@ -151,7 +151,7 @@ export default function ScriptProjectPage() {
                     <div className="min-w-0">
                         <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">SCRIPT / PROJECT</p>
                         <div className="flex items-center gap-1">
-                            <h1 className="max-w-48 truncate text-sm font-semibold tracking-tight text-foreground">{project.title}</h1>
+                            <h1 className="max-w-48 truncate text-[15px] font-semibold tracking-tight text-foreground">{project.title}</h1>
                             <button type="button" aria-label="重命名剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-foreground/5 hover:text-foreground" onClick={() => { setTitleDraft(project.title); setRenameOpen(true); }}>
                                 <PencilLine className="size-3" />
                             </button>

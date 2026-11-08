@@ -96,7 +96,7 @@ export function ResultsPanel({
                 />
             }
             empty={
-                <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-border lg:min-h-[520px]">
+                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 lg:min-h-[520px]">
                     <EmptyState
                 icon={<VideoIcon className="size-6" />}
                 title="还没有生成视频"
@@ -115,7 +115,7 @@ export function ResultsPanel({
             }
         >
             {totalCount ? (
-                <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                     {visibleResults.map((result, index) => (
                         <div key={result.id} className="enter-up" style={{ "--enter-index": Math.min(index, 8) } as CSSProperties}>
                             {result.status === "success" && result.video ? (

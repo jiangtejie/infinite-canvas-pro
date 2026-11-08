@@ -141,7 +141,7 @@ export function ResultsPanel({
                             返回分类
                         </Button>
                     ) : null}
-                    <div className="flex shrink-0 rounded-lg border border-border bg-muted p-1">
+                    <div className="flex shrink-0 rounded-lg border border-border/70 bg-muted/50 p-1">
                         <Button
                             size="small"
                             type={resultViewMode === "all" ? "primary" : "text"}
@@ -170,7 +170,7 @@ export function ResultsPanel({
                 </>
             }
             empty={
-                <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-border lg:min-h-[520px]">
+                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 lg:min-h-[520px]">
                     <EmptyState
                 icon={<ImagePlus className="size-6" />}
                 title="还没有生成图片"

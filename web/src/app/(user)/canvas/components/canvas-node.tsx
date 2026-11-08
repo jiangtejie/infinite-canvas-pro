@@ -381,7 +381,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             ) : null}
 
             <div
-                className={`relative h-full w-full overflow-visible border ${isGroup ? "rounded-xl" : "rounded-3xl border-2"}`}
+                className={`relative h-full w-full overflow-visible border ${isGroup ? "rounded-xl" : "rounded-2xl border-2"}`}
                 style={{
                     background: isGroup ? theme.node.panel : hasImageContent || hasVideoContent ? "transparent" : theme.node.fill,
                     borderColor: isGroup ? isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : theme.node.stroke,
@@ -724,9 +724,9 @@ function EmptyImageContent({ node, theme, isBatchRoot, batchCount, batchExpanded
     const content = (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
             <div className="flex size-14 items-center justify-center rounded-2xl" style={{ background: theme.toolbar.activeBg }}>
-                <ImageIcon className="size-6 opacity-30" />
+                <ImageIcon className="size-6 opacity-45" />
             </div>
-            <span className="text-[10px] tracking-[0.18em] opacity-50">{node.type === CanvasNodeType.Panorama ? "空全景图节点" : "空图片节点"}</span>
+            <span className="text-[10px] tracking-[0.18em] opacity-65">{node.type === CanvasNodeType.Panorama ? "空全景图节点" : "空图片节点"}</span>
         </div>
     );
     if (isBatchRoot)

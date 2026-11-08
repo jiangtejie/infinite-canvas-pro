@@ -128,12 +128,12 @@ export default function AssetLibraryPage() {
                                 <span className="chip">{categories.length} 个分类</span>
                             </>
                         }
-                        actions={<Button href="/assets">返回我的素材</Button>}
+                        actions={<Button className="max-sm:!h-10" href="/assets">返回我的素材</Button>}
                     />
 
                     <section className="flex flex-col gap-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                            <div className="flex h-10 w-full items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-md">
+                            <div className="flex h-11 w-full items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-md">
                                 <Search className="size-4 shrink-0 text-muted-foreground" />
                                 <Input
                                     variant="borderless"
@@ -156,7 +156,7 @@ export default function AssetLibraryPage() {
                             />
                         </div>
                         {categories.length || availableTags.length ? (
-                            <div className="grid gap-2 rounded-lg border border-border/70 bg-card/40 p-4">
+                            <div className="filter-tag-sheet grid gap-2 rounded-xl border border-border/70 bg-card/40 p-3.5 sm:gap-2.5 sm:p-4">
                                 {categories.length ? (
                                     <FilterTagGroup
                                         label="分类"

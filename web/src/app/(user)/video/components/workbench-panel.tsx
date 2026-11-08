@@ -261,9 +261,9 @@ export function VideoWorkbenchPanel({
 
 function TaskCountControl({ value, onChange }: { value: number; onChange: (value: number) => void }) {
     return (
-        <label className="flex h-11 items-center gap-2 rounded-xl border border-border bg-background px-3 text-xs text-muted-foreground">
+        <label className="flex h-11 items-center gap-2 rounded-xl border border-border/70 bg-background px-3 text-xs text-muted-foreground">
             <span className="shrink-0">任务</span>
-            <input className="h-7 w-16 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none" type="number" min={1} max={6} value={value} onChange={(event) => onChange(normalizeVideoCount(event.target.value))} />
+            <input className="h-7 w-16 rounded-lg border border-border/70 bg-background px-2 text-sm text-foreground outline-none transition-colors focus:border-acid/50" type="number" min={1} max={6} value={value} onChange={(event) => onChange(normalizeVideoCount(event.target.value))} />
         </label>
     );
 }
@@ -285,8 +285,8 @@ function CharacterOrientationSetting({ value, onChange }: { value: string; onCha
 
 function optionPillClass(active: boolean) {
     return [
-        "h-9 rounded-full border bg-transparent px-2 text-sm font-medium transition hover:opacity-80",
-        active ? "border-foreground text-foreground" : "border-border text-muted-foreground",
+        "h-9 rounded-full border bg-transparent px-2 text-sm font-medium transition-colors duration-200",
+        active ? "border-acid/60 bg-acid/10 text-foreground" : "border-border/70 text-muted-foreground hover:border-border hover:text-foreground",
     ].join(" ");
 }
 
@@ -310,7 +310,7 @@ function QuickSwitch({ label, checked, onChange }: { label: string; checked: boo
     return (
         <label className="grid gap-1 text-xs text-muted-foreground">
             {label}
-            <span className="flex h-11 items-center justify-center rounded-xl border border-border bg-background px-3">
+            <span className="flex h-11 items-center justify-center rounded-xl border border-border/70 bg-background px-3">
                 <Switch size="small" checked={checked} onChange={onChange} />
             </span>
         </label>

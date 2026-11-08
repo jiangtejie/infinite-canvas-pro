@@ -1462,7 +1462,7 @@ export function CreativeWorkflowWorkspace({
                 )}
 
                 {embedded && runningTaskCount ? (
-                    <section className="rounded-xl border border-border bg-card/60 p-3">
+                    <section className="rounded-xl border border-border/70 bg-card/70 p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2 text-sm font-medium">
                                 <LoaderCircle className="size-4 animate-spin" />
@@ -1484,7 +1484,7 @@ export function CreativeWorkflowWorkspace({
                     </section>
                 ) : null}
 
-                <section className="flex flex-wrap items-center gap-2">
+                <section className="flex flex-wrap items-center gap-2.5 rounded-xl border border-border/70 bg-card/60 p-2.5 lg:p-3">
                     <Input.Search allowClear placeholder="搜索名称、分类、描述" className="w-full max-w-sm" value={query} onChange={(event) => setQuery(event.target.value)} />
                     <Select
                         className="w-36"
@@ -1503,7 +1503,7 @@ export function CreativeWorkflowWorkspace({
                         <WorkflowCard key={workflow.id} workflow={workflow} onRun={() => openRunner(workflow)} onEdit={() => setEditingWorkflow(workflow)} onCopy={() => void duplicateWorkflow(workflow)} onDelete={() => void deleteWorkflow(workflow)} />
                     ))}
                     {!filteredWorkflows.length ? (
-                        <div className="col-span-full rounded-xl border border-dashed border-border bg-card/40">
+                        <div className="col-span-full rounded-xl border border-dashed border-border/70 bg-card/30">
                             <EmptyState title="暂无工作流" description="新建一个模板，或让 AI 根据描述生成工作流。" />
                         </div>
                     ) : null}
@@ -1869,14 +1869,14 @@ function WorkflowCard({ workflow, onRun, onEdit, onCopy, onDelete }: { workflow:
                     </Button>
                 </div>
                 <p className="mt-3 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{workflow.description || "暂无描述"}</p>
-                <div className="mt-3 rounded-md border border-border/70 bg-background/50 p-3 font-mono text-[11px] leading-5 text-muted-foreground">
+                <div className="mt-3 rounded-lg border border-border/60 bg-muted/40 p-3 font-mono text-[11px] leading-5 text-muted-foreground">
                     <div className="line-clamp-4 whitespace-pre-wrap">{workflow.config.promptTemplate}</div>
                 </div>
                 <div className="mt-auto flex items-center justify-between gap-2 pt-4">
                     <span className="truncate font-mono text-[10px] tracking-[0.1em] text-muted-foreground uppercase">
                         {workflow.lastRunAt ? `RUN ${formatDate(workflow.lastRunAt)}` : `NEW ${formatDate(workflow.createdAt)}`}
                     </span>
-                    <div className="flex shrink-0 gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+                    <div className="flex shrink-0 gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                         <Button size="small" disabled={!editable} icon={<Edit3 className="size-3.5" />} onClick={onEdit} aria-label="编辑工作流" />
                         <Button size="small" icon={<FilePlus2 className="size-3.5" />} onClick={onCopy} aria-label="复制工作流" />
                         <Button size="small" disabled={!editable} danger icon={<Trash2 className="size-3.5" />} onClick={onDelete} aria-label="删除工作流" />
@@ -1897,8 +1897,8 @@ function WorkflowTaskCard({ task, now, stopping, onCopyPrompt, onDownload, onRet
     }[task.status];
 
     return (
-        <article className="overflow-hidden rounded-xl border border-border bg-card transition-[border-color,box-shadow] hover:border-border/70 hover:shadow-sm">
-            <div className="flex items-start justify-between gap-3 border-b border-border p-3">
+        <article className="overflow-hidden rounded-xl border border-border/70 bg-card transition-[border-color,box-shadow] duration-200 hover:border-acid/40 hover:shadow-sm">
+            <div className="flex items-start justify-between gap-3 border-b border-border/70 p-3.5">
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
                         <span className="shrink-0 text-muted-foreground">{statusView.icon}</span>
@@ -1928,8 +1928,8 @@ function WorkflowTaskCard({ task, now, stopping, onCopyPrompt, onDownload, onRet
                     </Button>
                 </div>
             </div>
-            <div className="space-y-3 p-3">
-                <div className="line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{task.prompt}</div>
+            <div className="space-y-3 p-3.5">
+                <div className="line-clamp-2 whitespace-pre-wrap text-[13px] leading-5 text-muted-foreground">{task.prompt}</div>
                 {task.workflowId ? null : (
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] leading-5 text-amber-600 dark:text-amber-300">
                         模板信息缺失，无法重试；仍可查看已生成结果或停止运行中的任务。
@@ -1960,9 +1960,9 @@ function WorkflowTaskCard({ task, now, stopping, onCopyPrompt, onDownload, onRet
                 {task.images.length ? (
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                         {task.images.map((image, index) => (
-                            <div key={image.id} className="overflow-hidden rounded-md border border-border bg-muted dark:bg-background">
+                            <div key={image.id} className="overflow-hidden rounded-lg border border-border/70 bg-muted dark:bg-background">
                                 <Image src={image.imageUrl} alt={`${task.workflowName} ${index + 1}`} className="aspect-[4/3] object-cover" />
-                                <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] text-muted-foreground">
+                                <div className="flex items-center justify-between gap-2 border-t border-border/60 px-2.5 py-1.5 text-[10px] text-muted-foreground">
                                     <span className="truncate">
                                         {image.width}x{image.height} · {formatBytes(image.bytes)}
                                     </span>
@@ -1972,7 +1972,7 @@ function WorkflowTaskCard({ task, now, stopping, onCopyPrompt, onDownload, onRet
                         ))}
                     </div>
                 ) : task.status === "running" ? (
-                    <div className="flex h-28 items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">生成中 {formatDuration(elapsedMs)}</div>
+                    <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 text-sm text-muted-foreground">生成中 {formatDuration(elapsedMs)}</div>
                 ) : null}
             </div>
             <FailureDetailModal open={detailOpen} detail={task.error || ""} onClose={() => setDetailOpen(false)} />
@@ -2010,7 +2010,7 @@ function SeriesPromptDraftCard({
         failed: { label: "失败", color: "error" },
     }[draft.status];
     return (
-        <article className="rounded-lg border border-border bg-muted/50 p-3 dark:bg-background">
+        <article className="rounded-lg border border-border/70 bg-muted/40 p-3 dark:bg-background">
             <div className="mb-2 flex items-center justify-between gap-2">
                 <Input value={draft.title} className="max-w-[280px]" placeholder={`第 ${index + 1} 张标题`} onChange={(event) => onChange({ title: event.target.value })} />
                 <div className="flex shrink-0 items-center gap-1">
@@ -2025,7 +2025,7 @@ function SeriesPromptDraftCard({
                 </div>
             </div>
             <Input.TextArea value={draft.prompt} autoSize={{ minRows: 3, maxRows: 7 }} onChange={(event) => onChange({ prompt: event.target.value, status: draft.status === "success" ? "draft" : draft.status })} />
-            {draft.error ? <div className="mt-2 rounded-md bg-red-100 px-2.5 py-1.5 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-300">{draft.error}</div> : null}
+            {draft.error ? <div className="mt-2 rounded-lg border border-red-200/70 bg-red-50 px-2.5 py-1.5 text-xs text-red-600 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300">{draft.error}</div> : null}
         </article>
     );
 }

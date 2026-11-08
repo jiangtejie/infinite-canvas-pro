@@ -29,3 +29,45 @@
     font-weight: 500;
     box-shadow: inset 0 -2px 0 -1px color-mix(in oklch, var(--acid) 55%, transparent);
 }
+
+/* 筛选区：限高 + 底部渐隐 + 细滚动条，避免半行标签被生硬裁切 */
+.filter-tag-sheet .hide-scrollbar {
+    max-height: 84px;
+    overflow-y: auto;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent);
+}
+
+.filter-tag-sheet .hide-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.filter-tag-sheet .hide-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklch, var(--foreground) 20%, transparent);
+}
+
+/* 移动端：分类/标签改为单行横向滚动，露出渐隐边缘提示可滑动 */
+@media (max-width: 639px) {
+    .filter-tag-sheet .hide-scrollbar {
+        max-height: none;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 4px 2px 0;
+        scrollbar-width: none;
+        mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    }
+
+    .filter-tag-sheet .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+/* 标签胶囊统一为全圆角，和素材类型筛选保持一致 */
+.prompt-filter-tag.ant-tag-checkable {
+    border-radius: 999px;
+    padding: 5px 11px;
+}
