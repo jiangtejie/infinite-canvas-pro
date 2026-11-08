@@ -1,6 +1,7 @@
 import { readFileAsDataUrl } from "@/lib/image-utils";
 import type { WorkflowCapability, WorkflowRef } from "@/lib/workflow-channel";
 import { useConfigStore } from "@/stores/use-config-store";
+import { useUserStore } from "@/stores/use-user-store";
 
 export type WorkflowRunInput = {
     ref: WorkflowRef;
@@ -87,8 +88,11 @@ async function workflowRequest<T>(path: string, token: string, signal?: AbortSig
     return result.data;
 }
 
-export function submitWorkflowTask(token: string, input: WorkflowRunInput, signal?: AbortSignal) {
-    return workflowRequest<WorkflowGenerationTask>("/api/v1/workflow-tasks", token, signal, input);
+export async function submitWorkflowTask(token: string, input: WorkflowRunInput, signal?: AbortSignal) {
+    const task = await workflowRequest<WorkflowGenerationTask>("/api/v1/workflow-tasks", token, signal, input);
+    // 工作流任务在服务端创建时扣点，提交成功后刷新余额，避免顶部展示滞后。
+    if (useUserStore.getState().token) void useUserStore.getState().hydrateUser();
+    return task;
 }
 
 export function getWorkflowTask(token: string, id: string, signal?: AbortSignal) {

@@ -8,6 +8,7 @@ import { ModelPicker } from "@/components/model-picker";
 import type { WorkbenchLayout } from "@/components/workbench-header";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
 import { klingModeOptions, klingRatioOptions, klingSecondsOptions, klingV3DefaultSeconds, klingV3SecondsRange } from "@/components/workbench/kling-parameter-options";
+import { WorkbenchCreditHint } from "@/components/workbench/credit-hint";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import { WorkbenchSidePanel } from "@/components/workbench/workbench-side-panel";
 import { normalizeVideoResolutionValue, videoResolutionOptions, videoSizeForResolution, videoSizeOptions } from "@/components/video-settings-panel";
@@ -159,6 +160,7 @@ export function VideoWorkbenchPanel({
                 onOpenAssetPicker={() => onOpenAssetPicker()}
                 onSwitchToSide={() => onLayoutChange("side")}
                 onGenerate={onGenerate}
+                hint={<WorkbenchCreditHint config={config} model={model} mode="video" seconds={config.videoSeconds} resolution={config.vquality} />}
             >
                         {klingBottom && klingBottomProvider !== "kie" ? (
                             <Input.TextArea
@@ -211,6 +213,7 @@ export function VideoWorkbenchPanel({
             canGenerate={canGenerate}
             onGenerate={onGenerate}
             generateLabel={pendingCount ? `生成中（${pendingCount}）` : "开始生成"}
+            generateHint={<WorkbenchCreditHint config={config} model={model} mode="video" seconds={config.videoSeconds} resolution={config.vquality} />}
         >
             <WorkbenchPromptSection prompt={prompt} placeholder="描述镜头运动、主体动作、场景氛围和画面风格" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={() => onOpenAssetPicker()} />
             {frameReferencesEnabled ? (

@@ -113,6 +113,7 @@ func CanvasImageTaskResponse(task model.CanvasImageTask) map[string]any {
 		"source_id":      task.SourceID,
 		"node_id":        task.NodeID,
 		"model":          task.Model,
+		"credits":        task.Credits,
 		"status":         task.Status,
 		"progress":       task.Progress,
 		"prompt":         task.Prompt,

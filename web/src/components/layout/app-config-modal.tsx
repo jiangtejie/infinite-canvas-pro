@@ -2,9 +2,11 @@
 
 import { App, Button, Form, Input, Modal, Radio, Segmented, Select, Switch } from "antd";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { ChannelModelSelectorModal } from "@/components/channel-model-selector-modal";
+import { CreditSymbol } from "@/constant/credits";
 import type { WorkflowChannelSettings } from "@/components/workflow/workflow-channel-pane";
 import { GrokTtsVoiceSelect } from "@/components/grok-tts-voice-select";
 import { MiniMaxTtsVoiceSelect } from "@/components/minimax-tts-voice-select";
@@ -85,6 +87,8 @@ export function AppConfigModal() {
     const canUseRemoteChannel = isLoggedIn && (user?.role === "admin" || modelChannel?.allowUserRemoteChannel === true);
     const allowCustomChannel = isLoggedIn && modelChannel?.allowCustomChannel === true;
     const effectiveMode = canUseRemoteChannel ? (allowCustomChannel ? config.channelMode : "remote") : "local";
+    const pathname = usePathname();
+    const loginHref = "/login?redirect=" + encodeURIComponent(pathname || "/");
     const localModelConfig: AiConfig = effectiveMode === "local" && config.channelMode !== "local" ? { ...config, channelMode: "local" } : config;
     const modelConfig = effectiveMode === "remote" ? effectiveConfig : localModelConfig;
     const canUseUserStorageProvider = allowUserStorageProvider;
@@ -463,6 +467,16 @@ export function AppConfigModal() {
                             <div className="mt-1 text-xs leading-5 text-muted-foreground">在「渠道与模型」填写 Base URL 与 API Key，点「拉取全部渠道」，再点右下角「完成」。保存后会自动继续刚才的请求。</div>
                         </div>
                     ) : null}
+                    {!isLoggedIn ? (
+                        <div className="mb-4 rounded-lg border border-border bg-muted/25 px-3 py-2.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full border border-border/70 bg-background/60 px-2 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground">游客模式</span>
+                                <span className="text-xs font-medium text-foreground">本地直连 · 不消耗算力点</span>
+                                <Button size="small" className="ml-auto" href={loginHref}>登录 / 注册</Button>
+                            </div>
+                            <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">配置与项目保存在本机浏览器；登录后可切换云端渠道（按算力点计费）、云同步项目与素材。</p>
+                        </div>
+                    ) : null}
                     <div className="sticky top-0 z-10 -mx-1 mb-4 flex flex-wrap gap-1 rounded-lg border border-border bg-background/95 p-1 backdrop-blur">
                         {CONFIG_SECTIONS.map((item) => (
                             <Button key={item.id} size="small" type="text" onClick={() => document.getElementById("config-section-" + item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
@@ -550,6 +564,11 @@ export function AppConfigModal() {
                         <div className="mb-5 rounded-lg border border-border p-3 text-sm text-muted-foreground">
                             <div className="font-medium text-foreground">云端渠道</div>
                             <div className="mt-1">由系统后台渠道转发请求，当前可用 {modelChannel?.availableModels.length || 0} 个模型。</div>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+                                <CreditSymbol className="text-acid" />
+                                <span>按后台模型单价 × 请求数量 / 视频秒数扣算力点；当前余额 {user?.credits?.toLocaleString() ?? 0}。</span>
+                                <a href="/account?tab=recharge" className="text-acid underline-offset-2 hover:underline">充值</a>
+                            </div>
                         </div>
                     )}
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

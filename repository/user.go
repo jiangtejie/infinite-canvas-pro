@@ -126,6 +126,41 @@ func RefundUserCredits(id string, credits float64, now string) (model.User, bool
 	return refundUserCredits(db, id, credits, now)
 }
 
+// RefundUserCreditsWithLog 在同一事务内退还算力点并写入退款流水，避免余额与流水不一致。
+func RefundUserCreditsWithLog(id string, credits float64, now string, log model.CreditLog) (model.User, bool, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, false, err
+	}
+	var user model.User
+	err = db.Transaction(func(tx *gorm.DB) error {
+		updated := tx.Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{
+			"credits":    gorm.Expr("ROUND(credits + CAST(? AS DECIMAL(20,2)), 2)", credits),
+			"updated_at": now,
+		})
+		if updated.Error != nil {
+			return updated.Error
+		}
+		if updated.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		current, ok, err := findUser(tx, "id = ?", id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return gorm.ErrRecordNotFound
+		}
+		user = current
+		log.Balance = user.Credits
+		return tx.Create(&log).Error
+	})
+	if err != nil {
+		return model.User{}, false, err
+	}
+	return user, true, nil
+}
+
 func refundUserCredits(db *gorm.DB, id string, credits float64, now string) (model.User, bool, error) {
 	if credits <= 0 {
 		return findUser(db, "id = ?", id)

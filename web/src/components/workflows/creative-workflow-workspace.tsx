@@ -383,6 +383,7 @@ export function CreativeWorkflowWorkspace({
     const confirm = useConfirm();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const effectiveConfig = useEffectiveConfig();
+    const user = useUserStore((state) => state.user);
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const token = useUserStore((state) => state.token);
@@ -1770,6 +1771,9 @@ export function CreativeWorkflowWorkspace({
                             <Button block type="primary" size="large" loading={seriesDraftLoading} icon={runningWorkflow.mode === "multi_image_series" ? <Layers3 className="size-4" /> : <Play className="size-4" />} onClick={() => void runWorkflow()}>
                                 {runningWorkflow.mode === "multi_image_series" ? "生成提示词" : "启动任务"}
                             </Button>
+                            <p className="mt-1.5 text-center text-[10px] leading-4 text-muted-foreground/70">
+                                计费：平台工作流按后台单价扣算力点{user ? ` · 当前余额 ${user.credits.toLocaleString()}` : ""}；个人渠道工作流不扣积分。
+                            </p>
                         </div>
                         <div className="space-y-3">
                             <div className="rounded-lg border border-border p-3">

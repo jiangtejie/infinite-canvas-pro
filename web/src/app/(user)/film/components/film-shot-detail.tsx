@@ -17,6 +17,8 @@ import { FILM_CAMERA_MOVEMENT_OPTIONS, FILM_SHOT_TYPE_OPTIONS } from "../utils/f
 import { FILM_CONTINUITY_FIELDS } from "../utils/film-continuity-sheet";
 import { FilmImageThumbnail } from "./film-asset-thumbnail";
 import { FilmShotVideoPanel } from "./film-shot-video-panel";
+import { WorkbenchCreditHint } from "@/components/workbench/credit-hint";
+import { useEffectiveConfig } from "@/stores/use-config-store";
 
 type FilmShotDetailProps = {
     shot: FilmShot;
@@ -53,6 +55,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
     const imageElapsed = useElapsedSeconds(Boolean(generating));
     const frameStyle = { aspectRatio: aspect ? filmAspectCssRatio(aspect) : "16 / 9" };
     const styleIssues = checkShotStyle(shot, directorStyle);
+    const filmConfig = useEffectiveConfig();
     const updatePerformance = (patch: Partial<NonNullable<FilmShot["performance"]>>) => {
         onChange({ performance: { objective: "", emotion: "", subtext: "", bodyLanguage: "", intensity: 3, ...shot.performance, ...patch } });
     };
@@ -207,6 +210,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                                 {shot.imageUrl ? "重新生成" : "生成分镜图"}
                             </Button>
                         </div>
+                        <div className="flex justify-end text-[10px] text-muted-foreground/70"><WorkbenchCreditHint config={filmConfig} model={filmConfig.imageModel} mode="image" count={1} /></div>
                         <div className="relative overflow-hidden rounded-md">
                             {generating && !imageSrc ? <div className="w-full animate-pulse rounded-md border border-border/60 bg-foreground/[0.04]" style={frameStyle} /> : null}
                             {imageSrc ? <Image src={imageSrc} alt={`分镜 ${shot.shotNo}`} className={cn("w-full rounded-md transition-opacity", generating && "opacity-50")} preview={{ mask: "预览" }} /> : null}

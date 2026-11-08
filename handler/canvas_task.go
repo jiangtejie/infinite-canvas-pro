@@ -51,6 +51,32 @@ func StopCanvasTask(w http.ResponseWriter, r *http.Request) {
 	OK(w, map[string]bool{"stopped": stopped})
 }
 
+// canvasTaskCredits 计算画布任务预计消耗的算力点；使用用户自己的渠道时为 0。
+func canvasTaskCredits(modelName string, userChannelID string, body []byte, contentType string) (float64, error) {
+	if strings.TrimSpace(userChannelID) != "" {
+		return 0, nil
+	}
+	cost, err := service.ModelCost(modelName)
+	if err != nil {
+		return 0, err
+	}
+	return cost * float64(readAIRequestCount(body, contentType, false)), nil
+}
+
+// checkCanvasTaskCredits 在创建画布任务前做一次余额预检，避免任务入队后因余额不足才失败。
+func checkCanvasTaskCredits(w http.ResponseWriter, user model.AuthUser, modelName string, userChannelID string, body []byte, contentType string) bool {
+	cost, err := canvasTaskCredits(modelName, userChannelID, body, contentType)
+	if err != nil {
+		Fail(w, "AI 接口请求失败")
+		return false
+	}
+	if cost > 0 && user.Credits < cost {
+		Fail(w, "算力点不足，请先充值")
+		return false
+	}
+	return true
+}
+
 func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 	user, ok := service.UserFromContext(r.Context())
 	if !ok {
@@ -79,6 +105,10 @@ func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
+	if !checkCanvasTaskCredits(w, user, modelName, resolvedUserChannelID, body, contentType) {
+		return
+	}
+	credits, _ := canvasTaskCredits(modelName, resolvedUserChannelID, body, contentType)
 	task, err := service.CreateCanvasImageTask(service.CanvasImageTaskCreateInput{
 		UserID:          user.ID,
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
@@ -92,6 +122,9 @@ func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 		ChannelName:     channel.Name,
 		Prompt:          prompt,
 		GenerationType:  strings.TrimPrefix(endpoint, "/images/"),
+		Credits:         credits,
+		BillingName:     modelName,
+		BillingPath:     endpoint,
 		Endpoint:        endpoint,
 		ContentType:     contentType,
 		RequestBody:     summarizeAIRequest(body, contentType),
@@ -207,6 +240,10 @@ func CreateCanvasAudioTask(w http.ResponseWriter, r *http.Request) {
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
+	if !checkCanvasTaskCredits(w, user, modelName, resolvedUserChannelID, body, contentType) {
+		return
+	}
+	credits, _ := canvasTaskCredits(modelName, resolvedUserChannelID, body, contentType)
 	task, err := service.CreateCanvasAudioTask(service.CanvasAudioTaskCreateInput{
 		UserID:          user.ID,
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
@@ -218,6 +255,9 @@ func CreateCanvasAudioTask(w http.ResponseWriter, r *http.Request) {
 		UserChannelID:   resolvedUserChannelID,
 		ChannelName:     channel.Name,
 		Prompt:          prompt,
+		Credits:         credits,
+		BillingName:     modelName,
+		BillingPath:     endpoint,
 		Endpoint:        endpoint,
 		ContentType:     contentType,
 		RequestBody:     summarizeAIRequest(body, contentType),

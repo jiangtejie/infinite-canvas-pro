@@ -7,6 +7,7 @@ import { ClipboardPaste, FolderPlus, Sparkles, Upload } from "lucide-react";
 import { imageSizeOptions } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { QuickNumber, QuickSelect } from "@/components/workbench-controls";
+import { WorkbenchCreditHint } from "@/components/workbench/credit-hint";
 import { WorkbenchSidePanel } from "@/components/workbench/workbench-side-panel";
 import { BottomPromptComposer, WorkbenchPromptSection, WorkbenchSection } from "@/components/workbench/prompt-composer";
 import type { WorkbenchLayout } from "@/components/workbench-header";
@@ -85,6 +86,7 @@ export function ImageWorkbenchPanel({
                 onOpenAssetPicker={onOpenAssetPicker}
                 onSwitchToSide={() => onLayoutChange("side")}
                 onGenerate={onGenerate}
+                hint={<WorkbenchCreditHint config={config} model={model} mode="image" count={config.count || 1} />}
             >
                 <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[1.3fr_1.1fr_0.9fr_0.9fr_0.9fr_0.85fr_0.8fr_0.8fr_auto_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
                     <label className="grid gap-1 text-xs text-muted-foreground">
@@ -142,6 +144,7 @@ export function ImageWorkbenchPanel({
             canGenerate={canGenerate}
             onGenerate={onGenerate}
             generateLabel={pendingCount ? `继续提交（${pendingCount} 个生成中）` : "开始生成"}
+            generateHint={<WorkbenchCreditHint config={config} model={model} mode="image" count={config.count || 1} />}
         >
             <WorkbenchPromptSection prompt={prompt} placeholder="描述画面主体、风格、构图、光线和用途" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} />
 

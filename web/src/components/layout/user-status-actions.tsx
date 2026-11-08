@@ -92,6 +92,12 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     <Keyboard className="size-4" />
                 </button>
             ) : null}
+            {!user && variant === "default" ? (
+                <span className="hidden items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground lg:inline-flex" title="游客模式：数据保存在本机浏览器，本地渠道不消耗算力点；登录后可云同步并使用云端渠道">
+                    <UserRound className="size-3" />
+                    游客 · 本地保存
+                </span>
+            ) : null}
             {!user ? (
                 <Link href="/login" className="px-1.5 text-sm font-medium text-muted-foreground underline-offset-4 transition hover:text-foreground hover:underline" style={iconStyle}>
                     登录
@@ -101,7 +107,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 <div ref={setContainerRef} className="relative">
                     <button
                         type="button"
-                        className="group flex h-8 shrink-0 items-center gap-1 rounded-full border border-transparent bg-transparent pl-1 pr-1.5 transition hover:border-border hover:bg-[var(--canvas-topbar-hover,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="admin-user-trigger group flex h-8 shrink-0 items-center gap-1 rounded-full border border-transparent bg-transparent pl-1 pr-1.5 transition hover:border-border hover:bg-[var(--canvas-topbar-hover,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         style={variant === "canvas" ? { borderColor: canvasTheme.toolbar.border } : undefined}
                         aria-label={`账户菜单：${userName}`}
                         aria-haspopup="menu"
@@ -122,7 +128,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                         <div
                             role="menu"
                             aria-label="账户菜单"
-                            className="glass-panel absolute right-0 top-[calc(100%+8px)] z-[80] w-56 rounded-2xl border p-1"
+                            className="glass-panel admin-user-menu absolute right-0 top-[calc(100%+8px)] z-[80] w-56 rounded-2xl border p-1"
                             style={{ ...panelStyle, backdropFilter: "blur(14px)" }}
                             onPointerDown={(event) => event.stopPropagation()}
                         >
@@ -163,7 +169,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                                 </button>
                             ) : null}
                             <div className="my-1 h-px" style={{ background: "var(--border)" }} />
-                            <button type="button" role="menuitem" className={`${MENU_ROW} text-red-500 hover:bg-red-500/10`} onClick={() => { setMenuOpen(false); logout(); }}>
+                            <button type="button" role="menuitem" className={`${MENU_ROW} admin-user-menu-danger text-red-500 hover:bg-red-500/10`} onClick={() => { setMenuOpen(false); logout(); }}>
                                 <LogOut className="size-4 shrink-0" />
                                 退出登录
                             </button>

@@ -8,13 +8,14 @@ import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-he
 import { PunkAura } from "@/components/ui/punk-aura";
 
 /** 侧边工作台面板的共用外壳：标题栏、滚动内容区与底部主操作。 */
-export function WorkbenchSidePanel({ title, currentLayout, onLayoutChange, canGenerate, onGenerate, generateLabel, children }: {
+export function WorkbenchSidePanel({ title, currentLayout, onLayoutChange, canGenerate, onGenerate, generateLabel, generateHint, children }: {
     title: string;
     currentLayout: WorkbenchLayout;
     onLayoutChange: (layout: WorkbenchLayout) => void;
     canGenerate: boolean;
     onGenerate: () => void;
     generateLabel: string;
+    generateHint?: ReactNode;
     children: ReactNode;
 }) {
     return (
@@ -28,6 +29,7 @@ export function WorkbenchSidePanel({ title, currentLayout, onLayoutChange, canGe
                 <Button type="primary" size="large" block icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
                     {generateLabel}
                 </Button>
+                {generateHint ? <div className="mt-1.5 flex justify-center text-[10px] text-muted-foreground/70">{generateHint}</div> : null}
             </div>
         </div>
     );

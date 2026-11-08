@@ -74,7 +74,7 @@ export function WorkbenchPromptSection({ prompt, placeholder, onPromptChange, on
     );
 }
 
-export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canGenerate, pendingCount, settingsOpen, onToggleSettings, onClearPrompt, onOpenPromptLibrary, onOpenAssetPicker, onSwitchToSide, onGenerate, children }: {
+export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canGenerate, pendingCount, settingsOpen, onToggleSettings, onClearPrompt, onOpenPromptLibrary, onOpenAssetPicker, onSwitchToSide, onGenerate, hint, children }: {
     prompt: string;
     placeholder: string;
     onPromptChange: (value: string) => void;
@@ -87,6 +87,7 @@ export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canG
     onOpenAssetPicker: () => void;
     onSwitchToSide: () => void;
     onGenerate: () => void;
+    hint?: ReactNode;
     children?: ReactNode;
 }) {
     return (
@@ -122,6 +123,7 @@ export function BottomPromptComposer({ prompt, placeholder, onPromptChange, canG
                         </div>
                     </div>
                     {children}
+                    {hint ? <div className="flex justify-end text-[10px] text-muted-foreground/70">{hint}</div> : null}
                 </div>
             </div>
         </div>

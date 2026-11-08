@@ -10,6 +10,7 @@ import { uploadImage } from "@/services/image-storage";
 import { resolveModelForCapability, useEffectiveConfig } from "@/stores/use-config-store";
 import type { FilmAsset, FilmFrameSource, FilmShot, FilmVideoSegment } from "@/lib/film/types";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
+import { WorkbenchCreditHint } from "@/components/workbench/credit-hint";
 import { filmAspectCssRatio } from "@/lib/film/film-aspects";
 import { composeFilmVideoPrompt, createDefaultSegments, mergeVideoSegmentWithPrevious, removeVideoSegment, splitVideoSegment, validateSegments } from "../utils/film-video-segments";
 import { clampFilmVideoDuration, filmVideoLimits, filmVideoReferenceLimit } from "../utils/film-video-limits";
@@ -29,6 +30,7 @@ type FilmShotVideoPanelProps = {
 };
 
 export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generating, progress, aspect, styleText, characters, locations }: FilmShotVideoPanelProps) {
+    const filmConfig = useEffectiveConfig();
     const { message } = App.useApp();
     const copyText = useCopyText();
     const effectiveConfig = useEffectiveConfig();
@@ -280,6 +282,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generat
                     </Button>
                     {generating && onStop ? <Button size="small" danger onClick={onStop}>停止生成</Button> : null}
                 </div>
+                <div className="flex justify-end text-[10px] text-muted-foreground/70"><WorkbenchCreditHint config={filmConfig} model={filmConfig.videoModel} mode="video" seconds={String(shot.duration)} resolution={filmConfig.vquality} /></div>
                 {shot.errorMessage && !generating ? <p className="text-[11px] leading-5 text-hot">上次生成失败：{shot.errorMessage}</p> : null}
                 {generateBlockReason ? (
                     <div className="flex flex-wrap items-center gap-2">
