@@ -96,8 +96,9 @@ export function buildFilmBranchPaths(project: Pick<FilmProject, "episodes">, max
             viaBranch,
         };
         const nextPath = [...path, node];
+        const branches = shotBranchList(entry.shot);
         const branchOptions: Array<{ branch: FilmShotBranch; targetIndex: number }> = [];
-        for (const branch of shotBranchList(entry.shot)) {
+        for (const branch of branches) {
             const targetIndex = branch.nextShotId ? indexById.get(branch.nextShotId) : undefined;
             if (typeof targetIndex !== "number" || targetIndex === index) continue;
             if (nextPath.some((item) => item.shotId === flat[targetIndex].shot.id)) continue;
@@ -106,6 +107,11 @@ export function buildFilmBranchPaths(project: Pick<FilmProject, "episodes">, max
         if (branchOptions.length) {
             for (const option of branchOptions) {
                 walk(option.targetIndex, nextPath, option.branch.label || "未命名分支");
+            }
+            // 条件分支可能全部不满足，此时实际会按线性继续；无条件的选项则不会走线性。
+            const hasUnconditionalBranch = branches.some((branch) => !(branch.conditions?.length));
+            if (!hasUnconditionalBranch && index + 1 < flat.length) {
+                walk(index + 1, nextPath, "默认");
             }
             return;
         }
@@ -199,11 +205,15 @@ export function findUnreachableShots(project: Pick<FilmProject, "episodes">) {
         const index = queue.shift() as number;
         if (reached.has(index) || index < 0 || index >= flat.length) continue;
         reached.add(index);
-        const targets = shotBranchList(flat[index].shot)
+        const branches = shotBranchList(flat[index].shot);
+        const targets = branches
             .map((branch) => branch.nextShotId ? indexById.get(branch.nextShotId) : undefined)
             .filter((target): target is number => target !== undefined && target !== index);
         if (targets.length) {
             queue.push(...targets);
+            // 全是条件分支时，条件不满足会走线性下一镜。
+            const hasUnconditionalBranch = branches.some((branch) => !(branch.conditions?.length));
+            if (!hasUnconditionalBranch && index + 1 < flat.length) queue.push(index + 1);
         } else if (index + 1 < flat.length) {
             queue.push(index + 1);
         }

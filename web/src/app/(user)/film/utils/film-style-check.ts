@@ -172,8 +172,8 @@ export function checkShotStyle(shot: FilmShot, style?: DirectorStyle): FilmStyle
     if (!style) return [];
     const issues: FilmStyleIssue[] = [];
     const text = shot.prompt + " " + shot.description;
-    if (!shot.prompt.trim()) {
-        issues.push({ id: "shot-prompt-empty", ruleId: "prompt", level: "info", message: "还没有镜头 prompt，生成前建议补上画面描述", shotId: shot.id });
+    if (!shot.prompt.trim() && !shot.description.trim()) {
+        issues.push({ id: "shot-prompt-empty", ruleId: "prompt", level: "info", message: "还没有画面描述或镜头 prompt，生成前建议补上", shotId: shot.id });
     } else if (!includesAny(text, style.visual.keywords)) {
         issues.push({ id: "shot-style-keywords", ruleId: "visual-keywords", level: "info", message: "镜头 prompt 未包含风格关键词：" + style.visual.keywords.slice(0, 3).join(" / "), shotId: shot.id });
     }

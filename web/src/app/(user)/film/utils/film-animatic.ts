@@ -2,6 +2,7 @@ import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { checkFilmBindingIssues } from "./film-binding-check";
 import { checkFilmStyle, type FilmStyleReport } from "./film-style-check";
 import { findFilmVariableIssues } from "./film-interactive";
+import { shotBranchList } from "./film-branch";
 
 export type FilmAnimaticIssue = {
     id: string;
@@ -147,15 +148,16 @@ export function buildFilmAnimatic(project: FilmProject): FilmAnimatic {
         if (item.duration <= 0) {
             push({ id: "zero-duration-" + item.shot.id, level: "warning", scope: "shot", source: "duration", message: "镜头 " + item.shot.shotNo + " 时长为 0 秒", shotId: item.shot.id });
         }
-        if (item.shot.branch) {
-            if (!item.shot.branch.nextShotId) {
-                push({ id: "branch-empty-" + item.shot.id, level: "warning", scope: "shot", source: "branch", message: "镜头 " + item.shot.shotNo + " 设置了互动分支，但没有选择目标镜头", shotId: item.shot.id });
-            } else if (!shots.some((entry) => entry.shot.id === item.shot.branch?.nextShotId)) {
-                push({ id: "branch-missing-" + item.shot.id, level: "warning", scope: "shot", source: "branch", message: "镜头 " + item.shot.shotNo + " 的分支目标镜头不存在", shotId: item.shot.id });
-            } else if (item.shot.branch.nextShotId === item.shot.id) {
-                push({ id: "branch-loop-" + item.shot.id, level: "info", scope: "shot", source: "branch", message: "镜头 " + item.shot.shotNo + " 的分支跳回自己", shotId: item.shot.id });
+        shotBranchList(item.shot).forEach((branch, branchIndex) => {
+            const label = branch.label || "未命名分支";
+            if (!branch.nextShotId) {
+                push({ id: "branch-empty-" + item.shot.id + "-" + branchIndex, level: "warning", scope: "shot", source: "branch", message: "镜头 " + item.shot.shotNo + " 的分支「" + label + "」没有选择目标镜头", shotId: item.shot.id });
+            } else if (!shots.some((entry) => entry.shot.id === branch.nextShotId)) {
+                push({ id: "branch-missing-" + item.shot.id + "-" + branchIndex, level: "warning", scope: "shot", source: "branch", message: "镜头 " + item.shot.shotNo + " 的分支「" + label + "」目标镜头不存在", shotId: item.shot.id });
+            } else if (branch.nextShotId === item.shot.id) {
+                push({ id: "branch-loop-" + item.shot.id + "-" + branchIndex, level: "info", scope: "shot", source: "branch", message: "镜头 " + item.shot.shotNo + " 的分支「" + label + "」跳回自己", shotId: item.shot.id });
             }
-        }
+        });
         const continuity = (item.shot.continuityCheck || "").trim();
         if (continuity && !continuity.startsWith("通过")) {
             push({

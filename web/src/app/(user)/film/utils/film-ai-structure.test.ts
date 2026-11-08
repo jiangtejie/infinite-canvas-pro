@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FilmProject } from "@/lib/film/types";
+import { scriptTextHash } from "@/lib/film/film-script-import";
 
 import { buildFilmStructureInput, parseFilmStructurePlan, parseFilmStructureScenes, structurePlanPromptContext } from "./film-ai-structure";
 
@@ -47,6 +48,12 @@ const planJson = JSON.stringify([
     },
     { episode: "第1集", beats: [{ summary: "没有场名" }] },
 ]);
+
+test("结构计划 hash 始终基于当前剧本内容，便于检测旧稿", () => {
+    const project = makeProject({ scriptText: "第1集 场景一", scriptHash: "legacy-script-hash" });
+    const plan = parseFilmStructurePlan('[{"scene":"1-1 街道","purpose":"p","beats":[{"summary":"x"}],"estimatedDuration":10}]', project);
+    assert.equal(plan.scriptHash, scriptTextHash("第1集 场景一"));
+});
 
 test("单场结构解析不依赖项目对象", () => {
     const scenes = parseFilmStructureScenes('[{"episode":"第2集","scene":"2-1 天台","purpose":"摊牌","beats":[{"summary":"两人摊牌"}],"estimatedDuration":30}]');

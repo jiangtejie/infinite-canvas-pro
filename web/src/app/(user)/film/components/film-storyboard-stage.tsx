@@ -241,11 +241,9 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                     <Button size="small" icon={<ShieldAlert className="size-3.5" />} onClick={() => setBindingOpen(true)}>
                         绑定检查{bindingIssues.length ? " (" + bindingIssues.length + ")" : ""}
                     </Button>
-                    {branchEdges.length ? (
-                        <Button size="small" icon={<GitBranch className="size-3.5" />} onClick={() => setBranchOpen(true)}>
-                            分支 {branchEdges.length}
-                        </Button>
-                    ) : null}
+                    <Button size="small" icon={<GitBranch className="size-3.5" />} onClick={() => setBranchOpen(true)}>
+                        分支{branchEdges.length ? " " + branchEdges.length : ""}
+                    </Button>
                     <Button size="small" type="primary" ghost icon={<Clapperboard className="size-3.5" />} onClick={() => setPrevisOpen(true)}>
                         预演
                     </Button>

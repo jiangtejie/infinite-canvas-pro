@@ -67,8 +67,19 @@ test("互动分支目标缺失或跳回自己会提示", () => {
         makeShot("01", { branch: { label: "跟上去", condition: "选择跟随", nextShotId: "missing" } }),
         makeShot("02", { branch: { label: "跳回", condition: "", nextShotId: "02" } }),
     ]));
-    assert.ok(animatic.issues.some((issue) => issue.source === "branch" && issue.id === "branch-missing-01"));
-    assert.ok(animatic.issues.some((issue) => issue.source === "branch" && issue.id === "branch-loop-02"));
+    assert.ok(animatic.issues.some((issue) => issue.source === "branch" && issue.id === "branch-missing-01-0"));
+    assert.ok(animatic.issues.some((issue) => issue.source === "branch" && issue.id === "branch-loop-02-0"));
+});
+
+test("多分支镜头也会进入预演问题", () => {
+    const animatic = buildFilmAnimatic(makeProject([makeShot("01", {
+        branches: [
+            { label: "跟上去", condition: "", nextShotId: "missing" },
+            { label: "留下", condition: "", nextShotId: "01" },
+        ],
+    })]));
+    assert.ok(animatic.issues.some((issue) => issue.message.includes("分支「跟上去」目标镜头不存在")));
+    assert.ok(animatic.issues.some((issue) => issue.message.includes("分支「留下」跳回自己")));
 });
 
 test("空项目返回空时间线与错误提示", () => {

@@ -67,7 +67,7 @@ export function buildFilmStructureInput(project: FilmProject) {
 export function parseFilmStructurePlan(content: string, project: FilmProject): FilmStructurePlan {
     const scenes = parseFilmStructureScenes(content);
     if (!scenes.length) throw new Error("AI 没有生成有效的结构计划");
-    const hashSource = project.scriptHash || project.scriptText || JSON.stringify(project.episodes || []);
+    const hashSource = project.scriptText || JSON.stringify(project.episodes || []);
     return {
         scriptHash: scriptTextHash(hashSource),
         scenes,

@@ -78,7 +78,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     };
 
     const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot, handlers: ShotVideoHandlers = {}) => {
-        const shotConfig: AiConfig = { ...config, videoSeconds: String(clampFilmVideoDuration(shot.duration, config.model || config.videoModel || "")) };
+        const shotConfig: AiConfig = { ...config, videoSeconds: String(clampFilmVideoDuration(shot.duration, config.model || config.videoModel || "")), ...(shot.negativePrompt ? { videoNegativePrompt: shot.negativePrompt } : {}) };
         const model = config.model || config.videoModel || "";
         const mode = shot.videoMode === "frames" ? "frames" : "reference";
         const segments = shot.videoSegments?.length ? shot.videoSegments : createDefaultSegments(shot.duration);

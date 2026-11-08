@@ -56,6 +56,8 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const { analyzing: analyzingScript, progress: analysisProgress, analyzeDocument } = useFilmScriptAnalysis();
     const episodes = project.episodes;
     const directorStyle = directorStyleFor(project.directorStyleId);
+    const currentPlanHash = scriptTextHash(project.scriptText || JSON.stringify(project.episodes || []));
+    const structureStale = Boolean(project.structurePlan && project.structurePlan.scriptHash !== currentPlanHash);
     const shots = useMemo(() => flattenFilmShots(episodes), [episodes]);
     const [selectedShotId, setSelectedShotId] = useState("");
     const [continuityPreviewEpisodeId, setContinuityPreviewEpisodeId] = useState("");
@@ -470,6 +472,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                         <Button size="small" icon={<ListTree className="size-3.5" />} onClick={() => setStructureOpen(true)}>
                             结构计划{project.structurePlan ? ` · ${project.structurePlan.scenes.length} 场` : ""}
                         </Button>
+                        {structureStale ? <span className="chip border-amber-500/40 text-amber-500" title="剧本已修改，结构计划基于旧稿；建议重新生成">旧稿</span> : null}
                         <Button size="small" icon={<ShieldCheck className="size-3.5" />} loading={reviewing} onClick={() => { setConsistencyOpen(true); if (!project.consistencyReview) void review(project); }}>
                             一致性检查{project.consistencyReview ? ` · ${project.consistencyReview.issues.length} 条` : ""}
                         </Button>

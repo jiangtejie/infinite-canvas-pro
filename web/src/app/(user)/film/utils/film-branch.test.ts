@@ -74,6 +74,19 @@ test("分支图包含线性边与分支边，并标记不可达节点", () => {
     assert.equal(graph.nodes.find((node) => node.shotNo === "02")?.unreachable, true);
 });
 
+test("全是条件分支时，条件不满足会保留线性路径且不误标不可达", () => {
+    const project = makeProject([
+        makeShot("01", { branches: [{ label: "跟上去", condition: "", nextShotId: "03", conditions: [{ variableId: "v1", operator: "truthy" }] }] }),
+        makeShot("02"),
+        makeShot("03"),
+    ]);
+    const paths = buildFilmBranchPaths(project);
+    assert.equal(paths.length, 2);
+    assert.deepEqual(paths.map((path) => path.shots.map((shot) => shot.shotNo)), [["01", "03"], ["01", "02", "03"]]);
+    assert.equal(paths[1].shots[1].viaBranch, "默认");
+    assert.deepEqual(findUnreachableShots(project), []);
+});
+
 test("没有分支时返回一条线性路径", () => {
     const project = makeProject([makeShot("01"), makeShot("02")]);
     const paths = buildFilmBranchPaths(project);

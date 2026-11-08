@@ -15,13 +15,6 @@ export function FilmBranchPanel({ open, project, onClose, onJumpToShot, onVariab
     const unreachable = findUnreachableShots(project);
     const missing = edges.filter((edge) => edge.missing || edge.selfLoop).length;
     const variables = project.interactiveVariables || [];
-    const addVariable = () => {
-        if (!onVariablesChange) return;
-        onVariablesChange([...variables, { id: crypto.randomUUID(), name: "变量 " + (variables.length + 1), type: "boolean", initialValue: "false" }]);
-    };
-    const patchVariable = (id: string, patch: Partial<FilmInteractiveVariable>) => {
-        onVariablesChange?.(variables.map((variable) => variable.id === id ? { ...variable, ...patch } : variable));
-    };
 
     return (
         <Modal
@@ -37,31 +30,17 @@ export function FilmBranchPanel({ open, project, onClose, onJumpToShot, onVariab
             footer={[<Button key="close" onClick={onClose}>关闭</Button>]}
         >
             {!edges.length ? (
-                <div className="grid place-items-center gap-2 py-12 text-center">
+                <div className="grid gap-3">
+                    <VariableManager variables={variables} onChange={onVariablesChange} />
+                    <div className="grid place-items-center gap-2 py-10 text-center">
                     <div className="grid size-12 place-items-center rounded-xl border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70"><GitBranch className="size-5" /></div>
                     <p className="text-sm font-medium text-foreground">还没有互动分支</p>
-                    <p className="max-w-md text-xs leading-6 text-muted-foreground">在分镜详情「表演/声音」里给镜头添加分支选项、触发条件和目标镜头；预演里打开「互动分支」就能按选择跳转。</p>
+                    <p className="max-w-md text-xs leading-6 text-muted-foreground">先在下面定义互动变量（可选），再到分镜详情「表演/声音」里给镜头添加分支选项、触发条件和目标镜头；预演里打开「互动分支」就能按选择跳转。</p>
+                    </div>
                 </div>
             ) : (
                 <div className="grid gap-3">
-                    {onVariablesChange ? (
-                        <section className="grid gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-2.5">
-                            <div className="flex items-center gap-2">
-                                <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/60 uppercase">互动变量</span>
-                                <span className="text-[10px] text-muted-foreground/60">{variables.length} 个</span>
-                                <Button size="small" type="text" className="!ml-auto !h-6 !px-1.5 !text-[10px]" onClick={addVariable}>+ 变量</Button>
-                            </div>
-                            {variables.map((variable) => (
-                                <div key={variable.id} className="flex flex-wrap items-center gap-1.5">
-                                    <Input size="small" className="!w-32" value={variable.name} placeholder="变量名" onChange={(event) => patchVariable(variable.id, { name: event.target.value })} />
-                                    <Select size="small" className="!w-24" value={variable.type} options={[{ value: "boolean", label: "布尔" }, { value: "number", label: "数值" }, { value: "string", label: "文本" }]} onChange={(value) => patchVariable(variable.id, { type: value, initialValue: value === "number" ? "0" : value === "boolean" ? "false" : "" })} />
-                                    <Input size="small" className="!w-24" value={variable.initialValue} placeholder="初始值" onChange={(event) => patchVariable(variable.id, { initialValue: event.target.value })} />
-                                    <Button size="small" type="text" className="!size-6 !min-w-6 !px-0" onClick={() => onVariablesChange(variables.filter((item) => item.id !== variable.id))}>×</Button>
-                                </div>
-                            ))}
-                            <p className="text-[9px] leading-4 text-muted-foreground/55">分支的显示条件和选择效果引用这些变量；预演从初始值开始模拟。改动变量后，条件里已引用的变量会自动保留。</p>
-                        </section>
-                    ) : null}
+                    <VariableManager variables={variables} onChange={onVariablesChange} />
                     <div className="flex flex-wrap items-center gap-1.5">
                         <span className="chip chip-acid">{edges.length} 个分支选项</span>
                         <span className="chip">{paths.length} 条结局路径</span>
@@ -126,5 +105,34 @@ export function FilmBranchPanel({ open, project, onClose, onJumpToShot, onVariab
                 </div>
             )}
         </Modal>
+    );
+}
+
+
+function VariableManager({ variables, onChange }: { variables: FilmInteractiveVariable[]; onChange?: (variables: FilmInteractiveVariable[]) => void }) {
+    if (!onChange) return null;
+    const addVariable = () => {
+        onChange([...variables, { id: crypto.randomUUID(), name: "变量 " + (variables.length + 1), type: "boolean", initialValue: "false" }]);
+    };
+    const patchVariable = (id: string, patch: Partial<FilmInteractiveVariable>) => {
+        onChange(variables.map((variable) => variable.id === id ? { ...variable, ...patch } : variable));
+    };
+    return (
+        <section className="grid gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-2.5">
+            <div className="flex items-center gap-2">
+                <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/60 uppercase">互动变量</span>
+                <span className="text-[10px] text-muted-foreground/60">{variables.length} 个</span>
+                <Button size="small" type="text" className="!ml-auto !h-6 !px-1.5 !text-[10px]" onClick={addVariable}>+ 变量</Button>
+            </div>
+            {variables.map((variable) => (
+                <div key={variable.id} className="flex flex-wrap items-center gap-1.5">
+                    <Input size="small" className="!w-32" value={variable.name} placeholder="变量名" onChange={(event) => patchVariable(variable.id, { name: event.target.value })} />
+                    <Select size="small" className="!w-24" value={variable.type} options={[{ value: "boolean", label: "布尔" }, { value: "number", label: "数值" }, { value: "string", label: "文本" }]} onChange={(value) => patchVariable(variable.id, { type: value, initialValue: value === "number" ? "0" : value === "boolean" ? "false" : "" })} />
+                    <Input size="small" className="!w-24" value={variable.initialValue} placeholder="初始值" onChange={(event) => patchVariable(variable.id, { initialValue: event.target.value })} />
+                    <Button size="small" type="text" className="!size-6 !min-w-6 !px-0" onClick={() => onChange(variables.filter((item) => item.id !== variable.id))}>×</Button>
+                </div>
+            ))}
+            <p className="text-[9px] leading-4 text-muted-foreground/55">分支的显示条件和选择效果引用这些变量；预演从初始值开始模拟。改动变量后，条件里已引用的变量会自动保留。</p>
+        </section>
     );
 }
