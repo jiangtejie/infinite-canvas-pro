@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [修复] antd Modal 的 maskClosable 迁移为 mask.closable，消除控制台弃用警告
+
 + [修复] AI 影剧多分支校验、条件分支线性兜底、结构计划过期提示与变量入口
 
 + [新增] AI 影剧结构计划支持单场重生成，保留其他场次不变

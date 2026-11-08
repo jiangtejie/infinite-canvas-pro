@@ -70,7 +70,7 @@ const dialogStyles = {
 
 export function ConfirmDialog({ open, ...options }: ConfirmOptions & { open: boolean; loading?: boolean; onConfirm: () => void | Promise<void>; onCancel: () => void }) {
     return (
-        <Modal open={open} onCancel={options.onCancel} footer={null} closable={false} centered width={400} maskClosable={false} destroyOnHidden styles={dialogStyles}>
+        <Modal open={open} onCancel={options.onCancel} footer={null} closable={false} centered width={400} mask={{ closable: false }} destroyOnHidden styles={dialogStyles}>
             <ConfirmDialogBody {...options} />
         </Modal>
     );
@@ -160,7 +160,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
     return (
         <PromptContext.Provider value={prompt}>
             {children}
-            <Modal open={open} onCancel={() => settle(null)} footer={null} closable={false} centered width={400} maskClosable={false} destroyOnHidden styles={dialogStyles} afterOpenChange={(visible) => { if (visible) { setValue(request?.defaultValue || ""); setError(""); } }}>
+            <Modal open={open} onCancel={() => settle(null)} footer={null} closable={false} centered width={400} mask={{ closable: false }} destroyOnHidden styles={dialogStyles} afterOpenChange={(visible) => { if (visible) { setValue(request?.defaultValue || ""); setError(""); } }}>
                 <div className="flex items-start gap-3">
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                         <PenLine className="size-4" />

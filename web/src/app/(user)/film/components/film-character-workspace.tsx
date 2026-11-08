@@ -487,7 +487,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
             <input ref={uploadRef} hidden type="file" accept="image/*" onChange={handleFile} />
 
-            <Modal title="生成角色卡" open={cardOpen} onCancel={() => { if (!composingCard) setCardOpen(false); }} maskClosable={!composingCard} footer={null} width={520}>
+            <Modal title="生成角色卡" open={cardOpen} onCancel={() => { if (!composingCard) setCardOpen(false); }} mask={{ closable: !composingCard }} footer={null} width={520}>
                 <div className="grid gap-3">
                     <label className="grid gap-1">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">版式</span>
