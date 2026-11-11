@@ -229,7 +229,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
     return (
         <div
             data-canvas-no-zoom
-            className="thin-scrollbar relative left-1/2 max-h-[min(76vh,680px)] w-[min(760px,calc(100vw-24px))] -translate-x-1/2 overflow-y-auto rounded-2xl border p-3 shadow-2xl backdrop-blur"
+            className="thin-scrollbar max-h-[min(76vh,680px)] w-full overflow-y-auto rounded-2xl border p-3 shadow-2xl backdrop-blur"
             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onMouseDown={stopPointer}
             onPointerDown={stopPointer}

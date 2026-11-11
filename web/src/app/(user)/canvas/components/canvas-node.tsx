@@ -19,6 +19,20 @@ import type { CanvasResourceReference } from "../utils/canvas-resource-reference
 
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 const selectionBlue = "#2f80ff";
+const FLOATING_PANEL_MIN_ZOOM = 0.4;
+const FLOATING_PANEL_MAX_INVERSE_SCALE = 1.2;
+
+function floatingPanelWidth(node: CanvasNodeData, scale: number) {
+    const isMediaPanel = isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio;
+    const maxWidth = node.type === CanvasNodeType.Publish ? 760 : node.type === CanvasNodeType.Source ? 620 : isMediaPanel ? 682 : 500;
+    const minWidth = node.type === CanvasNodeType.Publish ? 620 : node.type === CanvasNodeType.Source ? 480 : isMediaPanel ? 420 : 340;
+    const screenNodeWidth = node.width * scale;
+    return screenNodeWidth >= maxWidth * 0.6 ? maxWidth : Math.max(minWidth, Math.min(maxWidth, screenNodeWidth + 220));
+}
+
+function floatingPanelScale(scale: number) {
+    return Math.min(FLOATING_PANEL_MAX_INVERSE_SCALE, 1 / Math.max(scale, 0.01));
+}
 const CanvasPanoramaViewer = dynamic(() => import("./canvas-panorama-viewer"), { ssr: false, loading: () => null });
 
 type CanvasNodeProps = {
@@ -483,7 +497,29 @@ export const CanvasNode = React.memo(function CanvasNode({
                 </>
             ) : null}
 
-            {!referenceSelectionState && showPanel && !isGroup && renderPanel ? <div className={"absolute left-1/2 top-full z-[70] max-w-[calc(100vw-24px)] -translate-x-1/2 pt-4 " + (data.type === CanvasNodeType.Source || data.type === CanvasNodeType.Publish ? "w-[620px]" : isCanvasImageNodeType(data.type) || data.type === CanvasNodeType.Video || data.type === CanvasNodeType.Audio ? "w-[682px]" : "w-[500px]")} style={{ transform: "scale(var(--canvas-inverse-scale))", transformOrigin: "top center" }}>{renderPanel(data)}</div> : null}
+            {!referenceSelectionState && showPanel && !isGroup && renderPanel ? (
+                scale < FLOATING_PANEL_MIN_ZOOM ? (
+                    <div className="absolute left-1/2 top-full z-[70] -translate-x-1/2 pt-3">
+                        <span
+                            className="inline-block whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] shadow-lg"
+                            style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.muted, transform: `scale(${Math.min(2.5, 1 / Math.max(scale, 0.01))})`, transformOrigin: "top center" }}
+                        >
+                            放大画布后编辑
+                        </span>
+                    </div>
+                ) : (
+                    <div
+                        className="absolute left-1/2 top-full z-[70] max-w-[calc(100vw-24px)] pt-4"
+                        style={{
+                            width: floatingPanelWidth(data, scale),
+                            transform: `translateX(-50%) scale(${floatingPanelScale(scale)})`,
+                            transformOrigin: "top center",
+                        }}
+                    >
+                        {renderPanel(data)}
+                    </div>
+                )
+            ) : null}
         </div>
     );
 });

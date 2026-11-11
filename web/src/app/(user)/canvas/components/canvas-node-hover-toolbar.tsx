@@ -123,7 +123,10 @@ export function CanvasNodeHoverToolbar({
     }, [node?.id]);
 
     if (!node) return null;
+    if (viewport.k < 0.4) return null;
 
+    const showToolbarLabels = showImageToolLabels && viewport.k >= 0.75;
+    const toolbarScale = Math.min(1, Math.max(0.78, viewport.k));
     const left = viewport.x + (node.position.x + node.width / 2) * viewport.k;
     const top = viewport.y + node.position.y * viewport.k - 14;
     const isImage = isCanvasImageNodeType(node.type);
@@ -228,7 +231,7 @@ export function CanvasNodeHoverToolbar({
         <>
             <div
                 className="absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-2 overflow-visible rounded-xl border border-border/70 bg-popover px-2 text-[13px] text-popover-foreground shadow-xl"
-                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))" }}
+                style={{ left, top, maxWidth: "min(800px, calc(100vw - 32px))", transform: `translate(-50%, -100%) scale(${toolbarScale})`, transformOrigin: "bottom center" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen) onLeave();
@@ -237,9 +240,9 @@ export function CanvasNodeHoverToolbar({
                 onPointerDown={(event) => event.stopPropagation()}
             >
                 {toolbarTools.map((tool) => (
-                    <ToolbarAction key={tool.id} {...tool} showLabel={showImageToolLabels} />
+                    <ToolbarAction key={tool.id} {...tool} showLabel={showToolbarLabels} />
                 ))}
-                {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
+                {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showToolbarLabels} /> : null}
             </div>
             {hasImage ? (
                 <ImageToolSettingsModal
