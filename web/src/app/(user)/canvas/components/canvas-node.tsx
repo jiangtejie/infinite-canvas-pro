@@ -25,7 +25,7 @@ const FLOATING_PANEL_MAX_INVERSE_SCALE = 1.2;
 function floatingPanelWidth(node: CanvasNodeData, scale: number) {
     const isMediaPanel = isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio;
     const maxWidth = node.type === CanvasNodeType.Publish ? 760 : node.type === CanvasNodeType.Source ? 620 : isMediaPanel ? 682 : 500;
-    const minWidth = node.type === CanvasNodeType.Publish ? 620 : node.type === CanvasNodeType.Source ? 480 : isMediaPanel ? 420 : 340;
+    const minWidth = node.type === CanvasNodeType.Publish ? 620 : node.type === CanvasNodeType.Source ? 480 : isMediaPanel ? 640 : 500;
     const screenNodeWidth = node.width * scale;
     return screenNodeWidth >= maxWidth * 0.6 ? maxWidth : Math.max(minWidth, Math.min(maxWidth, screenNodeWidth + 220));
 }

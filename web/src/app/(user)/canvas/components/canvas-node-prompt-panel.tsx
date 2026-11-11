@@ -110,8 +110,8 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 placeholder={isPanorama ? "描述想生成的全景，或上传/连接图片作为参考" : promptPlaceholder(mode, hasImageContent, hasTextContent)}
             />
 
-            <div className="mt-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                     <Tooltip title="放大编辑">
                         <Button type="text" className="!h-8 !w-8 !min-w-8 shrink-0 !rounded-full !bg-transparent !p-0" style={{ color: theme.node.text }} icon={<Maximize2 className="size-3.5" />} onClick={() => setExpanded(true)} aria-label="放大编辑" />
                     </Tooltip>
@@ -148,7 +148,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                         <ModelPicker config={config} value={config.model} channelId={config.textChannelId} onChange={(model, channelId) => onConfigChange(node.id, { model, channelId })} capability="text" onMissingConfig={() => openConfigDialog(true)} />
                     )}
                 </div>
-                <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
                     {mode === "video" || (mode === "image" && !isPanorama) ? (
                         <CanvasCameraControl value={node.metadata?.cameraControl} onChange={(cameraControl) => onConfigChange(node.id, { cameraControl })} buttonClassName="!h-10 !min-w-[92px] !justify-start !rounded-full !px-3" />
                     ) : null}
