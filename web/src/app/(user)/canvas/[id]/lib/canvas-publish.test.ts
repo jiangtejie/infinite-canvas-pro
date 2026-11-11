@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
-import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, isPublishDraftDirty, publishDraftSignature, publishQrExpired } from "./canvas-publish";
+import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired } from "./canvas-publish";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id,
@@ -13,6 +13,8 @@ const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metada
     height: 100,
     metadata,
 });
+
+const nodeAt = (id: string, type: CanvasNodeType, patch: Partial<CanvasNodeData>): CanvasNodeData => ({ ...node(id, type), ...patch });
 
 const connection = (fromNodeId: string, toNodeId: string): CanvasConnection => ({ id: `${fromNodeId}->${toNodeId}`, fromNodeId, toNodeId });
 
@@ -77,5 +79,44 @@ test("isPublishDraftDirty compares the current draft with the generated snapshot
     assert.equal(isPublishDraftDirty(issuedRecord, { ...snapshot, body: "新正文" }, snapshot), true);
     assert.equal(isPublishDraftDirty(issuedRecord, { ...snapshot, tags: ["旅行", "摄影"] }, snapshot), true);
     assert.equal(isPublishDraftDirty(issuedRecord, { ...snapshot, imageNodeIds: ["img2", "img1"] }, snapshot), true);
+});
+
+const publishNode = nodeAt("publish-node", CanvasNodeType.Publish, { position: { x: 1000, y: 0 }, metadata: { publishSourceId: "source-1" } });
+const otherPublishNode = nodeAt("publish-other", CanvasNodeType.Publish, { metadata: { publishSourceId: "source-2" } });
+const sourceTextForPublish = nodeAt("source-1-remix-text", CanvasNodeType.Text, { metadata: { content: "复刻文案" } });
+const sourceImageForPublish = nodeAt("source-1-remix-image-0", CanvasNodeType.Image, { position: { x: 400, y: 0 }, width: 200, height: 200, metadata: { content: "https://example.com/r.png" } });
+
+test("source publish node is reused by metadata.publishSourceId", () => {
+    assert.equal(findSourcePublishNode([publishNode, otherPublishNode], "source-1")?.id, "publish-node");
+    assert.equal(findSourcePublishNode([otherPublishNode], "source-1"), undefined);
+    assert.equal(findSourcePublishNode([publishNode], ""), undefined);
+});
+
+test("publish node connections only add missing upstream links", () => {
+    const connections = [{ id: "a->p", fromNodeId: "source-1-remix-text", toNodeId: "publish-node" }];
+    assert.deepEqual(planPublishNodeConnections("publish-node", ["source-1-remix-text", "img-1", "img-1", "img-2"], connections), ["img-1", "img-2"]);
+    assert.deepEqual(planPublishNodeConnections("publish-node", [], connections), []);
+});
+
+test("publish node placement sits right of the remix bounding box", () => {
+    assert.deepEqual(
+        getPublishNodePlacement([sourceTextForPublish, sourceImageForPublish], ["source-1-remix-text", "source-1-remix-image-0"]),
+        { x: 600 + 96 + 190, y: 100 },
+    );
+    assert.equal(getPublishNodePlacement([], []), null);
+});
+
+test("source publish plan creates a node once and then only fills missing connections", () => {
+    const nodes = [sourceTextForPublish, sourceImageForPublish];
+    const created = planSourcePublishNode(nodes, [], "source-1", "source-1-remix-text", ["source-1-remix-image-0"]);
+    assert.equal(created.existingPublishNodeId, null);
+    assert.deepEqual(created.upstreamNodeIds, ["source-1-remix-text", "source-1-remix-image-0"]);
+    assert.deepEqual(created.connectNodeIds, ["source-1-remix-text", "source-1-remix-image-0"]);
+    assert.deepEqual(created.createPosition, { x: 600 + 96 + 190, y: 100 });
+
+    const reused = planSourcePublishNode([...nodes, publishNode], [{ id: "a->p", fromNodeId: "source-1-remix-text", toNodeId: "publish-node" }], "source-1", "source-1-remix-text", ["source-1-remix-image-0"]);
+    assert.equal(reused.existingPublishNodeId, "publish-node");
+    assert.equal(reused.createPosition, null);
+    assert.deepEqual(reused.connectNodeIds, ["source-1-remix-image-0"]);
 });
 

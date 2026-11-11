@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
-import { collectBatchTargetNodeIds, collectRemixImageNodeIds, countSourceRemixImages, isBatchTargetImageNode } from "./canvas-batch";
+import { collectBatchTargetNodeIds, collectPublishableRemixImages, collectRemixImageNodeIds, countSourceRemixImages, findSourceRemixTextNode, getSourceRemixTextStatus, hasSourceRemixText, isBatchTargetImageNode } from "./canvas-batch";
 
 const node = (id: string, type: CanvasNodeType, patch: Partial<CanvasNodeData> = {}): CanvasNodeData => ({
     id,
@@ -69,4 +69,29 @@ test("remix images fall back to source metadata when ids changed", () => {
     const noRemix = node("image-plain", CanvasNodeType.Image, { metadata: { content: "https://example.com/plain.png" } });
     assert.deepEqual(collectRemixImageNodeIds([copied, otherSource, noRemix], "source-missing"), ["image-copied"]);
     assert.deepEqual(collectRemixImageNodeIds([copied, otherSource, noRemix], "source-other"), ["image-other-source"]);
+});
+
+const remixText = node("source-1-remix-text", CanvasNodeType.Text, { metadata: { content: "复刻后的文案" } });
+
+test("source remix text node is found by id and exposes readiness", () => {
+    assert.equal(findSourceRemixTextNode([source, remixText], "source-1")?.id, "source-1-remix-text");
+    assert.equal(findSourceRemixTextNode([source], "source-1"), undefined);
+    assert.equal(hasSourceRemixText(remixText), true);
+    assert.equal(hasSourceRemixText(undefined), false);
+});
+
+test("remix text status covers missing, idle, generating, success and error", () => {
+    assert.equal(getSourceRemixTextStatus(undefined), "missing");
+    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "idle" } })), "idle");
+    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "loading" } })), "generating");
+    assert.equal(getSourceRemixTextStatus(remixText), "success");
+    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "error" } })), "error");
+    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "error", content: "上一次的结果" } })), "success");
+});
+
+test("publishable remix images only keep generated content in remix order", () => {
+    const emptyRemix = node("source-1-remix-image-2", CanvasNodeType.Image, { metadata: { remixIndex: 3 } });
+    const nodes = [remixTwo, emptyRemix, remixOne, materialImage];
+    assert.deepEqual(collectPublishableRemixImages(nodes, "source-1").map((item) => item.id), ["source-1-remix-image-0", "source-1-remix-image-1"]);
+    assert.deepEqual(collectPublishableRemixImages([emptyRemix], "source-1"), []);
 });

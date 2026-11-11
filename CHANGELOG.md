@@ -3,6 +3,7 @@
 ## Unreleased
 
 + [新增] TeamoRouter Gemini 图片渠道适配：Bearer 鉴权、/v1/models、全比例与 512 分辨率
++ [新增] 画布复刻流程向导：文案守卫、批量失败重试、配图完成后自动创建/复用发布节点
 
 + [优化] 后台列表页统一 ProTable 与筛选/工具栏规范，AI 日志、Skill、算力点日志对齐
 

@@ -1,7 +1,8 @@
-import type { CanvasNodeData } from "../../types";
+import { CanvasNodeType, type CanvasNodeData } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 
 const REMIX_IMAGE_SUFFIX = "-remix-image-";
+const REMIX_TEXT_SUFFIX = "-remix-text";
 
 /** 可作为批量生成目标的图片节点：图片/全景图；批量组根节点只代表一组结果，不参与批量。 */
 export function isBatchTargetImageNode(node: CanvasNodeData) {
@@ -43,4 +44,35 @@ export function collectRemixImageNodeIds(nodes: CanvasNodeData[], sourceId: stri
 /** 素材源复刻配图数量，用于面板显示「生成全部复刻配图（N 张）」。 */
 export function countSourceRemixImages(nodes: CanvasNodeData[], sourceId: string) {
     return collectRemixImageNodeIds(nodes, sourceId).length;
+}
+
+/** 一键复刻生成的复刻文案节点。 */
+export function findSourceRemixTextNode(nodes: CanvasNodeData[], sourceId: string) {
+    if (!sourceId) return undefined;
+    const id = `${sourceId}${REMIX_TEXT_SUFFIX}`;
+    return nodes.find((node) => node.id === id && node.type === CanvasNodeType.Text);
+}
+
+export type CanvasSourceRemixTextStatus = "missing" | "idle" | "generating" | "success" | "error";
+
+/** 复刻文案状态：节点不存在=未生成、loading=生成中、有正文=已生成、error=失败。 */
+export function getSourceRemixTextStatus(node: CanvasNodeData | undefined): CanvasSourceRemixTextStatus {
+    if (!node) return "missing";
+    if (node.metadata?.status === "loading" || node.metadata?.status === "stopping") return "generating";
+    if ((node.metadata?.content || "").trim()) return "success";
+    if (node.metadata?.status === "error") return "error";
+    return "idle";
+}
+
+/** 文案是否已生成内容；配图与发布步骤都以它为前置条件。 */
+export function hasSourceRemixText(node: CanvasNodeData | undefined) {
+    return Boolean(node && (node.metadata?.content || "").trim());
+}
+
+/** 已成功生成内容的复刻配图，用于发布节点选图。 */
+export function collectPublishableRemixImages(nodes: CanvasNodeData[], sourceId: string) {
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    return collectRemixImageNodeIds(nodes, sourceId)
+        .map((nodeId) => byId.get(nodeId))
+        .filter((node): node is CanvasNodeData => Boolean(node && (node.metadata?.content || "").trim()));
 }

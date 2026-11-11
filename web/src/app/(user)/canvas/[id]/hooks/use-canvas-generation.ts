@@ -50,6 +50,8 @@ export type CanvasGenerateNodeOptions = {
     background?: boolean;
     /** 覆盖本次生成的图片数量，批量队列固定按 1 张执行，避免全局 count 导致一张节点出多图。 */
     countOverride?: string;
+    /** 强制原地覆盖已有内容，供复刻文案「重新生成」等内部流程使用。 */
+    overwrite?: boolean;
 };
 
 type CanvasGenerationMessage = {
@@ -401,7 +403,7 @@ export function useCanvasGeneration({
                 return;
             }
 
-            const overwriteExisting = effectiveConfig.nodeRegenerateBehavior === "overwrite" && sourceNode?.type === mode && !sourceNode.metadata?.isBatchRoot
+            const overwriteExisting = options?.overwrite === true || (effectiveConfig.nodeRegenerateBehavior === "overwrite" && sourceNode?.type === mode && !sourceNode.metadata?.isBatchRoot)
                 && Boolean(sourceNode.metadata?.content || sourceNode.metadata?.clientTaskId)
                 && (mode !== "image" || workflowRef || !isKIESeedreamLayerDecompositionModel(generationConfig.model));
             const runningRequest = Symbol();

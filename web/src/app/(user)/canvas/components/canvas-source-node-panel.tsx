@@ -1,12 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import { X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { LoaderCircle, X } from "lucide-react";
 import { Button, Input, Popconfirm, Tag, Typography, theme as antdTheme } from "antd";
 
+import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasNodeData, CanvasNodeMetadata } from "../types";
+
+export type CanvasSourceRemixTextStatus = "missing" | "idle" | "generating" | "success" | "error";
+
+export type CanvasSourceRemixFlow = {
+    textStatus: CanvasSourceRemixTextStatus;
+    imageCount: number;
+    readyImageCount: number;
+    failedCount: number;
+    publishNodeId?: string;
+    busy: boolean;
+    onGenerateText: () => void;
+    onGenerateImages: () => void;
+    onRetryFailedImages: () => void;
+    onCreatePublishNode: () => void;
+    onOpenPublishNode: () => void;
+};
 
 export type CanvasSourceNodePanelProps = {
     node: CanvasNodeData;
@@ -17,9 +34,7 @@ export type CanvasSourceNodePanelProps = {
     onExpand: () => void;
     onRunRemix: () => void;
     onReset: () => void;
-    remixImageCount?: number;
-    onGenerateAllRemix?: () => void;
-    batchGenerating?: boolean;
+    remixFlow?: CanvasSourceRemixFlow;
     onChange: (patch: Partial<CanvasNodeMetadata>) => void;
     onClose: () => void;
 };
@@ -27,7 +42,7 @@ export type CanvasSourceNodePanelProps = {
 /**
  * 素材源面板：粘贴解析、结果预览、展开素材与一键复刻。
  */
-export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, onCancel, onExpand, onRunRemix, onReset, remixImageCount = 0, onGenerateAllRemix, batchGenerating = false, onChange, onClose }: CanvasSourceNodePanelProps) {
+export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, onCancel, onExpand, onRunRemix, onReset, remixFlow, onChange, onClose }: CanvasSourceNodePanelProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const [input, setInput] = useState(node.metadata?.sourceInput || "");
@@ -150,11 +165,6 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
                         <Button type="primary" size="small" disabled={parsing} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={onRunRemix}>
                             一键复刻
                         </Button>
-                        {remixImageCount > 0 && onGenerateAllRemix ? (
-                            <Button size="small" loading={batchGenerating} disabled={parsing || batchGenerating} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={onGenerateAllRemix}>
-                                生成全部复刻配图（{remixImageCount} 张）
-                            </Button>
-                        ) : null}
                         {node.metadata?.sourceExpanded ? (
                             <>
                                 <span className="text-[11px]" style={{ color: theme.node.placeholder }}>已展开</span>
@@ -172,6 +182,48 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
                             </>
                         ) : null}
                     </div>
+
+                    {remixFlow ? (
+                        <div className="space-y-1.5 border-t pt-2" style={{ borderColor: theme.node.stroke }}>
+                            <div className="text-xs font-semibold">复刻流程</div>
+                            {remixStep(theme, "1", "文案", (
+                                <>
+                                    <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: remixTextStatusColor(remixFlow.textStatus, theme.node.placeholder) }}>
+                                        {remixFlow.textStatus === "generating" ? <LoaderCircle className="size-3 animate-spin" /> : null}
+                                        {remixTextStatusLabel(remixFlow.textStatus)}
+                                    </span>
+                                    <Button size="small" type={remixFlow.textStatus === "success" || remixFlow.textStatus === "error" ? "default" : "primary"} loading={remixFlow.textStatus === "generating"} disabled={remixFlow.textStatus === "missing" || remixFlow.textStatus === "generating" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGenerateText}>
+                                        {remixFlow.textStatus === "success" || remixFlow.textStatus === "error" ? "重新生成文案" : "生成复刻文案"}
+                                    </Button>
+                                    {remixFlow.textStatus === "missing" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>先点「一键复刻」生成文案节点</span> : null}
+                                </>
+                            ))}
+                            {remixStep(theme, "2", "配图", (
+                                <>
+                                    <Button size="small" type="primary" loading={remixFlow.busy && remixFlow.textStatus === "success"} disabled={remixFlow.textStatus !== "success" || remixFlow.busy || remixFlow.imageCount === 0} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGenerateImages}>
+                                        生成全部复刻配图（{remixFlow.imageCount} 张）
+                                    </Button>
+                                    {remixFlow.failedCount > 0 ? (
+                                        <Button size="small" danger disabled={remixFlow.textStatus !== "success" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onRetryFailedImages}>
+                                            重试失败配图（{remixFlow.failedCount} 张）
+                                        </Button>
+                                    ) : null}
+                                    {remixFlow.textStatus !== "success" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>需先生成复刻文案</span> : null}
+                                </>
+                            ))}
+                            {remixStep(theme, "3", "发布", remixFlow.publishNodeId ? (
+                                <Button size="small" disabled={remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onOpenPublishNode}>
+                                    打开发布节点
+                                </Button>
+                            ) : remixFlow.readyImageCount > 0 ? (
+                                <Button size="small" disabled={remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onCreatePublishNode}>
+                                    创建发布节点
+                                </Button>
+                            ) : (
+                                <span className="text-[11px]" style={{ color: theme.node.placeholder }}>生成配图后可创建发布节点</span>
+                            ))}
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
 
@@ -180,4 +232,28 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
             ) : null}
         </div>
     );
+}
+
+function remixStep(theme: (typeof canvasThemes)[keyof typeof canvasThemes], index: string, title: string, children: ReactNode) {
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <span className="grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold" style={{ background: theme.toolbar.activeBg, color: theme.node.text }}>{index}</span>
+            <span className="w-7 shrink-0 text-[11px] font-medium" style={{ color: theme.node.muted }}>{title}</span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{children}</div>
+        </div>
+    );
+}
+
+function remixTextStatusLabel(status: CanvasSourceRemixTextStatus) {
+    if (status === "generating") return "生成中";
+    if (status === "success") return "已生成";
+    if (status === "error") return "失败";
+    return "未生成";
+}
+
+function remixTextStatusColor(status: CanvasSourceRemixTextStatus, fallback: string) {
+    if (status === "success") return canvasStatusColors.success;
+    if (status === "generating") return canvasStatusColors.loading;
+    if (status === "error") return canvasStatusColors.error;
+    return fallback;
 }

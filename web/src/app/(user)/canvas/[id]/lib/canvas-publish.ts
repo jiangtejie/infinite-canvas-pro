@@ -1,7 +1,8 @@
 import type { ReferenceImage } from "@/types/image";
 
 import { buildNodeGenerationInputs } from "../../components/canvas-node-generation";
-import type { CanvasConnection, CanvasNodeData, CanvasPublishDraft, CanvasPublishRecord } from "../../types";
+import { NODE_DEFAULT_SIZE } from "../../constants";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
 
 export const PUBLISH_TITLE_LIMIT = 20;
 export const PUBLISH_TAGS_LIMIT = 5;
@@ -107,6 +108,50 @@ export function publishDraftSignature(draft?: CanvasPublishDraft) {
 export function isPublishDraftDirty(record: CanvasPublishRecord | undefined, draft: CanvasPublishDraft | undefined, snapshot: CanvasPublishDraft | undefined) {
     if (!record || record.status === "confirmed" || !snapshot) return false;
     return publishDraftSignature(draft) !== publishDraftSignature(snapshot);
+}
+
+const SOURCE_PUBLISH_GAP = 96;
+
+/** 复刻流程创建的发布节点：按 metadata.publishSourceId 复用，避免重复创建。 */
+export function findSourcePublishNode(nodes: CanvasNodeData[], sourceId: string) {
+    if (!sourceId) return undefined;
+    return nodes.find((node) => node.type === CanvasNodeType.Publish && node.metadata?.publishSourceId === sourceId);
+}
+
+/** 发布节点尚未建立的上游连接（去重、保持传入顺序）。 */
+export function planPublishNodeConnections(publishNodeId: string, upstreamNodeIds: Iterable<string>, connections: CanvasConnection[]) {
+    const linked = new Set(connections.filter((connection) => connection.toNodeId === publishNodeId).map((connection) => connection.fromNodeId));
+    return Array.from(new Set(upstreamNodeIds)).filter((nodeId) => Boolean(nodeId) && !linked.has(nodeId));
+}
+
+/** 发布节点放在复刻文案/配图包围盒右侧居中；返回节点中心点，与 createCanvasNode 入参一致。 */
+export function getPublishNodePlacement(nodes: CanvasNodeData[], upstreamNodeIds: Iterable<string>) {
+    const ids = new Set(upstreamNodeIds);
+    const upstream = nodes.filter((node) => ids.has(node.id));
+    if (!upstream.length) return null;
+    const right = Math.max(...upstream.map((node) => node.position.x + node.width));
+    const top = Math.min(...upstream.map((node) => node.position.y));
+    const bottom = Math.max(...upstream.map((node) => node.position.y + node.height));
+    const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Publish];
+    return { x: right + SOURCE_PUBLISH_GAP + spec.width / 2, y: (top + bottom) / 2 };
+}
+
+export type CanvasSourcePublishPlan = {
+    upstreamNodeIds: string[];
+    existingPublishNodeId: string | null;
+    createPosition: { x: number; y: number } | null;
+    connectNodeIds: string[];
+};
+
+/** 复刻流程 Step3：优先复用已有发布节点并补齐连接，否则给出新节点位置与待连接上游。 */
+export function planSourcePublishNode(nodes: CanvasNodeData[], connections: CanvasConnection[], sourceId: string, textNodeId: string | null, imageNodeIds: string[]): CanvasSourcePublishPlan {
+    const upstreamNodeIds = [textNodeId, ...imageNodeIds].filter((nodeId): nodeId is string => Boolean(nodeId));
+    const existing = findSourcePublishNode(nodes, sourceId);
+    if (existing) {
+        return { upstreamNodeIds, existingPublishNodeId: existing.id, createPosition: null, connectNodeIds: planPublishNodeConnections(existing.id, upstreamNodeIds, connections) };
+    }
+    const createPosition = getPublishNodePlacement(nodes, upstreamNodeIds);
+    return { upstreamNodeIds, existingPublishNodeId: null, createPosition, connectNodeIds: createPosition ? upstreamNodeIds : [] };
 }
 
 /** 二维码是否已过期；时间解析失败时按未过期处理，交给后端预检兜底。 */

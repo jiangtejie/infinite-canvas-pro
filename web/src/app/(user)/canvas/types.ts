@@ -152,6 +152,7 @@ export type CanvasNodeMetadata = {
     sourceExpanded?: boolean;
     remixIndex?: number;
     remixSourceId?: string;
+    publishSourceId?: string;
     publishDraft?: CanvasPublishDraft;
     publishDraftSnapshot?: CanvasPublishDraft;
     publishRecord?: CanvasPublishRecord;

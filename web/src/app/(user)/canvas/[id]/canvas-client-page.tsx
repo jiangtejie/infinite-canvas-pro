@@ -38,13 +38,16 @@ import { useCanvasClipboard } from "./hooks/use-canvas-clipboard";
 import { useCanvasPointer } from "./hooks/use-canvas-pointer";
 import { useCanvasGeneration } from "./hooks/use-canvas-generation";
 import { useCanvasBatchGeneration } from "./hooks/use-canvas-batch-generation";
-import { collectBatchTargetNodeIds, collectRemixImageNodeIds } from "./lib/canvas-batch";
+import { collectBatchTargetNodeIds, collectPublishableRemixImages, collectRemixImageNodeIds, findSourceRemixTextNode, getSourceRemixTextStatus, hasSourceRemixText } from "./lib/canvas-batch";
+import { findSourcePublishNode, planSourcePublishNode } from "./lib/canvas-publish";
+import { SOURCE_REMIX_TEXT_PROMPT } from "./lib/canvas-source-plan";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
 import { useCanvasSource } from "./hooks/use-canvas-source";
 import { CanvasWorkspace, type CanvasWorkspaceModel } from "./components/canvas-workspace";
 import { buildNodeGenerationInputs, type NodeGenerationInput } from "../components/canvas-node-generation";
+import type { CanvasSourceRemixFlow } from "../components/canvas-source-node-panel";
 import { type CanvasVideoFrameOption } from "../components/canvas-node-prompt-panel";
 import type { CanvasVideoResourceOption } from "../components/canvas-video-settings-popover";
 import { type CanvasAlignKind } from "../components/canvas-toolbar";
@@ -1617,7 +1620,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         cancelPendingHistoryCommit,
     });
 
-    const { batchState, startBatch, stopBatch } = useCanvasBatchGeneration({
+    const { batchState, startBatch, retryFailed, stopBatch } = useCanvasBatchGeneration({
         nodesRef,
         connectionsRef,
         effectiveConfig,
@@ -1629,14 +1632,83 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         message,
     });
 
-    const remixImageNodeIdsBySourceId = useMemo(() => {
-        const map = new Map<string, string[]>();
-        nodes.forEach((node) => {
-            if (node.type !== CanvasNodeType.Source) return;
-            map.set(node.id, collectRemixImageNodeIds(nodes, node.id));
-        });
-        return map;
-    }, [nodes]);
+    const createSourcePublishNode = useCallback((sourceId: string): string | null => {
+        const currentNodes = nodesRef.current;
+        const currentConnections = connectionsRef.current;
+        const publishableImages = collectPublishableRemixImages(currentNodes, sourceId);
+        if (!publishableImages.length) {
+            message.warning("还没有生成成功的复刻配图，无法创建发布节点");
+            return null;
+        }
+        const textNode = findSourceRemixTextNode(currentNodes, sourceId);
+        const plan = planSourcePublishNode(currentNodes, currentConnections, sourceId, hasSourceRemixText(textNode) ? textNode!.id : null, publishableImages.map((node) => node.id));
+        const existingPublishNodeId = plan.existingPublishNodeId;
+        if (existingPublishNodeId) {
+            if (plan.connectNodeIds.length) {
+                setConnections((prev) => [...prev, ...plan.connectNodeIds.map((fromNodeId) => ({ id: nanoid(), fromNodeId, toNodeId: existingPublishNodeId }))]);
+            }
+            selectOnly(existingPublishNodeId);
+            setSelectedConnectionId(null);
+            openOverlay({ kind: "prompt", nodeId: existingPublishNodeId });
+            message.success(plan.connectNodeIds.length ? "已复用发布节点并补齐复刻素材连接" : "已打开发布节点");
+            return existingPublishNodeId;
+        }
+        if (!plan.createPosition) return null;
+        const publishNode = createCanvasNode(CanvasNodeType.Publish, plan.createPosition, { publishSourceId: sourceId });
+        setNodes((prev) => [...prev, publishNode]);
+        setConnections((prev) => [...prev, ...plan.connectNodeIds.map((fromNodeId) => ({ id: nanoid(), fromNodeId, toNodeId: publishNode.id }))]);
+        selectOnly(publishNode.id);
+        setSelectedConnectionId(null);
+        openOverlay({ kind: "prompt", nodeId: publishNode.id });
+        message.success("已创建发布节点，可直接生成二维码");
+        return publishNode.id;
+    }, [connectionsRef, message, nodesRef, openOverlay, selectOnly, setConnections, setNodes, setSelectedConnectionId]);
+
+    const handleGenerateSourceRemixText = useCallback((sourceId: string) => {
+        const textNode = findSourceRemixTextNode(nodesRef.current, sourceId);
+        if (!textNode) {
+            message.warning("请先点击「一键复刻」生成复刻文案节点");
+            return;
+        }
+        void handleGenerateNode(textNode.id, "text", textNode.metadata?.prompt || SOURCE_REMIX_TEXT_PROMPT, { background: true, overwrite: true });
+    }, [handleGenerateNode, message, nodesRef]);
+
+    const handleGenerateAllSourceRemix = useCallback(async (sourceId: string) => {
+        const textNode = findSourceRemixTextNode(nodesRef.current, sourceId);
+        if (!hasSourceRemixText(textNode)) {
+            message.warning("请先生成复刻文案，再生成复刻配图");
+            return;
+        }
+        const imageIds = collectRemixImageNodeIds(nodesRef.current, sourceId);
+        if (!imageIds.length) {
+            message.warning("请先点击「一键复刻」生成复刻配图节点");
+            return;
+        }
+        const result = await startBatch(imageIds, { label: "生成全部复刻配图" });
+        if (result.completed <= 0) return;
+        createSourcePublishNode(sourceId);
+    }, [createSourcePublishNode, message, nodesRef, startBatch]);
+
+    const handleRetryFailedSourceRemix = useCallback(async (sourceId: string) => {
+        const remixImageIds = collectRemixImageNodeIds(nodesRef.current, sourceId);
+        const result = await retryFailed({ label: "重试失败配图", nodeIds: remixImageIds });
+        if (result.completed > 0) createSourcePublishNode(sourceId);
+    }, [createSourcePublishNode, nodesRef, retryFailed]);
+
+    const handleCreateSourcePublishNode = useCallback((sourceId: string) => {
+        createSourcePublishNode(sourceId);
+    }, [createSourcePublishNode]);
+
+    const handleOpenSourcePublishNode = useCallback((sourceId: string) => {
+        const publishNode = findSourcePublishNode(nodesRef.current, sourceId);
+        if (!publishNode) {
+            createSourcePublishNode(sourceId);
+            return;
+        }
+        selectOnly(publishNode.id);
+        setSelectedConnectionId(null);
+        openOverlay({ kind: "prompt", nodeId: publishNode.id });
+    }, [createSourcePublishNode, nodesRef, openOverlay, selectOnly, setSelectedConnectionId]);
 
     const batchTargetCount = useMemo(() => collectBatchTargetNodeIds(nodes, selectedNodeIds).length, [nodes, selectedNodeIds]);
 
@@ -1645,10 +1717,28 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         void startBatch(ids);
     }, [selectedNodeIdsRef, startBatch]);
 
-    const handleGenerateAllSourceRemix = useCallback((sourceId: string) => {
-        const ids = collectRemixImageNodeIds(nodesRef.current, sourceId);
-        void startBatch(ids, { label: "生成全部复刻配图" });
-    }, [startBatch]);
+    const sourceRemixFlowsById = useMemo(() => {
+        const map = new Map<string, CanvasSourceRemixFlow>();
+        nodes.forEach((node) => {
+            if (node.type !== CanvasNodeType.Source) return;
+            const remixImageIds = collectRemixImageNodeIds(nodes, node.id);
+            const remixImageIdSet = new Set(remixImageIds);
+            map.set(node.id, {
+                textStatus: getSourceRemixTextStatus(findSourceRemixTextNode(nodes, node.id)),
+                imageCount: remixImageIds.length,
+                readyImageCount: collectPublishableRemixImages(nodes, node.id).length,
+                failedCount: batchState.failedNodeIds.filter((nodeId) => remixImageIdSet.has(nodeId)).length,
+                publishNodeId: findSourcePublishNode(nodes, node.id)?.id,
+                busy: batchState.running,
+                onGenerateText: () => handleGenerateSourceRemixText(node.id),
+                onGenerateImages: () => { void handleGenerateAllSourceRemix(node.id); },
+                onRetryFailedImages: () => { void handleRetryFailedSourceRemix(node.id); },
+                onCreatePublishNode: () => { handleCreateSourcePublishNode(node.id); },
+                onOpenPublishNode: () => { handleOpenSourcePublishNode(node.id); },
+            });
+        });
+        return map;
+    }, [batchState.failedNodeIds, batchState.running, handleCreateSourcePublishNode, handleGenerateAllSourceRemix, handleGenerateSourceRemixText, handleOpenSourcePublishNode, handleRetryFailedSourceRemix, nodes]);
 
     const handleStopBatch = useCallback(() => {
         void stopBatch();
@@ -1907,9 +1997,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
                 else message.success(`已清理 ${result.removed || 0} 个素材节点`);
             },
-            remixImageNodeIdsBySourceId,
-            onGenerateAllSourceRemix: handleGenerateAllSourceRemix,
-            batchGenerating: batchState.running,
+            sourceRemixFlowsById,
             projectLoaded, exitNodeReferenceSelection,
         },
         overlays: {

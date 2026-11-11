@@ -14,7 +14,7 @@ import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-p
 import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card";
 import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
-import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
+import { CanvasSourceNodePanel, type CanvasSourceRemixFlow } from "../../components/canvas-source-node-panel";
 import { type NodeGenerationInput } from "../../components/canvas-node-generation";
 import { InfiniteCanvas } from "../../components/infinite-canvas";
 import { CanvasNode } from "../../components/canvas-node";
@@ -117,9 +117,7 @@ export type CanvasStageModel = {
     handleExpandSource: (nodeId: string) => void;
     handleRunSourceRemix: (nodeId: string) => void;
     handleResetSource: (nodeId: string) => void;
-    remixImageNodeIdsBySourceId: Map<string, string[]>;
-    onGenerateAllSourceRemix: (sourceId: string) => void;
-    batchGenerating: boolean;
+    sourceRemixFlowsById: Map<string, CanvasSourceRemixFlow>;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -217,9 +215,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         handleExpandSource,
         handleRunSourceRemix,
         handleResetSource,
-        remixImageNodeIdsBySourceId,
-        onGenerateAllSourceRemix,
-        batchGenerating,
+        sourceRemixFlowsById,
         assetInsertPositionRef,
         setAssetPickerTab,
         setAssetPickerOpen,
@@ -341,9 +337,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         onExpand={() => handleExpandSource(panelNode.id)}
                                         onRunRemix={() => handleRunSourceRemix(panelNode.id)}
                                         onReset={() => handleResetSource(panelNode.id)}
-                                        remixImageCount={remixImageNodeIdsBySourceId.get(panelNode.id)?.length || 0}
-                                        onGenerateAllRemix={() => onGenerateAllSourceRemix(panelNode.id)}
-                                        batchGenerating={batchGenerating}
+                                        remixFlow={sourceRemixFlowsById.get(panelNode.id)}
                                         onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
                                         onClose={() => closeOverlay()}
                                     />
