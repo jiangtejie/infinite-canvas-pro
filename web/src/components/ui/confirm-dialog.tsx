@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useState, type CSSProperties, type ReactNode } from "react";
 import { Button, Input, Modal } from "antd";
 import { AlertTriangle, HelpCircle, PenLine, Trash2 } from "lucide-react";
 
@@ -15,15 +15,64 @@ export type ConfirmOptions = {
     icon?: ReactNode;
 };
 
-const toneStyles: Record<ConfirmTone, { icon: string; fallback: ReactNode }> = {
-    danger: { icon: "bg-red-500/10 text-red-500", fallback: <Trash2 className="size-4" /> },
-    warning: { icon: "bg-amber-500/10 text-amber-500", fallback: <AlertTriangle className="size-4" /> },
-    default: { icon: "bg-primary/10 text-primary", fallback: <HelpCircle className="size-4" /> },
+const toneStyles: Record<ConfirmTone, { fallback: ReactNode; style: CSSProperties }> = {
+    danger: {
+        fallback: <Trash2 className="size-5" />,
+        style: {
+            background: "color-mix(in oklch, var(--destructive) 12%, transparent)",
+            color: "var(--destructive)",
+            boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--destructive) 22%, transparent)",
+        },
+    },
+    warning: {
+        fallback: <AlertTriangle className="size-5" />,
+        style: {
+            background: "color-mix(in oklch, #f59e0b 12%, transparent)",
+            color: "#f59e0b",
+            boxShadow: "inset 0 0 0 1px color-mix(in oklch, #f59e0b 24%, transparent)",
+        },
+    },
+    default: {
+        fallback: <HelpCircle className="size-5" />,
+        style: {
+            background: "var(--acid-soft)",
+            color: "color-mix(in oklch, var(--acid) 62%, var(--foreground))",
+            boxShadow: "inset 0 0 0 1px color-mix(in oklch, var(--acid) 28%, transparent)",
+        },
+    },
 };
+
+function DialogHeader({ title, description, tone = "default", icon }: { title: string; description?: ReactNode; tone?: ConfirmTone; icon?: ReactNode }) {
+    const tones = toneStyles[tone];
+    return (
+        <div className="flex items-start gap-4 px-6 pb-5 pt-6">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl" style={tones.style}>
+                {icon ?? tones.fallback}
+            </span>
+            <div className="min-w-0 flex-1 pt-0.5">
+                <h3 className="text-base font-semibold leading-6 tracking-[-0.01em] text-foreground">{title}</h3>
+                {description ? <div className="mt-2 text-[13px] leading-6 text-muted-foreground">{description}</div> : null}
+            </div>
+        </div>
+    );
+}
+
+function DialogFooter({ children }: { children: ReactNode }) {
+    return (
+        <div
+            className="flex items-center justify-end gap-2.5 rounded-b-2xl px-6 py-4"
+            style={{
+                borderTop: "1px solid var(--border)",
+                background: "color-mix(in oklch, var(--foreground) 3%, transparent)",
+            }}
+        >
+            {children}
+        </div>
+    );
+}
 
 function ConfirmDialogBody({ title, description, confirmText = "确认", cancelText = "取消", tone = "default", icon, loading = false, onConfirm, onCancel }: ConfirmOptions & { loading?: boolean; onConfirm: () => void | Promise<void>; onCancel: () => void }) {
     const [pending, setPending] = useState(false);
-    const tones = toneStyles[tone];
     const handleConfirm = async () => {
         if (loading || pending) return;
         const result = onConfirm();
@@ -37,40 +86,34 @@ function ConfirmDialogBody({ title, description, confirmText = "确认", cancelT
         }
     };
     return (
-        <>
-            <div className="flex items-start gap-3">
-                <span className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${tones.icon}`}>{icon ?? tones.fallback}</span>
-                <div className="min-w-0 flex-1 pt-0.5">
-                    <h3 className="text-[15px] font-semibold leading-5 text-foreground">{title}</h3>
-                    {description ? <div className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{description}</div> : null}
-                </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-                <Button onClick={onCancel} disabled={pending || loading}>
+        <div className="flex flex-col">
+            <DialogHeader title={title} description={description} tone={tone} icon={icon} />
+            <DialogFooter>
+                <Button size="large" className="!min-w-[88px]" onClick={onCancel} disabled={pending || loading}>
                     {cancelText}
                 </Button>
-                <Button type="primary" danger={tone === "danger"} loading={pending || loading} onClick={() => void handleConfirm()}>
+                <Button size="large" className="!min-w-[88px]" type="primary" danger={tone === "danger"} loading={pending || loading} onClick={() => void handleConfirm()}>
                     {confirmText}
                 </Button>
-            </div>
-        </>
+            </DialogFooter>
+        </div>
     );
 }
 
 const dialogStyles = {
     content: {
-        padding: 20,
+        padding: 0,
         borderRadius: 16,
         border: "1px solid var(--border)",
         background: "var(--popover)",
-        boxShadow: "0 24px 64px -24px rgba(0, 0, 0, 0.55)",
+        boxShadow: "inset 0 1px 0 var(--glass-highlight), 0 32px 80px -32px rgba(0, 0, 0, 0.62)",
     },
     body: { padding: 0 },
 };
 
 export function ConfirmDialog({ open, ...options }: ConfirmOptions & { open: boolean; loading?: boolean; onConfirm: () => void | Promise<void>; onCancel: () => void }) {
     return (
-        <Modal open={open} onCancel={options.onCancel} footer={null} closable={false} centered width={400} mask={{ closable: false }} destroyOnHidden styles={dialogStyles}>
+        <Modal open={open} onCancel={options.onCancel} footer={null} closable={false} centered width={440} mask={{ closable: false }} destroyOnHidden styles={dialogStyles}>
             <ConfirmDialogBody {...options} />
         </Modal>
     );
@@ -160,23 +203,21 @@ export function PromptProvider({ children }: { children: ReactNode }) {
     return (
         <PromptContext.Provider value={prompt}>
             {children}
-            <Modal open={open} onCancel={() => settle(null)} footer={null} closable={false} centered width={400} mask={{ closable: false }} destroyOnHidden styles={dialogStyles} afterOpenChange={(visible) => { if (visible) { setValue(request?.defaultValue || ""); setError(""); } }}>
-                <div className="flex items-start gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <PenLine className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1 pt-0.5">
-                        <h3 className="text-[15px] font-semibold leading-5 text-foreground">{request?.title ?? ""}</h3>
-                        {request?.description ? <div className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{request.description}</div> : null}
-                        <div className="mt-3">
-                            <Input autoFocus value={value} placeholder={request?.placeholder} onChange={(event) => { setValue(event.target.value); if (error) setError(""); }} onPressEnter={confirmValue} status={error ? "error" : undefined} />
-                            {error ? <p className="mt-1 text-xs text-red-500">{error}</p> : null}
-                        </div>
+            <Modal open={open} onCancel={() => settle(null)} footer={null} closable={false} centered width={440} mask={{ closable: false }} destroyOnHidden styles={dialogStyles} afterOpenChange={(visible) => { if (visible) { setValue(request?.defaultValue || ""); setError(""); } }}>
+                <div className="flex flex-col">
+                    <DialogHeader title={request?.title ?? ""} description={request?.description} tone="default" icon={<PenLine className="size-5" />} />
+                    <div className="px-6 pb-5">
+                        <Input size="large" autoFocus value={value} placeholder={request?.placeholder} onChange={(event) => { setValue(event.target.value); if (error) setError(""); }} onPressEnter={confirmValue} status={error ? "error" : undefined} />
+                        {error ? <p className="mt-1.5 text-xs text-red-500">{error}</p> : null}
                     </div>
-                </div>
-                <div className="mt-5 flex justify-end gap-2">
-                    <Button onClick={() => settle(null)}>{request?.cancelText || "取消"}</Button>
-                    <Button type="primary" onClick={confirmValue}>{request?.confirmText || "确定"}</Button>
+                    <DialogFooter>
+                        <Button size="large" className="!min-w-[88px]" onClick={() => settle(null)}>
+                            {request?.cancelText || "取消"}
+                        </Button>
+                        <Button size="large" className="!min-w-[88px]" type="primary" onClick={confirmValue}>
+                            {request?.confirmText || "确定"}
+                        </Button>
+                    </DialogFooter>
                 </div>
             </Modal>
         </PromptContext.Provider>

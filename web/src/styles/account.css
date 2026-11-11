@@ -179,9 +179,9 @@
 
 /* 微信扫码支付弹窗（portal 在 .account-shell 之外，单独用类名作用域） */
 .acct-modal .ant-modal-content {
-    border: 1px solid var(--acct-line);
-    border-radius: 8px;
-    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--popover);
 }
 
 @media (prefers-reduced-motion: reduce) {
