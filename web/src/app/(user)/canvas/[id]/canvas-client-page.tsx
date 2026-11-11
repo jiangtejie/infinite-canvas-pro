@@ -39,7 +39,7 @@ import { useCanvasPointer } from "./hooks/use-canvas-pointer";
 import { useCanvasGeneration } from "./hooks/use-canvas-generation";
 import { useCanvasBatchGeneration } from "./hooks/use-canvas-batch-generation";
 import { collectBatchTargetNodeIds, collectPublishableRemixImages, collectRemixImageNodeIds, findSourceRemixTextNode, getSourceRemixTextStatus, hasSourceRemixText } from "./lib/canvas-batch";
-import { findSourcePublishNode, planSourcePublishNode } from "./lib/canvas-publish";
+import { findSourcePublishNode, migratePublishNodeLayouts, planSourcePublishNode } from "./lib/canvas-publish";
 import { migrateRemixNodeLayouts, SOURCE_REMIX_TEXT_PROMPT, stripLegacyRemixTextImageConnections } from "./lib/canvas-source-plan";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
@@ -275,7 +275,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     return ensureImagePreview(`canvas-node:${projectId}:${node.id}`, content, storageKey, source, true);
                 }),
             );
-            const restoredNodes = migrateRemixNodeLayouts(await hydrateCanvasImages(resetNodes));
+            const restoredNodes = migratePublishNodeLayouts(migrateRemixNodeLayouts(await hydrateCanvasImages(resetNodes)));
             const restoredConnections = stripLegacyRemixTextImageConnections(restoredNodes, project.connections);
             for (const node of restoredNodes) {
                 const id = node.metadata?.clientTaskId;

@@ -158,6 +158,7 @@ export type CanvasNodeMetadata = {
     publishRecord?: CanvasPublishRecord;
     publishStatus?: "idle" | "generating" | "error";
     publishError?: string;
+    publishLayoutVersion?: number;
 };
 
 export type CanvasDirectorPanorama = {

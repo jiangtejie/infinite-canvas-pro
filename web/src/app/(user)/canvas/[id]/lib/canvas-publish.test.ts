@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
-import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired, reorderPublishImageIds } from "./canvas-publish";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
+import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, migratePublishNodeLayouts, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired, reorderPublishImageIds } from "./canvas-publish";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id,
@@ -108,7 +108,7 @@ test("publish node connections only add missing upstream links", () => {
 test("publish node placement sits right of the remix bounding box", () => {
     assert.deepEqual(
         getPublishNodePlacement([sourceTextForPublish, sourceImageForPublish], ["source-1-remix-text", "source-1-remix-image-0"]),
-        { x: 600 + 96 + 190, y: 100 },
+        { x: 600 + 96 + 240, y: 100 },
     );
     assert.equal(getPublishNodePlacement([], []), null);
 });
@@ -119,11 +119,34 @@ test("source publish plan creates a node once and then only fills missing connec
     assert.equal(created.existingPublishNodeId, null);
     assert.deepEqual(created.upstreamNodeIds, ["source-1-remix-text", "source-1-remix-image-0"]);
     assert.deepEqual(created.connectNodeIds, ["source-1-remix-text", "source-1-remix-image-0"]);
-    assert.deepEqual(created.createPosition, { x: 600 + 96 + 190, y: 100 });
+    assert.deepEqual(created.createPosition, { x: 600 + 96 + 240, y: 100 });
 
     const reused = planSourcePublishNode([...nodes, publishNode], [{ id: "a->p", fromNodeId: "source-1-remix-text", toNodeId: "publish-node" }], "source-1", "source-1-remix-text", ["source-1-remix-image-0"]);
     assert.equal(reused.existingPublishNodeId, "publish-node");
     assert.equal(reused.createPosition, null);
     assert.deepEqual(reused.connectNodeIds, ["source-1-remix-image-0"]);
+});
+
+const publishLayoutVersion = (node: CanvasNodeData) => (node.metadata as CanvasNodeMetadata & { publishLayoutVersion?: number })?.publishLayoutVersion;
+
+test("migratePublishNodeLayouts upgrades legacy 380x280 publish nodes around their center", () => {
+    const legacy = nodeAt("publish-legacy", CanvasNodeType.Publish, { position: { x: 100, y: 50 }, width: 380, height: 280, metadata: {} });
+    const current = nodeAt("publish-current", CanvasNodeType.Publish, { width: 480, height: 340, metadata: { publishLayoutVersion: 2 } as CanvasNodeMetadata });
+    const custom = nodeAt("publish-custom", CanvasNodeType.Publish, { width: 420, height: 300 });
+    const textNode = nodeAt("text-legacy", CanvasNodeType.Text, { width: 380, height: 280 });
+    const migrated = migratePublishNodeLayouts([legacy, current, custom, textNode]);
+    assert.equal(migrated[0].width, 480);
+    assert.equal(migrated[0].height, 340);
+    assert.deepEqual(migrated[0].position, { x: 50, y: 20 });
+    assert.equal(publishLayoutVersion(migrated[0]), 2);
+    assert.equal(migrated[1], current);
+    assert.equal(migrated[2], custom);
+    assert.equal(migrated[3], textNode);
+});
+
+test("migratePublishNodeLayouts keeps the array untouched when nothing needs migration", () => {
+    const current = nodeAt("publish-current", CanvasNodeType.Publish, { width: 480, height: 340, metadata: { publishLayoutVersion: 2 } as CanvasNodeMetadata });
+    const nodes = [current];
+    assert.equal(migratePublishNodeLayouts(nodes), nodes);
 });
 
