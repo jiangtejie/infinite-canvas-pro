@@ -113,7 +113,7 @@ export function buildCanvasAgentContext(input: BuildCanvasAgentContextInput): Ca
         },
         agentState: input.agentState,
         selectedNodeIds,
-        nodes: orderedNodes.map(summarizeNode),
+        nodes: orderedNodes.map((node) => summarizeNode(node, prioritizedIds.has(node.id))),
         connections: input.connections.filter((connection) => includedIds.has(connection.fromNodeId) && includedIds.has(connection.toNodeId)),
         generation: {
             autoGenerateMedia: input.autoGenerateMedia,
@@ -155,18 +155,27 @@ export function serializeCanvasAgentContext(context: CanvasAgentContext) {
     return JSON.stringify(context);
 }
 
-function summarizeNode(node: CanvasNodeData): CanvasAgentContextNode {
+/**
+ * detailed 只给选中、已确认、正式参考、上下游与异常任务节点；
+ * 其余节点只保留定位信息，正文与提示词通过 get_node / query_canvas_nodes 按需读取。
+ */
+function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentContextNode {
     const content = node.metadata?.content || "";
     const isText = node.type === CanvasNodeType.Text;
     const mediaUrl = !isText && content && !content.startsWith("data:") ? content : undefined;
-    return {
+    const base: CanvasAgentContextNode = {
         id: node.id,
         type: node.type,
         title: node.title,
-        text: isText && content ? content.slice(0, MAX_TEXT_LENGTH) : undefined,
-        mediaUrl,
         hasMedia: !isText ? Boolean(content) : undefined,
         status: node.metadata?.status,
+        groupId: node.metadata?.groupId,
+    };
+    if (!detailed) return base;
+    return {
+        ...base,
+        text: isText && content ? content.slice(0, MAX_TEXT_LENGTH) : undefined,
+        mediaUrl,
         prompt: node.metadata?.prompt?.slice(0, MAX_TEXT_LENGTH),
         model: node.metadata?.model,
         size: node.metadata?.size,
@@ -174,7 +183,6 @@ function summarizeNode(node: CanvasNodeData): CanvasAgentContextNode {
         generateAudio: node.metadata?.generateAudio,
         taskId: mediaTaskId(node) || undefined,
         error: node.metadata?.errorDetails,
-        groupId: node.metadata?.groupId,
     };
 }
 

@@ -94,6 +94,7 @@ export type CanvasNodeMetadata = {
     startedAt?: number;
     progress?: number;
     clientTaskId?: string;
+    agentRequestId?: string;
     taskBackend?: "account" | "workflow";
     imageTaskId?: string;
     imageTaskResultId?: string;
@@ -224,6 +225,7 @@ export type CanvasAgentConfig = {
     textStreaming?: boolean;
     textReasoningEnabled?: boolean;
     autoGenerateMedia: boolean;
+    confirmMediaGeneration?: boolean;
     imageQuality: string;
     imageSize: string;
     videoQuality: string;
@@ -262,6 +264,15 @@ export type CanvasAgentProtocolMessage =
 
 export type CanvasAssistantMessageStatus = "thinking" | "running" | "waiting" | "success" | "error";
 
+export type CanvasAssistantBatch = {
+    total: number;
+    succeeded: number;
+    failed: number;
+    rolledBack: boolean;
+    /** 本批创建/触及的节点，用于在消息里定位。 */
+    nodeIds?: string[];
+};
+
 export type CanvasAssistantMessage = {
     id: string;
     role: "user" | "assistant";
@@ -272,6 +283,7 @@ export type CanvasAssistantMessage = {
     images?: CanvasAssistantImage[];
     skills?: CanvasAgentSkillSelection[];
     skillsSelected?: boolean;
+    batch?: CanvasAssistantBatch;
 };
 
 export type CanvasAgentJsonFallbackMode = "structured-json" | "prompt-json";

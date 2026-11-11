@@ -3,7 +3,7 @@ import type { CanvasAgentToolDefinition } from "./canvas-agent-tools";
 
 export const MAX_AGENT_INPUT_TOKENS = 260_000;
 const MAX_RECENT_PROTOCOL_TOKENS = 64_000;
-const MAX_COMPACTED_CONTEXT_TOKENS = 16_000;
+const MAX_COMPACTED_CONTEXT_TOKENS = 6_000;
 
 type CanvasAgentInput = {
     systemPrompt: string;

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasAssistantSession, type CanvasNodeData } from "../../types";
-import { syncAssistantReferences } from "./canvas-assistant-references";
+import { reconcileCanvasAgentState, syncAssistantReferences } from "./canvas-assistant-references";
 
 const node = (patch: Partial<CanvasNodeData>): CanvasNodeData => ({ id: "n1", type: CanvasNodeType.Text, title: "n1", position: { x: 0, y: 0 }, width: 100, height: 100, metadata: {}, ...patch });
 
@@ -35,4 +35,27 @@ test("normal messages are returned unchanged", () => {
     const next = syncAssistantReferences(session([{ id: "m1", role: "assistant", status: "done", text: "正常消息", references: [] }]), [], false);
     assert.equal(next[0].messages[0].text, "正常消息");
     assert.equal(next[0].messages[0].status, "done");
+});
+
+test("agent state drops node references that no longer exist", () => {
+    const state = { phase: "storyboard" as const, approvedNodeIds: ["n1", "gone"], referenceNodeIds: ["gone", "n1", "gone"], pendingTaskIds: ["t1", "t-gone"], completedTaskIds: [] };
+    const next = reconcileCanvasAgentState(state, [node({ id: "n1", metadata: { videoTaskId: "t1" } })]);
+    assert.deepEqual(next.approvedNodeIds, ["n1"]);
+    assert.deepEqual(next.referenceNodeIds, ["n1"]);
+    assert.deepEqual(next.pendingTaskIds, ["t1"]);
+    assert.equal(next.phase, "storyboard");
+});
+
+test("sessions keep their agent state after node pruning", () => {
+    const sessions = [{ id: "s1", messages: [], agentState: { phase: "intake", approvedNodeIds: ["gone"], referenceNodeIds: [], pendingTaskIds: [], completedTaskIds: [] } }] as unknown as CanvasAssistantSession[];
+    const next = syncAssistantReferences(sessions, [node({ id: "n1" })]);
+    assert.deepEqual(next[0].agentState?.approvedNodeIds, []);
+});
+
+test("pending tasks for deleted nodes are dropped while completed history stays", () => {
+    const video = node({ id: "v1", type: CanvasNodeType.Video, metadata: { videoTaskId: "t-live" } });
+    const state = { phase: "video" as const, approvedNodeIds: [], referenceNodeIds: [], pendingTaskIds: ["t-live", "t-gone"], completedTaskIds: ["t-old"] };
+    const next = reconcileCanvasAgentState(state, [video]);
+    assert.deepEqual(next.pendingTaskIds, ["t-live"]);
+    assert.deepEqual(next.completedTaskIds, ["t-old"]);
 });

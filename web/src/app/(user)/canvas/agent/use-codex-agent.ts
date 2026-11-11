@@ -6,7 +6,7 @@ import {
 } from "@/services/api/codex-agent";
 import { canvasAgentSystemPrompt } from "@/services/api/canvas-agent";
 import type { CanvasAgentState } from "../types";
-import { canvasAgentAllowsArrangement, executeActions, type RunCanvasAgentInput, type RunCanvasAgentResult } from "./canvas-agent-runtime";
+import { canvasAgentAllowsArrangement, executeActions, shouldRollbackCanvasAgentBatch, summarizeCanvasAgentBatch, type RunCanvasAgentInput, type RunCanvasAgentResult } from "./canvas-agent-runtime";
 import { buildCanvasAgentSkillPrompt } from "./canvas-agent-skills";
 import {
     CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL, normalizeCanvasAgentAction,
@@ -201,9 +201,17 @@ export function useCodexAgent(options: {
                     if (pending && action.name === "arrange_nodes" && !canvasAgentAllowsArrangement(pending.input.userText)) {
                         result = { ok: false, code: "action_not_requested", message: "用户没有要求整理画布，未执行节点排列" };
                     } else if (pending) {
-                        const execution = await executeActions([action], pending.state, (action) => pending.input.executeAction(action, signal), signal, pending.input.onEvent);
+                        pending.input.onBatchStart?.();
+                        let execution: Awaited<ReturnType<typeof executeActions>>;
+                        try {
+                            execution = await executeActions([action], pending.state, (action) => pending.input.executeAction(action, signal), signal, pending.input.onEvent);
+                        } catch (error) {
+                            pending.input.onBatchEnd?.({ total: 1, succeeded: 0, failed: 1, rolledBack: false, nodeIds: [] });
+                            throw error;
+                        }
                         signal.throwIfAborted();
                         pending.state = execution.state;
+                        pending.input.onBatchEnd?.({ ...summarizeCanvasAgentBatch(execution.items), rolledBack: shouldRollbackCanvasAgentBatch(execution.items) });
                         pending.input.onCheckpoint?.({ state: pending.state, protocolMessages: [] });
                         result = execution.items[0].result;
                     } else result = await latest.current.executeTool(action, signal);

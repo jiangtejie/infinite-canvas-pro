@@ -166,10 +166,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [canvasNow, setCanvasNow] = useState(Date.now());
     const resolvedAgentConfig = useMemo<CanvasAgentConfig>(
         () => {
-            const defaults = { textApiMode: "chat" as const, autoGenerateMedia: false };
+            const defaults = { textApiMode: "chat" as const, autoGenerateMedia: false, confirmMediaGeneration: true };
             return agentConfig ? { ...defaults, ...agentConfig } : {
                 textApiMode: "chat",
                 autoGenerateMedia: false,
+                confirmMediaGeneration: true,
                 imageQuality: effectiveConfig.quality,
                 imageSize: effectiveConfig.size,
                 videoQuality: effectiveConfig.vquality,
@@ -1689,7 +1690,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         setContextMenu(null);
     }, [setContextMenu]);
 
-    const { getCanvasAgentContext, executeCanvasAgentAction } = useCanvasAgentExecutor({
+    const { getCanvasAgentContext, executeCanvasAgentAction, beginCanvasAgentBatch, endCanvasAgentBatch } = useCanvasAgentExecutor({
         projectId,
         projectTitle: currentProject?.title || "未命名画布",
         nodesRef,
@@ -1869,12 +1870,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             clearConfirmOpen, clearCanvas, assetPickerOpen, assetPickerTab,
         },
         assistant: {
-            nodes, selectedNodeIds, focusNode, setAssistantMounted,
+            nodes, connections, selectedNodeIds, focusNode, setAssistantMounted,
             setAgentPanel, handleUploadRequest, agentPanel, assetInsertPositionRef,
             setAssetPickerTab, setAssetPickerOpen, assistantMounted, projectId,
             agentReferenceNodeClick, chatSessions, activeChatId, resolvedAgentConfig,
             handleAssistantSessionsChange, handleAgentConfigChange, pasteAssistantImage, getCanvasAgentContext,
-            executeCanvasAgentAction, initialAgentRequest, setInitialAgentRequest,
+            executeCanvasAgentAction, beginCanvasAgentBatch, endCanvasAgentBatch, initialAgentRequest, setInitialAgentRequest,
         },
         shell: {
             theme, nodes, selectedNodeIds, sidePanel,

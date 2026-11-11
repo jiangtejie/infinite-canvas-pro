@@ -3,7 +3,7 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { CanvasAssistantPanel } from "../../components/canvas-assistant-panel";
 import { type AssetPickerTab } from "../../components/asset-picker-modal";
-import { type CanvasAgentConfig, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasNodeData, type CanvasPendingAgentRequest, type Position } from "../../types";
+import { type CanvasAgentConfig, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasNodeData, type CanvasPendingAgentRequest, type Position } from "../../types";
 import type { CanvasSidePanelState } from "../../stores/use-canvas-store";
 import type { CanvasAgentState } from "../../types";
 import type { CanvasAgentContext } from "../../agent/canvas-agent-context";
@@ -12,6 +12,7 @@ import type { CanvasAgentAction, CanvasAgentToolResult } from "../../agent/canva
 
 export type CanvasAssistantModel = {
     nodes: CanvasNodeData[];
+    connections: CanvasConnection[];
     selectedNodeIds: Set<string>;
     focusNode: (nodeId: string) => void;
     setAssistantMounted: Dispatch<SetStateAction<boolean>>;
@@ -32,6 +33,8 @@ export type CanvasAssistantModel = {
     pasteAssistantImage: (file: File) => void;
     getCanvasAgentContext: (agentState: CanvasAgentState) => CanvasAgentContext;
     executeCanvasAgentAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[]) => Promise<CanvasAgentToolResult>;
+    beginCanvasAgentBatch: () => void;
+    endCanvasAgentBatch: (summary: { rolledBack: boolean }) => void;
     initialAgentRequest: { prompt: CanvasPendingAgentRequest["prompt"]; references: CanvasAssistantReference[]; skills: CanvasPendingAgentRequest["skills"]; } | null;
     setInitialAgentRequest: Dispatch<SetStateAction<{ prompt: CanvasPendingAgentRequest["prompt"]; references: CanvasAssistantReference[]; skills: CanvasPendingAgentRequest["skills"]; } | null>>;
 };
@@ -42,6 +45,7 @@ export type CanvasAssistantModel = {
 export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) {
     const {
         nodes,
+        connections,
         selectedNodeIds,
         focusNode,
         setAssistantMounted,
@@ -62,6 +66,8 @@ export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) 
         pasteAssistantImage,
         getCanvasAgentContext,
         executeCanvasAgentAction,
+        beginCanvasAgentBatch,
+        endCanvasAgentBatch,
         initialAgentRequest,
         setInitialAgentRequest,
     } = model;
@@ -72,6 +78,7 @@ export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) 
                 <CanvasAssistantPanel
                     canvasId={projectId}
                     nodes={nodes}
+                    connections={connections}
                     selectedNodeIds={selectedNodeIds}
                     referenceNodeClick={agentReferenceNodeClick}
                     sessions={chatSessions}
@@ -91,6 +98,8 @@ export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) 
                     }}
                     getAgentContext={getCanvasAgentContext}
                     onExecuteAction={executeCanvasAgentAction}
+                    onBatchStart={beginCanvasAgentBatch}
+                    onBatchEnd={endCanvasAgentBatch}
                     onCollapseStart={() =>
                         setAgentPanel((current) => ({ ...current, open: false }))
                     }

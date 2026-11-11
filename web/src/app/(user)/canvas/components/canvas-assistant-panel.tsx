@@ -37,24 +37,33 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { fetchSystemAgentSkillFile } from "@/services/api/agent-skills";
-import { imageToDataUrl } from "@/services/image-storage";
+import { requestCreditCost } from "@/constant/credits";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { createCanvasAgentState, runCanvasAgent } from "../agent/canvas-agent-runtime";
+import { canvasAgentConfirmation } from "../agent/canvas-agent-confirmation";
+import { buildCanvasAgentRequestConfig, canvasAgentJsonFallbackKey, resolveCanvasAgentSkillContents } from "../agent/canvas-agent-request";
+import { createConfirmationQueue } from "./confirmation-queue";
+import { runAssistantTurn } from "./canvas-assistant-turn";
+import { formatAssistantBatch, mergeAssistantBatch, shouldShowAssistantBatch } from "./canvas-assistant-batch";
+import { useAssistantSessionWrite } from "./use-assistant-session-write";
 import { useCodexAgent } from "../agent/use-codex-agent";
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
+import type { CanvasAgentBatchSummary } from "../agent/canvas-agent-runtime";
 import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
 import {
     MAX_CANVAS_AGENT_SKILLS,
     CanvasNodeType,
     type CanvasAgentConfig,
+    type CanvasAssistantBatch,
     type CanvasAgentSkillSelection,
     type CanvasAgentState,
     type CanvasAssistantMessage,
     type CanvasAssistantReference,
     type CanvasAssistantSession,
+    type CanvasConnection,
     type CanvasNodeData,
 } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
@@ -84,6 +93,7 @@ const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
 type CanvasAssistantPanelProps = {
     canvasId: string;
     nodes: CanvasNodeData[];
+    connections: CanvasConnection[];
     selectedNodeIds: Set<string>;
     referenceNodeClick: { nodeId: string | null; version: number };
     sessions: CanvasAssistantSession[];
@@ -99,14 +109,19 @@ type CanvasAssistantPanelProps = {
     onOpenAssets: () => void;
     getAgentContext: (state: CanvasAgentState) => CanvasAgentContext;
     onExecuteAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[]) => Promise<CanvasAgentToolResult>;
+    onBatchStart?: () => void;
+    onBatchEnd?: (summary: CanvasAgentBatchSummary) => void;
     onCollapseStart: () => void;
     onCollapse: () => void;
     initialRequest?: { prompt: string; references: CanvasAssistantReference[]; skills: CanvasAgentSkillSelection[] } | null;
     onInitialRequestConsumed?: () => void;
 };
 
-type PendingDeleteConfirmation = {
+type PendingConfirmation = {
     title: string;
+    detail: string;
+    okText: string;
+    danger: boolean;
     resolve: (confirmed: boolean) => void;
 };
 
@@ -137,6 +152,7 @@ function handleMenuNavigation(event: KeyboardEvent<HTMLDivElement>, onClose: () 
 export function CanvasAssistantPanel({
     canvasId,
     nodes,
+    connections,
     selectedNodeIds,
     referenceNodeClick,
     sessions,
@@ -152,6 +168,8 @@ export function CanvasAssistantPanel({
     onOpenAssets,
     getAgentContext,
     onExecuteAction,
+    onBatchStart,
+    onBatchEnd,
     onCollapseStart,
     onCollapse,
     initialRequest,
@@ -161,11 +179,15 @@ export function CanvasAssistantPanel({
     const effectiveConfig = useEffectiveConfig();
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const cleanupImages = useAssetStore((state) => state.cleanupImages);
+    const modelCosts = useConfigStore((state) => state.publicSettings?.modelChannel.modelCosts);
     const { message: appMessage } = App.useApp();
     const mode = agentConfig.mode || "api";
+    const { sessionsRef, activeSessionIdRef, lastSessionIds, syncSessions, commitSessions, updateSession, appendMessage, updateMessage } = useAssistantSessionWrite(onSessionsChange);
     const abortRef = useRef<AbortController | null>(null);
     const consumedInitialRequestRef = useRef<typeof initialRequest>(null);
-    const pendingDeleteRef = useRef<PendingDeleteConfirmation | null>(null);
+    const pendingConfirmationRef = useRef<PendingConfirmation | null>(null);
+    const confirmationQueueRef = useRef(createConfirmationQueue());
+    const lastBatchRef = useRef<CanvasAssistantBatch | null>(null);
     const messageListRef = useRef<HTMLDivElement>(null);
     const consumedReferenceNodeClickVersionRef = useRef(0);
     const [view, setView] = useState<"chat" | "history" | "connect">("chat");
@@ -179,27 +201,22 @@ export function CanvasAssistantPanel({
     const [composerReferenceIds, setComposerReferenceIds] = useState<string[]>([]);
     const [selectedSkills, setSelectedSkills] = useState<CanvasAgentSkillSelection[]>([]);
     const [removedReferenceIds, setRemovedReferenceIds] = useState<Set<string>>(new Set());
-    const [pendingDelete, setPendingDelete] = useState<PendingDeleteConfirmation | null>(null);
+    const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
     const [codexConfirmations, setCodexConfirmations] = useState<CodexConfirmation[]>([]);
     const [initialSession] = useState(() => createSession(mode));
-    const lastSessionIds = useRef<Partial<Record<"api" | "codex", string>>>({});
     const drafts = useRef<Partial<Record<"api" | "codex", { prompt: string; references: string[]; skills: CanvasAgentSkillSelection[] }>>>({});
     const safeSessions = useMemo(() => sessions.length ? sessions : [initialSession], [initialSession, sessions]);
     const visibleSessions = safeSessions.filter((session) => (session.provider || "api") === mode);
     const rememberedId = lastSessionIds.current[mode] || activeSessionId;
     const resolvedActiveSessionId = visibleSessions.find((session) => session.id === rememberedId)?.id || visibleSessions[0]?.id || null;
-    const sessionsRef = useRef<CanvasAssistantSession[]>(safeSessions);
-    const activeSessionIdRef = useRef<string | null>(resolvedActiveSessionId);
-
     useEffect(() => {
-        sessionsRef.current = safeSessions;
-        activeSessionIdRef.current = resolvedActiveSessionId;
-    }, [resolvedActiveSessionId, safeSessions]);
+        syncSessions(safeSessions, resolvedActiveSessionId);
+    }, [resolvedActiveSessionId, safeSessions, syncSessions]);
 
     useEffect(() => () => {
         abortRef.current?.abort();
-        pendingDeleteRef.current?.resolve(false);
-        pendingDeleteRef.current = null;
+        pendingConfirmationRef.current?.resolve(false);
+        pendingConfirmationRef.current = null;
     }, []);
 
     const activeSession = visibleSessions.find((session) => session.id === resolvedActiveSessionId) || visibleSessions[0] || null;
@@ -225,46 +242,62 @@ export function CanvasAssistantPanel({
         );
     }, [composerReferenceIds, referenceNodeClick, removedReferenceIds, resourceReferences, selectedNodeIds]);
     const iconButtonStyle = { color: theme.node.muted };
-    const settleDeleteConfirmation = (confirmed: boolean) => {
-        const pending = pendingDeleteRef.current;
+    const handleBatchEnd = (summary: CanvasAgentBatchSummary) => {
+        lastBatchRef.current = mergeAssistantBatch(lastBatchRef.current, summary);
+        onBatchEnd?.(summary);
+        if (summary.rolledBack) appMessage.warning("本批操作未完成，已回滚本次画布结构变更");
+    };
+
+    /** 媒体确认卡上的预估算力点：复用工作台的计价工具，本地渠道为 0。 */
+    const estimateMediaCredits = (action: CanvasAgentAction) => {
+        const args = action.arguments;
+        const channelMode = effectiveConfig.channelMode;
+        if (action.name === "generate_image" || action.name === "edit_image") {
+            return requestCreditCost({ channelMode, modelCosts, model: effectiveConfig.imageModel || effectiveConfig.model, count: typeof args.count === "number" ? args.count : 1 });
+        }
+        if (action.name === "generate_video") {
+            return requestCreditCost({
+                channelMode,
+                modelCosts,
+                model: effectiveConfig.videoModel || effectiveConfig.model,
+                resolution: effectiveConfig.vquality,
+                seconds: typeof args.seconds === "number" ? args.seconds : effectiveConfig.videoSeconds,
+            });
+        }
+        if (action.name === "generate_audio") return requestCreditCost({ channelMode, modelCosts, model: effectiveConfig.audioModel, count: 1 });
+        return 0;
+    };
+
+    const settleConfirmation = (confirmed: boolean) => {
+        const pending = pendingConfirmationRef.current;
         if (!pending) return;
-        pendingDeleteRef.current = null;
-        setPendingDelete(null);
+        pendingConfirmationRef.current = null;
+        setPendingConfirmation(null);
         pending.resolve(confirmed);
     };
+
+    /** 并行工具调用时逐个弹确认，避免后一个覆盖前一个。 */
+    const requestConfirmation = (confirmation: Omit<PendingConfirmation, "resolve">, provider: "api" | "codex", signal: AbortSignal) =>
+        confirmationQueueRef.current(async () => {
+            if (signal.aborted) return false;
+            if (provider === "codex") return confirmCodex(confirmation.title, <div className="text-xs opacity-55">{confirmation.detail}</div>, signal, confirmation.okText, "取消", confirmation.danger);
+            return new Promise<boolean>((resolve) => {
+                const finish = (value: boolean) => {
+                    signal.removeEventListener("abort", cancel);
+                    resolve(value);
+                };
+                const cancel = () => settleConfirmation(false);
+                signal.addEventListener("abort", cancel, { once: true });
+                pendingConfirmationRef.current?.resolve(false);
+                const pending = { ...confirmation, resolve: finish };
+                pendingConfirmationRef.current = pending;
+                setPendingConfirmation(pending);
+            });
+        });
 
     useEffect(() => {
         setRemovedReferenceIds(new Set());
     }, [selectedNodeKey]);
-
-    const commitSessions = (nextSessions: CanvasAssistantSession[], nextActiveSessionId = activeSessionIdRef.current) => {
-        sessionsRef.current = nextSessions;
-        activeSessionIdRef.current = nextActiveSessionId;
-        const selected = nextSessions.find((session) => session.id === nextActiveSessionId);
-        if (selected) lastSessionIds.current[selected.provider || "api"] = selected.id;
-        onSessionsChange(nextSessions, nextActiveSessionId);
-    };
-
-    const updateSession = (sessionId: string, updater: (session: CanvasAssistantSession) => CanvasAssistantSession) => {
-        commitSessions(sessionsRef.current.map((session) => (session.id === sessionId ? updater(session) : session)));
-    };
-
-    const appendMessage = (sessionId: string, message: CanvasAssistantMessage) => {
-        updateSession(sessionId, (session) => ({
-            ...session,
-            title: session.messages.length ? session.title : message.text.slice(0, 18) || "新对话",
-            messages: [...session.messages, message],
-            updatedAt: new Date().toISOString(),
-        }));
-    };
-
-    const updateMessage = (sessionId: string, messageId: string, patch: Partial<CanvasAssistantMessage>) => {
-        updateSession(sessionId, (session) => ({
-            ...session,
-            messages: session.messages.map((message) => (message.id === messageId ? { ...message, ...patch } : message)),
-            updatedAt: new Date().toISOString(),
-        }));
-    };
 
     const startChatSession = () => {
         setSelectedSkills([]);
@@ -324,29 +357,13 @@ export function CanvasAssistantPanel({
                 return { ok: false, code: "skill_file_not_found", message: error instanceof Error ? error.message : "Skill 文件读取失败" };
             }
         }
-        if (action.name !== "delete_node") return onExecuteAction(action, messageReferenceNodeIds);
-        const nodeId = typeof action.arguments.nodeId === "string" ? action.arguments.nodeId : "";
-        const node = nodes.find((item) => item.id === nodeId);
-        let confirmed: boolean;
-        if (provider === "codex") {
-            confirmed = await confirmCodex(
-                `删除「${node?.title || "未命名节点"}」？`,
-                <div className="text-xs opacity-55">相关连线和任务记录将按现有逻辑清理</div>,
-                signal, "确认删除", "取消", true,
-            );
-        } else {
-            const cancel = () => settleDeleteConfirmation(false);
-            signal.addEventListener("abort", cancel, { once: true });
-            confirmed = await new Promise<boolean>((resolve) => {
-                pendingDeleteRef.current?.resolve(false);
-                const pending = { title: node?.title || "未命名节点", resolve };
-                pendingDeleteRef.current = pending;
-                setPendingDelete(pending);
-            });
-            signal.removeEventListener("abort", cancel);
-        }
+        const creditCost = estimateMediaCredits(action);
+        const confirmation = canvasAgentConfirmation(action, { nodes, connections, autoGenerateMedia: Boolean(agentConfig.autoGenerateMedia), confirmMediaGeneration: agentConfig.confirmMediaGeneration, creditCost });
+        if (!confirmation) return onExecuteAction(action, messageReferenceNodeIds);
+        const confirmed = await requestConfirmation(confirmation, provider, signal);
         signal.throwIfAborted();
-        return confirmed ? onExecuteAction(action, messageReferenceNodeIds) : { ok: false, code: "delete_cancelled", message: "用户取消删除，原节点已保留" };
+        if (confirmed) return onExecuteAction(action, messageReferenceNodeIds);
+        return { ok: false, code: action.name === "delete_node" ? "delete_cancelled" : "action_cancelled", message: action.name === "delete_node" ? "用户取消删除，原节点已保留" : "用户取消操作，画布未变更" };
     };
 
     const confirmCodex = (title: string, content: ReactNode, signal: AbortSignal, okText = "允许一次", cancelText = "拒绝", danger = false) => new Promise<boolean>((resolve) => {
@@ -470,13 +487,12 @@ export function CanvasAssistantPanel({
                 }
             }
             const availableSkills = [...useAgentSkillStore.getState().systemSkills, ...useAgentSkillStore.getState().userSkills];
-            const latestSkills = activeSkills.map((selected) => availableSkills.find((skill) => skill.id === selected.id && skill.source === selected.source && skill.enabled));
-            const unavailableSkill = activeSkills.find((_, index) => !latestSkills[index]);
-            if (unavailableSkill) {
-                appMessage.error(`Skill「${unavailableSkill.name}」已不可用，请重新选择`);
+            const resolvedSkills = resolveCanvasAgentSkillContents(activeSkills, availableSkills);
+            if (!resolvedSkills.ok) {
+                appMessage.error(resolvedSkills.message);
                 return;
             }
-            activeSkillContents = latestSkills.map((skill) => ({ id: skill!.id, source: skill!.source, name: skill!.name, content: skill!.content, hasFiles: skill!.hasFiles }));
+            activeSkillContents = resolvedSkills.contents;
         }
 
         if (!activeSession) commitSessions([session, ...sessionsRef.current], session.id);
@@ -497,16 +513,8 @@ export function CanvasAssistantPanel({
         setSelectedSkills([]);
         setRemovedReferenceIds(new Set(selectedNodeIds));
 
-        const requestConfig = {
-            ...effectiveConfig,
-            model: effectiveConfig.textModel || effectiveConfig.model,
-            apiMode: agentConfig.textApiMode,
-            textStreaming: agentConfig.textStreaming === true,
-            textReasoningEnabled: agentConfig.textReasoningEnabled === true,
-            activeChannelId: effectiveConfig.textChannelId || effectiveConfig.activeChannelId,
-            textChannelId: effectiveConfig.textChannelId,
-        };
-        const jsonToolFallbackKey = [requestConfig.apiMode || "chat", requestConfig.textChannelId || requestConfig.activeChannelId || requestConfig.baseUrl, requestConfig.model].join("|");
+        const requestConfig = buildCanvasAgentRequestConfig(effectiveConfig, agentConfig);
+        const jsonToolFallbackKey = canvasAgentJsonFallbackKey(requestConfig);
         if (mode === "api" && !isAiConfigReady(requestConfig, requestConfig.model)) {
             updateMessage(session.id, assistantId, {
                 text: "全局文本模型尚未配置完成。请先从应用原有的全局配置入口选择文本模型和渠道，然后再继续。",
@@ -516,72 +524,40 @@ export function CanvasAssistantPanel({
             return;
         }
 
-        const controller = new AbortController();
-        abortRef.current = controller;
-        setIsRunning(true);
-        try {
-            const modelReferences = await Promise.all(
-                references.map(async (reference) => {
-                    if (!reference.dataUrl) return reference;
-                    try {
-                        return { ...reference, dataUrl: await imageToDataUrl(reference) };
-                    } catch {
-                        return reference;
-                    }
-                }),
-            );
-            const run = mode === "codex" ? (input: Parameters<typeof runCanvasAgent>[0]) => codex.run({
-                ...input, threadId: session.codexThreadId, serviceId: session.codexServiceId, model: codexModel?.model, effort: codexEffort,
-                onThread: (codexThreadId, codexServiceId) => updateSession(session.id, (current) => ({ ...current, codexThreadId, codexServiceId })),
-                onText: (text) => updateMessage(session.id, assistantId, { text }),
-            }) : runCanvasAgent;
-            const result = await run({
-                config: requestConfig,
-                initialState: session.agentState,
-                protocolMessages: session.protocolMessages,
-                userText: text,
-                references: modelReferences,
-                activeSkillContents,
-                contextCheckpoint: session.contextCheckpoint,
-                preferredJsonMode: session.jsonToolFallbackKey === jsonToolFallbackKey ? session.jsonToolFallbackMode || "structured-json" : undefined,
-                getContext: getAgentContext,
-                executeAction: (action, signal = controller.signal) => executeCanvasTool(action, messageReferenceNodeIds, activeSkills, mode, signal),
-                signal: controller.signal,
-                onEvent: (event) => updateMessage(session.id, assistantId, { status: event.status, activity: event.label }),
-                onCheckpoint: (checkpoint) =>
-                    updateSession(session.id, (current) => ({
-                        ...current,
-                        agentState: checkpoint.state,
-                        protocolMessages: checkpoint.protocolMessages,
-                        contextCheckpoint: checkpoint.contextCheckpoint,
-                        jsonToolFallbackKey: checkpoint.jsonFallbackMode ? jsonToolFallbackKey : undefined,
-                        jsonToolFallbackMode: checkpoint.jsonFallbackMode,
-                        updatedAt: new Date().toISOString(),
-                    })),
-            });
-            updateSession(session.id, (current) => ({
-                ...current,
-                agentState: result.state,
-                protocolMessages: result.protocolMessages,
-                contextCheckpoint: result.contextCheckpoint,
-                jsonToolFallbackKey: result.jsonFallbackMode ? jsonToolFallbackKey : undefined,
-                jsonToolFallbackMode: result.jsonFallbackMode,
-                messages: current.messages.map((message) =>
-                    message.id === assistantId ? { ...message, text: result.reply, status: "success", activity: undefined } : message,
-                ),
-                updatedAt: new Date().toISOString(),
-            }));
-        } catch (error) {
-            const stopped = error instanceof Error && error.name === "AbortError";
-            updateMessage(session.id, assistantId, {
-                text: stopped ? "已停止继续执行。已经创建的节点和已经提交的媒体任务会保留。" : error instanceof Error ? error.message : "Agent 执行失败",
-                status: stopped ? "waiting" : "error",
-                activity: undefined,
-            });
-        } finally {
-            if (abortRef.current === controller) abortRef.current = null;
-            setIsRunning(false);
-        }
+        lastBatchRef.current = null;
+        await runAssistantTurn({
+            session,
+            assistantId,
+            userText: text,
+            references,
+            activeSkillContents,
+            requestConfig,
+            jsonToolFallbackKey,
+            createRunner: (turnSession, turnAssistantId) =>
+                mode === "codex"
+                    ? (agentInput) => codex.run({
+                        ...agentInput,
+                        threadId: turnSession.codexThreadId,
+                        serviceId: turnSession.codexServiceId,
+                        model: codexModel?.model,
+                        effort: codexEffort,
+                        onThread: (codexThreadId, codexServiceId) => updateSession(turnSession.id, (current) => ({ ...current, codexThreadId, codexServiceId })),
+                        onText: (nextText) => updateMessage(turnSession.id, turnAssistantId, { text: nextText }),
+                    })
+                    : runCanvasAgent,
+            getAgentContext,
+            executeAction: (action, signal) => executeCanvasTool(action, messageReferenceNodeIds, activeSkills, mode, signal),
+            onBatchStart,
+            onBatchEnd: handleBatchEnd,
+            updateSession,
+            updateMessage,
+            takeAbort: (controller) => { abortRef.current = controller; },
+            releaseAbort: (controller) => { if (abortRef.current === controller) abortRef.current = null; },
+            onRunningChange: setIsRunning,
+        });
+        const batch = lastBatchRef.current;
+        lastBatchRef.current = null;
+        if (batch && shouldShowAssistantBatch(batch)) updateMessage(session.id, assistantId, { batch });
     };
     const sendMessageRef = useRef(sendMessage);
     sendMessageRef.current = sendMessage;
@@ -720,12 +696,12 @@ export function CanvasAssistantPanel({
                     )}
                 </div>
 
-                {(mode === "api" ? pendingDelete : codexConfirmations.length) ? (
+                {(mode === "api" ? pendingConfirmation : codexConfirmations.length) ? (
                     <div className="thin-scrollbar max-h-[50%] shrink-0 space-y-2 overflow-y-auto pb-2">
-                        {mode === "api" && pendingDelete ? <AssistantPanelCard title={`删除「${pendingDelete.title}」？`} actions={[
-                            { label: "取消", onClick: () => settleDeleteConfirmation(false) },
-                            { label: "确认删除", danger: true, onClick: () => settleDeleteConfirmation(true) },
-                        ]}><div className="text-xs opacity-55">相关连线和任务记录将按现有逻辑清理</div></AssistantPanelCard> : null}
+                        {mode === "api" && pendingConfirmation ? <AssistantPanelCard title={pendingConfirmation.title} actions={[
+                            { label: "取消", onClick: () => settleConfirmation(false) },
+                            { label: pendingConfirmation.okText, danger: pendingConfirmation.danger, onClick: () => settleConfirmation(true) },
+                        ]}><div className="text-xs opacity-55">{pendingConfirmation.detail}</div></AssistantPanelCard> : null}
                         {mode === "codex" ? codexConfirmations.map((confirmation) => <AssistantPanelCard key={confirmation.id} title={confirmation.title} actions={confirmation.actions}>{confirmation.content}</AssistantPanelCard>) : null}
                     </div>
                 ) : null}
@@ -786,9 +762,16 @@ export function CanvasAssistantPanel({
                     <div className="flex items-center justify-between gap-6 py-2">
                         <div className="min-w-0">
                             <div className="text-sm font-medium">自动生成图片/视频/音频</div>
-                            <div className="mt-1 text-xs leading-5 opacity-55">开启后，Agent 可直接提交图片/视频/音频生成，无需再次确认</div>
+                            <div className="mt-1 text-xs leading-5 opacity-55">开启后，Agent 可直接提交图片/视频/音频生成</div>
                         </div>
                         <Switch checked={agentConfig.autoGenerateMedia} onChange={(autoGenerateMedia) => onAgentConfigChange({ autoGenerateMedia })} />
+                    </div>
+                    <div className="flex items-center justify-between gap-6 py-2">
+                        <div className="min-w-0">
+                            <div className="text-sm font-medium">提交生成前确认</div>
+                            <div className="mt-1 text-xs leading-5 opacity-55">仅在自动生成开启时生效；关闭后媒体任务直接提交，不再弹出确认卡</div>
+                        </div>
+                        <Switch checked={agentConfig.confirmMediaGeneration !== false} onChange={(confirmMediaGeneration) => onAgentConfigChange({ confirmMediaGeneration })} />
                     </div>
                 </Modal>
 
@@ -920,6 +903,27 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
                                     </div>
                                 ) : null}
                                 {message.role === "assistant" ? <AssistantMarkdown components={markdownComponents}>{message.text}</AssistantMarkdown> : <UserMessageContent message={message} showSkills={showSkills} />}
+                                {message.role === "assistant" && message.batch ? <div className="mt-1 text-[11px] leading-4 opacity-55">{formatAssistantBatch(message.batch)}</div> : null}
+                                {message.role === "assistant" && message.batch?.nodeIds?.length ? (
+                                    <div className="mt-1 flex max-w-full flex-wrap gap-1">
+                                        {message.batch.nodeIds.map((nodeId) => {
+                                            const node = nodeById.get(nodeId);
+                                            if (!node) return null;
+                                            return (
+                                                <button
+                                                    key={nodeId}
+                                                    type="button"
+                                                    className="max-w-[160px] cursor-pointer truncate rounded-full border px-2 py-0.5 text-[11px] opacity-70 transition-opacity hover:opacity-100"
+                                                    style={{ borderColor: theme.node.stroke, color: theme.node.text }}
+                                                    onClick={() => onFocusNode(node.id)}
+                                                    title={`定位到「${node.title}」`}
+                                                >
+                                                    {node.title}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ) : null}
                             </div>
                         ) : null}
                         {running ? <ImageGenerationPending compact label={message.activity || "正在执行"} className="w-[250px] rounded-2xl border" /> : null}

@@ -35,12 +35,21 @@ import {
     type CanvasAgentAction,
     type CanvasAgentToolResult,
 } from "./canvas-agent-tools";
+import { canvasAgentActionReversible, canvasAgentActionRisk } from "./canvas-agent-registry";
 
 const MAX_AGENT_STEPS = 12;
 
 export type CanvasAgentRuntimeEvent = {
     status: CanvasAssistantMessageStatus;
     label: string;
+};
+
+export type CanvasAgentBatchSummary = {
+    total: number;
+    succeeded: number;
+    failed: number;
+    rolledBack: boolean;
+    nodeIds: string[];
 };
 
 export type RunCanvasAgentInput = {
@@ -54,7 +63,11 @@ export type RunCanvasAgentInput = {
     preferredJsonMode?: CanvasAgentJsonFallbackMode;
     getContext: (state: CanvasAgentState) => CanvasAgentContext;
     executeAction: (action: CanvasAgentAction, signal?: AbortSignal) => Promise<CanvasAgentToolResult>;
+    /** 单测注入模型请求；生产环境不传，使用真实接口。 */
+    requestTurn?: typeof requestCanvasAgentTurn;
     onEvent?: (event: CanvasAgentRuntimeEvent) => void;
+    onBatchStart?: () => void;
+    onBatchEnd?: (summary: CanvasAgentBatchSummary) => void;
     onCheckpoint?: (checkpoint: {
         state: CanvasAgentState;
         protocolMessages: CanvasAgentProtocolMessage[];
@@ -97,6 +110,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
     const activeSkillContents = input.activeSkillContents?.map((skill, index) => `【完整 Skill ${index + 1}：${skill.name}（${skill.source === "system" ? `系统 Skill ID：${skill.id}` : "用户 Skill"}）】\n${skill.content}`).join("\n\n");
     const skillFileToolAvailable = Boolean(input.activeSkillContents?.some((skill) => skill.source === "system" && skill.hasFiles));
     const agentTools = skillFileToolAvailable ? [...CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL] : CANVAS_AGENT_TOOLS;
+    const requestTurnFn = input.requestTurn || requestCanvasAgentTurn;
 
     const emitCheckpoint = () => input.onCheckpoint?.({
         state,
@@ -134,7 +148,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
             if (await compactHistory()) systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
         }
 
-        const requestTurn = () => requestCanvasAgentTurn({
+        const requestTurn = () => requestTurnFn({
             config: input.config,
             systemPrompt,
             messages: protocolMessages,
@@ -240,21 +254,39 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         protocolError = undefined;
         input.onEvent?.({ status: "running", label: actions.length === 1 ? canvasAgentActionLabel(actions[0]) : "正在执行 " + actions.length + " 个画布操作" });
 
-        const results = await executeActions(actions, state, input.executeAction, input.signal, input.onEvent);
+        input.onBatchStart?.();
+        const stateBeforeBatch = state;
+        let executed: Awaited<ReturnType<typeof executeActions>>;
+        try {
+            executed = await executeActions(actions, state, input.executeAction, input.signal, input.onEvent);
+        } catch (error) {
+            // 用户停止时保留已完成的结构变更，仅清空批次快照。
+            input.onBatchEnd?.({ total: actions.length, succeeded: 0, failed: actions.length, rolledBack: false, nodeIds: [] });
+            throw error;
+        }
         hasExecutedActions = true;
-        state = results.state;
+        state = executed.state;
+        const batch = summarizeCanvasAgentBatch(executed.items);
+        const rolledBack = shouldRollbackCanvasAgentBatch(executed.items);
+        // 回滚时 agentState 也回到批次前，避免阶段/已批准节点与真实画布不一致。
+        if (rolledBack) state = stateBeforeBatch;
+        const summary: CanvasAgentBatchSummary = { ...batch, rolledBack };
+        const items = rolledBack ? executed.items.map(({ action, result }) => ({ action, result: { ...result, rolledBack: true } })) : executed.items;
+        input.onBatchEnd?.(summary);
+        const batchNote = batch.failed > 0 ? "\n本批共 " + summary.total + " 个操作：成功 " + summary.succeeded + "，失败 " + summary.failed + "。" + (rolledBack ? "已回滚本批结构变更，画布保持执行前状态；未创建节点或提交生成。" : "已完成的结构变更和已提交的媒体任务会保留，请按失败原因先修正再继续。") : "";
 
         if (nativeActions.length && toolMode === "native") {
             protocolMessages = [
                 ...protocolMessages,
                 assistantToolMessage,
-                ...results.items.map(({ action, result }) => ({
+                ...items.map(({ action, result }) => ({
                     role: "tool" as const,
                     toolCallId: action.id,
                     name: action.name,
                     content: JSON.stringify(result),
                 })),
                 ...rejectedToolMessages,
+                ...(batchNote ? [{ role: "user" as const, content: "工具执行汇总：" + batchNote }] : []),
             ];
         } else {
             protocolMessages = [
@@ -262,7 +294,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
                 assistantToolMessage,
                 {
                     role: "user" as const,
-                    content: "工具执行结果（只可依据这些真实结果继续）：\n" + JSON.stringify(results.items.map(({ action, result }) => ({ tool: action.name, id: action.id, result }))),
+                    content: "工具执行结果（只可依据这些真实结果继续）：\n" + JSON.stringify(items.map(({ action, result }) => ({ tool: action.name, id: action.id, result }))) + batchNote,
                 },
             ];
         }
@@ -272,6 +304,25 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
     const reply = "本轮已达到安全操作步数上限，当前已完成的节点和任务都已保存。你可以让我继续下一步。";
     protocolMessages = [...protocolMessages, { role: "assistant" as const, content: reply }];
     return { reply, state, protocolMessages: persistCanvasAgentProtocolMessages(protocolMessages), contextCheckpoint, jsonFallbackMode: usedJsonFallbackMode };
+}
+
+/** 只含结构写入且存在失败时整批回滚；含删除、媒体提交或主剧本时保留已完成部分。 */
+export function shouldRollbackCanvasAgentBatch(items: Array<{ action: CanvasAgentAction; result: CanvasAgentToolResult }>) {
+    return items.some(({ result }) => !result.ok) && items.every(({ action }) => canvasAgentActionReversible(action.name));
+}
+
+const MAX_BATCH_NODE_IDS = 20;
+
+export function summarizeCanvasAgentBatch(items: Array<{ action: CanvasAgentAction; result: CanvasAgentToolResult }>) {
+    const succeeded = items.filter(({ result }) => result.ok).length;
+    const nodeIds = [
+        ...new Set(
+            items
+                .flatMap(({ result }) => [...(Array.isArray(result.createdNodeIds) ? result.createdNodeIds : []), ...(typeof result.nodeId === "string" ? [result.nodeId] : [])])
+                .filter((id): id is string => typeof id === "string"),
+        ),
+    ].slice(0, MAX_BATCH_NODE_IDS);
+    return { total: items.length, succeeded, failed: items.length - succeeded, nodeIds };
 }
 
 export function canvasAgentAllowsArrangement(userText: string) {
@@ -289,18 +340,21 @@ export async function executeActions(
     const executeOne = async (action: CanvasAgentAction) => {
         throwIfAborted(signal);
         onEvent?.({ status: "running", label: canvasAgentActionLabel(action) });
+        const startedAt = Date.now();
         try {
             const result = await executeAction(action);
             if (action.name === "set_agent_state" && result.ok) state = applyAgentState(state, action.arguments);
             else state = applyTaskResult(state, result);
-            return { action, result };
+            const audited: CanvasAgentToolResult = { ...result, audit: { actionId: action.id, risk: canvasAgentActionRisk(action.name), startedAt, durationMs: Date.now() - startedAt } };
+            return { action, result: audited };
         } catch (error) {
             return {
                 action,
                 result: {
                     ok: false,
-                    code: "tool_execution_failed",
+                    code: error instanceof Error && error.name === "AbortError" ? "cancelled" : "tool_execution_failed",
                     message: error instanceof Error ? error.message : "工具执行失败",
+                    audit: { actionId: action.id, risk: canvasAgentActionRisk(action.name), startedAt, durationMs: Date.now() - startedAt },
                 } satisfies CanvasAgentToolResult,
             };
         }
