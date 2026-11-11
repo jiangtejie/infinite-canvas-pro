@@ -234,7 +234,7 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex flex-wrap -translate-x-1/2 -translate-y-full items-center justify-center gap-x-2 overflow-visible rounded-xl border px-2 text-[13px] shadow-xl"
+                className="absolute z-[70] flex flex-wrap items-center justify-center gap-x-2 overflow-visible rounded-xl border px-2 text-[13px] shadow-xl"
                 style={{ left, top, maxWidth: `min(${toolbarMaxWidth}px, calc(100vw - 32px))`, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, transform: `translate(-50%, -100%) scale(${toolbarScale})`, transformOrigin: "bottom center" }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
