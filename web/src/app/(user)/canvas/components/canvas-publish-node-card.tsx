@@ -9,9 +9,9 @@ import { isPublishDraftDirty, publishQrExpired } from "../[id]/lib/canvas-publis
 import type { CanvasNodeData } from "../types";
 
 /**
- * 发布节点卡片：展示上游文案/图片数量、二维码与发布状态，点击或双击打开面板由外层处理。
+ * 发布节点卡片：展示发布标题、已选图片数、二维码与发布状态，点击或双击打开面板由外层处理。
  */
-export function CanvasPublishNodeCard({ node, textCount, imageCount, onOpen }: { node: CanvasNodeData; textCount: number; imageCount: number; onOpen: () => void }) {
+export function CanvasPublishNodeCard({ node, imageCount, onOpen }: { node: CanvasNodeData; textCount: number; imageCount: number; onOpen: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const record = node.metadata?.publishRecord;
@@ -20,7 +20,8 @@ export function CanvasPublishNodeCard({ node, textCount, imageCount, onOpen }: {
     const expired = publishQrExpired(record);
     const draftDirty = isPublishDraftDirty(record, node.metadata?.publishDraft, node.metadata?.publishDraftSnapshot);
     const draftTitle = node.metadata?.publishDraft?.title?.trim() || "";
-    const counts = [textCount ? `文案 ${textCount} 段` : "", imageCount ? `图片 ${imageCount} 张` : ""].filter(Boolean).join(" · ");
+    const selectedImageCount = node.metadata?.publishDraft?.imageNodeIds?.length ?? imageCount;
+    const imageSummary = selectedImageCount > 0 ? `已选 ${selectedImageCount} 张图片` : `共 ${imageCount} 张图片`;
     const actionStyle = { background: theme.toolbar.itemHover, borderColor: theme.node.stroke, color: theme.node.text };
     const stopPointer = (event: { stopPropagation: () => void }) => event.stopPropagation();
 
@@ -57,10 +58,8 @@ export function CanvasPublishNodeCard({ node, textCount, imageCount, onOpen }: {
                 <div className="flex size-12 items-center justify-center rounded-2xl" style={{ background: theme.toolbar.activeBg, color: theme.node.muted }}>
                     <Send className="size-5" />
                 </div>
-                <p className="m-0 text-sm font-medium" style={{ color: theme.node.text }}>连接文案与图片后发布到抖音</p>
-                <p className="m-0 text-[11px] leading-5" style={{ color: theme.node.placeholder }}>
-                    {counts ? `已连接 ${counts}，点开面板编辑并生成二维码` : "把文本节点和图片节点连到本节点，再生成扫码发布二维码"}
-                </p>
+                <p className="m-0 text-sm font-medium" style={{ color: theme.node.text }}>编辑发布内容并生成二维码</p>
+                <p className="m-0 text-[11px] leading-5" style={{ color: theme.node.placeholder }}>点开面板填写标题、正文并选择发布图片</p>
                 {openButton}
             </div>
         );
@@ -73,7 +72,7 @@ export function CanvasPublishNodeCard({ node, textCount, imageCount, onOpen }: {
                 <Send className="mt-0.5 size-4 shrink-0" style={{ color: theme.node.muted }} />
                 <div className="min-w-0 flex-1">
                     <div className="line-clamp-2 text-sm font-semibold leading-5">{draftTitle || record.id}</div>
-                    <div className="mt-1 truncate text-[11px]" style={{ color: theme.node.muted }}>{counts || `共 ${imageCount || 0} 张图片`}</div>
+                    <div className="mt-1 truncate text-[11px]" style={{ color: theme.node.muted }}>{imageSummary}</div>
                 </div>
                 {record.mock ? <Tag className="!m-0 !text-[10px]" color="warning">MOCK</Tag> : null}
             </div>

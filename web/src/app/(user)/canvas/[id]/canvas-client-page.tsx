@@ -40,7 +40,7 @@ import { useCanvasGeneration } from "./hooks/use-canvas-generation";
 import { useCanvasBatchGeneration } from "./hooks/use-canvas-batch-generation";
 import { collectBatchTargetNodeIds, collectPublishableRemixImages, collectRemixImageNodeIds, findSourceRemixTextNode, getSourceRemixTextStatus, hasSourceRemixText } from "./lib/canvas-batch";
 import { findSourcePublishNode, planSourcePublishNode } from "./lib/canvas-publish";
-import { SOURCE_REMIX_TEXT_PROMPT } from "./lib/canvas-source-plan";
+import { migrateRemixNodeLayouts, SOURCE_REMIX_TEXT_PROMPT, stripLegacyRemixTextImageConnections } from "./lib/canvas-source-plan";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
@@ -275,7 +275,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     return ensureImagePreview(`canvas-node:${projectId}:${node.id}`, content, storageKey, source, true);
                 }),
             );
-            const restoredNodes = await hydrateCanvasImages(resetNodes);
+            const restoredNodes = migrateRemixNodeLayouts(await hydrateCanvasImages(resetNodes));
+            const restoredConnections = stripLegacyRemixTextImageConnections(restoredNodes, project.connections);
             for (const node of restoredNodes) {
                 const id = node.metadata?.clientTaskId;
                 if (!id) continue;
@@ -285,7 +286,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             }
             const restoredSessions = syncAssistantReferences(project.chatSessions || [], restoredNodes, true);
             setNodes(restoredNodes);
-            setConnections(project.connections);
+            setConnections(restoredConnections);
             setChatSessions(restoredSessions);
             setActiveChatId(project.activeChatId || null);
             setAgentConfig(project.agentConfig || null);
@@ -297,7 +298,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const restoredAgentPanel = project.agentPanel || DEFAULT_CANVAS_AGENT_PANEL;
             setAgentPanel(restoredAgentPanel);
             setAssistantMounted(restoredAgentPanel.open);
-            resetHistory(restoredNodes, project.connections, project.backgroundMode, project.showImageInfo || false);
+            resetHistory(restoredNodes, restoredConnections, project.backgroundMode, project.showImageInfo || false);
             setProjectLoaded(true);
         };
         void restore();

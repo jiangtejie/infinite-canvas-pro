@@ -304,9 +304,11 @@ function normalizeAgnesImage21Ratio(value: string) {
         return ratio;
     }
     if (ratio === "2048x2048") return "1:1";
-    if (ratio === "2048x1152" || ratio === "3840x2160") return "16:9";
-    if (ratio === "1152x2048" || ratio === "2160x3840") return "9:16";
-    if (ratio === "3136x1344" || ratio === "6272x2688") return "21:9";
+    if (ratio === "2048x1152" || ratio === "3840x2160" || ratio === "1920x1080") return "16:9";
+    if (ratio === "1152x2048" || ratio === "2160x3840" || ratio === "1080x1920") return "9:16";
+    if (ratio === "3136x1344" || ratio === "6272x2688" || ratio === "1568x672") return "21:9";
+    if (ratio === "768x1024" || ratio === "1024x1280") return "3:4";
+    if (ratio === "1024x768" || ratio === "1280x1024") return "4:3";
     return "1:1";
 }
 

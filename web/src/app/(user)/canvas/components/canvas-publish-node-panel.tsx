@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowDown, ArrowUp, CircleAlert, LoaderCircle, Send, X } from "lucide-react";
-import { App, Button, Checkbox, Input, Modal, QRCode, Select, Tag, theme as antdTheme } from "antd";
+import { ArrowDown, ArrowUp, ChevronDown, CircleAlert, LoaderCircle, Plus, Send, X } from "lucide-react";
+import { App, Button, Input, Modal, QRCode, Select, Tag, theme as antdTheme } from "antd";
 
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -43,7 +43,8 @@ export type CanvasPublishNodePanelProps = {
 };
 
 /**
- * 发布节点面板：编辑标题/正文/话题、勾选排序上游图片，转存图片、预检并生成抖音扫码发布二维码。
+ * 发布节点面板：直接编辑要发布的标题/正文/话题与图片（已选图可排序/移除，未选图折叠添加），
+ * 转存图片、预检并生成抖音扫码发布二维码。
  */
 export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: CanvasPublishNodePanelProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -56,6 +57,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
     const [issues, setIssues] = useState<PublishIssue[]>([]);
     const [confirming, setConfirming] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
+    const [addImagesOpen, setAddImagesOpen] = useState(false);
     const [publishedUrl, setPublishedUrl] = useState(node.metadata?.publishRecord?.publishedUrl || "");
     const [now, setNow] = useState(Date.now());
     const uploadCacheRef = useRef(new Map<string, PublishMedia>());
@@ -74,8 +76,10 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
     const draftTags = draft?.tags ?? defaultDraft.tags;
     const draftImageNodeIds = draft?.imageNodeIds ?? defaultDraft.imageNodeIds;
     const imageByNodeId = new Map(inputs.images.map((item) => [item.nodeId, item]));
-    const selectedImageIds = draftImageNodeIds.filter((nodeId) => imageByNodeId.has(nodeId));
-    const orderedImages = selectedImageIds.map((nodeId) => imageByNodeId.get(nodeId)!).slice(0, PUBLISH_MAX_IMAGES);
+    const selectedImageIds = draftImageNodeIds.filter((nodeId) => imageByNodeId.has(nodeId)).slice(0, PUBLISH_MAX_IMAGES);
+    const selectedImages = selectedImageIds.map((nodeId) => imageByNodeId.get(nodeId)!);
+    const unselectedImages = inputs.images.filter((item) => !selectedImageIds.includes(item.nodeId));
+    const orderedImages = selectedImages.slice(0, PUBLISH_MAX_IMAGES);
     const channel = channels?.channels.find((item) => item.id === "douyin-h5") || channels?.channels[0];
     const channelReady = Boolean(channel?.available);
     const unavailableText = channelsError || (channels && !channelReady ? publishChannelReasonText(channel?.reason) : "");
@@ -242,45 +246,6 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                 </div>
             ) : null}
 
-            <div className="space-y-2 rounded-xl border p-2.5" style={sectionStyle}>
-                <div className="text-xs font-semibold">上游素材</div>
-                {inputs.text ? (
-                    <p className="thin-scrollbar m-0 max-h-24 overflow-y-auto whitespace-pre-wrap break-words text-xs leading-5" style={{ color: theme.node.muted }}>{inputs.text}</p>
-                ) : (
-                    <p className="m-0 text-[11px]" style={{ color: theme.node.placeholder }}>还没有连接文案节点，发布时会使用面板里填写的标题与正文。</p>
-                )}
-                {inputs.images.length ? (
-                    <div className="grid grid-cols-4 gap-1.5">
-                        {inputs.images.map((item) => {
-                            const selectedIndex = selectedImageIds.indexOf(item.nodeId);
-                            const selected = selectedIndex >= 0;
-                            return (
-                                <div key={item.nodeId} className="relative overflow-hidden rounded-md border" style={{ borderColor: selected ? token.colorPrimary : theme.node.stroke }}>
-                                    <img src={item.image.dataUrl} alt={item.title} draggable={false} className="h-16 w-full object-cover" style={{ opacity: selected ? 1 : 0.55 }} />
-                                    <div className="absolute left-1 top-1 flex items-center gap-1 rounded px-1 py-0.5" style={{ background: theme.toolbar.panel }}>
-                                        <Checkbox className="!m-0" checked={selected} disabled={locked} onChange={() => toggleImage(item.nodeId)} />
-                                        {selected ? <span className="text-[10px] font-semibold" style={{ color: theme.node.text }}>{selectedIndex + 1}</span> : null}
-                                    </div>
-                                    {selected ? (
-                                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5" style={{ background: theme.toolbar.panel }}>
-                                            <button type="button" className="grid size-5 place-items-center rounded" style={{ color: theme.node.text, opacity: selectedIndex === 0 ? 0.35 : 1 }} aria-label="图片前移" disabled={locked || selectedIndex === 0} onClick={() => moveImage(item.nodeId, -1)}>
-                                                <ArrowUp className="size-3" />
-                                            </button>
-                                            <button type="button" className="grid size-5 place-items-center rounded" style={{ color: theme.node.text, opacity: selectedIndex === selectedImageIds.length - 1 ? 0.35 : 1 }} aria-label="图片后移" disabled={locked || selectedIndex === selectedImageIds.length - 1} onClick={() => moveImage(item.nodeId, 1)}>
-                                                <ArrowDown className="size-3" />
-                                            </button>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <p className="m-0 text-[11px]" style={{ color: theme.node.placeholder }}>还没有连接图片节点，至少需要 1 张图片。</p>
-                )}
-                <div className="text-[11px]" style={{ color: theme.node.placeholder }}>已选 {orderedImages.length} 张，生成时会按选中顺序转存到发布域名。</div>
-            </div>
-
             <div className="mt-2 space-y-2 rounded-xl border p-2.5" style={sectionStyle}>
                 <div className="text-xs font-semibold">发布内容</div>
                 <Input size="small" value={draftTitle} maxLength={PUBLISH_TITLE_LIMIT} showCount disabled={locked} placeholder="发布标题（不超过 20 个字）" style={inputStyle} onChange={(event) => updateDraft({ title: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />
@@ -296,6 +261,57 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                     onChange={(values: string[]) => updateDraft({ tags: normalizePublishTags(values) })}
                 />
                 <div className="text-[11px]" style={{ color: theme.node.placeholder }}>标题最多 {PUBLISH_TITLE_LIMIT} 个字，正文最多 1000 个字，话题最多 {PUBLISH_TAGS_LIMIT} 个（不需要输入 #）。</div>
+
+                <div className="space-y-1.5 border-t pt-2" style={{ borderColor: theme.node.stroke }}>
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-medium" style={{ color: theme.node.muted }}>发布图片（按顺序上传）</span>
+                        <span className="text-[11px]" style={{ color: theme.node.placeholder }}>已选 {selectedImages.length} 张</span>
+                    </div>
+                    {selectedImages.length ? (
+                        <div className="grid grid-cols-4 gap-1.5">
+                            {selectedImages.map((item, index) => (
+                                <div key={item.nodeId} className="relative overflow-hidden rounded-md border" style={{ borderColor: theme.node.stroke }}>
+                                    <img src={item.image.dataUrl} alt={item.title} draggable={false} className="h-16 w-full object-cover" />
+                                    <span className="absolute left-1 top-1 grid size-4 place-items-center rounded-full text-[10px] font-semibold" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{index + 1}</span>
+                                    <button type="button" className="absolute right-1 top-1 grid size-4 place-items-center rounded-full transition hover:opacity-80" style={{ background: theme.toolbar.panel, color: theme.node.text }} aria-label={`移除第 ${index + 1} 张发布图片`} disabled={locked} onClick={() => toggleImage(item.nodeId)}>
+                                        <X className="size-3" />
+                                    </button>
+                                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5" style={{ background: theme.toolbar.panel }}>
+                                        <button type="button" className="grid size-5 place-items-center rounded" style={{ color: theme.node.text, opacity: index === 0 ? 0.35 : 1 }} aria-label="图片前移" disabled={locked || index === 0} onClick={() => moveImage(item.nodeId, -1)}>
+                                            <ArrowUp className="size-3" />
+                                        </button>
+                                        <button type="button" className="grid size-5 place-items-center rounded" style={{ color: theme.node.text, opacity: index === selectedImages.length - 1 ? 0.35 : 1 }} aria-label="图片后移" disabled={locked || index === selectedImages.length - 1} onClick={() => moveImage(item.nodeId, 1)}>
+                                            <ArrowDown className="size-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="m-0 text-[11px]" style={{ color: theme.node.placeholder }}>还没有选择发布图片，请连接图片节点后添加。</p>
+                    )}
+                    {unselectedImages.length ? (
+                        <div>
+                            <button type="button" className="flex items-center gap-1 text-[11px] transition hover:opacity-80" style={{ color: theme.node.muted }} aria-expanded={addImagesOpen} onClick={() => setAddImagesOpen((open) => !open)}>
+                                <ChevronDown className={`size-3.5 transition-transform ${addImagesOpen ? "rotate-180" : ""}`} />
+                                添加上游图片（{unselectedImages.length}）
+                            </button>
+                            {addImagesOpen ? (
+                                <div className="mt-1.5 grid grid-cols-6 gap-1.5">
+                                    {unselectedImages.map((item) => (
+                                        <button key={item.nodeId} type="button" className="relative overflow-hidden rounded-md border transition hover:opacity-90" style={{ borderColor: theme.node.stroke }} aria-label={`加入发布图片：${item.title}`} disabled={locked || selectedImages.length >= PUBLISH_MAX_IMAGES} onClick={() => toggleImage(item.nodeId)}>
+                                            <img src={item.image.dataUrl} alt={item.title} draggable={false} className="h-12 w-full object-cover opacity-75" />
+                                            <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full" style={{ background: theme.toolbar.panel, color: theme.node.text }}>
+                                                <Plus className="size-3" />
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    <div className="text-[11px]" style={{ color: theme.node.placeholder }}>图片会按顺序转存到发布域名；取消选择后可在上方「添加上游图片」重新加入。</div>
+                </div>
             </div>
 
             <div className="mt-2 rounded-xl border p-2.5" style={sectionStyle}>
@@ -308,14 +324,14 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                     <div className="space-y-2">
                         <div className="flex items-start gap-3">
                             {hideQr ? (
-                                <div className="flex h-[256px] w-[256px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border px-4 text-center" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorWarning }}>
+                                <div className="flex h-[216px] w-[216px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border px-4 text-center" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorWarning }}>
                                     <CircleAlert className="size-6" />
                                     <span className="text-xs font-medium">内容已修改</span>
                                     <span className="text-[11px] leading-5">当前二维码是旧内容，请重新生成</span>
                                 </div>
                             ) : (
                                 <div className="shrink-0 rounded-lg bg-white p-2">
-                                    <QRCode value={record.qrText} size={240} bordered={false} errorLevel="L" bgColor="#ffffff" color="#111111" status={expired ? "expired" : "active"} onRefresh={expired ? () => void generate() : undefined} />
+                                    <QRCode value={record.qrText} size={200} bordered={false} errorLevel="L" bgColor="#ffffff" color="#111111" status={expired ? "expired" : "active"} onRefresh={expired ? () => void generate() : undefined} />
                                 </div>
                             )}
                             <div className="min-w-0 flex-1 space-y-1 text-[11px] leading-5">

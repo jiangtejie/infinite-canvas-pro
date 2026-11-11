@@ -11,7 +11,7 @@ export const SOURCE_REMIX_TEXT_PROMPT =
     "参考上游原文，写一篇同结构、同传播逻辑但完全原创的图文文案。要求：保留开头钩子和情绪节奏，换掉具体例子与措辞；标题不超过20字；正文口语化、短句；话题3-5个且不带#；不要照抄原句，不要写联系方式或绝对化用语。";
 
 export const SOURCE_REMIX_IMAGE_PROMPT =
-    "参考上游图片的画面构图、色调和图文排版风格，为复刻文案生成一张新的配图。要求：主体和场景可以替换，但构图、视觉重心、文字区位置和整体风格保持一致；画面清晰，适合 3:4 竖版发布。";
+    "参考这张原图的画面构图、色调和图文排版风格，生成一张新的配图。要求：主体和场景可以替换，但构图、视觉重心、文字区位置和整体风格保持一致；画面清晰，适合图文发布。";
 
 const MATERIAL_GAP = 96;
 const MATERIAL_TEXT_SIZE = NODE_DEFAULT_SIZE[CanvasNodeType.Text];
@@ -22,10 +22,26 @@ const MATERIAL_IMAGE_COLUMNS = 2;
 const MATERIAL_IMAGE_GRID_GAP = 20;
 const MATERIAL_IMAGE_CELL_HEIGHT = 260;
 const MATERIAL_IMAGE_COLUMN_STAGGER = 18;
-const REMIX_IMAGE_SIZE = { width: 320, height: 400 };
+const REMIX_IMAGE_CELL = { width: 320, height: 400 };
+const REMIX_IMAGE_MAX_WIDTH = 320;
+const REMIX_IMAGE_MAX_HEIGHT = 400;
 const REMIX_IMAGE_COLUMNS = 2;
 const REMIX_IMAGE_GAP = 20;
 const REMIX_IMAGE_COLUMN_STAGGER = 18;
+
+/** 常见图片比例对应的标准生成尺寸，按比例最接近的匹配，避免模型收到不支持的自定义尺寸。 */
+const REMIX_GENERATION_SIZES = [
+    { size: "1024x1024", ratio: 1 },
+    { size: "1536x1024", ratio: 3 / 2 },
+    { size: "1024x1536", ratio: 2 / 3 },
+    { size: "1024x768", ratio: 4 / 3 },
+    { size: "768x1024", ratio: 3 / 4 },
+    { size: "1024x1280", ratio: 4 / 5 },
+    { size: "1280x1024", ratio: 5 / 4 },
+    { size: "1920x1080", ratio: 16 / 9 },
+    { size: "1080x1920", ratio: 9 / 16 },
+    { size: "1568x672", ratio: 21 / 9 },
+];
 
 export function buildSourceMaterialPlan(source: CanvasNodeData, options?: { includeRemix?: boolean }): CanvasSourcePlan {
     const nodes: CanvasNodeData[] = [];
@@ -106,24 +122,30 @@ export function buildSourceMaterialPlan(source: CanvasNodeData, options?: { incl
         const remixImageId = `${source.id}-remix-image-${index}`;
         const column = index % REMIX_IMAGE_COLUMNS;
         const row = Math.floor(index / REMIX_IMAGE_COLUMNS);
+        const materialImage = materialImages[index];
+        const nodeSize = fitRemixImageSize(materialImage?.width, materialImage?.height);
+        const generationSize = chooseRemixGenerationSize(materialImage?.width, materialImage?.height);
         nodes.push({
             id: remixImageId,
             type: CanvasNodeType.Image,
             title: remixImageCount > 1 ? `复刻配图 ${index + 1}` : "复刻配图",
             position: {
-                x: remixImagesX + column * (REMIX_IMAGE_SIZE.width + REMIX_IMAGE_GAP),
-                y: source.position.y + row * (REMIX_IMAGE_SIZE.height + REMIX_IMAGE_GAP) + (column > 0 ? REMIX_IMAGE_COLUMN_STAGGER : 0),
+                x: remixImagesX + column * (REMIX_IMAGE_CELL.width + REMIX_IMAGE_GAP),
+                y: source.position.y + row * (REMIX_IMAGE_CELL.height + REMIX_IMAGE_GAP) + (column > 0 ? REMIX_IMAGE_COLUMN_STAGGER : 0),
             },
-            width: REMIX_IMAGE_SIZE.width,
-            height: REMIX_IMAGE_SIZE.height,
+            width: nodeSize.width,
+            height: nodeSize.height,
             metadata: {
                 prompt: remixImagePrompt(index, materialImageIds.length),
                 status: "idle",
                 remixIndex: index + 1,
                 remixSourceId: source.id,
+                ...(generationSize ? { size: generationSize } : {}),
+                naturalWidth: materialImage?.width,
+                naturalHeight: materialImage?.height,
             },
         });
-        connections.push(connection(remixTextId, remixImageId));
+        // 复刻文案是抖音正文，不作为配图提示词；配图只参考对应原图。
         const materialImageId = materialImageIds[index];
         if (materialImageId) connections.push(connection(materialImageId, remixImageId));
     }
@@ -152,6 +174,63 @@ function buildMaterialImages(source: CanvasNodeData): { url: string; storageKey?
     if (images.length) return images;
     const coverUrl = source.metadata?.sourceCoverUrl;
     return coverUrl ? [{ url: coverUrl }] : [];
+}
+
+function fitRemixImageSize(width?: number, height?: number) {
+    if (!width || !height || width <= 0 || height <= 0) return { width: REMIX_IMAGE_MAX_WIDTH, height: REMIX_IMAGE_MAX_HEIGHT };
+    const scale = Math.min(1, REMIX_IMAGE_MAX_WIDTH / width, REMIX_IMAGE_MAX_HEIGHT / height);
+    return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
+
+function chooseRemixGenerationSize(width?: number, height?: number) {
+    if (!width || !height || width <= 0 || height <= 0) return "";
+    const ratio = width / height;
+    return REMIX_GENERATION_SIZES.reduce((best, current) => Math.abs(current.ratio - ratio) < Math.abs(best.ratio - ratio) ? current : best).size;
+}
+
+/** 旧的自动连接把复刻文案接到复刻配图，会让正文被当成图片提示词；重新展开时移除这条旧自动连接。 */
+export function isLegacyRemixTextImageConnection(connection: CanvasConnection, sourceId: string) {
+    return connection.fromNodeId === `${sourceId}-remix-text` && connection.toNodeId.startsWith(`${sourceId}-remix-image-`);
+}
+
+/** 移除旧版复刻文案到配图的自动连接；只在初始化/重新展开时调用。 */
+export function stripLegacyRemixTextImageConnections(nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    const sourceIds = nodes.filter((node) => node.type === CanvasNodeType.Source).map((node) => node.id);
+    if (!sourceIds.length) return connections;
+    return connections.filter((connection) => !sourceIds.some((sourceId) => isLegacyRemixTextImageConnection(connection, sourceId)));
+}
+
+/**
+ * 迁移旧的复刻配图空节点：按当前素材图比例补齐节点尺寸和生成尺寸。
+ * 已有生成内容或用户已显式设置尺寸的节点保持不动。
+ */
+export function migrateRemixNodeLayouts(nodes: CanvasNodeData[]) {
+    const plannedById = new Map<string, CanvasNodeData>();
+    for (const source of nodes) {
+        if (source.type !== CanvasNodeType.Source) continue;
+        for (const planned of buildSourceMaterialPlan(source, { includeRemix: true }).nodes) {
+            if (planned.id.startsWith(`${source.id}-remix-image-`)) plannedById.set(planned.id, planned);
+        }
+    }
+    if (!plannedById.size) return nodes;
+    let changed = false;
+    const next = nodes.map((node) => {
+        const planned = plannedById.get(node.id);
+        if (!planned || node.metadata?.content || node.metadata?.size) return node;
+        changed = true;
+        return {
+            ...node,
+            width: planned.width,
+            height: planned.height,
+            metadata: {
+                ...node.metadata,
+                size: planned.metadata?.size,
+                naturalWidth: planned.metadata?.naturalWidth,
+                naturalHeight: planned.metadata?.naturalHeight,
+            },
+        };
+    });
+    return changed ? next : nodes;
 }
 
 function fitMaterialImageSize(width?: number, height?: number) {

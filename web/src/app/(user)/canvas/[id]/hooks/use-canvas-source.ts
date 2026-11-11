@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type Set
 import { parseContentSource } from "@/services/api/content";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
-import { buildSourceMaterialPlan, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
+import { buildSourceMaterialPlan, isLegacyRemixTextImageConnection, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
 
 export type CanvasSourceActionResult = { ok: boolean; reason?: string; removed?: number; blocked?: number };
 
@@ -162,13 +162,32 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
         const nextNodes = prune.nodes
             .map((node) => {
                 const planned = planNodeById.get(node.id);
-                if (!planned || !node.id.startsWith(materialPrefix)) return node;
+                if (!planned) return node;
+                if (includeRemix && node.id.startsWith(`${nodeId}-remix-image-`)) {
+                    return {
+                        ...node,
+                        width: planned.width,
+                        height: planned.height,
+                        metadata: {
+                            ...node.metadata,
+                            ...(node.metadata?.size ? {} : { size: planned.metadata?.size }),
+                            naturalWidth: planned.metadata?.naturalWidth,
+                            naturalHeight: planned.metadata?.naturalHeight,
+                            remixIndex: planned.metadata?.remixIndex,
+                            remixSourceId: planned.metadata?.remixSourceId,
+                        },
+                    };
+                }
+                if (!node.id.startsWith(materialPrefix)) return node;
                 return { ...node, width: planned.width, height: planned.height, metadata: { ...node.metadata, ...planned.metadata } };
             })
             .concat(plan.nodes.filter((node) => !existingIds.has(node.id)))
             .map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...plan.sourcePatch } } : node);
-        const existingPairs = new Set(prune.connections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
-        const nextConnections = prune.connections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));
+        const retainedConnections = includeRemix
+            ? prune.connections.filter((connection) => !isLegacyRemixTextImageConnection(connection, nodeId))
+            : prune.connections;
+        const existingPairs = new Set(retainedConnections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
+        const nextConnections = retainedConnections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));
         setNodes(nextNodes);
         setConnections(nextConnections);
         return { ok: true, removed: prune.removedNodeIds.length };
