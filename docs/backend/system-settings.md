@@ -32,6 +32,9 @@ description: settings 表中 public 和 private 配置结构说明
   },
   "auth": {
     "allowRegister": true
+  },
+  "content": {
+    "sourceParseEnabled": true
   }
 }
 ```
@@ -40,6 +43,7 @@ description: settings 表中 public 和 private 配置结构说明
 | --- | --- | --- |
 | `modelChannel` | object | 模型渠道公开配置组 |
 | `auth` | object | 认证相关公开配置 |
+| `content` | object | 内容解析功能公开状态 |
 
 `modelChannel` 字段：
 
@@ -75,6 +79,12 @@ description: settings 表中 public 和 private 配置结构说明
 | --- | --- | --- |
 | `allowRegister` | boolean | 是否允许用户注册，默认允许；关闭后注册入口隐藏，注册接口拒绝新用户创建 |
 
+`content` 字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `sourceParseEnabled` | boolean | 是否允许画布使用抖音图文解析；由 `private.content.sourceParseEnabled` 派生，前端据此禁用解析入口，后端也会拒绝请求 |
+
 ## private.value
 
 ```json
@@ -94,6 +104,9 @@ description: settings 表中 public 和 private 配置结构说明
   "promptSync": {
     "enabled": true,
     "cron": "0 0 * * *"
+  },
+  "content": {
+    "sourceParseEnabled": true
   }
 }
 ```
@@ -102,6 +115,7 @@ description: settings 表中 public 和 private 配置结构说明
 | --- | --- | --- |
 | `channels` | object[] | 模型渠道列表 |
 | `promptSync` | object | GitHub 远程提示词定时同步配置 |
+| `content` | object | 内容解析功能私有配置 |
 
 `channels` 每项字段：
 
@@ -127,3 +141,11 @@ description: settings 表中 public 和 private 配置结构说明
 | --- | --- | --- |
 | `enabled` | boolean | 是否开启定时同步，默认开启 |
 | `cron` | string | Cron 表达式，默认每天 0 点 |
+
+`content` 字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `sourceParseEnabled` | boolean | 是否允许画布发起抖音图文解析，默认开启；关闭后接口返回“内容解析功能已关闭”，已完成解析的素材不受影响 |
+
+后台系统设置页“私有配置 → 内容解析”可以直接切换该开关。解析还额外受登录、用户频率限制（20 次 / 10 分钟）和全局并发限制（4 个同时解析）约束。

@@ -75,6 +75,7 @@ func New() *gin.Engine {
 	v1.DELETE("/workflows/:id", func(c *gin.Context) {
 		handler.DeleteUserWorkflow(c.Writer, c.Request, c.Param("id"))
 	})
+	v1.POST("/content/sources/parse", gin.WrapF(handler.ParseContentSource))
 	v1.GET("/agent-skills", gin.WrapF(handler.UserAgentSkills))
 	v1.POST("/agent-skills", gin.WrapF(handler.SaveUserAgentSkill))
 	v1.DELETE("/agent-skills/:id", func(c *gin.Context) {

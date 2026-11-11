@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch, Tooltip } from "antd";
-import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Info, Layers3, Library, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
+import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Info, Layers3, Library, Link2, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
 
 import { CANVAS_SHORTCUT_LABELS } from "../utils/canvas-shortcuts";
 
@@ -33,6 +33,7 @@ export function CanvasToolbar({
     onAddPanorama,
     onAddDirector,
     onAddConfig,
+    onAddSource,
     onUndo,
     onRedo,
     onUpload,
@@ -62,6 +63,7 @@ export function CanvasToolbar({
     onAddPanorama: () => void;
     onAddDirector: () => void;
     onAddConfig: () => void;
+    onAddSource: () => void;
     onUndo: () => void;
     onRedo: () => void;
     onUpload: () => void;
@@ -105,6 +107,7 @@ export function CanvasToolbar({
         { key: "panorama", label: "全景图", icon: <Globe2 className="size-4" />, onClick: onAddPanorama },
         { key: "director", label: "导演台", icon: <Layers3 className="size-4" />, onClick: onAddDirector },
         { key: "config", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: onAddConfig },
+        { key: "source", label: "素材源", icon: <Link2 className="size-4" />, onClick: onAddSource },
     ];
     const menuWidth = openMenu === "appearance" ? APPEARANCE_WIDTH : openMenu === "align" ? ALIGN_WIDTH : DOCK_MENU_WIDTH;
     const alignOptions: { key: CanvasAlignKind; label: string }[] = [

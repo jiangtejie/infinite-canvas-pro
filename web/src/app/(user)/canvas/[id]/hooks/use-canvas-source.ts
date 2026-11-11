@@ -1,0 +1,196 @@
+"use client";
+
+import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
+
+import { parseContentSource } from "@/services/api/content";
+import { NODE_DEFAULT_SIZE } from "../../constants";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
+import { buildSourceMaterialPlan, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
+
+export type CanvasSourceActionResult = { ok: boolean; reason?: string; removed?: number; blocked?: number };
+
+type UseCanvasSourceOptions = {
+    nodesRef: RefObject<CanvasNodeData[]>;
+    connectionsRef: RefObject<CanvasConnection[]>;
+    setNodes: Dispatch<SetStateAction<CanvasNodeData[]>>;
+    setConnections: Dispatch<SetStateAction<CanvasConnection[]>>;
+};
+
+type ParseSnapshot = {
+    nodeId: string;
+    status: CanvasNodeMetadata["sourceStatus"];
+    error?: string;
+    hasMaterial: boolean;
+};
+
+function hasSourceMaterial(metadata?: CanvasNodeMetadata) {
+    return Boolean(
+        metadata?.sourceTitle?.trim() ||
+        metadata?.sourceText?.trim() ||
+        metadata?.sourceImages?.length ||
+        metadata?.sourceCoverUrl?.trim(),
+    );
+}
+
+function fallbackSuccessStatus(status: CanvasNodeMetadata["sourceStatus"]) {
+    return status === "success" || status === "loading" ? "success" : status;
+}
+
+/**
+ * 画布素材源：解析抖音链接、展开真实素材节点、铺开复刻文案/配图节点。
+ */
+export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnections }: UseCanvasSourceOptions) {
+    const parseRequestRef = useRef(0);
+    const parseControllerRef = useRef<AbortController | null>(null);
+    const parseSnapshotRef = useRef<ParseSnapshot | null>(null);
+
+    useEffect(() => () => parseControllerRef.current?.abort(), []);
+
+    const handleParseSource = useCallback(async (nodeId: string, input: string): Promise<CanvasSourceActionResult> => {
+        const value = input.trim();
+        const node = nodesRef.current.find((item) => item.id === nodeId);
+        if (!node) return { ok: false };
+        if (!value) {
+            setNodes((prev) => patchSourceMetadata(prev, nodeId, { sourceInput: "", sourceStatus: "error", sourceError: "请先粘贴抖音链接或分享文案" }));
+            return { ok: false, reason: "请先粘贴抖音链接或分享文案" };
+        }
+
+        parseControllerRef.current?.abort();
+        const controller = new AbortController();
+        parseControllerRef.current = controller;
+        const requestId = parseRequestRef.current + 1;
+        parseRequestRef.current = requestId;
+        const snapshot: ParseSnapshot = {
+            nodeId,
+            status: node.metadata?.sourceStatus,
+            error: node.metadata?.sourceError,
+            hasMaterial: hasSourceMaterial(node.metadata),
+        };
+        parseSnapshotRef.current = snapshot;
+        setNodes((prev) => patchSourceMetadata(prev, nodeId, {
+            sourceInput: value,
+            sourceParsing: true,
+            sourceError: undefined,
+            ...(snapshot.hasMaterial || snapshot.status === "success" ? {} : { sourceStatus: "loading" as const }),
+        }));
+
+        try {
+            const { source, warnings } = await parseContentSource(value, controller.signal);
+            if (requestId !== parseRequestRef.current) return { ok: false };
+            parseControllerRef.current = null;
+            parseSnapshotRef.current = null;
+            const author = source.author?.trim() || "";
+            setNodes((prev) =>
+                prev.map((item) => {
+                    if (item.id !== nodeId) return item;
+                    const title = item.title === NODE_DEFAULT_SIZE[CanvasNodeType.Source].title && author ? `素材源 · ${author}` : item.title;
+                    return {
+                        ...item,
+                        title,
+                        metadata: {
+                            ...item.metadata,
+                            sourceInput: value,
+                            sourcePlatform: source.platform || "douyin",
+                            sourceStatus: "success",
+                            sourceParsing: false,
+                            sourceError: undefined,
+                            sourceId: source.sourceId,
+                            sourceKind: source.kind,
+                            sourceTitle: source.title,
+                            sourceText: source.text,
+                            sourceTags: source.tags,
+                            sourceAuthor: author,
+                            sourceStats: source.stats ?? null,
+                            sourceImages: source.images,
+                            sourceVideoUrl: source.videoUrl,
+                            sourceCoverUrl: source.coverUrl,
+                            sourceWarnings: warnings,
+                            sourceExpanded: item.metadata?.sourceExpanded === true,
+                        },
+                    };
+                }),
+            );
+            return { ok: true };
+        } catch (error) {
+            if (requestId !== parseRequestRef.current || controller.signal.aborted) return { ok: false };
+            parseControllerRef.current = null;
+            parseSnapshotRef.current = null;
+            const reason = error instanceof Error ? error.message : "解析失败";
+            if (snapshot.hasMaterial) {
+                // 刷新解析失败时保留上一次结果，只提示错误，避免用户误以为素材丢了。
+                setNodes((prev) => patchSourceMetadata(prev, nodeId, {
+                    sourceParsing: false,
+                    sourceStatus: fallbackSuccessStatus(snapshot.status),
+                    sourceError: reason,
+                }));
+            } else {
+                setNodes((prev) => patchSourceMetadata(prev, nodeId, { sourceParsing: false, sourceStatus: "error", sourceError: reason }));
+            }
+            return { ok: false, reason };
+        }
+    }, [nodesRef, setNodes]);
+
+    const handleCancelSourceParse = useCallback((nodeId: string): CanvasSourceActionResult => {
+        const snapshot = parseSnapshotRef.current;
+        if (!snapshot || snapshot.nodeId !== nodeId) return { ok: false };
+        parseRequestRef.current += 1;
+        parseControllerRef.current?.abort();
+        parseControllerRef.current = null;
+        parseSnapshotRef.current = null;
+        setNodes((prev) => patchSourceMetadata(prev, nodeId, {
+            sourceParsing: false,
+            sourceStatus: snapshot.hasMaterial ? fallbackSuccessStatus(snapshot.status) : "idle",
+            sourceError: snapshot.error,
+        }));
+        return { ok: true };
+    }, [setNodes]);
+
+    const appendSourcePlan = useCallback((nodeId: string, includeRemix: boolean): CanvasSourceActionResult => {
+        const source = nodesRef.current.find((item) => item.id === nodeId);
+        if (!source) return { ok: false, reason: "素材源节点已不存在" };
+        if (!hasSourceMaterial(source.metadata)) {
+            return { ok: false, reason: "还没有可展开的素材，请先解析或手动填入文字" };
+        }
+
+        const plan = buildSourceMaterialPlan(source, { includeRemix });
+        const planNodeIds = new Set(plan.nodes.map((node) => node.id));
+        const materialPrefix = `${nodeId}-material-`;
+        const prune = pruneSourceDerivedNodes(source, nodesRef.current, connectionsRef.current,
+            (node) => node.id.startsWith(materialPrefix) && !planNodeIds.has(node.id));
+        const planNodeById = new Map(plan.nodes.map((node) => [node.id, node]));
+        const existingIds = new Set(prune.nodes.map((node) => node.id));
+        const nextNodes = prune.nodes
+            .map((node) => {
+                const planned = planNodeById.get(node.id);
+                if (!planned || !node.id.startsWith(materialPrefix)) return node;
+                return { ...node, width: planned.width, height: planned.height, metadata: { ...node.metadata, ...planned.metadata } };
+            })
+            .concat(plan.nodes.filter((node) => !existingIds.has(node.id)))
+            .map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...plan.sourcePatch } } : node);
+        const existingPairs = new Set(prune.connections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
+        const nextConnections = prune.connections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));
+        setNodes(nextNodes);
+        setConnections(nextConnections);
+        return { ok: true, removed: prune.removedNodeIds.length };
+    }, [connectionsRef, nodesRef, setConnections, setNodes]);
+
+    const handleExpandSource = useCallback((nodeId: string) => appendSourcePlan(nodeId, false), [appendSourcePlan]);
+    const handleRunSourceRemix = useCallback((nodeId: string) => appendSourcePlan(nodeId, true), [appendSourcePlan]);
+
+    /** 重置素材：删除当前素材源派生出来的素材/复刻节点；已连接到画布其他节点的保留。 */
+    const handleResetSource = useCallback((nodeId: string): CanvasSourceActionResult => {
+        const source = nodesRef.current.find((item) => item.id === nodeId);
+        if (!source) return { ok: false, reason: "素材源节点已不存在" };
+        const plan = pruneSourceDerivedNodes(source, nodesRef.current, connectionsRef.current, () => true);
+        const remaining = plan.nodes.some((node) => node.id.startsWith(`${nodeId}-material-`) || node.id.startsWith(`${nodeId}-remix-`));
+        setNodes(plan.nodes.map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, sourceExpanded: remaining } } : node));
+        setConnections(plan.connections);
+        return { ok: true, removed: plan.removedNodeIds.length, blocked: plan.blockedNodeIds.length };
+    }, [connectionsRef, nodesRef, setConnections, setNodes]);
+
+    return { handleParseSource, handleCancelSourceParse, handleExpandSource, handleRunSourceRemix, handleResetSource };
+}
+
+function patchSourceMetadata(nodes: CanvasNodeData[], nodeId: string, patch: Partial<CanvasNodeMetadata>) {
+    return nodes.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...patch } } : node));
+}

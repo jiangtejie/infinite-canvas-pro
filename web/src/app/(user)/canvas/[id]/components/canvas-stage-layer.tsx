@@ -10,6 +10,8 @@ import { ActiveConnectionPath, ConnectionPath } from "../../components/canvas-co
 import { CanvasConfigComposer } from "../../components/canvas-config-composer";
 import { CanvasConfigNodePanel } from "../../components/canvas-config-node-panel";
 import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-panel";
+import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
+import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
 import { type NodeGenerationInput } from "../../components/canvas-node-generation";
 import { InfiniteCanvas } from "../../components/infinite-canvas";
 import { CanvasNode } from "../../components/canvas-node";
@@ -24,6 +26,7 @@ import type { CanvasAlignmentGuides } from "../../utils/canvas-alignment";
 import type { CanvasResourceReference } from "../../utils/canvas-resource-references";
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
 import type { CanvasOverlay } from "../canvas-client-page";
+import { useConfigStore } from "@/stores/use-config-store";
 
 
 export type CanvasStageModel = {
@@ -105,6 +108,11 @@ export type CanvasStageModel = {
     cancelPendingConnectionCreate: () => void;
     nodeCreatePosition: Position | null;
     createNode: (type: CanvasNodeType, position?: Position, textContent?: string, nodeId?: string) => void;
+    handleParseSource: (nodeId: string, input: string) => Promise<void>;
+    handleCancelSourceParse: (nodeId: string) => void;
+    handleExpandSource: (nodeId: string) => void;
+    handleRunSourceRemix: (nodeId: string) => void;
+    handleResetSource: (nodeId: string) => void;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -116,6 +124,7 @@ export type CanvasStageModel = {
  * 画布舞台层：无限画布、节点/连线/框选、创建菜单定位、空状态与参考选择提示。
  */
 export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
+    const sourceParseEnabled = useConfigStore((state) => state.publicSettings?.content?.sourceParseEnabled ?? true);
     const {
         theme,
         nodes,
@@ -195,6 +204,11 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         cancelPendingConnectionCreate,
         nodeCreatePosition,
         createNode,
+        handleParseSource,
+        handleCancelSourceParse,
+        handleExpandSource,
+        handleRunSourceRemix,
+        handleResetSource,
         assetInsertPositionRef,
         setAssetPickerTab,
         setAssetPickerOpen,
@@ -297,7 +311,21 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         onChange={(composerContent) => handleConfigNodeChange(panelNode.id, { composerContent })}
                                         onClose={() => closeOverlay()}
                                     />
-                                ) : panelNode.type === CanvasNodeType.Director ? null : (
+                                ) : panelNode.type === CanvasNodeType.Director ? null : panelNode.type === CanvasNodeType.Source ? (
+                                    <CanvasSourceNodePanel
+                                        key={panelNode.id}
+                                        node={panelNode}
+                                        parsing={panelNode.metadata?.sourceParsing === true || panelNode.metadata?.sourceStatus === "loading"}
+                                        parseEnabled={sourceParseEnabled}
+                                        onParse={(input) => void handleParseSource(panelNode.id, input)}
+                                        onCancel={() => handleCancelSourceParse(panelNode.id)}
+                                        onExpand={() => handleExpandSource(panelNode.id)}
+                                        onRunRemix={() => handleRunSourceRemix(panelNode.id)}
+                                        onReset={() => handleResetSource(panelNode.id)}
+                                        onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
+                                        onClose={() => closeOverlay()}
+                                    />
+                                ) : (
                                     <CanvasNodePromptPanel
                                         node={panelNode}
                                         isRunning={runningNodeId === panelNode.id}
@@ -324,6 +352,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             renderNodeContent={(contentNode) =>
                                 contentNode.type === CanvasNodeType.Director ? (
                                     <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
+                                ) : contentNode.type === CanvasNodeType.Source ? (
+                                    <CanvasSourceNodeCard node={contentNode} onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })} />
                                 ) : (
                                     <CanvasConfigNodePanel
                                         node={contentNode}
@@ -369,6 +399,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 event.stopPropagation();
                                 setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
                             }}
+                            onOpenPanel={(node) => openOverlay({ kind: "prompt", nodeId: node.id })}
                         />
                     ))}
 

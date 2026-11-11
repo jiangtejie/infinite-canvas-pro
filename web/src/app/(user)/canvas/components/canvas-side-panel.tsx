@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore, type 
 import { useParams } from "next/navigation";
 import { Empty, Input, Pagination, Select, Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, ChevronRight, Clapperboard, Eye, FileText, Group, Image as ImageIcon, Music2, Plus, Search, Settings2, Type, Video } from "lucide-react";
+import { BookOpen, ChevronRight, Clapperboard, Eye, FileText, Group, Image as ImageIcon, Link2, Music2, Plus, Search, Settings2, Type, Video } from "lucide-react";
 import { motion } from "motion/react";
 
 import { AssetFormModal } from "@/components/assets/asset-form-modal";
@@ -56,6 +56,7 @@ const NODE_TYPE_ICON = {
     [CanvasNodeType.Config]: Settings2,
     [CanvasNodeType.Director]: Clapperboard,
     [CanvasNodeType.Group]: Group,
+    [CanvasNodeType.Source]: Link2,
 };
 
 const NODE_TYPE_LABEL = {
@@ -67,6 +68,7 @@ const NODE_TYPE_LABEL = {
     [CanvasNodeType.Config]: "生成配置",
     [CanvasNodeType.Director]: "导演台",
     [CanvasNodeType.Group]: "组",
+    [CanvasNodeType.Source]: "素材源",
 };
 
 const NODE_FILTER_OPTIONS = [
@@ -79,6 +81,7 @@ const NODE_FILTER_OPTIONS = [
     { label: "音频", value: CanvasNodeType.Audio },
     { label: "导演台", value: CanvasNodeType.Director },
     { label: "组", value: CanvasNodeType.Group },
+    { label: "素材源", value: CanvasNodeType.Source },
 ];
 
 const ASSET_TYPE_OPTIONS = [
@@ -193,7 +196,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
         const query = keyword.trim().toLowerCase();
         return nodes.filter((node) => {
             if (typeFilter !== "all" && node.type !== typeFilter) return false;
-            return !query || [node.title, NODE_TYPE_LABEL[node.type], node.metadata?.content, node.metadata?.prompt].filter(Boolean).join(" ").toLowerCase().includes(query);
+            return !query || [node.title, NODE_TYPE_LABEL[node.type], node.metadata?.content, node.metadata?.prompt, node.metadata?.sourceText, (node.metadata?.sourceTags || []).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(query);
         });
     }, [keyword, nodes, typeFilter]);
     const treeRows = useMemo(() => {
@@ -234,6 +237,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                         {treeRows.map(({ node, depth, hasChildren }) => {
                             const Icon = NODE_TYPE_ICON[node.type] || FileText;
                             const hasImage = isCanvasImageNodeType(node.type) && node.metadata?.content;
+                            const nodeStatus = node.type === CanvasNodeType.Source ? node.metadata?.sourceStatus : node.metadata?.status;
                             const active = selectedNodeIds.has(node.id);
                             return (
                                 <div key={node.id} className={cn("relative flex items-center rounded-lg transition", depth && "ml-5", active ? "" : "hover:bg-black/5 dark:hover:bg-white/5")} style={active ? { background: theme.toolbar.activeBg } : undefined}>
@@ -271,7 +275,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                                             <span className="block truncate text-sm font-medium leading-snug">{node.title || NODE_TYPE_LABEL[node.type] || "未命名节点"}</span>
                                             <span className="block truncate text-xs leading-snug opacity-50">{node.type === CanvasNodeType.Text ? node.metadata?.content || node.metadata?.prompt || "" : NODE_TYPE_LABEL[node.type] || node.type}</span>
                                         </span>
-                                        {node.metadata?.status && node.metadata.status !== "idle" ? <span className="size-1.5 shrink-0 rounded-full" style={{ background: STATUS_COLOR[node.metadata.status] || "transparent", boxShadow: `0 0 0 2px color-mix(in srgb, ${STATUS_COLOR[node.metadata.status] || "transparent"} 22%, transparent), 0 0 8px ${STATUS_COLOR[node.metadata.status] || "transparent"}` }} /> : null}
+                                        {nodeStatus && nodeStatus !== "idle" ? <span className="size-1.5 shrink-0 rounded-full" style={{ background: STATUS_COLOR[nodeStatus] || "transparent", boxShadow: `0 0 0 2px color-mix(in srgb, ${STATUS_COLOR[nodeStatus] || "transparent"} 22%, transparent), 0 0 8px ${STATUS_COLOR[nodeStatus] || "transparent"}` }} /> : null}
                                     </button>
                                 </div>
                             );

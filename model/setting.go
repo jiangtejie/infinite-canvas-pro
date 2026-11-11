@@ -132,11 +132,17 @@ type PublicModelChannelInfo struct {
 	ModelCapabilities map[string]string `json:"modelCapabilities,omitempty"`
 }
 
+// PublicContentSetting 内容解析功能的公开开关（由私有配置派生）。
+type PublicContentSetting struct {
+	SourceParseEnabled bool `json:"sourceParseEnabled"`
+}
+
 // PublicSetting 公开配置。
 type PublicSetting struct {
 	ModelChannel PublicModelChannelSetting `json:"modelChannel"`
 	Auth         PublicAuthSetting         `json:"auth"`
 	Storage      PublicStorageSetting      `json:"storage"`
+	Content      PublicContentSetting      `json:"content"`
 }
 
 type PublicStorageSetting struct {
@@ -154,6 +160,12 @@ type PublicAuthSetting struct {
 	AllowRegister *bool `json:"allowRegister"`
 }
 
+// PrivateContentSetting 内容解析功能私有配置。
+type PrivateContentSetting struct {
+	// SourceParseEnabled 为空时按开启处理，避免升级后默认关闭。
+	SourceParseEnabled *bool `json:"sourceParseEnabled,omitempty"`
+}
+
 // PrivateSetting 私有配置。
 type PrivateSetting struct {
 	Channels   []ModelChannel        `json:"channels"`
@@ -161,6 +173,7 @@ type PrivateSetting struct {
 	AILog      AILogSetting          `json:"aiLog"`
 	Storage    PrivateStorageSetting `json:"storage"`
 	Payment    PrivatePaymentSetting `json:"payment"`
+	Content    PrivateContentSetting `json:"content"`
 }
 
 // PrivatePaymentSetting 微信支付（lx-pay）配置。

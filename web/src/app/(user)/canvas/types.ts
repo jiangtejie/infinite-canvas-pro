@@ -18,6 +18,7 @@ export enum CanvasNodeType {
     Audio = "audio",
     Director = "director",
     Group = "group",
+    Source = "source",
 }
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "stopping" | "stopped" | "error";
@@ -115,6 +116,23 @@ export type CanvasNodeMetadata = {
     panoramaFinalPrompt?: string;
     panoramaProjection?: "equirectangular";
     directorProject?: unknown;
+    sourceInput?: string;
+    sourcePlatform?: string;
+    sourceStatus?: "idle" | "loading" | "success" | "error";
+    sourceError?: string;
+    sourceId?: string;
+    sourceKind?: "image" | "video" | "text";
+    sourceTitle?: string;
+    sourceText?: string;
+    sourceTags?: string[];
+    sourceAuthor?: string;
+    sourceStats?: { likes: number; collects: number; comments: number; shares: number } | null;
+    sourceImages?: { url: string; storageKey?: string; width?: number; height?: number; mimeType?: string }[];
+    sourceVideoUrl?: string;
+    sourceCoverUrl?: string;
+    sourceWarnings?: string[];
+    sourceParsing?: boolean;
+    sourceExpanded?: boolean;
 };
 
 export type CanvasDirectorPanorama = {

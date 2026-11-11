@@ -39,6 +39,7 @@ import { useCanvasGeneration } from "./hooks/use-canvas-generation";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
+import { useCanvasSource } from "./hooks/use-canvas-source";
 import { CanvasWorkspace, type CanvasWorkspaceModel } from "./components/canvas-workspace";
 import { buildNodeGenerationInputs, type NodeGenerationInput } from "../components/canvas-node-generation";
 import { type CanvasVideoFrameOption } from "../components/canvas-node-prompt-panel";
@@ -410,7 +411,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
             const connection = normalizeConnection(current.nodeId, targetNodeId, nodesRef.current, current.handleType);
             if (!connection) {
-                message.warning("配置节点之间不能连接");
+                message.warning("这两个节点不能这样连接");
                 return;
             }
             const { fromNodeId, toNodeId } = connection;
@@ -494,7 +495,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             const newNode = createCanvasNode(type, pending.position, metadata);
             const connection = normalizeConnection(pending.connection.nodeId, newNode.id, [...nodesRef.current, newNode], pending.connection.handleType);
             if (!connection) {
-                message.warning("配置节点之间不能连接");
+                message.warning("这两个节点不能这样连接");
                 return;
             }
             setNodes((prev) => [...prev, newNode]);
@@ -1257,6 +1258,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             }));
         }
     }, []);
+    const { handleParseSource, handleCancelSourceParse, handleExpandSource, handleRunSourceRemix, handleResetSource } = useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnections });
 
     const handleDirectorProjectChange = useCallback(
         (project: unknown) => {
@@ -1832,6 +1834,30 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             handleNodeTitleChange, toggleBatchExpanded, setBatchPrimary, selectNodeReference,
             pendingConnectionCreate, createConnectedNode, cancelPendingConnectionCreate, nodeCreatePosition,
             createNode, assetInsertPositionRef, setAssetPickerTab, setAssetPickerOpen,
+            handleParseSource: async (nodeId, input) => {
+                const result = await handleParseSource(nodeId, input);
+                if (!result.ok && result.reason) message.error(result.reason);
+            },
+            handleCancelSourceParse: (nodeId) => {
+                handleCancelSourceParse(nodeId);
+            },
+            handleExpandSource: (nodeId) => {
+                const result = handleExpandSource(nodeId);
+                if (!result.ok && result.reason) message.warning(result.reason);
+            },
+            handleRunSourceRemix: (nodeId) => {
+                const result = handleRunSourceRemix(nodeId);
+                if (!result.ok && result.reason) message.warning(result.reason);
+            },
+            handleResetSource: (nodeId) => {
+                const result = handleResetSource(nodeId);
+                if (!result.ok && result.reason) {
+                    message.warning(result.reason);
+                    return;
+                }
+                if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
+                else message.success(`已清理 ${result.removed || 0} 个素材节点`);
+            },
             projectLoaded, exitNodeReferenceSelection,
         },
         overlays: {

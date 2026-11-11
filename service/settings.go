@@ -30,7 +30,23 @@ func PublicSettings() (model.PublicSetting, error) {
 	if len(settings.Public.ModelChannel.AvailableModels) == 0 {
 		settings.Public.ModelChannel.AvailableModels = enabledChannelModels(settings.Private.Channels)
 	}
+	settings.Public.Content.SourceParseEnabled = privateSourceParseEnabled(settings.Private.Content)
 	return settings.Public, err
+}
+
+// privateSourceParseEnabled 内容解析默认开启；只有管理员显式关闭才返回 false。
+func privateSourceParseEnabled(setting model.PrivateContentSetting) bool {
+	return setting.SourceParseEnabled == nil || *setting.SourceParseEnabled
+}
+
+// SourceParseEnabled 返回当前是否允许调用外部内容解析。
+func SourceParseEnabled() bool {
+	settings, err := repository.GetSettings()
+	if err != nil {
+		return true
+	}
+	normalized := normalizeSettings(settings)
+	return privateSourceParseEnabled(normalized.Private.Content)
 }
 
 func UserCanUseRemoteModelChannel(user model.AuthUser) bool {
@@ -269,6 +285,10 @@ func normalizePrivateSetting(setting model.PrivateSetting) model.PrivateSetting 
 	setting.AILog = normalizeAILogSetting(setting.AILog)
 	setting.Storage = normalizePrivateStorageSetting(setting.Storage)
 	setting.Payment = normalizePaymentSetting(setting.Payment)
+	if setting.Content.SourceParseEnabled == nil {
+		enabled := true
+		setting.Content.SourceParseEnabled = &enabled
+	}
 	for i := range setting.Channels {
 		if setting.Channels[i].Protocol == "" {
 			setting.Channels[i].Protocol = "openai"

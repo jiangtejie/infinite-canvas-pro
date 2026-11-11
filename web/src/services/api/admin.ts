@@ -251,6 +251,9 @@ export type AdminPublicSettings = {
         mode: string;
         allowUserProvider: boolean;
     };
+    content?: {
+        sourceParseEnabled?: boolean;
+    };
 };
 
 export type AdminStorageProvider = {
@@ -312,6 +315,9 @@ export type AdminPrivateSettings = {
         lxPayTimeoutMs: number;
         lxPayMaxRetries: number;
         orderMinutes: number;
+    };
+    content: {
+        sourceParseEnabled: boolean;
     };
 };
 

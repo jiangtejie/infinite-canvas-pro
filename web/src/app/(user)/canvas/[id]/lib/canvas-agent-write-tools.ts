@@ -63,7 +63,7 @@ export function planCreateConnection(input: { nodes: CanvasNodeData[]; connectio
     if (!toNode) return missingNode(input.toNodeId);
     if (input.fromNodeId === input.toNodeId) return { ok: false as const, code: "self_connection", message: "节点不能连接到自身" };
     if (fromNode.type === CanvasNodeType.Config && toNode.type === CanvasNodeType.Config) {
-        return { ok: false as const, code: "invalid_connection", message: "配置节点之间不能连接" };
+        return { ok: false as const, code: "invalid_connection", message: "这两个节点不能这样连接" };
     }
     const existing = input.connections.find((connection) => connection.fromNodeId === input.fromNodeId && connection.toNodeId === input.toNodeId);
     if (existing) return { ok: true as const, connectionId: existing.id, alreadyExists: true, connections: input.connections };

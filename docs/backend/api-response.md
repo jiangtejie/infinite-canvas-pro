@@ -41,3 +41,12 @@ description: 业务接口统一响应结构与前端处理约定
 - `_parameterTranslation` 是系统内部负载。后端按账号或公共渠道读取保存的原文，转译后只向供应商发送配置里的方法、地址、请求头、查询参数和请求体。
 - 图片 JSON 结果归一为 `{ data: [{ url }] }`；音频 URL 归一为 `{ provider: "parameter-translation", audio_url }`。配置直接返回文件时沿用二进制响应及 MIME。失败仍用现有 `Fail` 业务结构。
 - 视频沿用现有任务响应，增加 `parameter_translation: true` 标记；私有查询快照和公共渠道脚本不随响应返回。创建、查询、完成和失败均进入现有任务管理，失败不重发默认请求。
+
+## 内容源解析
+
+- `POST /api/v1/content/sources/parse` 需要登录（`UserAuth`），请求为 `{ input, platform? }`，`platform` 目前只支持 `douyin`。
+- 成功返回 `{ code: 0, data: { source, warnings }, msg: "ok" }`；`source` 包含 `platform/sourceId/kind/title/text/tags/author/stats/images/videoUrl/coverUrl/shareUrl`，`images` 每项包含 `url/storageKey/width/height/mimeType`。
+- 解析失败返回业务失败结构，`msg` 为可直接展示的中文原因；未登录由中间件返回 HTTP 401。
+- 服务端对象存储不可用时仍返回解析结果：图片保留原始 CDN 地址，`warnings` 提示链接可能过期；文字素材不受影响。
+- 解析接口按用户限频（20 次 / 10 分钟），超限返回“解析太频繁了，请稍后再试”；全局同时最多 4 个解析，繁忙返回“解析繁忙，请稍后再试”。
+- 管理员在后台“私有配置 → 内容解析”关闭后，接口返回“内容解析功能已关闭，请联系管理员”；`/api/settings` 的 `content.sourceParseEnabled` 同步为 false。

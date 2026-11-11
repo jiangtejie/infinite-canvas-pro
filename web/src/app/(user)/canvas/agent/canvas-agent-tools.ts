@@ -69,7 +69,7 @@ export type ParsedCanvasAgentJson = {
 const STRING = { type: "string" };
 const STRING_ARRAY = { type: "array", items: { type: "string" }, maxItems: 50 };
 const PHASES: CanvasAgentPhase[] = ["intake", "concept", "script", "breakdown", "references", "storyboard", "video", "audio", "review", "complete"];
-const NODE_TYPES = ["image", "panorama", "text", "config", "video", "audio", "director", "group"];
+const NODE_TYPES = ["image", "panorama", "text", "config", "video", "audio", "director", "group", "source"];
 const ACTION_NAME_SET = new Set<string>(CANVAS_AGENT_ACTION_NAMES);
 
 function defineTool(name: CanvasAgentActionName, description: string, properties: Record<string, unknown> = {}, required?: string[]): CanvasAgentToolDefinition {

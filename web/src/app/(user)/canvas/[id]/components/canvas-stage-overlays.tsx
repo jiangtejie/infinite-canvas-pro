@@ -245,6 +245,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onAddPanorama={() => createNode(CanvasNodeType.Panorama)}
                     onAddDirector={() => createNode(CanvasNodeType.Director)}
                     onAddConfig={() => createNode(CanvasNodeType.Config)}
+                    onAddSource={() => createNode(CanvasNodeType.Source)}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
                     onUpload={() => handleUploadRequest()}
