@@ -1,7 +1,9 @@
 "use client";
 
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { Button, Card, Col, Flex, Form, Input, InputNumber, Row, Switch, Typography } from "antd";
+import { Button, Col, Flex, Form, Input, InputNumber, Row, Switch, Typography } from "antd";
+
+import { AdminSettingsSection, AdminSettingsSubsection } from "./settings-section";
 
 import type { AdminStorageProvider } from "@/services/api/admin";
 
@@ -11,7 +13,7 @@ import type { AdminSettingsController } from "../use-admin-settings";
 export function AdminSettingsPrivateStorage({ settings }: { settings: AdminSettingsController }) {
     const { form, storageProviders, measuringProviderIndex, measureStorageProviderAt } = settings;
     return (
-                                <Card size="small" title="数据存储">
+                                <AdminSettingsSection title="数据存储" description="对象存储、用户自定义存储与容量统计策略。">
                                     <Row gutter={16}>
                                         <Col xs={24} md={6}>
                                             <Form.Item label="存储模式" extra="根据对象存储配置和启用状态自动识别。">
@@ -71,9 +73,8 @@ export function AdminSettingsPrivateStorage({ settings }: { settings: AdminSetti
                                                         </Col>
                                                     );
                                                     return (
-                                                        <Card
+                                                        <AdminSettingsSubsection
                                                             key={field.key}
-                                                            size="small"
                                                             title={isWebDAV ? "WebDAV" : "S3/R2"}
                                                             extra={
                                                                 <Flex gap={8}>
@@ -196,12 +197,12 @@ export function AdminSettingsPrivateStorage({ settings }: { settings: AdminSetti
                                                                     </Form.Item>
                                                                 </Col>
                                                             </Row>
-                                                        </Card>
+                                                        </AdminSettingsSubsection>
                                                     );
                                                 })}
                                             </Flex>
                                         )}
                                     </Form.List>
-                                </Card>
+                                </AdminSettingsSection>
     );
 }

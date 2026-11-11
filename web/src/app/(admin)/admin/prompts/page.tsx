@@ -84,7 +84,7 @@ export default function AdminPromptsPage() {
     });
 
     return (
-        <main style={{ padding: 24 }}>
+        <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
                 <PromptFilterBar
                     keywordText={keywordText}

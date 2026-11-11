@@ -2,7 +2,7 @@
 
 import { PlusOutlined } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
-import { Button, Form, Space, Tag, Typography } from "antd";
+import { Button, Flex, Form, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import type { AdminCreditLog } from "@/services/api/admin";
@@ -42,8 +42,8 @@ export default function AdminCreditLogsPage() {
     const columns = buildCreditLogColumns({ onEdit: setEditingLog, onDelete: setDeletingLog });
 
     return (
-        <main style={{ padding: 24 }}>
-            <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+        <main className="p-3 md:p-6">
+            <Flex vertical gap={16}>
                 <CreditLogFilterBar keywordText={keywordText} setKeywordText={setKeywordText} date={date} searchLogs={searchLogs} resetFilters={resetFilters} />
                 <ProTable<AdminCreditLog>
                     rowKey="id"
@@ -77,7 +77,7 @@ export default function AdminCreditLogsPage() {
                         onChange: (nextPage, nextPageSize) => (nextPageSize !== pageSize ? changePageSize(nextPageSize) : changePage(nextPage)),
                     }}
                 />
-            </Space>
+            </Flex>
 
             <CreditLogEditorModal editingLog={editingLog} form={form} onCancel={() => setEditingLog(null)} onOk={() => void saveLog()} />
             <CreditLogDeleteModal deletingLog={deletingLog} onCancel={() => setDeletingLog(null)} onOk={() => void deleteSelectedLog()} />

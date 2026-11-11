@@ -1,26 +1,25 @@
 "use client";
 
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Space, Table, Tag, Typography } from "antd";
+import { App, Button, Space, Table, Tag, Typography } from "antd";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { isWorkflowProtocol } from "@/lib/model-channel";
 
 import { modelSummary } from "../settings-utils";
 import type { AdminSettingsController } from "../use-admin-settings";
+import { AdminSettingsSection } from "./settings-section";
 
 export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSettingsController }) {
     const { message } = App.useApp();
     const confirm = useConfirm();
     const { channels, channelTableData, openChannelDrawer, openTestDialog, persistChannels } = settings;
     return (
-        <>
-                                <Flex justify="space-between" align="center" gap={12} wrap>
-                                    <Typography.Text strong>渠道配置</Typography.Text>
-                                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openChannelDrawer(null)}>
-                                        新增渠道
-                                    </Button>
-                                </Flex>
+        <AdminSettingsSection
+            title="渠道配置"
+            description="配置平台模型渠道、权重与超时；删除渠道会立即保存当前表单全部设置。"
+            extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openChannelDrawer(null)}>新增渠道</Button>}
+        >
                                 <Table
                                     rowKey="_rowKey"
                                     pagination={false}
@@ -77,6 +76,6 @@ export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSett
                                         },
                                     ]}
                                 />
-        </>
+        </AdminSettingsSection>
     );
 }

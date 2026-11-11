@@ -77,7 +77,7 @@ export default function AdminSkillsPage() {
     ];
 
     return (
-        <main style={{ padding: 24 }}>
+        <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
                 <Card variant="borderless">
                     <Form layout="vertical">
@@ -86,7 +86,12 @@ export default function AdminSkillsPage() {
                                 <Form.Item label="关键词"><Input.Search value={keyword} allowClear enterButton={<SearchOutlined />} placeholder="搜索名称、描述或内容" onChange={(event) => setKeyword(event.target.value)} /></Form.Item>
                             </Col>
                             <Col flex="none">
-                                <Form.Item><Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>刷新</Button></Form.Item>
+                                <Form.Item>
+                                    <Space>
+                                        <Button onClick={() => setKeyword("")}>重置</Button>
+                                        <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>刷新</Button>
+                                    </Space>
+                                </Form.Item>
                             </Col>
                         </Row>
                     </Form>
@@ -102,7 +107,7 @@ export default function AdminSkillsPage() {
                     scroll={{ x: 1000 }}
                     cardProps={{ variant: "borderless" }}
                     headerTitle={<Space><Typography.Text strong>系统预设 Skill</Typography.Text><Tag>{skills.length} 条</Tag></Space>}
-                    options={false}
+                    options={{ density: true, setting: true, reload: () => void query.refetch() }}
                     pagination={{ defaultPageSize: 10, showSizeChanger: true }}
                     toolBarRender={() => [<Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingSkill({ enabled: true, sort: 0 })}>新增</Button>]}
                 />

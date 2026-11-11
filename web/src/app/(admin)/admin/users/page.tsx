@@ -49,7 +49,7 @@ export default function AdminUsersPage() {
     const columns = buildUserColumns({ onEdit: setEditingUser, onDelete: setDeletingUser });
 
     return (
-        <main style={{ padding: 24 }}>
+        <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
                 <UserFilterBar keywordText={keywordText} setKeywordText={setKeywordText} searchUsers={searchUsers} resetFilters={resetFilters} />
                 <ProTable<AdminUser>

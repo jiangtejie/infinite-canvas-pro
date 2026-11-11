@@ -1,6 +1,7 @@
 "use client";
 
-import { App, Card, Flex, Table, Tag } from "antd";
+import { ProTable, type ProColumns } from "@ant-design/pro-components";
+import { App, Button, Flex, InputNumber, Space, Tag, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 
 import { deleteAdminAICallLogs, fetchAdminAICallLogs, fetchAdminSettings, saveAdminSettings, type AdminAICallLog } from "@/services/api/admin";
@@ -114,31 +115,43 @@ export default function AdminAICallLogsPage() {
                     localDirectReportEnabled={localDirectReportEnabled}
                     savingLocalDirectReport={savingLocalDirectReport}
                     onToggleLocalDirectReport={(checked) => void updateLocalDirectReport(checked)}
-                    clearDays={clearDays}
-                    setClearDays={setClearDays}
-                    clearing={clearing}
-                    onClearLogs={() => void clearLogs()}
                 />
-                <Card variant="borderless" title={<span>AI 调用日志 <Tag>{total} 条</Tag></span>}>
-                    <Table
-                        rowKey="id"
-                        size="small"
-                        loading={loading}
-                        columns={columns}
-                        dataSource={logs}
-                        scroll={{ x: 1280 }}
-                        pagination={{
-                            current: page,
-                            pageSize,
-                            total,
-                            showSizeChanger: true,
-                            onChange: (nextPage, nextPageSize) => {
-                                setPage(nextPage);
-                                setPageSize(nextPageSize);
-                            },
-                        }}
-                    />
-                </Card>
+                <ProTable<AdminAICallLog>
+                    rowKey="id"
+                    columns={columns as ProColumns<AdminAICallLog>[]}
+                    dataSource={logs}
+                    loading={loading}
+                    search={false}
+                    defaultSize="middle"
+                    tableLayout="fixed"
+                    scroll={{ x: 1420 }}
+                    cardProps={{ variant: "borderless" }}
+                    headerTitle={
+                        <Space>
+                            <Typography.Text strong>AI 调用日志</Typography.Text>
+                            <Tag>{total} 条</Tag>
+                        </Space>
+                    }
+                    options={{ density: true, setting: true, reload: () => void loadLogs() }}
+                    toolBarRender={() => [
+                        <Space key="clear" wrap>
+                            <span className="text-xs text-muted-foreground">清理超过</span>
+                            <InputNumber min={1} value={clearDays} className="!w-20" onChange={(value) => setClearDays(Number(value) || 7)} />
+                            <span className="text-xs text-muted-foreground">天前的日志</span>
+                            <Button danger loading={clearing} onClick={() => void clearLogs()}>清理旧日志</Button>
+                        </Space>,
+                    ]}
+                    pagination={{
+                        current: page,
+                        pageSize,
+                        total,
+                        showSizeChanger: true,
+                        onChange: (nextPage, nextPageSize) => {
+                            setPage(nextPage);
+                            setPageSize(nextPageSize);
+                        },
+                    }}
+                />
             </Flex>
             <AiLogDetailModal detail={detail} onClose={() => setDetail(null)} />
         </main>

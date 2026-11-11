@@ -1,10 +1,12 @@
 "use client";
 
-import { Alert, Card, Form, Switch } from "antd";
+import { Alert, Form, Switch } from "antd";
+
+import { AdminSettingsSection } from "./settings-section";
 
 export function AdminSettingsPrivateContentSection() {
     return (
-        <Card size="small" title="内容解析">
+        <AdminSettingsSection title="内容解析" description="控制外部内容解析能力，关闭后不影响已解析素材。">
             <Form.Item
                 name={["private", "content", "sourceParseEnabled"]}
                 label="允许抖音图文解析"
@@ -16,8 +18,8 @@ export function AdminSettingsPrivateContentSection() {
             <Alert
                 type="info"
                 showIcon
-                message="抖音解析依赖外部分享页，遇到平台风控或改版时可临时关闭；关闭后用户仍可手动粘贴文案继续创作。"
+                title="抖音解析依赖外部分享页，遇到平台风控或改版时可临时关闭；关闭后用户仍可手动粘贴文案继续创作。"
             />
-        </Card>
+        </AdminSettingsSection>
     );
 }

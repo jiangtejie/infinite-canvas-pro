@@ -2,7 +2,7 @@
 
 import { PlusOutlined } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
-import { Button, Card, Space, Tag, Typography } from "antd";
+import { Button, Card, Flex, Space, Tag, Typography } from "antd";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { AdminRechargePackage } from "@/services/api/admin";
@@ -27,8 +27,8 @@ export default function AdminRechargePackagesPage() {
     const columns = buildRechargePackageColumns({ onEdit: setEditing, onDelete: (item) => void confirmDelete(item), onToggle: toggleEnabled });
 
     return (
-        <main style={{ padding: 24 }}>
-            <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+        <main className="p-3 md:p-6">
+            <Flex vertical gap={16}>
                 <Card variant="borderless">
                     <Typography.Text type="secondary">
                         这里的调整会立即影响用户中心「微信充值」里展示的套餐；下架的套餐不再出现在用户端，已创建的订单不受影响。
@@ -58,7 +58,7 @@ export default function AdminRechargePackagesPage() {
                     ]}
                     pagination={false}
                 />
-            </Space>
+            </Flex>
 
             <RechargePackageModal editing={editing} form={form} saving={saving} onCancel={() => setEditing(null)} onSave={() => void save()} />
         </main>
