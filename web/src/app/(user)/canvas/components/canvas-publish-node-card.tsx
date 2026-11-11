@@ -63,7 +63,7 @@ export function CanvasPublishNodeCard({ node, imageCount, images = [], onOpen }:
         return (
             <div className="flex h-full w-full flex-col gap-2.5 p-4 text-left" style={{ color: theme.node.text }}>
                 <div className="flex min-h-0 flex-1 gap-3">
-                    <div className="h-full w-[148px] shrink-0 overflow-hidden rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke }}>
+                    <div className="h-full w-[180px] shrink-0 overflow-hidden rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke }}>
                         {firstImage ? (
                             <img src={firstImage.image.dataUrl} alt={firstImage.title} draggable={false} className="size-full object-cover" />
                         ) : (
@@ -79,7 +79,7 @@ export function CanvasPublishNodeCard({ node, imageCount, images = [], onOpen }:
                         {tagsText ? <p className="m-0 line-clamp-1 text-[11px]" style={{ color: token.colorLink }}>{tagsText}</p> : null}
                         <div className="mt-auto flex min-w-0 items-center gap-1.5">
                             {thumbs.map((item) => (
-                                <span key={item.nodeId} className="size-9 shrink-0 overflow-hidden rounded-md border" style={{ borderColor: theme.node.stroke }}>
+                                <span key={item.nodeId} className="size-10 shrink-0 overflow-hidden rounded-md border" style={{ borderColor: theme.node.stroke }}>
                                     <img src={item.image.dataUrl} alt={item.title} draggable={false} className="size-full object-cover" />
                                 </span>
                             ))}
@@ -87,7 +87,7 @@ export function CanvasPublishNodeCard({ node, imageCount, images = [], onOpen }:
                         </div>
                     </div>
                 </div>
-                <button type="button" className="flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition hover:opacity-90" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke, color: theme.toolbar.activeText }} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
+                <button type="button" className="flex h-10 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border text-sm font-medium transition hover:opacity-90" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke, color: theme.toolbar.activeText }} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
                     <Send className="size-4" />
                     编辑并生成二维码
                 </button>
@@ -109,19 +109,19 @@ export function CanvasPublishNodeCard({ node, imageCount, images = [], onOpen }:
 
             <div className="flex min-h-0 flex-1 items-center gap-3">
                 {confirmed ? (
-                    <div className="flex h-[156px] w-[144px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorSuccess }}>
+                    <div className="flex h-[168px] w-[160px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorSuccess }}>
                         <CheckCircle2 className="size-8" />
                         <span className="text-xs font-medium">已发布</span>
                     </div>
                 ) : draftDirty ? (
-                    <div className="flex h-[156px] w-[144px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border px-3 text-center" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorWarning }}>
+                    <div className="flex h-[168px] w-[160px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border px-3 text-center" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorWarning }}>
                         <CircleAlert className="size-7" />
                         <span className="text-xs font-medium">待更新</span>
                         <span className="text-[10px] leading-4">旧二维码已失效</span>
                     </div>
                 ) : (
                     <div className="shrink-0 self-center rounded-xl bg-white p-1.5">
-                        <QRCode value={record.qrText} size={132} bordered={false} errorLevel="L" bgColor="#ffffff" color="#111111" status={expired ? "expired" : "active"} />
+                        <QRCode value={record.qrText} size={146} bordered={false} errorLevel="L" bgColor="#ffffff" color="#111111" status={expired ? "expired" : "active"} />
                     </div>
                 )}
                 <div className="flex min-w-0 flex-1 flex-col gap-1">

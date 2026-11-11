@@ -2,7 +2,7 @@ import type { ReferenceImage } from "@/types/image";
 
 import { buildNodeGenerationInputs } from "../../components/canvas-node-generation";
 import { NODE_DEFAULT_SIZE, PUBLISH_LAYOUT_VERSION } from "../../constants";
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
 
 export const PUBLISH_TITLE_LIMIT = 20;
 export const PUBLISH_TAGS_LIMIT = 5;
@@ -165,26 +165,27 @@ export function planSourcePublishNode(nodes: CanvasNodeData[], connections: Canv
     return { upstreamNodeIds, existingPublishNodeId: null, createPosition, connectNodeIds: createPosition ? upstreamNodeIds : [] };
 }
 
-const LEGACY_PUBLISH_NODE_SIZE = { width: 380, height: 280 };
-
-/** 发布节点 metadata 的布局版本字段（CanvasNodeMetadata 未在本次 scope 内，这里用局部扩展类型读写）。 */
-type PublishLayoutMetadata = CanvasNodeMetadata & { publishLayoutVersion?: number };
-
-function publishLayoutVersion(metadata: CanvasNodeMetadata | undefined) {
-    return (metadata as PublishLayoutMetadata | undefined)?.publishLayoutVersion;
-}
+const LEGACY_PUBLISH_NODE_SIZES = [
+    { width: 380, height: 280 },
+    { width: 480, height: 340 },
+];
 
 /**
- * 迁移旧发布节点：无布局版本且仍是旧默认尺寸 380x280 的节点升级到当前默认尺寸 480x340，
- * 以中心为基准扩展并写入版本；用户已自定义尺寸的节点保持不动。
+ * 迁移旧发布节点：无布局版本或版本较旧、且仍是旧默认尺寸（380x280 / 480x340）的节点，
+ * 以中心为基准升级到当前默认尺寸 520x380 并写入版本；已是当前尺寸的只补版本；自定义尺寸不动。
  */
 export function migratePublishNodeLayouts(nodes: CanvasNodeData[]) {
     const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Publish];
     let changed = false;
     const next = nodes.map((node) => {
         if (node.type !== CanvasNodeType.Publish) return node;
-        if (publishLayoutVersion(node.metadata)) return node;
-        if (node.width !== LEGACY_PUBLISH_NODE_SIZE.width || node.height !== LEGACY_PUBLISH_NODE_SIZE.height) return node;
+        if ((node.metadata?.publishLayoutVersion || 0) >= PUBLISH_LAYOUT_VERSION) return node;
+        if (node.width === spec.width && node.height === spec.height) {
+            changed = true;
+            return { ...node, metadata: { ...node.metadata, publishLayoutVersion: PUBLISH_LAYOUT_VERSION } };
+        }
+        const legacySize = LEGACY_PUBLISH_NODE_SIZES.find((size) => size.width === node.width && size.height === node.height);
+        if (!legacySize) return node;
         changed = true;
         return {
             ...node,
@@ -194,10 +195,7 @@ export function migratePublishNodeLayouts(nodes: CanvasNodeData[]) {
                 x: node.position.x + (node.width - spec.width) / 2,
                 y: node.position.y + (node.height - spec.height) / 2,
             },
-            metadata: {
-                ...node.metadata,
-                publishLayoutVersion: PUBLISH_LAYOUT_VERSION,
-            } as CanvasNodeMetadata,
+            metadata: { ...node.metadata, publishLayoutVersion: PUBLISH_LAYOUT_VERSION },
         };
     });
     return changed ? next : nodes;

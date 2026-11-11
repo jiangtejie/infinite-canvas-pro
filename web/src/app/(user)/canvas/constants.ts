@@ -2,8 +2,10 @@ import { CanvasNodeType } from "./types";
 import type { CanvasNodeMetadata } from "./types";
 import { PANORAMA_IMAGE_SIZE, PANORAMA_NODE_SIZE } from "./utils/canvas-panorama";
 
+/** 素材源节点布局版本：用于迁移旧默认尺寸节点。 */
+export const SOURCE_LAYOUT_VERSION = 2;
 /** 发布节点布局版本：用于迁移旧默认尺寸节点。 */
-export const PUBLISH_LAYOUT_VERSION = 2;
+export const PUBLISH_LAYOUT_VERSION = 3;
 
 type CanvasNodeSpec = {
     width: number;
@@ -21,8 +23,8 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Audio]: { width: 340, height: 160, title: "音频" },
     [CanvasNodeType.Director]: { width: 360, height: 320, title: "导演台" },
     [CanvasNodeType.Group]: { width: 760, height: 480, title: "组" },
-    [CanvasNodeType.Source]: { width: 420, height: 300, title: "素材源" },
-    [CanvasNodeType.Publish]: { width: 480, height: 340, title: "发布" },
+    [CanvasNodeType.Source]: { width: 520, height: 380, title: "素材源" },
+    [CanvasNodeType.Publish]: { width: 520, height: 380, title: "发布" },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
@@ -60,11 +62,11 @@ export const NODE_SPECS = {
     },
     [CanvasNodeType.Source]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Source],
-        metadata: { sourcePlatform: "douyin", sourceStatus: "idle", sourceInput: "" },
+        metadata: { sourcePlatform: "douyin", sourceStatus: "idle", sourceInput: "", sourceLayoutVersion: SOURCE_LAYOUT_VERSION },
     },
     [CanvasNodeType.Publish]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Publish],
-        metadata: { status: "idle", publishStatus: "idle", publishLayoutVersion: PUBLISH_LAYOUT_VERSION } as CanvasNodeMetadata,
+        metadata: { status: "idle", publishStatus: "idle", publishLayoutVersion: PUBLISH_LAYOUT_VERSION },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;
 

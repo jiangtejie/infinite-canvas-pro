@@ -150,6 +150,7 @@ export type CanvasNodeMetadata = {
     sourceWarnings?: string[];
     sourceParsing?: boolean;
     sourceExpanded?: boolean;
+    sourceLayoutVersion?: number;
     remixIndex?: number;
     remixSourceId?: string;
     publishSourceId?: string;

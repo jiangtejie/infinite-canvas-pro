@@ -1,4 +1,4 @@
-import { NODE_DEFAULT_SIZE } from "../../constants";
+import { NODE_DEFAULT_SIZE, SOURCE_LAYOUT_VERSION } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
 
 export type CanvasSourcePlan = {
@@ -228,6 +228,34 @@ export function migrateRemixNodeLayouts(nodes: CanvasNodeData[]) {
                 naturalWidth: planned.metadata?.naturalWidth,
                 naturalHeight: planned.metadata?.naturalHeight,
             },
+        };
+    });
+    return changed ? next : nodes;
+}
+
+const LEGACY_SOURCE_NODE_SIZE = { width: 420, height: 300 };
+
+/**
+ * 迁移旧素材源节点：无 sourceLayoutVersion 且仍是旧默认尺寸 420x300 的节点，
+ * 以中心为基准扩到当前默认尺寸 520x380 并写版本；用户已自定义尺寸的节点保持不动。
+ */
+export function migrateSourceNodeLayouts(nodes: CanvasNodeData[]) {
+    const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Source];
+    let changed = false;
+    const next = nodes.map((node) => {
+        if (node.type !== CanvasNodeType.Source) return node;
+        if (node.metadata?.sourceLayoutVersion) return node;
+        if (node.width !== LEGACY_SOURCE_NODE_SIZE.width || node.height !== LEGACY_SOURCE_NODE_SIZE.height) return node;
+        changed = true;
+        return {
+            ...node,
+            width: spec.width,
+            height: spec.height,
+            position: {
+                x: node.position.x + (node.width - spec.width) / 2,
+                y: node.position.y + (node.height - spec.height) / 2,
+            },
+            metadata: { ...node.metadata, sourceLayoutVersion: SOURCE_LAYOUT_VERSION },
         };
     });
     return changed ? next : nodes;
