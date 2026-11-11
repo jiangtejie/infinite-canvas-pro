@@ -11,6 +11,15 @@ import (
 
 const ModelChannelProtocolGemini = "gemini"
 
+func IsTeamorouterBaseURL(baseURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "teamorouter.ai" || strings.HasSuffix(host, ".teamorouter.ai")
+}
+
 func IsGeminiChannel(channel model.ModelChannel) bool {
 	return strings.EqualFold(strings.TrimSpace(channel.Protocol), ModelChannelProtocolGemini)
 }

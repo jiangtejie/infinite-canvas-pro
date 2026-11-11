@@ -5,7 +5,7 @@ import { dataUrlToFile } from "@/lib/image-utils";
 import { isKIESeedreamLayerDecompositionModel } from "@/lib/kie-models";
 import { isMimoChannel, mimoModels } from "@/lib/mimo-tts";
 import { modelChannelAttributionHeaders } from "@/lib/model-channel";
-import { geminiErrorMessage, isGeminiConfig, normalizeGeminiBaseUrl } from "@/lib/gemini";
+import { geminiErrorMessage, isGeminiConfig, isTeamorouterBaseUrl, normalizeGeminiBaseUrl } from "@/lib/gemini";
 import { autoSyncImage, imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
 import { buildApiUrl, channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -202,6 +202,7 @@ async function createCanvasImageTaskRequest(config: SeedableImageConfig, prompt:
 export async function fetchImageModels(config: AiConfig) {
     if (config.channelMode === "remote") return config.models;
     const channel = localChannelForActiveModel(config);
+    if (channel?.protocol === "gemini" && isTeamorouterBaseUrl(channel.baseUrl)) return fetchTeamorouterModels(channel.baseUrl, channel.apiKey);
     if (channel?.protocol === "gemini") return fetchGeminiModels(channel.baseUrl, channel.apiKey);
     if (channel?.protocol === "autodl") return (await fetchAutoDLWorkflows(channel.baseUrl)).map((workflow) => workflow.uuid);
     if (isMiniMaxChannel(channel)) return [...miniMaxModels];
@@ -240,6 +241,19 @@ export async function fetchImageModels(config: AiConfig) {
     } catch (error) {
         throw new Error(readAxiosError(error, "读取模型失败"));
     }
+}
+
+async function fetchTeamorouterModels(baseUrl: string, apiKey: string) {
+    const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(baseUrl, "/models"), {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: IMAGE_REQUEST_TIMEOUT_SECONDS * 1000,
+    });
+    const models = (response.data.data || [])
+        .map((item) => item.id || "")
+        .filter((name) => name && !/embed|embedding/i.test(name))
+        .sort((a, b) => a.localeCompare(b));
+    if (!models.length) throw new Error("TeamoRouter 模型列表为空");
+    return models;
 }
 
 async function fetchGeminiModels(baseUrl: string, apiKey: string) {

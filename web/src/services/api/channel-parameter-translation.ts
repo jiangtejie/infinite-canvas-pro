@@ -1,5 +1,6 @@
 import { readFileAsDataUrl } from "@/lib/image-utils";
 import { audioMimeType } from "@/lib/audio-generation";
+import { isTeamorouterBaseUrl } from "@/lib/gemini";
 import { modelChannelAttributionHeaders } from "@/lib/model-channel";
 import { translationPrograms, translationVariableNames, type TranslationVariables } from "@/lib/channel-parameter-translation";
 import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
@@ -144,7 +145,12 @@ export class BrowserParameterTranslation {
         if (Object.keys(plan.headers || {}).some((name) => authNames.includes(name.toLowerCase()))) authNames.forEach((name) => headers.delete(name));
         for (const [name, value] of Object.entries(plan.headers || {})) headers.set(name, text(value));
         const customAuth = JSON.stringify({ plan, common }).includes("{channelKey}") || authNames.some((name) => headers.has(name));
-        if (!customAuth) headers.set(channel?.protocol === "gemini" ? "x-goog-api-key" : "Authorization", channel?.protocol === "gemini" || channel?.protocol === "autodl" ? key : `Bearer ${key}`);
+        const geminiAuth = channel?.protocol === "gemini";
+        const teamorouterAuth = geminiAuth && isTeamorouterBaseUrl(channel?.baseUrl || "");
+        if (!customAuth) {
+            if (teamorouterAuth) headers.set("Authorization", `Bearer ${key}`);
+            else headers.set(geminiAuth ? "x-goog-api-key" : "Authorization", geminiAuth || channel?.protocol === "autodl" ? key : `Bearer ${key}`);
+        }
         const format = plan.format || "json",
             responseType = plan.responseType || "json";
         if (!["json", "formData", "urlencoded", "raw"].includes(format) || !["json", "text", "blob", "arraybuffer"].includes(responseType)) throw new Error("不支持的请求或返回数据格式");

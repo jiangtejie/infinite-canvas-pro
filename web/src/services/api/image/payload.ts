@@ -263,7 +263,9 @@ function geminiImageSettings(model: string, quality: string, size: string, resol
     const aspectRatio = normalizeGeminiImageRatio(size);
     const normalizedQuality = quality.trim().toLowerCase();
     const preset = `${size} ${resolvedSize || ""}`.toLowerCase();
-    const imageSize = normalizedQuality === "low" ? "1K" : normalizedQuality === "medium" ? "2K" : normalizedQuality === "high" ? "4K" : preset.includes("6272x2688") || preset.includes("3840x2160") || preset.includes("2160x3840") ? "4K" : preset.includes("2048x") || preset.includes("3136x1344") ? "2K" : "";
+    const customDimensions = (resolvedSize || size).match(/^(\d+)x(\d+)$/);
+    const customMax = customDimensions ? Math.max(Number(customDimensions[1]), Number(customDimensions[2])) : 0;
+    const imageSize = customMax > 0 && customMax <= 512 ? "512" : normalizedQuality === "low" ? "1K" : normalizedQuality === "medium" ? "2K" : normalizedQuality === "high" ? "4K" : preset.includes("6272x2688") || preset.includes("3840x2160") || preset.includes("2160x3840") ? "4K" : preset.includes("2048x") || preset.includes("3136x1344") ? "2K" : "";
     return {
         ...(aspectRatio ? { aspectRatio } : {}),
         ...(!model.toLowerCase().includes("2.5") && imageSize ? { imageSize } : {}),
@@ -273,7 +275,8 @@ function geminiImageSettings(model: string, quality: string, size: string, resol
 function normalizeGeminiImageRatio(value: string) {
     const normalized = value.trim().toLowerCase();
     const exact: Record<string, string> = {
-        "1:1": "1:1", "2048x2048": "1:1", "3:2": "3:2", "2:3": "2:3", "4:3": "4:3", "3:4": "3:4",
+        "1:1": "1:1", "2048x2048": "1:1", "1:4": "1:4", "1:8": "1:8", "2:3": "2:3", "3:2": "3:2",
+        "3:4": "3:4", "4:1": "4:1", "4:3": "4:3", "4:5": "4:5", "5:4": "5:4", "8:1": "8:1",
         "16:9": "16:9", "2048x1152": "16:9", "3840x2160": "16:9", "9:16": "9:16", "1152x2048": "9:16", "2160x3840": "9:16",
         "21:9": "21:9", "3136x1344": "21:9", "6272x2688": "21:9",
     };
@@ -282,7 +285,7 @@ function normalizeGeminiImageRatio(value: string) {
     const dimensions = normalized.match(/^(\d+)x(\d+)$/);
     if (!dimensions) return "1:1";
     const ratio = Number(dimensions[1]) / Number(dimensions[2]);
-    const ratios: Array<[string, number]> = [["1:1", 1], ["3:2", 1.5], ["2:3", 2 / 3], ["4:3", 4 / 3], ["3:4", 3 / 4], ["16:9", 16 / 9], ["9:16", 9 / 16], ["21:9", 21 / 9]];
+    const ratios: Array<[string, number]> = [["1:1", 1], ["1:4", 1 / 4], ["4:1", 4], ["1:8", 1 / 8], ["8:1", 8], ["2:3", 2 / 3], ["3:2", 3 / 2], ["3:4", 3 / 4], ["4:3", 4 / 3], ["4:5", 4 / 5], ["5:4", 5 / 4], ["9:16", 9 / 16], ["16:9", 16 / 9], ["21:9", 21 / 9]];
     return ratios.reduce((best, current) => Math.abs(current[1] - ratio) < Math.abs(best[1] - ratio) ? current : best)[0];
 }
 export function isAgnesImageModel(model: string) {

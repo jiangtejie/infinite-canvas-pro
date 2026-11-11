@@ -49,6 +49,10 @@ func init() {
 	gemini := compatible
 	gemini.buildURL = BuildGeminiChannelURL
 	gemini.setAuth = func(request *http.Request, channel model.ModelChannel) {
+		if IsTeamorouterBaseURL(channel.BaseURL) {
+			request.Header.Set("Authorization", "Bearer "+channel.APIKey)
+			return
+		}
 		request.Header.Set("x-goog-api-key", channel.APIKey)
 	}
 	gemini.models = fetchGeminiAdminChannelModels

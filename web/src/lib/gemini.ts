@@ -3,6 +3,15 @@ import { channelProtocolForConfig, localChannelForActiveModel, type AiConfig } f
 export const GEMINI_PROTOCOL = "gemini" as const;
 export const GEMINI_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
 
+/** TeamoRouter 的 Gemini 原生接口使用 Bearer 鉴权，而不是 Google 的 x-goog-api-key。 */
+export function isTeamorouterBaseUrl(baseUrl: string) {
+    try {
+        return /(^|\.)teamorouter\.ai$/i.test(new URL(baseUrl).hostname);
+    } catch {
+        return /teamorouter\.ai/i.test(baseUrl);
+    }
+}
+
 export function isGeminiConfig(config: AiConfig, model = config.model) {
     return channelProtocolForConfig({ ...config, model }) === GEMINI_PROTOCOL;
 }
@@ -33,11 +42,13 @@ export function geminiOperationUrl(baseUrl: string, operation: string) {
     return `${normalizeGeminiBaseUrl(baseUrl)}/v1beta/${name}`;
 }
 
-export function geminiDirectHeaders(config: AiConfig) {
-    return {
-        "Content-Type": "application/json",
-        "x-goog-api-key": localChannelForActiveModel(config)?.apiKey || config.apiKey,
-    };
+export function geminiDirectHeaders(config: AiConfig): Record<string, string> {
+    const channel = localChannelForActiveModel(config);
+    const apiKey = channel?.apiKey || config.apiKey;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (isTeamorouterBaseUrl(channel?.baseUrl || config.baseUrl)) headers.Authorization = `Bearer ${apiKey}`;
+    else headers["x-goog-api-key"] = apiKey;
+    return headers;
 }
 
 export function dataUrlToGeminiInlineData(dataUrl: string) {

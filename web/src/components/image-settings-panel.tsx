@@ -4,6 +4,7 @@ import { type ReactNode, useState } from "react";
 import { ConfigProvider, Switch } from "antd";
 
 import { type CanvasTheme } from "@/lib/canvas-theme";
+import { isGeminiConfig } from "@/lib/gemini";
 import type { AiConfig } from "@/stores/use-config-store";
 
 const qualityOptions = [
@@ -13,6 +14,16 @@ const qualityOptions = [
     { value: "low", label: "低 · 1K" },
 ];
 const DIMENSION_STEP = 16;
+
+const geminiAspectOptions = [
+    { value: "1:1-512", label: "1:1(512)", size: "512x512", width: 512, height: 512, icon: "square" },
+    { value: "1:4", label: "1:4", size: "512x2048", width: 512, height: 2048, icon: "portrait" },
+    { value: "4:1", label: "4:1", size: "2048x512", width: 2048, height: 512, icon: "landscape" },
+    { value: "1:8", label: "1:8", size: "512x4096", width: 512, height: 4096, icon: "portrait" },
+    { value: "8:1", label: "8:1", size: "4096x512", width: 4096, height: 512, icon: "landscape" },
+    { value: "4:5", label: "4:5", size: "1024x1280", width: 1024, height: 1280, icon: "portrait" },
+    { value: "5:4", label: "5:4", size: "1280x1024", width: 1280, height: 1024, icon: "landscape" },
+];
 
 const aspectOptions = [
     { value: "1:1", label: "1:1", width: 1024, height: 1024, icon: "square" },
@@ -55,10 +66,11 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
     const quality = config.quality || "auto";
     const count = Math.max(1, Math.min(maxCount, Math.floor(Math.abs(Number(config.count)) || 1)));
     const activeSize = config.size || "auto";
-    const selectedAspect = aspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
-    const dimensions = readSizeDimensions(activeSize, selectedAspect || aspectOptions[0]);
+    const availableAspectOptions = isGeminiConfig(config) ? [...aspectOptions, ...geminiAspectOptions] : aspectOptions;
+    const selectedAspect = availableAspectOptions.find((item) => (item.size || item.value) === activeSize || item.value === activeSize);
+    const dimensions = readSizeDimensions(activeSize, selectedAspect || availableAspectOptions[0]);
     const selectAspect = (value: string) => {
-        const option = aspectOptions.find((item) => item.value === value);
+        const option = availableAspectOptions.find((item) => item.value === value);
         onConfigChange("size", option?.size || option?.value || "auto");
     };
     const updateDimension = (key: "width" | "height", value: number | null) => {
@@ -118,7 +130,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                 </span>
                             </div>
                             <div className="thin-scrollbar grid auto-cols-[calc((100%-24px)/4)] grid-flow-col grid-rows-2 gap-2 overflow-x-auto pb-1">
-                                {aspectOptions.map((item) => (
+                                {availableAspectOptions.map((item) => (
                                     <button
                                         key={item.value}
                                         type="button"
@@ -174,7 +186,7 @@ export function imageQualityLabel(value: string) {
 }
 
 export function imageSizeLabel(size: string) {
-    return aspectOptions.find((item) => (item.size || item.value) === size || item.value === size)?.label || size;
+    return [...aspectOptions, ...geminiAspectOptions].find((item) => (item.size || item.value) === size || item.value === size)?.label || size;
 }
 
 function OptionPill({ selected, theme, onClick, children }: { selected: boolean; theme: CanvasTheme; onClick: () => void; children: ReactNode }) {

@@ -879,6 +879,9 @@ func testOpenAIChannelModel(channel model.ModelChannel, modelName string) (strin
 }
 
 func fetchGeminiAdminChannelModels(channel model.ModelChannel) ([]string, error) {
+	if IsTeamorouterBaseURL(channel.BaseURL) {
+		return fetchTeamorouterAdminChannelModels(channel)
+	}
 	result := []string{}
 	pageToken := ""
 	for {
@@ -934,6 +937,43 @@ func fetchGeminiAdminChannelModels(channel model.ModelChannel) ([]string, error)
 	sort.Strings(result)
 	if len(result) == 0 {
 		return nil, safeMessageError{message: "Gemini 模型列表为空"}
+	}
+	return result, nil
+}
+
+func fetchTeamorouterAdminChannelModels(channel model.ModelChannel) ([]string, error) {
+	request, err := http.NewRequest(http.MethodGet, BuildGeminiChannelURL(channel, "/v1/models"), nil)
+	if err != nil {
+		return nil, err
+	}
+	SetModelChannelAuthHeader(request, channel)
+	response, err := adminModelHTTPClient.Do(request)
+	if err != nil {
+		return nil, safeMessageError{message: "读取模型失败：上游接口无响应或网络不可达"}
+	}
+	defer response.Body.Close()
+	body := readAdminModelTestBody(response.Body)
+	if response.StatusCode >= http.StatusBadRequest {
+		return nil, readAdminChannelError(body, response.StatusCode, "读取模型失败")
+	}
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(body, &payload) != nil {
+		return nil, safeMessageError{message: "读取模型失败：上游响应无法解析"}
+	}
+	result := make([]string, 0, len(payload.Data))
+	for _, item := range payload.Data {
+		name := strings.TrimSpace(item.ID)
+		if name != "" && !strings.Contains(strings.ToLower(name), "embed") {
+			result = append(result, name)
+		}
+	}
+	sort.Strings(result)
+	if len(result) == 0 {
+		return nil, safeMessageError{message: "TeamoRouter 模型列表为空"}
 	}
 	return result, nil
 }
