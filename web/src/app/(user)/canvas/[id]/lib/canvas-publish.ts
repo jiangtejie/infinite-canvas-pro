@@ -92,6 +92,17 @@ export function publishChannelReasonText(reason?: string) {
 }
 
 /** 发布草稿签名：比较生成二维码时的快照与当前草稿是否一致。 */
+/** 发布图片拖拽排序：把 fromNodeId 移到 toNodeId 的位置；索引无效时返回原数组。 */
+export function reorderPublishImageIds(imageNodeIds: string[], fromNodeId: string, toNodeId: string) {
+    const fromIndex = imageNodeIds.indexOf(fromNodeId);
+    const toIndex = imageNodeIds.indexOf(toNodeId);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return imageNodeIds;
+    const next = [...imageNodeIds];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+}
+
 export function publishDraftSignature(draft?: CanvasPublishDraft) {
     return JSON.stringify({
         title: (draft?.title || "").trim(),

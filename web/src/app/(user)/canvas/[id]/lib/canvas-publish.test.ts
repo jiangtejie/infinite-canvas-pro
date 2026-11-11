@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
-import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired } from "./canvas-publish";
+import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired, reorderPublishImageIds } from "./canvas-publish";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id,
@@ -85,6 +85,13 @@ const publishNode = nodeAt("publish-node", CanvasNodeType.Publish, { position: {
 const otherPublishNode = nodeAt("publish-other", CanvasNodeType.Publish, { metadata: { publishSourceId: "source-2" } });
 const sourceTextForPublish = nodeAt("source-1-remix-text", CanvasNodeType.Text, { metadata: { content: "复刻文案" } });
 const sourceImageForPublish = nodeAt("source-1-remix-image-0", CanvasNodeType.Image, { position: { x: 400, y: 0 }, width: 200, height: 200, metadata: { content: "https://example.com/r.png" } });
+
+test("publish image drag reorder inserts at the target position", () => {
+    assert.deepEqual(reorderPublishImageIds(["a", "b", "c", "d"], "a", "c"), ["b", "c", "a", "d"]);
+    assert.deepEqual(reorderPublishImageIds(["a", "b", "c", "d"], "d", "b"), ["a", "d", "b", "c"]);
+    assert.deepEqual(reorderPublishImageIds(["a", "b"], "a", "a"), ["a", "b"]);
+    assert.deepEqual(reorderPublishImageIds(["a", "b"], "missing", "b"), ["a", "b"]);
+});
 
 test("source publish node is reused by metadata.publishSourceId", () => {
     assert.equal(findSourcePublishNode([publishNode, otherPublishNode], "source-1")?.id, "publish-node");

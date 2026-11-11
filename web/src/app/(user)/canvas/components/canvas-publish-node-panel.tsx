@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Heart, LoaderCircle, MessageCircle, Plus, Send, Share2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, GripVertical, Heart, LoaderCircle, MessageCircle, Plus, Send, Share2, X } from "lucide-react";
 import { App, Button, Input, Modal, QRCode, Select, Tag, theme as antdTheme } from "antd";
 
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
@@ -27,6 +27,7 @@ import {
     publishChannelReasonText,
     publishImageFileName,
     publishQrExpired,
+    reorderPublishImageIds,
     PUBLISH_MAX_IMAGES,
     PUBLISH_TAGS_LIMIT,
     PUBLISH_TITLE_LIMIT,
@@ -59,6 +60,8 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
     const [qrOpen, setQrOpen] = useState(false);
     const [addImagesOpen, setAddImagesOpen] = useState(false);
     const [previewIndex, setPreviewIndex] = useState(0);
+    const [draggingImageId, setDraggingImageId] = useState("");
+    const [dragOverImageId, setDragOverImageId] = useState("");
     const [publishedUrl, setPublishedUrl] = useState(node.metadata?.publishRecord?.publishedUrl || "");
     const [now, setNow] = useState(Date.now());
     const uploadCacheRef = useRef(new Map<string, PublishMedia>());
@@ -146,6 +149,12 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
         const next = [...selectedImageIds];
         [next[index], next[target]] = [next[target], next[index]];
         updateDraft({ imageNodeIds: next });
+    };
+
+    const reorderImage = (fromNodeId: string, toNodeId: string) => {
+        if (locked || !fromNodeId || fromNodeId === toNodeId) return;
+        const next = reorderPublishImageIds(selectedImageIds, fromNodeId, toNodeId);
+        if (next !== selectedImageIds) updateDraft({ imageNodeIds: next });
     };
 
     const uploadOneImage = async (item: CanvasPublishInputImage, index: number): Promise<PublishImageInput> => {
@@ -323,13 +332,48 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                     {selectedImages.length ? (
                         <div className="grid grid-cols-4 gap-1.5">
                             {selectedImages.map((item, index) => (
-                                <div key={item.nodeId} className="relative overflow-hidden rounded-md border" style={{ borderColor: theme.node.stroke }}>
+                                <div
+                                    key={item.nodeId}
+                                    className={`relative overflow-hidden rounded-md border transition ${locked ? "" : "cursor-grab active:cursor-grabbing"} ${draggingImageId === item.nodeId ? "opacity-45" : ""}`}
+                                    style={{ borderColor: dragOverImageId === item.nodeId && draggingImageId !== item.nodeId ? token.colorPrimary : theme.node.stroke }}
+                                    draggable={!locked}
+                                    onDragStart={(event) => {
+                                        if (locked) {
+                                            event.preventDefault();
+                                            return;
+                                        }
+                                        event.dataTransfer.effectAllowed = "move";
+                                        event.dataTransfer.setData("text/plain", item.nodeId);
+                                        setDraggingImageId(item.nodeId);
+                                    }}
+                                    onDragOver={(event) => {
+                                        if (locked || !draggingImageId) return;
+                                        event.preventDefault();
+                                        event.dataTransfer.dropEffect = "move";
+                                        setDragOverImageId(item.nodeId);
+                                    }}
+                                    onDragLeave={() => setDragOverImageId((current) => current === item.nodeId ? "" : current)}
+                                    onDrop={(event) => {
+                                        event.preventDefault();
+                                        const fromNodeId = event.dataTransfer.getData("text/plain") || draggingImageId;
+                                        reorderImage(fromNodeId, item.nodeId);
+                                        setDraggingImageId("");
+                                        setDragOverImageId("");
+                                    }}
+                                    onDragEnd={() => {
+                                        setDraggingImageId("");
+                                        setDragOverImageId("");
+                                    }}
+                                >
                                     <img src={item.image.dataUrl} alt={item.title} draggable={false} className="h-16 w-full object-cover" />
                                     <span className="absolute left-1 top-1 grid size-4 place-items-center rounded-full text-[10px] font-semibold" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{index + 1}</span>
                                     <button type="button" className="absolute right-1 top-1 grid size-4 place-items-center rounded-full transition hover:opacity-80" style={{ background: theme.toolbar.panel, color: theme.node.text }} aria-label={`移除第 ${index + 1} 张发布图片`} disabled={locked} onClick={() => toggleImage(item.nodeId)}>
                                         <X className="size-3" />
                                     </button>
-                                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-0.5" style={{ background: theme.toolbar.panel }}>
+                                    <span className="pointer-events-none absolute bottom-1 left-1/2 -translate-x-1/2 rounded p-0.5 opacity-70 [@media(pointer:coarse)]:hidden" style={{ background: theme.toolbar.panel, color: theme.node.text }} aria-hidden="true">
+                                        <GripVertical className="size-3" />
+                                    </span>
+                                    <div className="absolute inset-x-0 bottom-0 hidden items-center justify-between px-0.5 [@media(pointer:coarse)]:flex" style={{ background: theme.toolbar.panel }}>
                                         <button type="button" className="grid size-5 place-items-center rounded" style={{ color: theme.node.text, opacity: index === 0 ? 0.35 : 1 }} aria-label="图片前移" disabled={locked || index === 0} onClick={() => moveImage(item.nodeId, -1)}>
                                             <ArrowUp className="size-3" />
                                         </button>
@@ -363,7 +407,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                             ) : null}
                         </div>
                     ) : null}
-                    <div className="text-[11px]" style={{ color: theme.node.placeholder }}>图片会按顺序转存到发布域名；取消选择后可在上方「添加上游图片」重新加入。</div>
+                    <div className="text-[11px]" style={{ color: theme.node.placeholder }}>拖动图片调整发布顺序（触屏可用图下箭头）；图片会按顺序转存到发布域名，取消选择后可在上方「添加上游图片」重新加入。</div>
                 </div>
             </div>
 
