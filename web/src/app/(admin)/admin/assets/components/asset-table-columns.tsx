@@ -29,9 +29,14 @@ export function buildAssetColumns({
             dataIndex: "title",
             width: 260,
             render: (_, item) => (
-                <Typography.Link strong ellipsis style={{ maxWidth: 260, display: "block" }} onClick={() => onDetail(item)}>
+                <button
+                    type="button"
+                    onClick={() => onDetail(item)}
+                    title={item.title}
+                    className="block max-w-[260px] cursor-pointer truncate text-left font-medium text-foreground transition-colors hover:text-acid"
+                >
                     {item.title}
-                </Typography.Link>
+                </button>
             ),
         },
         {

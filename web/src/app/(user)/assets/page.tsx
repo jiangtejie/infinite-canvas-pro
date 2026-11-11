@@ -181,12 +181,12 @@ export default function AssetsPage() {
                             <AssetKindFilter value={kindFilter} onChange={(value) => { setPage(1); setKindFilter(value); }} />
                         </div>
                         {categories.length || tags.length ? (
-                            <div className="filter-tag-sheet grid gap-2 rounded-xl border border-border/70 bg-card/40 p-3.5 sm:gap-2.5 sm:p-4">
+                            <div className="filter-tag-sheet grid gap-2 sm:gap-2.5">
                                 {categories.length ? (
                                     <FilterTagGroup label="分类" options={[{ value: "", label: "全部" }, ...categories.map((category) => ({ value: category, label: category }))]} isSelected={(value) => categoryFilter === value} onSelect={(value) => { setPage(1); setCategoryFilter(value); }} />
                                 ) : null}
                                 {tags.length ? (
-                                    <FilterTagGroup label="标签" options={[{ value: "", label: "全部" }, ...tags.map((tag) => ({ value: tag, label: tag }))]} isSelected={(value) => value ? tagFilters.includes(value) : tagFilters.length === 0} onSelect={(value) => { setPage(1); setTagFilters((items) => value ? (items.includes(value) ? items.filter((item) => item !== value) : [...items, value]) : []); }} />
+                                    <FilterTagGroup label="标签" collapsible options={[{ value: "", label: "全部" }, ...tags.map((tag) => ({ value: tag, label: tag }))]} isSelected={(value) => value ? tagFilters.includes(value) : tagFilters.length === 0} onSelect={(value) => { setPage(1); setTagFilters((items) => value ? (items.includes(value) ? items.filter((item) => item !== value) : [...items, value]) : []); }} />
                                 ) : null}
                             </div>
                         ) : null}

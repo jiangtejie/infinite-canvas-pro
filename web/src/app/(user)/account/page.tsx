@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, App, Button, Empty, Form, Input, Modal, QRCode, Table, Tag } from "antd";
+import { App, Button, Empty, Form, Input, Modal, QRCode, Table, Tag } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CreditCard, FileText, LockKeyhole, ReceiptText, Wallet } from "lucide-react";
@@ -146,13 +146,16 @@ export default function AccountPage() {
                     <div aria-hidden className="neon-bloom-b pointer-events-none -right-16 -top-24 h-[260px] w-[380px] opacity-30" />
                     <div className="relative flex flex-wrap items-end justify-between gap-8">
                         <div className="flex min-w-0 items-center gap-5">
-                            <Avatar
-                                size={72}
-                                src={user?.avatarUrl ? <img src={user.avatarUrl} alt={displayName} referrerPolicy="no-referrer" /> : undefined}
-                                className="!flex !items-center !justify-center rounded-[8px] border border-acid/30 bg-muted text-xl font-semibold text-foreground"
+                            <div
+                                className="grid size-[72px] shrink-0 place-items-center overflow-hidden rounded-[8px] border text-xl font-semibold text-foreground"
+                                style={{ backgroundColor: "color-mix(in oklch, var(--acid) 12%, transparent)", borderColor: "color-mix(in oklch, var(--acid) 35%, transparent)" }}
                             >
-                                {displayName.slice(0, 1).toUpperCase()}
-                            </Avatar>
+                                {user?.avatarUrl ? (
+                                    <img src={user.avatarUrl} alt={displayName} referrerPolicy="no-referrer" className="size-full object-cover" />
+                                ) : (
+                                    displayName.slice(0, 1).toUpperCase()
+                                )}
+                            </div>
                             <div className="min-w-0">
                                 <span className="eyebrow">账户中心</span>
                                 <h1 className="mt-3 truncate text-[clamp(1.9rem,2.8vw,2.6rem)] font-semibold leading-[1.1] tracking-[-0.035em] text-foreground">{displayName}</h1>
@@ -182,6 +185,7 @@ export default function AccountPage() {
                             aria-selected={tab === item}
                             data-active={tab === item}
                             className="acct-tab"
+                            style={tab === item ? { backgroundColor: "transparent" } : undefined}
                             onClick={() => setTab(item)}
                         >
                             {item}
@@ -259,7 +263,7 @@ export default function AccountPage() {
                                 ))}
                             </div>
                         ) : (
-                            <div className={cn(CARD, "p-5")}><Empty description="暂无可用充值套餐" /></div>
+                            <div className={cn(CARD, "p-5")}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可用充值套餐" /></div>
                         )
                     ) : null}
 
@@ -270,7 +274,7 @@ export default function AccountPage() {
                                 size="middle"
                                 dataSource={orders}
                                 pagination={false}
-                                locale={{ emptyText: <Empty description="暂无充值订单" /> }}
+                                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无充值订单" /> }}
                                 columns={[
                                     { title: "订单号", dataIndex: "orderNo" },
                                     { title: "套餐", dataIndex: "packageName" },
@@ -290,7 +294,7 @@ export default function AccountPage() {
                                 size="middle"
                                 dataSource={logs}
                                 pagination={{ pageSize: 10 }}
-                                locale={{ emptyText: <Empty description="暂无积分流水" /> }}
+                                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无积分流水" /> }}
                                 columns={[
                                     { title: "类型", dataIndex: "type", align: "center", render: (value: string) => ({ recharge: "充值", ai_consume: "AI 消耗", ai_refund: "AI 退款", admin_adjust: "管理员调整" })[value] || value },
                                     { title: "变动", dataIndex: "amount", align: "right", render: (value: number) => <span className={cn("tabular-nums", value > 0 ? "text-emerald-500" : "text-rose-500")}>{value > 0 ? "+" : ""}{value}</span> },
@@ -326,7 +330,7 @@ export default function AccountPage() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <Empty description="暂无开票申请" />
+                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无开票申请" />
                                 )}
                             </div>
                         </div>

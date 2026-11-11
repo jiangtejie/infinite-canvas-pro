@@ -72,14 +72,14 @@
     --acid-soft: oklch(0.72 0.17 118 / 12%);
     --hot: oklch(0.6 0.24 355);
     /* 页面环境光与玻璃高光 */
-    --ambient-1: oklch(0.72 0.12 118 / 7%);
-    --ambient-2: oklch(0.66 0.16 355 / 5%);
+    --ambient-1: oklch(0.72 0.12 118 / 5%);
+    --ambient-2: oklch(0.66 0.16 355 / 3.5%);
     --glass-highlight: oklch(1 0 0 / 55%);
     /* 霓虹质感：首页专用，浅色下只保留一层淡色晕染 */
-    --neon-a: oklch(0.78 0.17 118 / 26%);
-    --neon-b: oklch(0.64 0.22 355 / 18%);
-    --neon-line: oklch(0.62 0.15 118 / 42%);
-    --neon-line-2: oklch(0.6 0.22 355 / 34%);
+    --neon-a: oklch(0.78 0.17 118 / 16%);
+    --neon-b: oklch(0.64 0.22 355 / 11%);
+    --neon-line: oklch(0.62 0.15 118 / 30%);
+    --neon-line-2: oklch(0.6 0.22 355 / 22%);
     /* 结构线：朋克式的硬边分隔 */
     --hairline: oklch(0.2 0 0 / 18%);
     --hairline-strong: oklch(0.2 0 0 / 32%);
@@ -87,6 +87,8 @@
     /* 背景纹理：细点阵，浅色下是浅灰点，深色下是极淡的亮点 */
     --grid-dot: oklch(0.25 0.01 95 / 14%);
     --grid-size: 18px;
+    /* 原生自动填充的兜底色（Chrome 会覆盖 input 背景与文字色） */
+    --field-bg: #ffffff;
     --vignette: oklch(0 0 0 / 0%);
     --border: oklch(0.88 0.004 95);
     --ring: oklch(0.52 0.13 118);
@@ -127,17 +129,18 @@
     --acid-ink: oklch(0.89 0.21 118);
     --acid-soft: oklch(0.89 0.21 118 / 10%);
     --hot: oklch(0.72 0.26 355);
-    --ambient-1: oklch(0.88 0.2 118 / 9%);
-    --ambient-2: oklch(0.72 0.24 355 / 8%);
+    --ambient-1: oklch(0.88 0.2 118 / 7%);
+    --ambient-2: oklch(0.72 0.24 355 / 6%);
     --glass-highlight: oklch(1 0 0 / 8%);
-    --neon-a: oklch(0.89 0.21 118 / 40%);
-    --neon-b: oklch(0.72 0.26 355 / 34%);
-    --neon-line: oklch(0.89 0.2 118 / 76%);
-    --neon-line-2: oklch(0.74 0.25 355 / 68%);
+    --neon-a: oklch(0.89 0.21 118 / 30%);
+    --neon-b: oklch(0.72 0.26 355 / 24%);
+    --neon-line: oklch(0.89 0.2 118 / 62%);
+    --neon-line-2: oklch(0.74 0.25 355 / 52%);
     --hairline: oklch(1 0 0 / 15%);
     --hairline-strong: oklch(1 0 0 / 30%);
     --scanline: oklch(1 0 0 / 3%);
     --grid-dot: oklch(1 0 0 / 11%);
+    --field-bg: #141414;
     --vignette: oklch(0 0 0 / 27%);
     --background: oklch(0.195 0 0);
     --foreground: oklch(0.985 0 0);
@@ -175,6 +178,19 @@
 @layer base {
     * {
         @apply border-border outline-ring/50;
+    }
+    /* 浏览器自动填充会强行写入蓝底与白边，深色主题下尤其突兀 */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus,
+    textarea:-webkit-autofill,
+    select:-webkit-autofill {
+        -webkit-text-fill-color: var(--foreground);
+        -webkit-box-shadow: 0 0 0 1000px var(--field-bg) inset;
+        box-shadow: 0 0 0 1000px var(--field-bg) inset;
+        border-color: var(--input);
+        caret-color: var(--foreground);
+        transition: background-color 9999s ease-out 0s;
     }
     html,
     body {
@@ -288,7 +304,7 @@
         font-size: 11px;
         font-weight: 600;
         line-height: 1;
-        letter-spacing: 0.24em;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
         color: color-mix(in oklch, var(--foreground) 52%, transparent);
     }
@@ -319,7 +335,7 @@
     .punk-rule {
         height: 1px;
         width: 100%;
-        background: linear-gradient(90deg, var(--acid) 0 56px, var(--hairline) 56px, transparent 100%);
+        background: linear-gradient(90deg, var(--acid) 0 40px, var(--hairline) 40px, transparent 100%);
     }
 
     /* 分层面板：顶部玻璃高光 + 柔和落影，营造"浮在纸面上"的层次 */
@@ -345,13 +361,20 @@
     }
 
     .punk-card:hover {
+        border-color: color-mix(in oklch, var(--acid) 34%, var(--border));
+        box-shadow: 0 12px 30px -26px oklch(0 0 0 / 85%);
+    }
+
+    /* 营销卡（首页案例、工作流模板）保留硬边偏移的朋克手感 */
+    .punk-card-loud:hover {
         transform: translate(-1px, -1px);
         border-color: color-mix(in oklch, var(--acid) 42%, var(--border));
         box-shadow: 3px 3px 0 -1px color-mix(in oklch, var(--acid) 18%, transparent);
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .punk-card:hover {
+        .punk-card:hover,
+        .punk-card-loud:hover {
             transform: none;
         }
     }
@@ -404,10 +427,9 @@
         font-family: var(--font-mono);
         font-size: 10px;
         font-weight: 500;
-        letter-spacing: 0.14em;
+        letter-spacing: 0.08em;
         line-height: 1;
-        text-transform: uppercase;
-        color: color-mix(in oklch, var(--foreground) 68%, transparent);
+        color: color-mix(in oklch, var(--foreground) 64%, transparent);
         white-space: nowrap;
     }
 

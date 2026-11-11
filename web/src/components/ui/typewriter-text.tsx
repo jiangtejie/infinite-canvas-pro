@@ -42,7 +42,7 @@ export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400
         const chars = Array.from(phrases[phraseIndex] || "");
         if (phase === "typing") {
             if (count < chars.length) {
-                const timer = window.setTimeout(() => setCount((value) => value + 1), count === 0 ? startDelay : typingSpeed);
+                const timer = window.setTimeout(() => setCount((value) => value + 1), count === 0 ? (phraseIndex === 0 ? startDelay : 0) : typingSpeed);
                 return () => window.clearTimeout(timer);
             }
             if (!looping) return undefined;
@@ -56,9 +56,10 @@ export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400
         const timer = window.setTimeout(() => {
             setPhraseIndex((value) => (value + 1) % phrases.length);
             setPhase("typing");
-        }, 260);
+        }, 80);
         return () => window.clearTimeout(timer);
     }, [count, hold, looping, phase, phraseIndex, phrases, removalSpeed, startDelay, typingSpeed]);
+
 
     const visible = Array.from(phrases[phraseIndex] || "").slice(0, count).join("");
     const finished = !looping && count >= Array.from(phrases[0] || "").length;

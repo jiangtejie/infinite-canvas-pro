@@ -2,7 +2,7 @@
 /* 只保留 acid 强调色、等宽小字与细边框分区；不叠加斜纹/准星/编号。 */
 .account-shell {
     --acct-line: color-mix(in oklch, var(--foreground) 13%, transparent);
-    --acct-radius: 8px;
+    --acct-radius: 12px;
 }
 
 .account-shell .acct-card {
@@ -10,7 +10,9 @@
     border: 1px solid var(--acct-line);
     border-radius: var(--acct-radius);
     background: color-mix(in oklch, var(--card) 72%, transparent);
-    box-shadow: inset 0 1px 0 var(--glass-highlight);
+    box-shadow:
+        inset 0 1px 0 var(--glass-highlight),
+        0 18px 40px -34px oklch(0 0 0 / 75%);
     transition: border-color 0.2s ease;
 }
 
@@ -48,6 +50,10 @@
 .account-shell .acct-tab:hover {
     color: var(--foreground);
     background: color-mix(in oklch, var(--foreground) 4%, transparent);
+}
+
+.account-shell .acct-tab[data-active="true"]:hover {
+    background: transparent;
 }
 
 .account-shell .acct-tab:focus-visible {

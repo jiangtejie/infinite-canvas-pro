@@ -341,7 +341,7 @@ export default function IndexPage() {
                                     }}
                                     aria-label={`预览：${item.title}`}
                                     className={cn(
-                                        "punk-card enter-up group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-muted text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
+                                        "punk-card punk-card-loud enter-up group relative cursor-pointer overflow-hidden rounded-xl border border-border bg-muted text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
                                         index === 0 && "lg:col-span-2 lg:row-span-2",
                                         index === 3 && "lg:col-span-2",
                                     )}

@@ -33,7 +33,7 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
 
     return (
         <article
-            className={`punk-card brackets group relative flex min-h-[214px] cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-card-foreground ${selected ? "border-acid/45" : "border-border"}`}
+            className={`punk-card group relative flex min-h-[214px] cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-card-foreground ${selected ? "border-acid/45" : "border-border"}`}
             onClick={() => !editing && open()}
         >
             <div className="relative h-[104px] shrink-0 overflow-hidden border-b border-border/70 bg-muted/40">

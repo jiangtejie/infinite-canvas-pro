@@ -39,15 +39,15 @@ export type AssetBrowserItem = {
 export function AssetBrowserCard({ item, onOpen, actions }: { item: AssetBrowserItem; onOpen: () => void; actions: ReactNode }) {
     return (
         <article className="punk-card group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground transition-[border-color,box-shadow] duration-200">
-            <button type="button" className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden bg-muted/50 text-left after:pointer-events-none after:absolute after:inset-0 after:bg-transparent after:transition-colors after:duration-200 after:content-[''] group-hover:after:bg-black/[0.04]" onClick={onOpen} aria-label={`查看 ${item.title}`}>
+            <button type="button" className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden bg-muted/50 text-left" onClick={onOpen} aria-label={`查看 ${item.title}`}>
                 {item.coverUrl ? (
-                    <img loading="lazy" decoding="async" src={item.coverUrl} alt={item.title} className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                    <img loading="lazy" decoding="async" src={item.coverUrl} alt={item.title} className="size-full object-cover" />
                 ) : item.videoUrl ? (
-                    <video src={item.videoUrl + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                    <video src={item.videoUrl + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover" />
                 ) : (
                     <span className="flex size-full items-center justify-center bg-muted/60 p-5 text-center text-xs leading-6 text-muted-foreground">{item.summary || "暂无封面"}</span>
                 )}
-                <span className="absolute left-2.5 top-2.5 inline-flex h-5 items-center rounded-full border border-white/20 bg-black/55 px-2 font-mono text-[10px] tracking-[0.12em] text-white/90 uppercase backdrop-blur">
+                <span className="absolute left-2.5 top-2.5 inline-flex h-5 items-center rounded-full bg-black/55 px-2 font-mono text-[10px] tracking-[0.06em] text-white/90">
                     {assetKindLabel(item.kind)}
                 </span>
             </button>
@@ -56,14 +56,15 @@ export function AssetBrowserCard({ item, onOpen, actions }: { item: AssetBrowser
                     <h2 className="line-clamp-1 text-sm font-medium tracking-[-0.01em] text-foreground">{item.title}</h2>
                     <p className="mt-1.5 line-clamp-2 text-xs leading-[1.65] text-muted-foreground/90">{item.summary}</p>
                 </button>
-                <div className="flex flex-wrap gap-1.5">
-                    {item.tags.slice(0, 3).map((tag) => (
-                        <Tag key={tag} className="!m-0 !rounded-full !border-border/70 !px-2 !text-[10px] !leading-4">{tag}</Tag>
-                    ))}
-                    {!item.tags.length ? <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground/60 uppercase">无标签</span> : null}
-                </div>
+                {item.tags.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                        {item.tags.slice(0, 1).map((tag) => (
+                            <Tag key={tag} className="!m-0 !rounded-full !border-border/70 !px-2 !text-[10px] !leading-4">{tag}</Tag>
+                        ))}
+                    </div>
+                ) : null}
                 <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/70 pt-2.5">
-                    <span className="truncate font-mono text-[10.5px] tracking-[0.1em] text-muted-foreground/75 uppercase">{item.meta}</span>
+                    <span className="truncate font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground/75">{item.meta}</span>
                     <div className="flex shrink-0 items-center gap-1 opacity-80 transition-opacity duration-200 group-hover:opacity-100">{actions}</div>
                 </div>
             </div>

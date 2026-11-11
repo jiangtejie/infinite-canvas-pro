@@ -156,7 +156,7 @@ export default function AssetLibraryPage() {
                             />
                         </div>
                         {categories.length || availableTags.length ? (
-                            <div className="filter-tag-sheet grid gap-2 rounded-xl border border-border/70 bg-card/40 p-3.5 sm:gap-2.5 sm:p-4">
+                            <div className="filter-tag-sheet grid gap-2 sm:gap-2.5">
                                 {categories.length ? (
                                     <FilterTagGroup
                                         label="分类"
@@ -171,6 +171,7 @@ export default function AssetLibraryPage() {
                                 {availableTags.length ? (
                                     <FilterTagGroup
                                         label="标签"
+                                        collapsible
                                         options={[{ value: "", label: "全部" }, ...availableTags.map((tag) => ({ value: tag, label: tag }))]}
                                         isSelected={(value) => value ? selectedTags.includes(value) : selectedTags.length === 0}
                                         onSelect={(value) => {

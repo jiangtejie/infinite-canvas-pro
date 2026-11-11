@@ -11,10 +11,11 @@ export const punkAccent = {
 
 const neutral = {
     light: {
-        primary: "#171717",
-        primaryHover: "#000000",
-        primaryText: "#ffffff",
+        primary: punkAccent.acid,
+        primaryHover: "#bcd600",
+        primaryText: "#141414",
         link: "#171717",
+        linkHover: "#4c6b00",
         menuBg: "#f2f2ee",
         menuText: "#171717",
         selectActiveBg: "#f5f5f5",
@@ -28,6 +29,7 @@ const neutral = {
         primaryHover: "#e4ff1a",
         primaryText: "#0b0b09",
         link: punkAccent.acid,
+        linkHover: "#e4ff1a",
         menuBg: "#262626",
         menuText: "#fafafa",
         selectActiveBg: "#262626",
@@ -56,7 +58,7 @@ export function getAntThemeConfig(dark: boolean): ThemeConfig {
             colorPrimary: color.primary,
             colorInfo: color.primary,
             colorLink: color.link,
-            colorLinkHover: color.primaryHover,
+            colorLinkHover: color.linkHover,
             colorLinkActive: color.link,
             colorTextLightSolid: color.primaryText,
             ...(dark ? { colorTextSecondary: "#b3b3b3", colorTextTertiary: "#9e9e9e", colorTextPlaceholder: "#9a9a9a" } : {}),
