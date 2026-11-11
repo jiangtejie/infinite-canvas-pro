@@ -11,13 +11,13 @@ export function WorkbenchSection({ title, count, children, collapsible = false, 
             <div className="flex items-center gap-2 pb-2.5">
                 {collapsible ? (
                     <button type="button" className="group/section flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md text-left outline-none focus-visible:text-foreground" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-                        <span className="font-mono text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase transition-colors group-hover/section:text-foreground">{title}</span>
+                        <span className="font-mono text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase transition-colors group-hover/section:text-foreground">{title}</span>
                         {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
                         <ChevronDown className={`ml-auto size-3.5 text-muted-foreground/70 transition-[transform,color] duration-200 group-hover/section:text-foreground ${open ? "" : "-rotate-90"}`} aria-hidden />
                     </button>
                 ) : (
                     <>
-                        <span className="font-mono text-[11px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">{title}</span>
+                        <span className="font-mono text-[12px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{title}</span>
                         {typeof count === "number" && count > 0 ? <Tag className="!m-0 !h-[17px] !min-w-[18px] !rounded-[3px] !border-border !bg-transparent !px-1 !text-[10px] !leading-[15px]">{count}</Tag> : null}
                     </>
                 )}

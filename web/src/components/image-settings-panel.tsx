@@ -113,7 +113,7 @@ export function ImageSettingsPanel({ config, onConfigChange, theme, showTitle = 
                         <div className="space-y-2.5">
                             <div className="flex items-center justify-between gap-2">
                                 <SettingTitle color={theme.node.muted}>宽高比</SettingTitle>
-                                <span className="font-mono text-[9px] tracking-[0.12em] uppercase" style={{ color: theme.node.muted, opacity: 0.65 }}>
+                                <span className="font-mono text-[10px] tracking-[0.08em]" style={{ color: theme.node.muted, opacity: 0.7 }}>
                                     左右滑动
                                 </span>
                             </div>

@@ -44,7 +44,7 @@ export function ReferenceStrip({ references, compact = false, className = "", on
                         <ImagePlus className="size-4" aria-hidden />
                     </span>
                     <span className="text-xs text-muted-foreground">暂无参考图</span>
-                    {compact ? null : <span className="text-[10px] text-muted-foreground/70">可粘贴、上传或从素材库选择</span>}
+                    {compact ? null : <span className="text-[11px] text-muted-foreground/70">可粘贴、上传或从素材库选择</span>}
                 </div>
             ) : null}
         </ReferenceStripShell>
@@ -69,7 +69,7 @@ export function GenerationSettings({ config, model, updateConfig, openConfigDial
             <WorkbenchSection title="模型">
                 <ModelPicker config={config} value={model} capability="image" channelId={config.imageChannelId} workflowRef={config.imageWorkflowRef} onWorkflowChange={(value) => updateConfig("imageWorkflowRef", value)} onChange={(value, channelId) => { updateConfig("imageModel", value); if (channelId) updateConfig("imageChannelId", channelId); }} fullWidth onMissingConfig={() => openConfigDialog(false)} />
                 <div className="flex items-center justify-between gap-3 pt-1">
-                    <div className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/80 uppercase">接口模式</div>
+                    <div className="font-mono text-[11px] tracking-[0.08em] text-muted-foreground/80">接口模式</div>
                     <Segmented
                         size="small"
                         className="canvas-config-mode !rounded-md !p-0.5"
