@@ -302,6 +302,19 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 失败任务退款后余额是否增加且流水余额一致。
 - 生图/视频成本提示与后台模型单价、数量/秒数是否一致。
 
+## TeamoRouter Gemini 图片渠道适配
+
+- Gemini 渠道按 Base URL 自动识别 TeamoRouter：直连请求和平台代理统一使用 `Authorization: Bearer`，Google 官方渠道继续使用 `x-goog-api-key`。
+- TeamoRouter 的模型列表改为读取 `GET /v1/models`，兼容 OpenAI 风格响应；Google Gemini 仍读取 `/v1beta/models`。
+- Gemini 图片比例扩展到文档支持的全部值：1:1、1:4、1:8、2:3、3:2、3:4、4:1、4:3、4:5、5:4、8:1、9:16、16:9、21:9；自定义尺寸会映射到最接近的受支持比例。
+- 新增 512 分辨率：选择 Gemini 专属「1:1(512)」或自定义尺寸最长边 ≤512 时，发送 `imageConfig.imageSize: "512"`。
+- 新增测试：TeamoRouter/Google 鉴权头、Gemini 原生请求体、扩展比例与 512 参数。
+
+需验证：
+- Gemini 渠道 Base URL 填 `https://api.teamorouter.ai`、模型填 `gemini-3.1-flash-image`，直连和平台代理都能出图。
+- 后台渠道「测试 / 获取模型」对 TeamoRouter 能拿到实时模型列表。
+- 1:1(512)、1:4、4:1、1:8、4:5 等比例出图尺寸符合预期；Google Gemini 渠道比例与鉴权不受影响。
+
 ## 后台列表页视觉与表格对齐
 
 - AI 日志从原生 `Table` 改为与其他后台页一致的 `ProTable`：统一卡头、密度/列设置/刷新工具栏、`defaultSize="middle"` 分页与横向滚动。

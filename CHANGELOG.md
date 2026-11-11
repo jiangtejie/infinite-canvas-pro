@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] TeamoRouter Gemini 图片渠道适配：Bearer 鉴权、/v1/models、全比例与 512 分辨率
+
 + [优化] 后台列表页统一 ProTable 与筛选/工具栏规范，AI 日志、Skill、算力点日志对齐
 
 + [优化] 后台系统设置统一分区视觉：公开/私有配置共用 Section，渠道补容器、存储去嵌套卡片
