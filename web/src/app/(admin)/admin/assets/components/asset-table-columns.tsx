@@ -38,6 +38,7 @@ export function buildAssetColumns({
             title: "类型",
             dataIndex: "type",
             width: 84,
+            align: "center",
             render: (_, item) => <Tag>{assetTypeLabel(item.type)}</Tag>,
         },
         {
@@ -62,6 +63,7 @@ export function buildAssetColumns({
             title: "操作",
             key: "actions",
             width: 112,
+            align: "center",
             render: (_, item) => (
                 <Space size={4}>
                     <Tooltip title="详情">

@@ -71,18 +71,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     return (
         <ProConfigProvider dark={dark}>
             <div className="admin-shell flex h-screen overflow-hidden bg-transparent text-foreground">
-                <aside className="hidden w-[238px] shrink-0 flex-col border-r border-border/70 bg-card/35 backdrop-blur-xl lg:flex">
-                    <Link href="/admin" className="flex h-[60px] shrink-0 items-center gap-2.5 border-b border-border/70 px-5">
-                        <span className="grid size-7 shrink-0 place-items-center rounded-[3px] bg-acid">
-                            <span className="size-4 bg-[#0b0b09]" style={{ mask: "url(/logo.svg) center / contain no-repeat", WebkitMask: "url(/logo.svg) center / contain no-repeat" }} />
+                <aside className="admin-sidebar hidden w-[252px] shrink-0 flex-col border-r border-border/70 bg-card/35 backdrop-blur-xl lg:flex">
+                    <Link href="/admin" className="flex h-[64px] shrink-0 items-center gap-3 border-b border-border/70 px-5">
+                        <span className="grid size-8 shrink-0 place-items-center rounded-[4px] bg-acid">
+                            <span className="size-4.5 bg-[#0b0b09]" style={{ mask: "url(/logo.svg) center / contain no-repeat", WebkitMask: "url(/logo.svg) center / contain no-repeat" }} />
                         </span>
-                        <span className="text-[15px] font-semibold tracking-tight">矩灵画布</span>
-                        <span className="chip !h-[18px] !px-1.5 !text-[9px]">ADMIN</span>
+                        <span className="text-base font-semibold tracking-tight">矩灵画布</span>
+                        <span className="chip chip-acid !h-[18px] !px-1.5 !text-[9px]">ADMIN</span>
                     </Link>
-                    <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-3" aria-label="后台导航">
+                    <nav className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-label="后台导航">
                         {adminGroups.map((group) => (
-                            <div key={group} className="space-y-1">
-                                <p className="px-2.5 pb-1.5 font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50 uppercase">{group}</p>
+                            <div key={group} className="space-y-1.5">
+                                <p className="admin-nav-group px-3 pb-2">{group}</p>
                                 {adminMenus.filter((item) => item.group === group).map((item) => {
                                     const Icon = item.icon;
                                     const active = item.key === activeKey;
@@ -91,13 +91,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                                             key={item.key}
                                             href={item.key}
                                             aria-current={active ? "page" : undefined}
+                                            data-active={active}
                                             className={cn(
-                                                "group relative flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
-                                                active ? "bg-acid/[0.08] font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground",
+                                                "admin-nav-item group relative flex items-center gap-3 rounded-[6px] px-3 py-2.5 text-[14px] transition-colors",
+                                                active ? "font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/4 hover:text-foreground",
                                             )}
                                         >
-                                            {active ? <span aria-hidden className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-acid" /> : null}
-                                            <Icon className={cn("size-4 shrink-0", active ? "text-acid" : "opacity-70")} />
+                                            <Icon className={cn("size-4.5 shrink-0", active ? "text-acid" : "opacity-70")} />
                                             <span className="truncate">{item.label}</span>
                                         </Link>
                                     );
@@ -105,18 +105,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             </div>
                         ))}
                     </nav>
-                    <div className="shrink-0 space-y-2 border-t border-border/70 p-3">
-                        <Button block icon={<Home className="size-4" />} href="/canvas" target="_blank" rel="noreferrer">
+                    <div className="admin-footer-actions shrink-0 space-y-2.5 border-t border-border/70 p-4">
+                        <Button block className="admin-action-btn" icon={<Home className="size-4" />} href="/canvas" target="_blank" rel="noreferrer">
                             前往画布
                         </Button>
-                        <Button block icon={<LogOut className="size-4" />} onClick={logout}>
+                        <Button block className="admin-action-btn admin-action-btn-danger" icon={<LogOut className="size-4" />} onClick={logout}>
                             退出登录
                         </Button>
                     </div>
                 </aside>
 
                 <div className="flex min-w-0 flex-1 flex-col">
-                    <header className="flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-border/70 bg-background/60 px-5 backdrop-blur-xl sm:px-6">
+                    <header className="admin-header flex h-[64px] shrink-0 items-center justify-between gap-4 border-b border-border/70 bg-background/60 px-6 backdrop-blur-xl sm:px-8">
                         <div className="flex min-w-0 items-center gap-3">
                             <span className="grid size-7 shrink-0 place-items-center rounded-[3px] border border-border bg-card text-foreground/70 lg:hidden">
                                 <ShieldCheck className="size-3.5" />
@@ -125,7 +125,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                             <span aria-hidden className="hidden h-4 w-px bg-border sm:block" />
                             <h1 className="truncate text-[14px] font-medium text-foreground">{meta.title}</h1>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-3">
                             <Link href="/" className="hidden font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase transition-colors hover:text-foreground sm:block">
                                 返回前台
                             </Link>
@@ -155,18 +155,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     </nav>
 
                     <main className="min-h-0 flex-1 overflow-y-auto">
-                        <div className="mx-auto w-full max-w-[1440px] px-5 pt-6 sm:px-6">
-                            <header className="flex flex-wrap items-end justify-between gap-4">
+                        <div className="mx-auto w-full max-w-[1480px] px-6 pt-8 sm:px-8">
+                            <header className="flex flex-wrap items-end justify-between gap-6">
                                 <div className="min-w-0">
                                     <span className="eyebrow">{activeGroup}</span>
-                                    <h2 className="mt-3 text-[1.45rem] font-semibold leading-tight tracking-[-0.025em] text-foreground">{meta.title}</h2>
-                                    <p className="mt-2 max-w-xl text-xs leading-6 text-muted-foreground">{meta.desc}</p>
+                                    <h2 className="admin-page-title mt-4 font-semibold leading-tight text-foreground">{meta.title}</h2>
+                                    <p className="mt-3 max-w-xl text-[13px] leading-7 text-muted-foreground">{meta.desc}</p>
                                 </div>
                                 <span className="chip">{user?.displayName || user?.username}</span>
                             </header>
-                            <div aria-hidden className="punk-rule mt-5" />
+                            <div aria-hidden className="punk-rule mt-6" />
                         </div>
-                        <div className="[&>main]:mx-auto [&>main]:w-full [&>main]:max-w-[1440px]">{children}</div>
+                        <div className="[&>main]:mx-auto [&>main]:w-full [&>main]:max-w-[1480px]">{children}</div>
                     </main>
                 </div>
             </div>

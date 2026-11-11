@@ -135,7 +135,7 @@ export function FilmPrevisDrawer({ open, project, onClose, onJumpToShot }: { ope
             open={open}
             onClose={onClose}
             placement="right"
-            width="min(1180px, 96vw)"
+            size="min(1180px, 96vw)"
             destroyOnHidden
             title={
                 <div className="flex min-w-0 items-center gap-2.5">

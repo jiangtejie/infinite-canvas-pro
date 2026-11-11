@@ -27,8 +27,8 @@ export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSett
                                     dataSource={channelTableData}
                                     columns={[
                                         { title: "名称", dataIndex: "name", render: (value) => value || "未命名渠道" },
-                                        { title: "协议", dataIndex: "protocol", width: 96, render: (value) => <Tag>{value || "openai"}</Tag> },
-                                        { title: "状态", dataIndex: "enabled", width: 120, render: (value, item) => isWorkflowProtocol(item.protocol) ? <Tag>{`启用 ${(item.workflows || []).filter((entry) => entry.enabled).length} / ${(item.workflows || []).length} 条`}</Tag> : <Tag color={value ? "success" : "default"}>{value ? "已启用" : "已停用"}</Tag> },
+                                        { title: "协议", dataIndex: "protocol", width: 96, align: "center", render: (value) => <Tag>{value || "openai"}</Tag> },
+                                        { title: "状态", dataIndex: "enabled", width: 120, align: "center", render: (value, item) => isWorkflowProtocol(item.protocol) ? <Tag>{`启用 ${(item.workflows || []).filter((entry) => entry.enabled).length} / ${(item.workflows || []).length} 条`}</Tag> : <Tag color={value ? "success" : "default"}>{value ? "已启用" : "已停用"}</Tag> },
                                         {
                                             title: "模型",
                                             dataIndex: "models",
@@ -38,12 +38,13 @@ export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSett
                                                 </Typography.Text>
                                             ),
                                         },
-                                        { title: "权重", dataIndex: "weight", width: 88 },
-                                        { title: "超时", dataIndex: "timeout", width: 96, render: (value) => `${value || 600}s` },
+                                        { title: "权重", dataIndex: "weight", width: 88, align: "right" },
+                                        { title: "超时", dataIndex: "timeout", width: 96, align: "right", render: (value) => `${value || 600}s` },
                                         {
                                             title: "操作",
                                             key: "actions",
                                             width: 220,
+                                            align: "center",
                                             render: (_, item) => (
                                                 <Space size={4}>
                                                     {!isWorkflowProtocol(item.protocol) ? <Button size="small" onClick={() => openTestDialog(item._index)}>测试</Button> : null}

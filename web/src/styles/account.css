@@ -1,0 +1,187 @@
+/* ───────────────── 账户中心：精简皮肤 ───────────────── */
+/* 只保留 acid 强调色、等宽小字与细边框分区；不叠加斜纹/准星/编号。 */
+.account-shell {
+    --acct-line: color-mix(in oklch, var(--foreground) 13%, transparent);
+    --acct-radius: 8px;
+}
+
+.account-shell .acct-card {
+    position: relative;
+    border: 1px solid var(--acct-line);
+    border-radius: var(--acct-radius);
+    background: color-mix(in oklch, var(--card) 72%, transparent);
+    box-shadow: inset 0 1px 0 var(--glass-highlight);
+    transition: border-color 0.2s ease;
+}
+
+.account-shell .acct-card.punk-card:hover,
+.account-shell .acct-stat:hover {
+    border-color: color-mix(in oklch, var(--acid) 32%, var(--border));
+}
+
+/* ── 页签：简洁下划线 ── */
+.account-shell .acct-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--acct-line);
+    scrollbar-width: none;
+}
+
+.account-shell .acct-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.account-shell .acct-tab {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    padding: 12px 18px 15px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--muted-foreground);
+    transition: color 0.18s ease, background-color 0.18s ease;
+}
+
+.account-shell .acct-tab:hover {
+    color: var(--foreground);
+    background: color-mix(in oklch, var(--foreground) 4%, transparent);
+}
+
+.account-shell .acct-tab:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+.account-shell .acct-tab[data-active="true"] {
+    color: var(--foreground);
+}
+
+.account-shell .acct-tab[data-active="true"]::after {
+    content: "";
+    position: absolute;
+    right: 14px;
+    bottom: -1px;
+    left: 14px;
+    height: 2px;
+    background: var(--acid);
+}
+
+/* ── 按钮 ── */
+.account-shell .ant-btn {
+    border-radius: var(--acct-radius);
+}
+
+/* ── 表单 ── */
+.account-shell .ant-form-item-label > label {
+    font-size: 12px;
+    letter-spacing: 0.01em;
+    color: var(--muted-foreground);
+}
+
+.account-shell .ant-input {
+    border-radius: var(--acct-radius);
+}
+
+.account-shell .ant-input:focus,
+.account-shell .ant-input-affix-wrapper-focused,
+.account-shell .ant-input-affix-wrapper:focus-within {
+    border-color: color-mix(in oklch, var(--acid) 55%, transparent) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--acid) 12%, transparent) !important;
+}
+
+/* ── 表格：细线分隔，hover 一条 acid 指示线 ── */
+.account-shell .ant-table {
+    background: transparent;
+}
+
+.account-shell .ant-table-thead > tr > th {
+    background: color-mix(in oklch, var(--foreground) 3%, transparent) !important;
+    border-bottom: 1px solid color-mix(in oklch, var(--acid) 26%, var(--border)) !important;
+    padding-block: 13px !important;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted-foreground) !important;
+}
+
+.account-shell .ant-table-thead > tr > th::before {
+    display: none !important;
+}
+
+.account-shell .ant-table-tbody > tr > td {
+    border-bottom: 1px solid var(--acct-line) !important;
+    padding-block: 14px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.account-shell .ant-table-tbody > tr:hover > td {
+    background: color-mix(in oklch, var(--acid) 4%, transparent) !important;
+}
+
+.account-shell .ant-table-tbody > tr > td:first-child {
+    box-shadow: inset 2px 0 0 transparent;
+}
+
+.account-shell .ant-table-tbody > tr:hover > td:first-child {
+    box-shadow: inset 2px 0 0 var(--acid);
+}
+
+/* ── 标签 ── */
+.account-shell .ant-tag {
+    border-radius: 6px;
+    padding-inline: 8px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 20px;
+    letter-spacing: 0.05em;
+}
+
+.account-shell .ant-tag-green {
+    border-color: color-mix(in oklch, var(--acid) 42%, transparent);
+    background: color-mix(in oklch, var(--acid) 10%, transparent);
+    color: color-mix(in oklch, var(--acid) 85%, var(--foreground));
+}
+
+.account-shell .ant-tag-gold {
+    border-color: color-mix(in oklch, var(--hot) 42%, transparent);
+    background: color-mix(in oklch, var(--hot) 10%, transparent);
+    color: color-mix(in oklch, var(--hot) 82%, var(--foreground));
+}
+
+/* ── 分页 / 头像 ── */
+.account-shell .ant-pagination-item {
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.account-shell .ant-pagination-item-active {
+    border-color: color-mix(in oklch, var(--acid) 55%, transparent);
+    background: color-mix(in oklch, var(--acid) 12%, transparent);
+}
+
+.account-shell .ant-pagination-item-active a {
+    color: color-mix(in oklch, var(--acid) 85%, var(--foreground));
+}
+
+/* 微信扫码支付弹窗（portal 在 .account-shell 之外，单独用类名作用域） */
+.acct-modal .ant-modal-content {
+    border: 1px solid var(--acct-line);
+    border-radius: 8px;
+    background: var(--card);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .account-shell .acct-tab,
+    .account-shell .acct-card,
+    .account-shell .ant-table-tbody > tr > td {
+        transition: none;
+    }
+}

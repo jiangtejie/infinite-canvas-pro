@@ -37,18 +37,21 @@ export function buildUserColumns({
             title: "角色",
             dataIndex: "role",
             width: 100,
+            align: "center",
             render: (_, item) => <Tag color={item.role === "admin" ? "gold" : "default"}>{item.role === "admin" ? "管理员" : "用户"}</Tag>,
         },
         {
             title: "状态",
             dataIndex: "status",
             width: 90,
+            align: "center",
             render: (_, item) => <Tag color={item.status === "ban" ? "red" : "green"}>{item.status === "ban" ? "禁用" : "正常"}</Tag>,
         },
         {
             title: "算力点",
             dataIndex: "credits",
             width: 100,
+            align: "right",
             render: (_, item) => <Typography.Text>{item.credits}</Typography.Text>,
         },
         {
@@ -61,6 +64,7 @@ export function buildUserColumns({
             title: "操作",
             key: "actions",
             width: 96,
+            align: "center",
             render: (_, item) => (
                 <Space size={4}>
                     <Tooltip title="编辑">

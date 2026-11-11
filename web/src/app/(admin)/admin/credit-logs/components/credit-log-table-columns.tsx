@@ -37,18 +37,21 @@ export function buildCreditLogColumns({
             title: "类型",
             dataIndex: "type",
             width: 140,
+            align: "center",
             render: (_, item) => <Tag>{creditLogTypeLabels[item.type] || item.type || "-"}</Tag>,
         },
         {
             title: "变动",
             dataIndex: "amount",
             width: 100,
+            align: "right",
             render: (_, item) => <Typography.Text type={item.amount >= 0 ? "success" : "danger"}>{item.amount}</Typography.Text>,
         },
         {
             title: "余额",
             dataIndex: "balance",
             width: 100,
+            align: "right",
         },
         {
             title: "备注",
@@ -66,6 +69,7 @@ export function buildCreditLogColumns({
             title: "操作",
             key: "actions",
             width: 96,
+            align: "center",
             render: (_, item) => (
                 <Space size={4}>
                     <Tooltip title="编辑">

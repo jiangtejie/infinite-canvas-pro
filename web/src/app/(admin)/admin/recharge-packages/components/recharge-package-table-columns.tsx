@@ -24,21 +24,24 @@ export function buildRechargePackageColumns({
                 title: "价格",
                 dataIndex: "amountFen",
                 width: 120,
+                align: "right",
                 render: (_, item) => <Typography.Text strong>¥{(item.amountFen / 100).toFixed(2)}</Typography.Text>,
             },
-            { title: "到账算力", dataIndex: "credits", width: 110, render: (_, item) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{item.credits}</span> },
+            { title: "到账算力", dataIndex: "credits", width: 110, align: "right", render: (_, item) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{item.credits}</span> },
             {
                 title: "赠送算力",
                 dataIndex: "bonus",
                 width: 110,
+                align: "right",
                 render: (_, item) =>
                     item.bonus > 0 ? <Tag color="gold">+{item.bonus}</Tag> : <Typography.Text type="secondary">-</Typography.Text>,
             },
-            { title: "排序", dataIndex: "sort", width: 80 },
+            { title: "排序", dataIndex: "sort", width: 80, align: "right" },
             {
                 title: "上架状态",
                 dataIndex: "enabled",
                 width: 120,
+                align: "center",
                 render: (_, item) => (
                     <Switch
                         checked={item.enabled}
@@ -62,6 +65,7 @@ export function buildRechargePackageColumns({
                 title: "操作",
                 key: "actions",
                 width: 110,
+                align: "center",
                 render: (_, item) => (
                     <Space size={4}>
                         <Button

@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "../styles/canvas.css";
+@import "../styles/account.css";
 @import "../styles/admin.css";
 @import "../styles/prompts.css";
 @import "../styles/film.css";

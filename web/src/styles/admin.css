@@ -58,29 +58,215 @@
     }
 }
 
-/* ───────────────── 后台面板 ───────────────── */
-/* 让 Card / ProTable 与前台共用同一套面板、表头与分隔线 */
+/* ───────────────── 后台皮肤（精简版） ───────────────── */
+/* 只保留三样东西：acid 作为唯一强调色、等宽小字给元信息、一层细边框的分区。
+ * 不再叠加斜纹/准星/大编号/渐变线等装饰。 */
+.admin-shell {
+    --admin-line: color-mix(in oklch, var(--foreground) 13%, transparent);
+    --admin-radius: 8px;
+}
+
+/* ── 侧栏 ── */
+.admin-shell .admin-sidebar {
+    background: color-mix(in oklch, var(--card) 45%, transparent);
+}
+
+.admin-shell .admin-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-inline: 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: color-mix(in oklch, var(--foreground) 42%, transparent);
+}
+
+.admin-shell .admin-nav-group::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--admin-line), transparent);
+}
+
+/* 选中态只保留一条左侧 acid 细线 + 轻底 */
+.admin-shell .admin-nav-item::before {
+    content: "";
+    position: absolute;
+    inset-block: 8px;
+    inset-inline-start: 0;
+    width: 2px;
+    border-radius: 999px;
+    background: var(--acid);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.admin-shell .admin-nav-item[data-active="true"]::before {
+    opacity: 1;
+}
+
+.admin-shell .admin-nav-item[data-active="true"] {
+    background: color-mix(in oklch, var(--acid) 9%, transparent) !important;
+}
+
+/* 底部操作：左对齐 + 等宽小字，hover 酸性 */
+.admin-shell .admin-footer-actions {
+    border-top-color: var(--admin-line) !important;
+}
+
+.admin-shell .admin-action-btn {
+    justify-content: flex-start;
+    border-radius: var(--admin-radius) !important;
+    border-color: var(--admin-line) !important;
+    background: transparent !important;
+    color: color-mix(in oklch, var(--foreground) 62%, transparent) !important;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.05em;
+}
+
+.admin-shell .admin-action-btn:hover {
+    border-color: color-mix(in oklch, var(--acid) 45%, transparent) !important;
+    background: color-mix(in oklch, var(--acid) 6%, transparent) !important;
+    color: var(--foreground) !important;
+}
+
+.admin-shell .admin-action-btn-danger:hover {
+    border-color: color-mix(in oklch, var(--hot) 45%, transparent) !important;
+    background: color-mix(in oklch, var(--hot) 7%, transparent) !important;
+}
+
+/* ── 顶栏：左侧 56px acid 短线，其余细线 ── */
+.admin-shell .admin-header {
+    position: relative;
+    /* header 的 backdrop-filter 会建立堆叠上下文，这里抬一层，
+     * 账户下拉才能盖住 main 里的定位元素。 */
+    z-index: 40;
+    border-bottom-color: transparent !important;
+}
+
+.admin-shell .admin-header::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--acid) 0 64px, var(--admin-line) 64px);
+}
+
+/* ── 头部账户菜单：干净面板 ── */
+.admin-shell .admin-user-trigger {
+    border-radius: var(--admin-radius) !important;
+    border-color: var(--admin-line) !important;
+    background: transparent !important;
+}
+
+.admin-shell .admin-user-trigger:hover {
+    border-color: color-mix(in oklch, var(--acid) 40%, transparent) !important;
+    background: color-mix(in oklch, var(--acid) 6%, transparent) !important;
+}
+
+.admin-shell .admin-user-menu {
+    max-height: calc(100vh - 76px);
+    overflow-y: auto;
+    border-radius: var(--admin-radius) !important;
+    border-color: color-mix(in oklch, var(--acid) 26%, var(--border)) !important;
+    background: var(--card) !important;
+    box-shadow: 0 18px 48px rgb(0 0 0 / 22%);
+    font-family: var(--font-mono);
+}
+
+.admin-shell .admin-user-menu a,
+.admin-shell .admin-user-menu button {
+    border-radius: var(--admin-radius);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+}
+
+.admin-shell .admin-user-menu a:hover,
+.admin-shell .admin-user-menu button:hover {
+    background: color-mix(in oklch, var(--acid) 8%, transparent) !important;
+    color: var(--foreground) !important;
+}
+
+.admin-shell .admin-user-menu a svg,
+.admin-shell .admin-user-menu button svg {
+    color: color-mix(in oklch, var(--acid) 65%, var(--muted-foreground));
+    opacity: 1;
+}
+
+.admin-shell .admin-user-menu .admin-user-menu-danger {
+    color: color-mix(in oklch, var(--hot) 85%, var(--foreground)) !important;
+}
+
+.admin-shell .admin-user-menu .admin-user-menu-danger:hover {
+    background: color-mix(in oklch, var(--hot) 10%, transparent) !important;
+    color: color-mix(in oklch, var(--hot) 92%, var(--foreground)) !important;
+}
+
+.admin-shell .admin-user-menu .admin-user-menu-danger svg {
+    color: color-mix(in oklch, var(--hot) 85%, transparent);
+}
+
+/* ── 页头 ── */
+.admin-shell .admin-page-title {
+    font-size: clamp(1.75rem, 2.4vw, 2.2rem);
+    letter-spacing: -0.035em;
+}
+
+/* ── 卡片：细边框 + 顶部高光，hover 转 acid 边框 ── */
 .admin-shell .ant-card,
 .admin-shell .ant-pro-card {
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    border: 1px solid var(--admin-line);
+    border-radius: var(--admin-radius);
     background: var(--card);
     box-shadow: inset 0 1px 0 var(--glass-highlight);
+    transition: border-color 0.2s ease;
 }
 
-.admin-shell .ant-pro-table .ant-pro-table-list-toolbar {
-    padding-block: 14px 6px;
+.admin-shell .ant-card:hover,
+.admin-shell .ant-pro-card:hover {
+    border-color: color-mix(in oklch, var(--acid) 30%, var(--border));
 }
 
-.admin-shell .ant-pro-table .ant-pro-table-list-toolbar-title {
-    font-size: 14px;
+.admin-shell .ant-card-head {
+    border-bottom: 1px solid var(--admin-line);
     font-weight: 600;
 }
 
-.admin-shell .ant-table-thead > tr > th {
-    background: color-mix(in oklch, var(--foreground) 4%, transparent) !important;
+.admin-shell .ant-pro-table .ant-pro-table-list-toolbar {
+    padding-block: 18px 8px;
+}
+
+.admin-shell .ant-pro-table .ant-pro-table-list-toolbar-title {
+    position: relative;
+    padding-inline-start: 14px;
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+}
+
+.admin-shell .ant-pro-table .ant-pro-table-list-toolbar-title::before {
+    content: "";
+    position: absolute;
+    inset-block: 2px;
+    inset-inline-start: 0;
+    width: 3px;
+    background: var(--acid);
+}
+
+/* ── 表格：细线分隔，hover 一条 acid 指示线 ── */
+.admin-shell .ant-table-thead > tr > th {
+    background: color-mix(in oklch, var(--foreground) 3%, transparent) !important;
+    border-bottom: 1px solid color-mix(in oklch, var(--acid) 26%, var(--border)) !important;
+    padding-block: 13px !important;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
     font-weight: 500;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -91,32 +277,180 @@
     display: none !important;
 }
 
-.admin-shell .ant-form-item-label > label {
-    font-size: 12px;
+.admin-shell .ant-table-tbody > tr > td {
+    border-bottom: 1px solid var(--admin-line) !important;
+    padding-block: 14px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.admin-shell .ant-table-tbody > tr:hover > td {
+    background: color-mix(in oklch, var(--acid) 4%, transparent) !important;
+}
+
+.admin-shell .ant-table-tbody > tr > td:first-child {
+    box-shadow: inset 2px 0 0 transparent;
+}
+
+.admin-shell .ant-table-tbody > tr:hover > td:first-child,
+.admin-shell .ant-table-tbody > tr.ant-table-row-selected > td:first-child {
+    box-shadow: inset 2px 0 0 var(--acid);
+}
+
+.admin-shell .ant-table-tbody > tr.ant-table-row-selected > td {
+    background: color-mix(in oklch, var(--acid) 7%, transparent) !important;
+}
+
+.admin-shell .ant-table-content {
+    scrollbar-width: thin;
+}
+
+.admin-shell .ant-table-tbody .admin-cell-muted {
     color: var(--muted-foreground);
 }
 
-.admin-shell .ant-card-head {
-    border-bottom-color: var(--border);
-    font-weight: 600;
+.admin-shell .ant-table-tbody .ant-tag {
+    min-width: 56px;
+    justify-content: center;
 }
 
-/* 移动端顶部横向导航：右缘渐隐，提示可横向滑动 */
-@media (max-width: 1023px) {
-    .admin-shell nav[aria-label="后台分区"] {
-        mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-    }
+/* 行内操作：26px 小按钮 */
+.admin-shell .ant-table-tbody .ant-btn {
+    height: 28px;
+    padding-inline: 10px;
+    border: 1px solid var(--admin-line);
+    border-radius: var(--admin-radius);
+    background: transparent;
+    color: color-mix(in oklch, var(--foreground) 70%, transparent);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    box-shadow: none;
+    transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
 }
 
-/* 页头右侧账号 chip：取消全大写，避免被误读为状态徽标 */
+.admin-shell .ant-table-tbody .ant-btn:not(:disabled):hover {
+    border-color: color-mix(in oklch, var(--acid) 50%, transparent) !important;
+    background: color-mix(in oklch, var(--acid) 7%, transparent) !important;
+    color: color-mix(in oklch, var(--acid) 85%, var(--foreground)) !important;
+}
+
+.admin-shell .ant-table-tbody .ant-btn-icon-only {
+    width: 28px;
+    padding-inline: 0;
+}
+
+.admin-shell .ant-table-tbody .ant-btn-dangerous {
+    border-color: color-mix(in oklch, var(--hot) 30%, transparent);
+    color: color-mix(in oklch, var(--hot) 82%, var(--foreground));
+}
+
+.admin-shell .ant-table-tbody .ant-btn-dangerous:not(:disabled):hover {
+    border-color: color-mix(in oklch, var(--hot) 55%, transparent) !important;
+    background: color-mix(in oklch, var(--hot) 10%, transparent) !important;
+    color: color-mix(in oklch, var(--hot) 88%, var(--foreground)) !important;
+}
+
+/* ── 标签：方形等宽，只靠颜色表达状态 ── */
+.admin-shell .ant-tag {
+    border-radius: 6px;
+    padding-inline: 8px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 20px;
+    letter-spacing: 0.05em;
+}
+
+.admin-shell .ant-tag-green {
+    border-color: color-mix(in oklch, var(--acid) 42%, transparent);
+    background: color-mix(in oklch, var(--acid) 10%, transparent);
+    color: color-mix(in oklch, var(--acid) 85%, var(--foreground));
+}
+
+.admin-shell .ant-tag-gold {
+    border-color: color-mix(in oklch, var(--hot) 42%, transparent);
+    background: color-mix(in oklch, var(--hot) 10%, transparent);
+    color: color-mix(in oklch, var(--hot) 82%, var(--foreground));
+}
+
+/* ── 按钮：只做圆角与描边，不加硬影 ── */
+.admin-shell .ant-btn {
+    border-radius: var(--admin-radius);
+}
+
+.admin-shell .ant-btn-default {
+    border-color: var(--admin-line);
+    background: transparent;
+}
+
+.admin-shell .ant-btn-default:not(:disabled):hover {
+    border-color: color-mix(in oklch, var(--acid) 50%, transparent) !important;
+    background: color-mix(in oklch, var(--acid) 6%, transparent) !important;
+    color: var(--foreground) !important;
+}
+
+.admin-shell .ant-btn-default.ant-btn-dangerous {
+    border-color: color-mix(in oklch, var(--hot) 30%, transparent);
+    color: color-mix(in oklch, var(--hot) 85%, var(--foreground));
+}
+
+.admin-shell .ant-btn-default.ant-btn-dangerous:not(:disabled):hover {
+    border-color: color-mix(in oklch, var(--hot) 55%, transparent) !important;
+    background: color-mix(in oklch, var(--hot) 8%, transparent) !important;
+    color: color-mix(in oklch, var(--hot) 88%, var(--foreground)) !important;
+}
+
+/* ── 表单控件：圆角 + 酸性 focus 环 ── */
+.admin-shell .ant-input,
+.admin-shell .ant-input-affix-wrapper,
+.admin-shell .ant-input-number,
+.admin-shell .ant-select .ant-select-selector {
+    border-radius: var(--admin-radius) !important;
+}
+
+.admin-shell .ant-input:focus,
+.admin-shell .ant-input-affix-wrapper-focused,
+.admin-shell .ant-input-affix-wrapper:focus-within {
+    border-color: color-mix(in oklch, var(--acid) 55%, transparent) !important;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--acid) 12%, transparent) !important;
+}
+
+.admin-shell .ant-form-item-label > label {
+    font-size: 12px;
+    letter-spacing: 0.01em;
+    color: var(--muted-foreground);
+}
+
+/* ── 分页 / 头像 ── */
+.admin-shell .ant-pagination-item {
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.admin-shell .ant-pagination-item-active {
+    border-color: color-mix(in oklch, var(--acid) 55%, transparent);
+    background: color-mix(in oklch, var(--acid) 12%, transparent);
+}
+
+.admin-shell .ant-pagination-item-active a {
+    color: color-mix(in oklch, var(--acid) 85%, var(--foreground));
+}
+
+.admin-shell .ant-avatar {
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--acid) 24%, transparent);
+}
+
+/* 页头右侧账号 chip：取消全大写 */
 .admin-shell main > div > header .chip {
     text-transform: none;
     letter-spacing: 0.04em;
 }
 
-/* 筛选卡（内部为表单）收紧留白，表格卡保持原有呼吸感 */
+/* 筛选卡（内部为表单）收紧留白 */
 .admin-shell .ant-card:has(form) .ant-card-body {
-    padding: 16px 20px;
+    padding: 20px 24px;
 }
 
 .admin-shell .ant-card:has(form) .ant-form-item {
@@ -127,20 +461,24 @@
     margin-bottom: 0;
 }
 
-/* 表格行 hover 明确一档，移动端横向滚动可用细滚动条 */
-.admin-shell .ant-table-tbody > tr > td {
-    transition: background-color 0.18s ease;
-}
-
-.admin-shell .ant-table-tbody > tr:hover > td {
-    background: color-mix(in oklch, var(--foreground) 5%, transparent) !important;
-}
-
-.admin-shell .ant-table-content {
-    scrollbar-width: thin;
+/* 移动端顶部横向导航：右缘渐隐，提示可横向滑动 */
+@media (max-width: 1023px) {
+    .admin-shell nav[aria-label="后台分区"] {
+        mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    }
 }
 
 /* 后台移动端抽屉底部留出安全区 */
 .admin-shell .ant-drawer-section {
     padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-shell .admin-nav-item::before,
+    .admin-shell .ant-card,
+    .admin-shell .ant-pro-card,
+    .admin-shell .ant-table-tbody > tr > td,
+    .admin-shell .ant-table-tbody .ant-btn {
+        transition: none;
+    }
 }
