@@ -41,6 +41,20 @@ export function isHiddenBatchChild(node: CanvasNodeData, nodes: CanvasNodeData[]
     return Boolean(root && !root.metadata?.imageBatchExpanded);
 }
 
+/** 生成/解析/发布进行中时，连接线上显示激光流动。 */
+export function isNodeFlowActive(node: CanvasNodeData) {
+    return node.metadata?.status === "loading"
+        || node.metadata?.status === "stopping"
+        || node.metadata?.sourceParsing === true
+        || node.metadata?.sourceStatus === "loading"
+        || node.metadata?.publishStatus === "generating";
+}
+
+/** 数据流入正在生成的节点；素材源解析时出边也流动。 */
+export function isConnectionFlowing(from: CanvasNodeData, to: CanvasNodeData) {
+    return isNodeFlowActive(to) || (from.type === CanvasNodeType.Source && isNodeFlowActive(from));
+}
+
 export function isHiddenBatchConnectionEndpoint(node: CanvasNodeData, nodes: CanvasNodeData[]) {
     const rootId = node.metadata?.batchRootId;
     if (!rootId) return false;

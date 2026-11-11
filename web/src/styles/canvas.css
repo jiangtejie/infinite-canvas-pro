@@ -51,6 +51,17 @@
     }
 }
 
+/* 生成中的连线激光：虚线沿路径流动，形成数据流效果 */
+@keyframes canvas-connection-flow {
+    to {
+        stroke-dashoffset: -48;
+    }
+}
+
+.canvas-connection-flow {
+    animation: canvas-connection-flow 0.9s linear infinite;
+}
+
 /* 画布网格层：深色提高线/点对比，浅色适度收敛，避免深浅主题观感割裂 */
 .infinite-canvas-dark .canvas-grid-layer {
     opacity: 0.62;
@@ -65,5 +76,9 @@
 @media (prefers-reduced-motion: reduce) {
     .node-element {
         transition-duration: 0ms !important;
+    }
+
+    .canvas-connection-flow {
+        animation: none;
     }
 }

@@ -9,6 +9,7 @@ export function ConnectionPath({
     from,
     to,
     active,
+    flowing = false,
     onSelect,
     onContextMenu,
 }: {
@@ -16,6 +17,7 @@ export function ConnectionPath({
     from: CanvasNodeData;
     to: CanvasNodeData;
     active: boolean;
+    flowing?: boolean;
     onSelect: () => void;
     onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
 }) {
@@ -55,6 +57,29 @@ export function ConnectionPath({
                 fill="none"
                 style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
             />
+            {flowing ? (
+                <>
+                    <path
+                        d={pathD}
+                        stroke={theme.node.activeStroke}
+                        strokeWidth={active ? 7 : 6}
+                        strokeOpacity={0.16}
+                        fill="none"
+                        style={{ filter: "blur(2px)", pointerEvents: "none" }}
+                    />
+                    <path
+                        className="canvas-connection-flow"
+                        d={pathD}
+                        stroke={theme.node.activeStroke}
+                        strokeWidth={active ? 2.8 : 2.4}
+                        strokeOpacity={0.95}
+                        strokeDasharray="4 20"
+                        strokeLinecap="round"
+                        fill="none"
+                        style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }}
+                    />
+                </>
+            ) : null}
         </g>
     );
 }

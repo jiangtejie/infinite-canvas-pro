@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { buildAngleLabel, buildAnglePrompt, findRetrySourceNode, isAudioFile, isHiddenBatchChild, isHiddenBatchConnectionEndpoint, sourceNodeReferenceImages } from "./canvas-graph";
+import { buildAngleLabel, buildAnglePrompt, findRetrySourceNode, isAudioFile, isConnectionFlowing, isHiddenBatchChild, isHiddenBatchConnectionEndpoint, isNodeFlowActive, sourceNodeReferenceImages } from "./canvas-graph";
 
 const node = (id: string, type: CanvasNodeType, patch: Partial<CanvasNodeData> = {}): CanvasNodeData => ({
     id,
@@ -57,4 +57,14 @@ test("angle labels describe direction, pitch and lens", () => {
     assert.match(buildAngleLabel({ horizontalAngle: 15, pitchAngle: -10, cameraDistance: 2, wideAngle: true }), /向右旋转 15 度.*仰视 10 度.*广角镜头/);
     assert.match(buildAngleLabel({ horizontalAngle: -15, pitchAngle: 10, cameraDistance: 2, wideAngle: false }), /向左旋转 15 度.*俯视 10 度/);
     assert.match(buildAnglePrompt({ horizontalAngle: 0, pitchAngle: 0, cameraDistance: 1, wideAngle: false }), /AI 多角度/);
+});
+
+test("connection flow follows loading targets and source parsing", () => {
+    const source = node("source", CanvasNodeType.Source, { metadata: { sourceParsing: true } });
+    const target = node("image", CanvasNodeType.Image, { metadata: { status: "loading" } });
+    assert.equal(isNodeFlowActive(target), true);
+    assert.equal(isConnectionFlowing(source, target), true);
+    assert.equal(isConnectionFlowing(source, node("idle", CanvasNodeType.Image)), true);
+    assert.equal(isConnectionFlowing(node("idle-source", CanvasNodeType.Source), node("idle", CanvasNodeType.Image)), false);
+    assert.equal(isConnectionFlowing(node("text", CanvasNodeType.Text), node("publish", CanvasNodeType.Publish, { metadata: { publishStatus: "generating" } })), true);
 });

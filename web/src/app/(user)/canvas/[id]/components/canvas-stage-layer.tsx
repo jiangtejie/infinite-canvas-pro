@@ -5,7 +5,7 @@ import { type CanvasBackgroundMode, type CanvasTheme } from "@/lib/canvas-theme"
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { getInputSummary } from "../lib/canvas-node-builders";
-import { isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
+import { isConnectionFlowing, isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
 import type { CanvasPublishInputs } from "../lib/canvas-publish";
 import { ActiveConnectionPath, ConnectionPath } from "../../components/canvas-connections";
 import { CanvasConfigComposer } from "../../components/canvas-config-composer";
@@ -269,6 +269,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         from={from}
                                         to={to}
                                         active={selectedConnectionId === connection.id || relatedHighlight.connectionIds.has(connection.id)}
+                                        flowing={isConnectionFlowing(from, to)}
                                         onSelect={() => {
                                             setSelectedConnectionId(connection.id);
                                             clearSelection();
