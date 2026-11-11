@@ -264,7 +264,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
             ) : null}
 
             <div className="mt-2 grid gap-2 md:grid-cols-[240px_minmax(0,1fr)]">
-                <div className="order-2 min-w-0 md:order-1">
+                <div className="order-2 min-w-0 space-y-2 md:order-1">
                     <div className="rounded-[26px] border p-2" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
                         <div className="overflow-hidden rounded-[18px]" style={{ background: theme.canvas.background }}>
                             <div className="flex items-center justify-between px-3 pb-1 pt-2 text-[10px]" style={{ color: theme.node.placeholder }}>
@@ -304,6 +304,84 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                                 <p className="m-0 mt-1 text-center text-[9px] leading-3" style={{ color: theme.node.placeholder }}>仅预览，实际以抖音编辑页为准</p>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="rounded-xl border p-2 text-[11px]" style={sectionStyle}>
+                        <div className="mb-1.5 flex items-center justify-between gap-1">
+                            <span className="text-xs font-semibold">扫码发布</span>
+                            {record ? <Tag className="!m-0 !text-[10px]" color={record.status === "confirmed" ? "success" : "processing"}>{record.status === "confirmed" ? "已发布" : "待扫码发布"}</Tag> : null}
+                        </div>
+
+                        {record ? (
+                            <div className="space-y-1.5">
+                                {hideQr ? (
+                                    <div className="flex flex-col items-center justify-center gap-1 rounded-lg border px-2 py-6 text-center" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorWarning }}>
+                                        <CircleAlert className="size-4" />
+                                        <span className="text-[10px] leading-4">内容已修改，请重新生成二维码</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex justify-center rounded-lg bg-white p-1.5">
+                                        <QRCode value={record.qrText} size={160} bordered={false} errorLevel="L" bgColor="#ffffff" color="#111111" status={expired ? "expired" : "active"} onRefresh={expired ? () => void generate() : undefined} />
+                                    </div>
+                                )}
+                                <div className="space-y-0.5 text-[10px] leading-4" style={{ color: theme.node.placeholder }}>
+                                    <p className="m-0">抖音 App 扫码 → 编辑页 → 确认发布</p>
+                                    <p className="m-0" style={{ color: expired ? token.colorWarning : theme.node.placeholder }}>{expired ? "二维码已过期，请重新生成。" : `有效期至 ${formatPublishDeadline(record.expiresAt)}`}</p>
+                                    {record.mock ? <p className="m-0" style={{ color: token.colorWarning }}>MOCK 模拟，二维码不会打开真实发布页。</p> : null}
+                                    {hideQr ? <p className="m-0" style={{ color: token.colorWarning }}>当前二维码是旧内容。</p> : null}
+                                </div>
+
+                                {record.status !== "confirmed" ? (
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <Button size="small" type="primary" loading={generating || uploadBusy} disabled={!channelReady || generating || uploadBusy || confirming} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void generate()}>
+                                            重新生成
+                                        </Button>
+                                        <Button size="small" disabled={expired || hideQr} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => setQrOpen(true)}>
+                                            放大二维码
+                                        </Button>
+                                        {uploadBusy ? <span className="text-[10px]" style={{ color: theme.node.placeholder }}>上传 {uploading.current}/{uploading.total}…</span> : null}
+                                    </div>
+                                ) : null}
+
+                                {node.metadata?.publishError ? (
+                                    <div className="flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] leading-4" style={{ borderColor: theme.node.stroke, color: token.colorError }}>
+                                        <CircleAlert className="mt-0.5 size-3 shrink-0" />
+                                        <span>{node.metadata.publishError}</span>
+                                    </div>
+                                ) : null}
+
+                                {issues.length ? <IssueList issues={issues} /> : null}
+
+                                <div className="space-y-1 border-t pt-1.5" style={{ borderColor: theme.node.stroke }}>
+                                    <div className="text-[10px] font-medium" style={{ color: theme.node.muted }}>回填作品链接</div>
+                                    <Input size="small" value={publishedUrl} placeholder="https://www.douyin.com/..." style={inputStyle} onChange={(event) => setPublishedUrl(event.target.value)} onPointerDown={stopPointer} onMouseDown={stopPointer} />
+                                    <Button size="small" type="primary" className="!w-full" loading={confirming} disabled={confirming} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void confirm()}>
+                                        {record.status === "confirmed" ? "更新作品链接" : "标记已发布"}
+                                    </Button>
+                                    {record.status === "confirmed" && record.publishedUrl ? (
+                                        <a href={record.publishedUrl} target="_blank" rel="noreferrer" className="block truncate text-[10px] underline underline-offset-2" style={{ color: theme.node.muted }} onPointerDown={stopPointer} onMouseDown={stopPointer}>
+                                            {record.publishedUrl}
+                                        </a>
+                                    ) : null}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-1.5">
+                                <p className="m-0 text-[10px] leading-4" style={{ color: theme.node.placeholder }}>按已选图片顺序转存并预检，通过后生成抖音扫码二维码。</p>
+                                {node.metadata?.publishError ? (
+                                    <div className="flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] leading-4" style={{ borderColor: theme.node.stroke, color: token.colorError }}>
+                                        <CircleAlert className="mt-0.5 size-3 shrink-0" />
+                                        <span>{node.metadata.publishError}</span>
+                                    </div>
+                                ) : null}
+                                {issues.length ? <IssueList issues={issues} /> : null}
+                                <Button type="primary" size="small" className="!w-full" loading={generating || uploadBusy} disabled={!channelReady || generating || uploadBusy || confirming || !orderedImages.length} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void generate()}>
+                                    {generating && !uploadBusy ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+                                    生成二维码
+                                </Button>
+                                {uploadBusy ? <p className="m-0 text-[10px]" style={{ color: theme.node.placeholder }}>正在上传图片 {uploading.current}/{uploading.total}…</p> : generating ? <p className="m-0 text-[10px]" style={{ color: theme.node.placeholder }}>正在预检并生成二维码…</p> : null}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -409,95 +487,6 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                     ) : null}
                     <div className="text-[11px]" style={{ color: theme.node.placeholder }}>拖动图片调整发布顺序（触屏可用图下箭头）；图片会按顺序转存到发布域名，取消选择后可在上方「添加上游图片」重新加入。</div>
                 </div>
-            </div>
-
-            <div className="rounded-xl border p-2.5" style={sectionStyle}>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold">扫码发布</span>
-                    {record && !expired && record.status !== "confirmed" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>有效期至 {formatPublishDeadline(record.expiresAt)}</span> : null}
-                </div>
-
-                {record ? (
-                    <div className="space-y-2">
-                        <div className="flex items-start gap-3">
-                            {hideQr ? (
-                                <div className="flex h-[216px] w-[216px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border px-4 text-center" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: token.colorWarning }}>
-                                    <CircleAlert className="size-6" />
-                                    <span className="text-xs font-medium">内容已修改</span>
-                                    <span className="text-[11px] leading-5">当前二维码是旧内容，请重新生成</span>
-                                </div>
-                            ) : (
-                                <div className="shrink-0 rounded-lg bg-white p-2">
-                                    <QRCode value={record.qrText} size={200} bordered={false} errorLevel="L" bgColor="#ffffff" color="#111111" status={expired ? "expired" : "active"} onRefresh={expired ? () => void generate() : undefined} />
-                                </div>
-                            )}
-                            <div className="min-w-0 flex-1 space-y-1 text-[11px] leading-5">
-                                <div className="flex flex-wrap items-center gap-1">
-                                    <Tag className="!m-0 !text-[10px]" color={record.status === "confirmed" ? "success" : "processing"}>{record.status === "confirmed" ? "已发布" : "待扫码发布"}</Tag>
-                                    {record.mock ? <Tag className="!m-0 !text-[10px]" color="warning">MOCK 模拟</Tag> : null}
-                                </div>
-                                <p className="m-0" style={{ color: theme.node.muted }}>抖音 App 扫码 → 编辑页 → 确认发布</p>
-                                <p className="m-0" style={{ color: expired ? token.colorWarning : theme.node.placeholder }}>{expired ? "二维码已过期，请重新生成。" : `有效期至 ${formatPublishDeadline(record.expiresAt)}`}</p>
-                                {record.mock ? <p className="m-0" style={{ color: token.colorWarning }}>当前为模拟模式，二维码不会真正打开抖音发布页，仅用于联调。</p> : null}
-                                <p className="m-0" style={{ color: hideQr ? token.colorWarning : theme.node.placeholder }}>{hideQr ? "内容已修改，当前二维码是旧内容，请重新生成。" : "修改标题/正文/图片后需要重新生成二维码。"}</p>
-                            </div>
-                        </div>
-
-                        {record.status !== "confirmed" ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Button size="small" type="primary" loading={generating || uploadBusy} disabled={!channelReady || generating || uploadBusy || confirming} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void generate()}>
-                                    重新生成二维码
-                                </Button>
-                                <Button size="small" disabled={expired || hideQr} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => setQrOpen(true)}>
-                                    放大二维码
-                                </Button>
-                                {uploadBusy ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>正在上传图片 {uploading.current}/{uploading.total}…</span> : null}
-                            </div>
-                        ) : null}
-
-                        {node.metadata?.publishError ? (
-                            <div className="flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[11px] leading-5" style={{ borderColor: theme.node.stroke, color: token.colorError }}>
-                                <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
-                                <span>{node.metadata.publishError}</span>
-                            </div>
-                        ) : null}
-
-                        {issues.length ? <IssueList issues={issues} /> : null}
-
-                        <div className="space-y-1.5 rounded-lg border p-2" style={{ borderColor: theme.node.stroke }}>
-                            <div className="text-[11px] font-medium">回填作品链接</div>
-                            <div className="flex items-center gap-2">
-                                <Input size="small" value={publishedUrl} placeholder="https://www.douyin.com/..." style={inputStyle} onChange={(event) => setPublishedUrl(event.target.value)} onPointerDown={stopPointer} onMouseDown={stopPointer} />
-                                <Button size="small" type="primary" loading={confirming} disabled={confirming} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void confirm()}>
-                                    {record.status === "confirmed" ? "更新作品链接" : "标记已发布"}
-                                </Button>
-                            </div>
-                            {record.status === "confirmed" && record.publishedUrl ? (
-                                <a href={record.publishedUrl} target="_blank" rel="noreferrer" className="block truncate text-[11px] underline underline-offset-2" style={{ color: theme.node.muted }} onPointerDown={stopPointer} onMouseDown={stopPointer}>
-                                    {record.publishedUrl}
-                                </a>
-                            ) : null}
-                        </div>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        <p className="m-0 text-[11px] leading-5" style={{ color: theme.node.placeholder }}>生成时会先按顺序把选中的图片转存到发布域名，再校验标题、正文和图片，通过后立即生成抖音扫码发布二维码。</p>
-                        {node.metadata?.publishError ? (
-                            <div className="flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[11px] leading-5" style={{ borderColor: theme.node.stroke, color: token.colorError }}>
-                                <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
-                                <span>{node.metadata.publishError}</span>
-                            </div>
-                        ) : null}
-                        {issues.length ? <IssueList issues={issues} /> : null}
-                        <div className="flex items-center gap-2">
-                            <Button type="primary" size="small" loading={generating || uploadBusy} disabled={!channelReady || generating || uploadBusy || confirming || !orderedImages.length} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void generate()}>
-                                {generating && !uploadBusy ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-                                生成二维码
-                            </Button>
-                            {uploadBusy ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>正在上传图片 {uploading.current}/{uploading.total}…</span> : generating ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>正在预检并生成二维码…</span> : null}
-                        </div>
-                    </div>
-                )}
             </div>
                 </div>
             </div>
