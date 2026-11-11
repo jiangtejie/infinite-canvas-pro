@@ -21,6 +21,7 @@ const nodes = [
     node("config", CanvasNodeType.Config),
     node("group", CanvasNodeType.Group),
     node("text", CanvasNodeType.Text),
+    node("publish", CanvasNodeType.Publish),
 ];
 
 test("connection anchor follows the handle side and vertical center", () => {
@@ -42,6 +43,16 @@ test("director connections only accept images and respect the handle side", () =
     assert.deepEqual(normalizeConnection("director", "image", nodes, "source"), { fromNodeId: "director", toNodeId: "image" });
     assert.deepEqual(normalizeConnection("director", "image", nodes, "target"), { fromNodeId: "image", toNodeId: "director" });
     assert.equal(normalizeConnection("text", "director", nodes, "source"), null);
+});
+
+test("publish connections only accept text/image upstream and never act as source", () => {
+    assert.deepEqual(normalizeConnection("image", "publish", nodes, "source"), { fromNodeId: "image", toNodeId: "publish" });
+    assert.deepEqual(normalizeConnection("publish", "text", nodes, "target"), { fromNodeId: "text", toNodeId: "publish" });
+    assert.equal(normalizeConnection("publish", "image", nodes, "source"), null);
+    assert.equal(normalizeConnection("publish", "text", nodes, "source"), null);
+    assert.equal(normalizeConnection("image", "publish", nodes, "target"), null);
+    assert.equal(normalizeConnection("director", "publish", nodes, "source"), null);
+    assert.equal(normalizeConnection("publish", "group", nodes, "target"), null);
 });
 
 test("config connections choose the correct direction", () => {

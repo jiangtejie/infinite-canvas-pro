@@ -23,6 +23,9 @@ const MATERIAL_IMAGE_GRID_GAP = 20;
 const MATERIAL_IMAGE_CELL_HEIGHT = 260;
 const MATERIAL_IMAGE_COLUMN_STAGGER = 18;
 const REMIX_IMAGE_SIZE = { width: 320, height: 400 };
+const REMIX_IMAGE_COLUMNS = 2;
+const REMIX_IMAGE_GAP = 20;
+const REMIX_IMAGE_COLUMN_STAGGER = 18;
 
 export function buildSourceMaterialPlan(source: CanvasNodeData, options?: { includeRemix?: boolean }): CanvasSourcePlan {
     const nodes: CanvasNodeData[] = [];
@@ -95,20 +98,42 @@ export function buildSourceMaterialPlan(source: CanvasNodeData, options?: { incl
     // 需要参考画面时，用户可以手动把素材图连到复刻文案节点（文本模型需支持读图）。
     if (materialText) connections.push(connection(materialTextId, remixTextId));
 
-    const remixImageId = `${source.id}-remix-image`;
-    nodes.push({
-        id: remixImageId,
-        type: CanvasNodeType.Image,
-        title: "复刻配图",
-        position: { x: remixTextPosition.x + MATERIAL_TEXT_SIZE.width + MATERIAL_GAP, y: source.position.y },
-        width: REMIX_IMAGE_SIZE.width,
-        height: REMIX_IMAGE_SIZE.height,
-        metadata: { prompt: SOURCE_REMIX_IMAGE_PROMPT, status: "idle" },
-    });
-    connections.push(connection(remixTextId, remixImageId));
-    materialImageIds.forEach((id) => connections.push(connection(id, remixImageId)));
+    // 一张原图对应一张复刻图：不要把多张原图全塞给一个图片节点当参考，
+    // 否则生成结果和原图顺序对不上，也无法逐张替换/发布。
+    const remixImageCount = materialImageIds.length || 1;
+    const remixImagesX = remixTextPosition.x + MATERIAL_TEXT_SIZE.width + MATERIAL_GAP;
+    for (let index = 0; index < remixImageCount; index++) {
+        const remixImageId = `${source.id}-remix-image-${index}`;
+        const column = index % REMIX_IMAGE_COLUMNS;
+        const row = Math.floor(index / REMIX_IMAGE_COLUMNS);
+        nodes.push({
+            id: remixImageId,
+            type: CanvasNodeType.Image,
+            title: remixImageCount > 1 ? `复刻配图 ${index + 1}` : "复刻配图",
+            position: {
+                x: remixImagesX + column * (REMIX_IMAGE_SIZE.width + REMIX_IMAGE_GAP),
+                y: source.position.y + row * (REMIX_IMAGE_SIZE.height + REMIX_IMAGE_GAP) + (column > 0 ? REMIX_IMAGE_COLUMN_STAGGER : 0),
+            },
+            width: REMIX_IMAGE_SIZE.width,
+            height: REMIX_IMAGE_SIZE.height,
+            metadata: {
+                prompt: remixImagePrompt(index, materialImageIds.length),
+                status: "idle",
+                remixIndex: index + 1,
+                remixSourceId: source.id,
+            },
+        });
+        connections.push(connection(remixTextId, remixImageId));
+        const materialImageId = materialImageIds[index];
+        if (materialImageId) connections.push(connection(materialImageId, remixImageId));
+    }
 
     return { nodes, connections, sourcePatch };
+}
+
+function remixImagePrompt(index: number, total: number) {
+    if (total <= 0) return SOURCE_REMIX_IMAGE_PROMPT;
+    return `${SOURCE_REMIX_IMAGE_PROMPT}\n\n本张参考第 ${index + 1} 张原图（共 ${total} 张）：保持它的构图、视觉重心和画面风格，主体/场景/文案信息按复刻要求替换，避免和其他原图的画面内容混在一起。`;
 }
 
 function buildMaterialText(source: CanvasNodeData) {

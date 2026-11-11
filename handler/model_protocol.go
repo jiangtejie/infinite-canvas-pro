@@ -347,6 +347,15 @@ var builtinAIProtocols = []aiProtocolAdapter{
 		},
 	},
 	{
+		id:           service.ModelChannelProtocolMidjourney,
+		path:         midjourneyImagePath,
+		prepare:      prepareMidjourneyImageRequest,
+		copyResponse: copyMidjourneyImageResponse,
+		uploads: func(model.ModelChannel, map[string]bool) (map[string]directAIUpload, error) {
+			return nil, nil
+		},
+	},
+	{
 		id: service.ModelChannelProtocolGrok2API,
 		path: func(channel model.ModelChannel, modelName string, path string) (string, bool) {
 			if strings.EqualFold(strings.TrimSpace(channel.Protocol), service.ModelChannelProtocolGrok2API) && (strings.EqualFold(strings.TrimSpace(modelName), "grok-imagine-video") || strings.EqualFold(strings.TrimSpace(modelName), "grok-imagine-video-1.5")) && path == "/videos" {

@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore, type 
 import { useParams } from "next/navigation";
 import { Empty, Input, Pagination, Select, Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, ChevronRight, Clapperboard, Eye, FileText, Group, Image as ImageIcon, Link2, Music2, Plus, Search, Settings2, Type, Video } from "lucide-react";
+import { BookOpen, ChevronRight, Clapperboard, Eye, FileText, Group, Image as ImageIcon, Link2, Music2, Plus, Search, Send, Settings2, Type, Video } from "lucide-react";
 import { motion } from "motion/react";
 
 import { AssetFormModal } from "@/components/assets/asset-form-modal";
@@ -57,6 +57,7 @@ const NODE_TYPE_ICON = {
     [CanvasNodeType.Director]: Clapperboard,
     [CanvasNodeType.Group]: Group,
     [CanvasNodeType.Source]: Link2,
+    [CanvasNodeType.Publish]: Send,
 };
 
 const NODE_TYPE_LABEL = {
@@ -69,6 +70,7 @@ const NODE_TYPE_LABEL = {
     [CanvasNodeType.Director]: "导演台",
     [CanvasNodeType.Group]: "组",
     [CanvasNodeType.Source]: "素材源",
+    [CanvasNodeType.Publish]: "发布",
 };
 
 const NODE_FILTER_OPTIONS = [
@@ -82,6 +84,7 @@ const NODE_FILTER_OPTIONS = [
     { label: "导演台", value: CanvasNodeType.Director },
     { label: "组", value: CanvasNodeType.Group },
     { label: "素材源", value: CanvasNodeType.Source },
+    { label: "发布", value: CanvasNodeType.Publish },
 ];
 
 const ASSET_TYPE_OPTIONS = [
@@ -196,7 +199,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
         const query = keyword.trim().toLowerCase();
         return nodes.filter((node) => {
             if (typeFilter !== "all" && node.type !== typeFilter) return false;
-            return !query || [node.title, NODE_TYPE_LABEL[node.type], node.metadata?.content, node.metadata?.prompt, node.metadata?.sourceText, (node.metadata?.sourceTags || []).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(query);
+            return !query || [node.title, NODE_TYPE_LABEL[node.type], node.metadata?.content, node.metadata?.prompt, node.metadata?.sourceText, (node.metadata?.sourceTags || []).join(" "), node.metadata?.publishDraft?.title, node.metadata?.publishDraft?.body].filter(Boolean).join(" ").toLowerCase().includes(query);
         });
     }, [keyword, nodes, typeFilter]);
     const treeRows = useMemo(() => {
@@ -237,7 +240,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                         {treeRows.map(({ node, depth, hasChildren }) => {
                             const Icon = NODE_TYPE_ICON[node.type] || FileText;
                             const hasImage = isCanvasImageNodeType(node.type) && node.metadata?.content;
-                            const nodeStatus = node.type === CanvasNodeType.Source ? node.metadata?.sourceStatus : node.metadata?.status;
+                            const nodeStatus = node.type === CanvasNodeType.Source ? node.metadata?.sourceStatus : node.type === CanvasNodeType.Publish ? publishNodeStatus(node) : node.metadata?.status;
                             const active = selectedNodeIds.has(node.id);
                             return (
                                 <div key={node.id} className={cn("relative flex items-center rounded-lg transition", depth && "ml-5", active ? "" : "hover:bg-black/5 dark:hover:bg-white/5")} style={active ? { background: theme.toolbar.activeBg } : undefined}>
@@ -567,4 +570,10 @@ function PromptRow({ item, theme, onView, onInsert }: { item: Prompt; theme: Can
             </div>
         </div>
     );
+}
+
+function publishNodeStatus(node: CanvasNodeData) {
+    if (node.metadata?.publishStatus === "generating") return "loading";
+    if (node.metadata?.publishStatus === "error") return "error";
+    return node.metadata?.publishRecord ? "success" : "idle";
 }

@@ -140,6 +140,9 @@ func CanvasImageTaskResponse(task model.CanvasImageTask) map[string]any {
 	if task.WorkflowRef != "" {
 		result["workflowRef"] = task.WorkflowRef
 	}
+	if task.UpstreamTaskID != "" {
+		result["upstream_task_id"] = task.UpstreamTaskID
+	}
 	if task.Error != "" || task.ErrorDetail != "" {
 		result["error"] = map[string]any{"message": firstVideoTaskValue(task.Error, task.ErrorDetail)}
 		result["error_detail"] = task.ErrorDetail

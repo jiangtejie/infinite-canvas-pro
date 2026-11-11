@@ -162,19 +162,20 @@ export function serializeCanvasAgentContext(context: CanvasAgentContext) {
 function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentContextNode {
     const content = node.metadata?.content || "";
     const isText = node.type === CanvasNodeType.Text;
-    const mediaUrl = !isText && content && !content.startsWith("data:") ? content : undefined;
+    const isPublish = node.type === CanvasNodeType.Publish;
+    const mediaUrl = !isText && !isPublish && content && !content.startsWith("data:") ? content : undefined;
     const base: CanvasAgentContextNode = {
         id: node.id,
         type: node.type,
         title: node.title,
-        hasMedia: !isText ? Boolean(content) : undefined,
-        status: node.metadata?.status,
+        hasMedia: !isText && !isPublish ? Boolean(content) : undefined,
+        status: isPublish ? publishDisplayStatus(node) : node.metadata?.status,
         groupId: node.metadata?.groupId,
     };
     if (!detailed) return base;
     return {
         ...base,
-        text: isText && content ? content.slice(0, MAX_TEXT_LENGTH) : undefined,
+        text: isText && content ? content.slice(0, MAX_TEXT_LENGTH) : isPublish ? publishDraftText(node).slice(0, MAX_TEXT_LENGTH) : undefined,
         mediaUrl,
         prompt: node.metadata?.prompt?.slice(0, MAX_TEXT_LENGTH),
         model: node.metadata?.model,
@@ -182,8 +183,22 @@ function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentConte
         seconds: node.metadata?.seconds,
         generateAudio: node.metadata?.generateAudio,
         taskId: mediaTaskId(node) || undefined,
-        error: node.metadata?.errorDetails,
+        error: isPublish ? node.metadata?.publishError : node.metadata?.errorDetails,
     };
+}
+
+function publishDisplayStatus(node: CanvasNodeData) {
+    if (node.metadata?.publishStatus === "generating") return "loading";
+    if (node.metadata?.publishStatus === "error") return "error";
+    return node.metadata?.publishRecord ? "success" : "idle";
+}
+
+function publishDraftText(node: CanvasNodeData) {
+    const draft = node.metadata?.publishDraft;
+    return [draft?.title, draft?.body, (draft?.tags || []).map((tag) => "#" + tag).join(" ")]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join("\n");
 }
 
 function mediaTaskId(node: CanvasNodeData) {

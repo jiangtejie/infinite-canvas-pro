@@ -18,6 +18,7 @@ import {
     PlugZap,
     Plus,
     RotateCcw,
+    Send,
     Settings2,
     Sparkles,
     Trash2,
@@ -85,6 +86,7 @@ const ASSISTANT_NODE_TYPE_META = {
     [CanvasNodeType.Director]: { Icon: Clapperboard, label: "导演台" },
     [CanvasNodeType.Group]: { Icon: Group, label: "组" },
     [CanvasNodeType.Source]: { Icon: Link2, label: "素材源" },
+    [CanvasNodeType.Publish]: { Icon: Send, label: "发布" },
 };
 const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
     success: canvasStatusColors.success,
@@ -859,7 +861,7 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
             if (node?.position?.start.line === node?.position?.end.line && canvasNode) {
                 const { Icon, label: typeLabel } = ASSISTANT_NODE_TYPE_META[canvasNode.type];
                 const hasImage = isCanvasImageNodeType(canvasNode.type) && canvasNode.metadata?.content;
-                const nodeStatus = canvasNode.type === CanvasNodeType.Source ? canvasNode.metadata?.sourceStatus : canvasNode.metadata?.status;
+                const nodeStatus = canvasNode.type === CanvasNodeType.Source ? canvasNode.metadata?.sourceStatus : canvasNode.type === CanvasNodeType.Publish ? (canvasNode.metadata?.publishStatus === "generating" ? "loading" : canvasNode.metadata?.publishStatus === "error" ? "error" : canvasNode.metadata?.publishRecord ? "success" : "idle") : canvasNode.metadata?.status;
                 return (
                     <span className="my-1 flex w-full min-w-0 items-center rounded-lg transition-opacity hover:opacity-80" style={{ background: theme.toolbar.itemHover }}>
                         <button type="button" onClick={() => onFocusNode(canvasNode.id)} className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left outline-none" title={`定位到画布节点：${canvasNode.title || typeLabel}`}>

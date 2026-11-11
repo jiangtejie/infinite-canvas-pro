@@ -19,6 +19,7 @@ export enum CanvasNodeType {
     Director = "director",
     Group = "group",
     Source = "source",
+    Publish = "publish",
 }
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "stopping" | "stopped" | "error";
@@ -31,6 +32,22 @@ export type CameraControlOptions = {
     lens: string;
     focalLength: number;
     aperture: number;
+};
+
+export type CanvasPublishDraft = {
+    title?: string;
+    body?: string;
+    tags?: string[];
+    imageNodeIds?: string[];
+};
+
+export type CanvasPublishRecord = {
+    id: string;
+    qrText: string;
+    expiresAt: string;
+    mock: boolean;
+    status: "issued" | "confirmed";
+    publishedUrl?: string;
 };
 
 export type CanvasNodeMetadata = {
@@ -133,6 +150,13 @@ export type CanvasNodeMetadata = {
     sourceWarnings?: string[];
     sourceParsing?: boolean;
     sourceExpanded?: boolean;
+    remixIndex?: number;
+    remixSourceId?: string;
+    publishDraft?: CanvasPublishDraft;
+    publishDraftSnapshot?: CanvasPublishDraft;
+    publishRecord?: CanvasPublishRecord;
+    publishStatus?: "idle" | "generating" | "error";
+    publishError?: string;
 };
 
 export type CanvasDirectorPanorama = {

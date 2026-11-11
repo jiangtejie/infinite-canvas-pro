@@ -109,6 +109,7 @@ export function useCanvasClipboard({
                     ...node.metadata,
                     clientTaskId: undefined,
                     taskBackend: undefined,
+                    ...(node.type === CanvasNodeType.Publish ? { publishRecord: undefined, publishStatus: "idle" as const, publishError: undefined } : {}),
                     ...(node.metadata.status === "stopping" || node.metadata.status === "stopped"
                         ? { status: node.metadata.content ? NODE_STATUS_SUCCESS : "idle" as const, errorDetails: undefined }
                         : {}),

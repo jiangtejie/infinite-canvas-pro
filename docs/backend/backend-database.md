@@ -36,6 +36,7 @@ MySQL 建库默认使用 `utf8mb4 / utf8mb4_bin`，与 SQLite 的 BINARY 比较�
 - `comfy_bridges`
 - `comfy_bridge_requests`
 - `canvas_projects`
+- `publish_records`
 - `user_configs`
 - `storage_objects`
 - `recharge_packages`
@@ -278,6 +279,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `content_type` | string | 请求体 Content-Type |
 | `request_body` | 大文本 | 发往上游的请求体快照，可能包含 base64 媒体 |
 | `response_body` | 大文本 | 上游响应体快照，可能包含 base64 图片 |
+| `upstream_task_id` | string | Midjourney 等异步渠道的上游任务 ID，便于超时/重启后排查 |
 | `error` | 大文本 | 失败摘要 |
 | `error_detail` | 大文本 | 失败详情 |
 | `image_url` | 大文本 | 完成后图片 URL 或第一张图片 URL，可能是 data URL |
@@ -393,6 +395,31 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 | `deleted_at` | string | 软删除时间，空字符串表示未删除；超过 7 天由启动时和每天定时任务物理清理 |
 
 索引：`idx_canvas_projects_user_deleted_updated (user_id, deleted_at, updated_at)`、`idx_canvas_projects_deleted_at (deleted_at)`
+
+
+### publish_records
+
+抖音图文发布签发记录表。每次点击发布生成一条记录，保存发布内容快照、预检结果、H5 分享 schema 和用户确认结果；不保存抖音密钥。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键，格式 `pub_<随机 hex>` |
+| `user_id` | string | 所属用户，按 JWT 过滤 |
+| `channel` | string | 渠道，当前为 `douyin-h5` |
+| `status` | string | `issued` 已签发 / `confirmed` 用户已确认发布 |
+| `title` | string | 发布标题快照 |
+| `package` | text | 归一化后的发布内容 JSON（标题、正文、话题、图片） |
+| `preflight` | text | 预检结果 JSON |
+| `qr_text` | text | 抖音 H5 分享 schema，二维码内容 |
+| `mock` | bool | 是否 MOCK 模式签发 |
+| `expires_at` | string | schema 过期时间，默认签发后 2 小时 |
+| `published_url` | string | 用户回填的抖音作品链接 |
+| `source` / `source_id` / `node_id` | string | 来源上下文（画布 / 项目 / 发布节点） |
+| `created_at` / `updated_at` | string | 创建/更新时间 |
+
+索引：`idx_publish_records_user_id (user_id)`、`idx_publish_records_status (status)`、`idx_publish_records_created_at (created_at)` 等。
+
+发布图片不进入此表：图片按内容 hash 保存在服务器发布目录（`PUBLISH_MEDIA_DIR`），由 `/api/publish/media/:name` 公开访问；超过 72 小时的文件由每 6 小时一次的后台清理任务删除，上传时也会顺带清理。
 
 
 ### settings

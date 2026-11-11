@@ -174,7 +174,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 	if err != nil {
 		log.Printf("AI proxy normalize %s request failed: model=%s err=%v", prepared.failureLabel, modelName, err)
 		message := "AI 接口请求失败"
-		if prepared.failureLabel == "MiMo TTS" || prepared.failureLabel == "MiniMax TTS" || prepared.failureLabel == "AutoDL" {
+		if prepared.failureLabel == "MiMo TTS" || prepared.failureLabel == "MiniMax TTS" || prepared.failureLabel == "AutoDL" || prepared.failureLabel == "Midjourney" {
 			message = err.Error()
 		}
 		Fail(w, message)
@@ -244,7 +244,7 @@ type aiLogContext struct {
 }
 
 func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.ModelChannel, logContext aiLogContext, onFailure func()) {
-	response, err := service.HTTPClientForChannel(channel).Do(request)
+	response, err := doAIRequestWithRetry(service.HTTPClientForChannel(channel), request, logContext.Endpoint, channel)
 	if err != nil {
 		duration := time.Duration(0)
 		if !logContext.StartedAt.IsZero() {
@@ -294,6 +294,93 @@ func copyAIResponse(w http.ResponseWriter, request *http.Request, channel model.
 	w.WriteHeader(response.StatusCode)
 	responseBody := copyAIResponseBody(w, response.Body, !strings.HasPrefix(strings.ToLower(response.Header.Get("Content-Type")), "video/"))
 	saveAIProxyLog(logContext, response.StatusCode, responseBody, "")
+}
+
+const aiTransportRetryDelay = 800 * time.Millisecond
+
+// doAIRequestWithRetry 只对图片生成接口的连接中断做一次重试。
+// 这类错误通常发生在上游网关/本地代理等待图片生成超时后断开连接，未拿到任何响应；
+// 重试一次能覆盖大部分偶发断连，又不把非幂等请求无限放大。
+func doAIRequestWithRetry(client *http.Client, request *http.Request, endpoint string, channel model.ModelChannel) (*http.Response, error) {
+	attempts := 1
+	// Midjourney 提交不是幂等操作；未知结果时不能重发 POST，只能继续查已有 task ID。
+	if retryableAIImageEndpoint(endpoint) && !service.IsMidjourneyChannel(channel) {
+		attempts = 2
+	}
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if attempt > 1 {
+			if request.GetBody == nil {
+				return nil, lastErr
+			}
+			body, bodyErr := request.GetBody()
+			if bodyErr != nil {
+				return nil, lastErr
+			}
+			retryRequest := request.Clone(request.Context())
+			retryRequest.Body = body
+			request = retryRequest
+			log.Printf("AI proxy retry: endpoint=%s attempt=%d/%d previous=%v", endpoint, attempt, attempts, lastErr)
+			select {
+			case <-time.After(aiTransportRetryDelay):
+			case <-request.Context().Done():
+				return nil, request.Context().Err()
+			}
+		}
+		response, err := client.Do(request)
+		if err == nil {
+			if attempt < attempts && retryableAIImageStatus(response.StatusCode) {
+				response.Body.Close()
+				lastErr = fmt.Errorf("upstream returned status %d", response.StatusCode)
+				log.Printf("AI proxy retry: endpoint=%s status=%d attempt=%d/%d", endpoint, response.StatusCode, attempt, attempts)
+				continue
+			}
+			return response, nil
+		}
+		if response != nil {
+			response.Body.Close()
+		}
+		lastErr = err
+		if !isRetryableAITransportError(err) || request.Context().Err() != nil {
+			return nil, err
+		}
+	}
+	return nil, lastErr
+}
+
+func retryableAIImageEndpoint(endpoint string) bool {
+	return endpoint == "/images/generations" || endpoint == "/images/edits"
+}
+
+func retryableAIImageStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status == http.StatusInternalServerError || status == http.StatusBadGateway || status == http.StatusServiceUnavailable || status == http.StatusGatewayTimeout
+}
+
+func isRetryableAITransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(err.Error())
+	if strings.Contains(text, "context canceled") || strings.Contains(text, "deadline exceeded") {
+		return false
+	}
+	if strings.HasSuffix(strings.TrimSpace(text), "eof") {
+		return true
+	}
+	for _, token := range []string{
+		"unexpected eof",
+		"connection reset by peer",
+		"broken pipe",
+		"server sent goaway",
+		"client connection lost",
+		"forcibly closed",
+		"connection was aborted",
+	} {
+		if strings.Contains(text, token) {
+			return true
+		}
+	}
+	return false
 }
 
 func copyAIResponseBody(w http.ResponseWriter, body io.Reader, capture bool) string {
@@ -377,6 +464,8 @@ func aiTransportErrorMessage(err error) string {
 		return "AI 接口请求失败：代理连接失败，请检查服务器的代理配置"
 	case strings.Contains(lower, "certificate"):
 		return "AI 接口请求失败：证书校验失败"
+	case strings.Contains(lower, "unexpected eof"), strings.HasSuffix(strings.TrimSpace(lower), "eof"), strings.Contains(lower, "connection reset by peer"), strings.Contains(lower, "broken pipe"), strings.Contains(lower, "forcibly closed"):
+		return "AI 接口请求失败：上游连接中断（可能是网关或本地代理超时），请稍后重试；若持续出现请检查代理和渠道超时设置"
 	}
 	return "AI 接口请求失败：" + truncateForLog(text, 120)
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Settings2, Trash2, Upload, Video } from "lucide-react";
+import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Send, Settings2, Trash2, Upload, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
@@ -135,6 +135,7 @@ export function CanvasNodeHoverToolbar({
     const isText = node.type === CanvasNodeType.Text;
     const isConfig = node.type === CanvasNodeType.Config;
     const isSource = node.type === CanvasNodeType.Source;
+    const isPublish = node.type === CanvasNodeType.Publish;
     const canOpenDialog = isText || hasImage || isVideo;
     const canRetry = node.metadata?.status === "error";
     const quickImageToolIdSet = new Set(quickImageToolIds);
@@ -183,6 +184,7 @@ export function CanvasNodeHoverToolbar({
         ...(isText ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
         ...(isConfig ? [{ id: "config", title: "生成配置", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isSource ? [{ id: "sourcePanel", title: "打开素材源面板", label: "解析", icon: <Link2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
+        ...(isPublish ? [{ id: "publishPanel", title: "打开发布面板", label: "发布", icon: <Send className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
         ...(isText ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
         ...(isImage && !isPanorama && !hasImage ? [{ id: "uploadImage", title: "上传图片", label: "上传图片", icon: <Upload className="size-4" />, onClick: () => onUpload(node) }] : []),
@@ -302,10 +304,10 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                         <div className="thin-scrollbar h-full space-y-3 overflow-auto pr-1">
                             <InfoRow label="ID" value={node.id} />
                             <InfoRow label="名称" value={node.title || "未命名节点"} />
-                            <InfoRow label="类型" value={node.type === CanvasNodeType.Text ? "文本" : node.type === CanvasNodeType.Image ? "图片" : node.type === CanvasNodeType.Panorama ? "全景图" : node.type === CanvasNodeType.Video ? "视频" : node.type === CanvasNodeType.Audio ? "音频" : node.type === CanvasNodeType.Director ? "导演台" : node.type === CanvasNodeType.Group ? "组" : node.type === CanvasNodeType.Source ? "素材源" : "生成配置"} />
+                            <InfoRow label="类型" value={node.type === CanvasNodeType.Text ? "文本" : node.type === CanvasNodeType.Image ? "图片" : node.type === CanvasNodeType.Panorama ? "全景图" : node.type === CanvasNodeType.Video ? "视频" : node.type === CanvasNodeType.Audio ? "音频" : node.type === CanvasNodeType.Director ? "导演台" : node.type === CanvasNodeType.Group ? "组" : node.type === CanvasNodeType.Source ? "素材源" : node.type === CanvasNodeType.Publish ? "发布" : "生成配置"} />
                             <InfoRow label="尺寸" value={`${Math.round(node.width)} x ${Math.round(node.height)}`} />
                             <InfoRow label="位置" value={`${Math.round(node.position.x)}, ${Math.round(node.position.y)}`} />
-                            <InfoRow label="状态" value={(node.type === CanvasNodeType.Source ? node.metadata?.sourceStatus : node.metadata?.status) || "idle"} />
+                            <InfoRow label="状态" value={(node.type === CanvasNodeType.Source ? node.metadata?.sourceStatus : node.type === CanvasNodeType.Publish ? (node.metadata?.publishStatus === "generating" ? "loading" : node.metadata?.publishStatus === "error" ? "error" : node.metadata?.publishRecord ? "success" : "idle") : node.metadata?.status) || "idle"} />
                             {batchCount > 1 ? <InfoRow label="图片组" value={`${batchCount} 张`} /> : null}
                             {(isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt) ? <InfoRow label="提示词" value={isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt} /> : null}
                             {imageBytes ? <InfoRow label="图片大小" value={formatBytes(imageBytes)} /> : null}

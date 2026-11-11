@@ -35,6 +35,11 @@ description: settings 表中 public 和 private 配置结构说明
   },
   "content": {
     "sourceParseEnabled": true
+  },
+  "publish": {
+    "configured": true,
+    "mock": false,
+    "publicBaseUrl": "https://jl.lx.cq.cn"
   }
 }
 ```
@@ -44,6 +49,7 @@ description: settings 表中 public 和 private 配置结构说明
 | `modelChannel` | object | 模型渠道公开配置组 |
 | `auth` | object | 认证相关公开配置 |
 | `content` | object | 内容解析功能公开状态 |
+| `publish` | object | 发布功能公开状态，不包含密钥 |
 
 `modelChannel` 字段：
 
@@ -85,6 +91,14 @@ description: settings 表中 public 和 private 配置结构说明
 | --- | --- | --- |
 | `sourceParseEnabled` | boolean | 是否允许画布使用抖音图文解析；由 `private.content.sourceParseEnabled` 派生，前端据此禁用解析入口，后端也会拒绝请求 |
 
+`publish` 字段由 `private.publish` 派生：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `configured` | boolean | 是否已配置抖音 Client Key / Client Secret |
+| `mock` | boolean | 是否处于 MOCK 模式 |
+| `publicBaseUrl` | string | 发布图片和扫码素材使用的公网域名 |
+
 ## private.value
 
 ```json
@@ -107,6 +121,12 @@ description: settings 表中 public 和 private 配置结构说明
   },
   "content": {
     "sourceParseEnabled": true
+  },
+  "publish": {
+    "publicBaseUrl": "https://jl.lx.cq.cn",
+    "douyinClientKey": "client_key",
+    "douyinClientSecret": "",
+    "douyinMock": false
   }
 }
 ```
@@ -116,12 +136,13 @@ description: settings 表中 public 和 private 配置结构说明
 | `channels` | object[] | 模型渠道列表 |
 | `promptSync` | object | GitHub 远程提示词定时同步配置 |
 | `content` | object | 内容解析功能私有配置 |
+| `publish` | object | 抖音发布私有配置，密钥只保存在后端 |
 
 `channels` 每项字段：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `protocol` | string | 协议，支持 OpenAI、Gemini、Grok2API、MiniMax、APIMart、KIE、MiMo |
+| `protocol` | string | 协议，支持 OpenAI、Gemini、Grok2API、MiniMax、APIMart、KIE、MiMo、Midjourney |
 | `name` | string | 渠道名称 |
 | `baseUrl` | string | 渠道接口地址 |
 | `apiKey` | string | 渠道密钥 |
@@ -149,3 +170,14 @@ description: settings 表中 public 和 private 配置结构说明
 | `sourceParseEnabled` | boolean | 是否允许画布发起抖音图文解析，默认开启；关闭后接口返回“内容解析功能已关闭”，已完成解析的素材不受影响 |
 
 后台系统设置页“私有配置 → 内容解析”可以直接切换该开关。解析还额外受登录、用户频率限制（20 次 / 10 分钟）和全局并发限制（4 个同时解析）约束。
+
+`publish` 字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `publicBaseUrl` | string | 发布图片和扫码素材的公网域名，必须与实际访问域名一致，例如 `https://jl.lx.cq.cn` |
+| `douyinClientKey` | string | 抖音开放平台网站应用 Client Key |
+| `douyinClientSecret` | string | 抖音 Client Secret；后台读取时清空，保存时留空表示保持原值 |
+| `douyinMock` | boolean | MOCK 模式：生成同格式假分享链接，不请求抖音开放平台，便于没有真实权限时联调 |
+
+后台「私有配置 → 抖音发布」提供“测试抖音配置”按钮，会用当前配置真实调用 `client_token` 和 `open/getticket`，验证 `h5.share` / `open.get.ticket` 权限是否已开通。发布图片由服务端本地发布目录（`PUBLISH_MEDIA_DIR`，默认 `data/publish-media`）保存，通过 `/api/publish/media/:name` 无鉴权提供公网 HTTPS 访问，不依赖 OSS。

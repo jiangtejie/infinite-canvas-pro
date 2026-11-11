@@ -137,12 +137,20 @@ type PublicContentSetting struct {
 	SourceParseEnabled bool `json:"sourceParseEnabled"`
 }
 
+// PublicPublishSetting 发布功能的公开状态（由私有配置派生，不包含密钥）。
+type PublicPublishSetting struct {
+	Configured    bool   `json:"configured"`
+	Mock          bool   `json:"mock"`
+	PublicBaseURL string `json:"publicBaseUrl"`
+}
+
 // PublicSetting 公开配置。
 type PublicSetting struct {
 	ModelChannel PublicModelChannelSetting `json:"modelChannel"`
 	Auth         PublicAuthSetting         `json:"auth"`
 	Storage      PublicStorageSetting      `json:"storage"`
 	Content      PublicContentSetting      `json:"content"`
+	Publish      PublicPublishSetting      `json:"publish"`
 }
 
 type PublicStorageSetting struct {
@@ -166,6 +174,14 @@ type PrivateContentSetting struct {
 	SourceParseEnabled *bool `json:"sourceParseEnabled,omitempty"`
 }
 
+// PrivatePublishSetting 抖音发布私有配置。
+type PrivatePublishSetting struct {
+	PublicBaseURL      string `json:"publicBaseUrl"`
+	DouyinClientKey    string `json:"douyinClientKey"`
+	DouyinClientSecret string `json:"douyinClientSecret"`
+	DouyinMock         bool   `json:"douyinMock"`
+}
+
 // PrivateSetting 私有配置。
 type PrivateSetting struct {
 	Channels   []ModelChannel        `json:"channels"`
@@ -174,6 +190,7 @@ type PrivateSetting struct {
 	Storage    PrivateStorageSetting `json:"storage"`
 	Payment    PrivatePaymentSetting `json:"payment"`
 	Content    PrivateContentSetting `json:"content"`
+	Publish    PrivatePublishSetting `json:"publish"`
 }
 
 // PrivatePaymentSetting 微信支付（lx-pay）配置。

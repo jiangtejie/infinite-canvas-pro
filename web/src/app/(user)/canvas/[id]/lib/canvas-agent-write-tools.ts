@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../../types";
 import { createCanvasNode } from "./canvas-node-factory";
 import { NODE_STATUS_SUCCESS } from "./canvas-node-constants";
+import { isPublishUpstreamNode } from "./canvas-connections";
 
 export const AGENT_PRIMARY_SCRIPT_NODE_SIZE = { width: 550, height: 600 };
 
@@ -62,6 +63,8 @@ export function planCreateConnection(input: { nodes: CanvasNodeData[]; connectio
     const toNode = input.nodes.find((node) => node.id === input.toNodeId);
     if (!toNode) return missingNode(input.toNodeId);
     if (input.fromNodeId === input.toNodeId) return { ok: false as const, code: "self_connection", message: "节点不能连接到自身" };
+    if (fromNode.type === CanvasNodeType.Publish) return { ok: false as const, code: "invalid_connection", message: "发布节点只能作为连线目标" };
+    if (toNode.type === CanvasNodeType.Publish && !isPublishUpstreamNode(fromNode)) return { ok: false as const, code: "invalid_connection", message: "发布节点只接受文本或图片上游" };
     if (fromNode.type === CanvasNodeType.Config && toNode.type === CanvasNodeType.Config) {
         return { ok: false as const, code: "invalid_connection", message: "这两个节点不能这样连接" };
     }

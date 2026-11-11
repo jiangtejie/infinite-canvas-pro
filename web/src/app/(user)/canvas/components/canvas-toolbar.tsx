@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch, Tooltip } from "antd";
-import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Info, Layers3, Library, Link2, Moon, MousePointer2, Music2, Palette, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
+import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
 
 import { CANVAS_SHORTCUT_LABELS } from "../utils/canvas-shortcuts";
 
@@ -34,6 +34,10 @@ export function CanvasToolbar({
     onAddDirector,
     onAddConfig,
     onAddSource,
+    onAddPublish,
+    onBatchGenerate,
+    canBatchGenerate,
+    batchGenerating,
     onUndo,
     onRedo,
     onUpload,
@@ -64,6 +68,10 @@ export function CanvasToolbar({
     onAddDirector: () => void;
     onAddConfig: () => void;
     onAddSource: () => void;
+    onAddPublish: () => void;
+    onBatchGenerate: () => void;
+    canBatchGenerate: boolean;
+    batchGenerating: boolean;
     onUndo: () => void;
     onRedo: () => void;
     onUpload: () => void;
@@ -108,6 +116,7 @@ export function CanvasToolbar({
         { key: "director", label: "导演台", icon: <Layers3 className="size-4" />, onClick: onAddDirector },
         { key: "config", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: onAddConfig },
         { key: "source", label: "素材源", icon: <Link2 className="size-4" />, onClick: onAddSource },
+        { key: "publish", label: "发布", icon: <Send className="size-4" />, onClick: onAddPublish },
     ];
     const menuWidth = openMenu === "appearance" ? APPEARANCE_WIDTH : openMenu === "align" ? ALIGN_WIDTH : DOCK_MENU_WIDTH;
     const alignOptions: { key: CanvasAlignKind; label: string }[] = [
@@ -129,6 +138,10 @@ export function CanvasToolbar({
     const runUngroup = () => {
         setOpenMenu(null);
         onUngroup();
+    };
+    const runBatchGenerate = () => {
+        setOpenMenu(null);
+        onBatchGenerate();
     };
     const shortcutTitle = (label: string, shortcut: string) => <span className="flex min-w-32 items-center justify-between gap-5"><span>{label}</span><kbd className="text-[11px] opacity-60">{shortcut}</kbd></span>;
 
@@ -204,6 +217,14 @@ export function CanvasToolbar({
                 <Button data-canvas-dock-trigger type="text" aria-label="其他添加工具" aria-haspopup="menu" aria-expanded={openMenu === "add"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "add" ? activeStyle : { color: theme.toolbar.item }} icon={<Ellipsis className="size-4" />} onClick={(event) => toggleMenu("add", event)}>添加</Button>
                 <Button data-canvas-dock-trigger type="text" aria-label="素材" aria-haspopup="menu" aria-expanded={openMenu === "assets"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "assets" ? activeStyle : { color: theme.toolbar.item }} onClick={(event) => toggleMenu("assets", event)}>素材</Button>
                 <Button data-canvas-dock-trigger type="text" aria-label="更多工具" aria-haspopup="menu" aria-expanded={openMenu === "more"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "more" ? activeStyle : { color: theme.toolbar.item }} icon={<Ellipsis className="size-4" />} onClick={(event) => toggleMenu("more", event)}>更多</Button>
+                {canBatchGenerate || batchGenerating ? (
+                    <>
+                        <Divider theme={theme} />
+                        <Tooltip title="按顺序逐张重新生成选中的图片" placement="top">
+                            <Button type="text" aria-label="批量生成" className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" disabled={!canBatchGenerate || batchGenerating} style={batchGenerating ? activeStyle : { color: theme.toolbar.item }} icon={batchGenerating ? <LoaderCircle className="size-4.5 animate-spin" /> : <Images className="size-4.5" />} onClick={onBatchGenerate}>{batchGenerating ? "生成中" : "批量生成"}</Button>
+                        </Tooltip>
+                    </>
+                ) : null}
                 <Button data-canvas-dock-trigger type="text" aria-label="画布外观" aria-haspopup="dialog" aria-expanded={openMenu === "appearance"} className="!size-10 !min-w-10 !p-0" style={openMenu === "appearance" ? activeStyle : { color: theme.toolbar.item }} icon={<Palette className="size-4.5" />} onClick={(event) => toggleMenu("appearance", event)} />
                 {selectedCount > 0 || selectedHasGroup ? <>
                     <Divider theme={theme} />
@@ -271,10 +292,17 @@ export function CanvasToolbar({
                                     建组（选中 ≥ 2）
                                 </button>
                                 {selectedHasGroup ? (
-                                    <button type="button" role="menuitem" data-dock-item className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--dock-hover)] focus-visible:bg-[var(--dock-hover)] focus-visible:outline-none" onClick={runUngroup}>
-                                        <Ungroup className="size-4 opacity-70" />
-                                        解组
-                                    </button>
+                                    <>
+                                        <div className="my-1 h-px" style={{ background: theme.toolbar.border }} />
+                                        <button type="button" role="menuitem" data-dock-item disabled={!canBatchGenerate || batchGenerating} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--dock-hover)] focus-visible:bg-[var(--dock-hover)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40" onClick={runBatchGenerate}>
+                                            <Images className="size-4 opacity-70" />
+                                            生成组内图片
+                                        </button>
+                                        <button type="button" role="menuitem" data-dock-item className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--dock-hover)] focus-visible:bg-[var(--dock-hover)] focus-visible:outline-none" onClick={runUngroup}>
+                                            <Ungroup className="size-4 opacity-70" />
+                                            解组
+                                        </button>
+                                    </>
                                 ) : null}
                             </div>
                         ) : (

@@ -23,6 +23,20 @@ description: 业务接口统一响应结构与前端处理约定
 
 接口连接失败、服务不可达、返回体不是约定 JSON 时，前端按网络或接口异常处理。
 
+## AI 生图连接中断重试
+
+- `/api/v1/images/generations` 和 `/api/v1/images/edits` 在上游返回 `EOF` / `unexpected EOF` / connection reset / broken pipe / GOAWAY / forcibly closed 等连接中断、且没有拿到响应时，或返回 500/502/503/504 时，服务端会自动用同一请求体重试一次；只对图片接口重试，聊天/视频等非幂等接口不重试。
+- 重试仍失败时返回“上游连接中断（可能是网关或本地代理超时），请稍后重试；若持续出现请检查代理和渠道超时设置”，不再直接暴露原始 `unexpected EOF`。
+- 服务端日志会打印 `AI proxy retry: endpoint=... attempt=2/2 previous=...`，可据此判断是否触发了重试。
+
+## Midjourney 异步文生图
+
+- 渠道协议为 `midjourney` 时，图片生成会提交到 `POST /mj/submit/imagine`，请求体为 `{ botType: "MID_JOURNEY", prompt }`；Base URL 使用 `https://api.teamorouter.ai`，程序会兼容误填的 `/v1`。
+- 后端轮询 `GET /mj/task/{task_id}/fetch`，每 10 秒一次，最多 9 分钟；成功取 `imageUrl`，失败取 `failReason`。结果统一转换成现有图片接口响应（`data[].url`）。
+- 仅支持文生图：参考图、图片编辑和 multipart 请求会在提交前返回明确错误，不支持 `--hd/--q/--repeat/--r/--fast/--turbo/--relax/--niji`；支持 `--ar`。
+- 只支持 1K Imagine 四宫格，不支持 upscale/variation/reroll、2K/4K、Niji、callback。提交不是幂等操作，Midjourney 渠道不参与生图自动重试；网络异常时必须保留 task ID 继续查询，不能重复 POST。
+- 渠道模型测试只请求 `/v1/models` 验证连通性，不提交付费 Imagine 任务；模型列表固定返回 `midjourney`。
+
 ## AutoDL 渠道
 
 - `POST /api/ai/autodl/workflows` 使用上述业务响应结构。请求为 `{ baseUrl, workflowId? }`，不传上游 API Key；不带工作流 ID 返回列表，带 ID 返回详情。元数据包含 `uuid`、`name`、`kind` 和详情的 `input_rules`，不返回上游内部节点映射。
@@ -50,3 +64,15 @@ description: 业务接口统一响应结构与前端处理约定
 - 服务端对象存储不可用时仍返回解析结果：图片保留原始 CDN 地址，`warnings` 提示链接可能过期；文字素材不受影响。
 - 解析接口按用户限频（20 次 / 10 分钟），超限返回“解析太频繁了，请稍后再试”；全局同时最多 4 个解析，繁忙返回“解析繁忙，请稍后再试”。
 - 管理员在后台“私有配置 → 内容解析”关闭后，接口返回“内容解析功能已关闭，请联系管理员”；`/api/settings` 的 `content.sourceParseEnabled` 同步为 false。
+
+## 抖音发布（H5 扫码）
+
+- `GET /api/v1/publish/channels` 需要登录，返回发布渠道可用性：`{ channels: [{ id: "douyin-h5", label, available, reason, mock }], publicBaseUrl, configured, mock }`。`reason` 可能为 `NEED_CREDENTIALS` / `NEED_PUBLIC_BASE_URL` / `NEED_HTTPS`。
+- `POST /api/v1/publish/media` 需要登录，multipart 字段名 `file`，单张图片上限 20MB；当前仅支持 JPG / PNG（抖音 H5 图集格式），服务端按内容 hash 转存到本地发布目录，返回 `{ id, url, width?, height?, bytes, mimeType }`。每用户限频 60 次 / 10 分钟。`url` 使用后台配置的 `publicBaseUrl` 拼成公网 HTTPS 地址，路径为 `/api/publish/media/:name`。
+- `GET /api/publish/media/:name` 为公开图片访问入口，无鉴权，供抖音服务器回源抓取；只允许访问发布目录中的图片文件。
+- `POST /api/v1/publish/preflight` 需要登录，请求为 `{ title, body, tags, images: [{ url, width, height, bytes }] }`，返回 `{ package, preflight: { passed, errors, warnings, issues } }`；`issues[].message` 为可直接展示的中文，错误包括标题超 20 字、正文超 1000 字、话题超 5 个、图片数为空/超 35 张、图片不是发布域名下的 HTTPS、短边小于 360px、比例超出 1:2.2～2.2:1、超过 20MB。
+- `POST /api/v1/publish/records` 需要登录，请求在预检字段基础上增加 `source`、`sourceId`、`nodeId`；服务端重新预检并签发抖音 H5 分享 schema，返回 `{ record }`。每用户限频 20 次 / 10 分钟。图文只能进入抖音编辑页，用户确认发布；`share_to_publish=1` 仅用于单视频。
+- `GET /api/v1/publish/records` 返回当前用户最近 20 条发布记录；`GET /api/v1/publish/records/:id` 和 `POST /api/v1/publish/records/:id/confirm`（body `{ publishedUrl? }`）按 JWT 当前用户过滤，未找到返回“发布记录不存在”。
+- 发布记录状态为 `issued`（已签发，二维码有效 2 小时）或 `confirmed`（用户已确认发布）。响应包含 `qrText`、`expiresAt`、`expired`、`mock`、`imageCount`、`package` 和 `preflight`。
+- `POST /api/admin/publish/douyin/test` 为管理员配置自测接口，body 可临时传 `{ clientKey, clientSecret, mock }`；服务端真实调用 `client_token` 和 `open/getticket`，只返回 `{ ok, mock, ticketExpiresIn, tokenExpiresIn }`，不返回 token/ticket。
+- MOCK 模式可生成格式相同、签名规则相同的假分享链接，不请求抖音开放平台；关闭 MOCK 前必须配置已备案的 HTTPS `publicBaseUrl`，并确认 `h5.share` / `open.get.ticket`（及平台要求的其他分享权限）已开通。

@@ -148,7 +148,12 @@ export function applyImageGenerationOptions(body: Record<string, unknown>, confi
 }
 
 export function assertImageReferencesSupported(model: string, references: ReferenceImage[]) {
-    if (references.length && isZhipuImageModel(model)) throw new ImageRequestError("智谱 GLM-Image 和 CogView 仅支持文生图");
+    if (!references.length) return;
+    const normalized = model.toLowerCase();
+    if (isZhipuImageModel(model)) throw new ImageRequestError("智谱 GLM-Image 和 CogView 仅支持文生图");
+    if (normalized.includes("midjourney") || normalized.includes("mj-imagine") || normalized.includes("mj_imagine")) {
+        throw new ImageRequestError("Midjourney 当前仅支持文生图，不支持参考图或图片编辑");
+    }
 }
 
 export function withSystemPrompt(config: AiConfig, prompt: string) {

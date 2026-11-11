@@ -40,7 +40,7 @@ export function AdminSettingsChannelDrawer({ settings }: { settings: AdminSettin
                                             </Form.Item>
                                         </Col>
                                         <Col span={12}>
-                                            <Form.Item name="protocol" label="协议">
+                                            <Form.Item name="protocol" label="协议" extra="OpenAI 协议使用 /v1/chat 与 /v1/images；Gemini 原生图片模型请单独新建 Gemini 协议渠道；Midjourney 是异步文生图协议，Base URL 不要带 /v1，且不支持参考图/图片编辑。">
                                                 <Select
                                                     options={modelChannelProtocolOptions}
                                                     onChange={(protocol: AdminModelChannel["protocol"]) => {

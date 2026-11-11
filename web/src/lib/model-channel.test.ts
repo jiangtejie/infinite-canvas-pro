@@ -17,6 +17,7 @@ test("built-in protocol options retain both settings panels' labels and order", 
         { label: "火山方舟", value: "ark" },
         { label: "KIE", value: "kie" },
         { label: "MiMo", value: "mimo" },
+        { label: "Midjourney", value: "midjourney" },
     ]);
 });
 
@@ -34,6 +35,7 @@ test("built-in protocols retain all existing default URLs and API Key links", ()
         ark: "https://ark.cn-beijing.volces.com/api/v3",
         kie: "https://api.kie.ai/api/v1",
         mimo: "https://api.xiaomimimo.com",
+        midjourney: "https://api.teamorouter.ai",
         tokendance: "https://tokendance.space/gateway/v1",
     });
     assert.deepEqual(modelChannelApiKeyUrls, {
@@ -50,7 +52,7 @@ test("public parameter translation eligibility keeps exact protocol matching", (
     assert.equal(directAIProviderForProtocol("autodl"), "autodl");
     assert.equal(directAIProviderForProtocol("ark"), "ark");
     assert.equal(directAIProviderForProtocol("tokendance"), "tokendance");
-    for (const protocol of ["openai", "gemini", "grok2api", "minimax", "mimo", "KIE", " kie ", "APIMart", "ARK", " ark ", "", "unknown"]) {
+    for (const protocol of ["openai", "gemini", "grok2api", "minimax", "mimo", "midjourney", "KIE", " kie ", "APIMart", "ARK", " ark ", "", "unknown"]) {
         assert.equal(directAIProviderForProtocol(protocol), null, protocol);
     }
 });

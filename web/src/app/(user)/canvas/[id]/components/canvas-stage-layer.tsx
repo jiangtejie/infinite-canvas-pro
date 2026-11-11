@@ -6,10 +6,13 @@ import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { getInputSummary } from "../lib/canvas-node-builders";
 import { isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
+import type { CanvasPublishInputs } from "../lib/canvas-publish";
 import { ActiveConnectionPath, ConnectionPath } from "../../components/canvas-connections";
 import { CanvasConfigComposer } from "../../components/canvas-config-composer";
 import { CanvasConfigNodePanel } from "../../components/canvas-config-node-panel";
 import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-panel";
+import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card";
+import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
 import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
 import { type NodeGenerationInput } from "../../components/canvas-node-generation";
@@ -76,6 +79,7 @@ export type CanvasStageModel = {
     mentionReferencesByNodeId: Map<string, CanvasResourceReference[]>;
     canvasNow: number;
     configInputsById: Map<string, NodeGenerationInput[]>;
+    publishInputsById: Map<string, CanvasPublishInputs>;
     handleConfigNodeChange: (nodeId: string, patch: Partial<CanvasNodeData["metadata"]>) => void;
     closeOverlay: () => void;
     runningNodeId: string | null;
@@ -113,6 +117,9 @@ export type CanvasStageModel = {
     handleExpandSource: (nodeId: string) => void;
     handleRunSourceRemix: (nodeId: string) => void;
     handleResetSource: (nodeId: string) => void;
+    remixImageNodeIdsBySourceId: Map<string, string[]>;
+    onGenerateAllSourceRemix: (sourceId: string) => void;
+    batchGenerating: boolean;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -172,6 +179,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         mentionReferencesByNodeId,
         canvasNow,
         configInputsById,
+        publishInputsById,
         handleConfigNodeChange,
         closeOverlay,
         runningNodeId,
@@ -209,6 +217,9 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         handleExpandSource,
         handleRunSourceRemix,
         handleResetSource,
+        remixImageNodeIdsBySourceId,
+        onGenerateAllSourceRemix,
+        batchGenerating,
         assetInsertPositionRef,
         setAssetPickerTab,
         setAssetPickerOpen,
@@ -311,7 +322,15 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         onChange={(composerContent) => handleConfigNodeChange(panelNode.id, { composerContent })}
                                         onClose={() => closeOverlay()}
                                     />
-                                ) : panelNode.type === CanvasNodeType.Director ? null : panelNode.type === CanvasNodeType.Source ? (
+                                ) : panelNode.type === CanvasNodeType.Director ? null : panelNode.type === CanvasNodeType.Publish ? (
+                                    <CanvasPublishNodePanel
+                                        key={panelNode.id}
+                                        node={panelNode}
+                                        inputs={publishInputsById.get(panelNode.id) || { text: "", textNodeIds: [], images: [] }}
+                                        onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
+                                        onClose={() => closeOverlay()}
+                                    />
+                                ) : panelNode.type === CanvasNodeType.Source ? (
                                     <CanvasSourceNodePanel
                                         key={panelNode.id}
                                         node={panelNode}
@@ -322,6 +341,9 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         onExpand={() => handleExpandSource(panelNode.id)}
                                         onRunRemix={() => handleRunSourceRemix(panelNode.id)}
                                         onReset={() => handleResetSource(panelNode.id)}
+                                        remixImageCount={remixImageNodeIdsBySourceId.get(panelNode.id)?.length || 0}
+                                        onGenerateAllRemix={() => onGenerateAllSourceRemix(panelNode.id)}
+                                        batchGenerating={batchGenerating}
                                         onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
                                         onClose={() => closeOverlay()}
                                     />
@@ -354,6 +376,13 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                     <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
                                 ) : contentNode.type === CanvasNodeType.Source ? (
                                     <CanvasSourceNodeCard node={contentNode} onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })} />
+                                ) : contentNode.type === CanvasNodeType.Publish ? (
+                                    <CanvasPublishNodeCard
+                                        node={contentNode}
+                                        textCount={publishInputsById.get(contentNode.id)?.textNodeIds.length || 0}
+                                        imageCount={publishInputsById.get(contentNode.id)?.images.length || 0}
+                                        onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
+                                    />
                                 ) : (
                                     <CanvasConfigNodePanel
                                         node={contentNode}

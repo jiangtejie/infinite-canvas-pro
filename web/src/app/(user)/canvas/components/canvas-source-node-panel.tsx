@@ -17,6 +17,9 @@ export type CanvasSourceNodePanelProps = {
     onExpand: () => void;
     onRunRemix: () => void;
     onReset: () => void;
+    remixImageCount?: number;
+    onGenerateAllRemix?: () => void;
+    batchGenerating?: boolean;
     onChange: (patch: Partial<CanvasNodeMetadata>) => void;
     onClose: () => void;
 };
@@ -24,7 +27,7 @@ export type CanvasSourceNodePanelProps = {
 /**
  * 素材源面板：粘贴解析、结果预览、展开素材与一键复刻。
  */
-export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, onCancel, onExpand, onRunRemix, onReset, onChange, onClose }: CanvasSourceNodePanelProps) {
+export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, onCancel, onExpand, onRunRemix, onReset, remixImageCount = 0, onGenerateAllRemix, batchGenerating = false, onChange, onClose }: CanvasSourceNodePanelProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const [input, setInput] = useState(node.metadata?.sourceInput || "");
@@ -147,6 +150,11 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
                         <Button type="primary" size="small" disabled={parsing} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={onRunRemix}>
                             一键复刻
                         </Button>
+                        {remixImageCount > 0 && onGenerateAllRemix ? (
+                            <Button size="small" loading={batchGenerating} disabled={parsing || batchGenerating} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={onGenerateAllRemix}>
+                                生成全部复刻配图（{remixImageCount} 张）
+                            </Button>
+                        ) : null}
                         {node.metadata?.sourceExpanded ? (
                             <>
                                 <span className="text-[11px]" style={{ color: theme.node.placeholder }}>已展开</span>

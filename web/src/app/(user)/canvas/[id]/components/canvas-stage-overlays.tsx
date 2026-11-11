@@ -11,11 +11,13 @@ import { Minimap } from "../../components/canvas-mini-map";
 import { CanvasToolbar, type CanvasAlignKind } from "../../components/canvas-toolbar";
 import { type AssetPickerTab } from "../../components/asset-picker-modal";
 import { CanvasZoomControls } from "../../components/canvas-zoom-controls";
+import { CanvasBatchProgress } from "./canvas-batch-progress";
 import { CanvasNodeType, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type ContextMenuState, type Position } from "../../types";
 import type { CanvasSidePanelState } from "../../stores/use-canvas-store";
 import type { ViewportTransform } from "../../types";
 import type { ThemeName } from "@/stores/use-theme-store";
 import type { AiConfig } from "@/stores/use-config-store";
+import type { CanvasBatchGenerationState } from "../hooks/use-canvas-batch-generation";
 import type { PendingPanoramaImport } from "../hooks/use-canvas-ui-state";
 import type { CanvasOverlay } from "../canvas-client-page";
 
@@ -94,6 +96,10 @@ export type CanvasStageOverlaysModel = {
     finishPanoramaImport: (type: CanvasNodeType.Image | CanvasNodeType.Panorama) => void;
     imageInputRef: RefObject<HTMLInputElement | null>;
     handleImageInputChange: (event: ReactChangeEvent<HTMLInputElement>) => Promise<void>;
+    batchState: CanvasBatchGenerationState;
+    canBatchGenerate: boolean;
+    onBatchGenerate: () => void;
+    onStopBatch: () => void;
 };
 
 /**
@@ -174,6 +180,10 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         finishPanoramaImport,
         imageInputRef,
         handleImageInputChange,
+        batchState,
+        canBatchGenerate,
+        onBatchGenerate,
+        onStopBatch,
     } = model;
 
     return (
@@ -246,6 +256,10 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onAddDirector={() => createNode(CanvasNodeType.Director)}
                     onAddConfig={() => createNode(CanvasNodeType.Config)}
                     onAddSource={() => createNode(CanvasNodeType.Source)}
+                    onAddPublish={() => createNode(CanvasNodeType.Publish)}
+                    onBatchGenerate={onBatchGenerate}
+                    canBatchGenerate={canBatchGenerate}
+                    batchGenerating={batchState.running}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
                     onUpload={() => handleUploadRequest()}
@@ -264,6 +278,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     }}
                     sidePanelWidth={sidePanel.open ? sidePanel.width : 0}
                 />
+
+                <CanvasBatchProgress state={batchState} onStop={onStopBatch} />
 
                 {isMiniMapOpen ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
 

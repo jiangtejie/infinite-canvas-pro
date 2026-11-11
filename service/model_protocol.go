@@ -31,7 +31,7 @@ type modelProtocolRule struct {
 }
 
 var modelProtocolRegistry map[string]modelProtocolAdapter
-var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocolAutoDL, ModelChannelProtocolArk, ModelChannelProtocolTokenDance}
+var modelProtocolIDs = []string{ModelChannelProtocolOpenAI, ModelChannelProtocolGemini, ModelChannelProtocolGrok2API, ModelChannelProtocolMiniMax, ModelChannelProtocolAPIMart, ModelChannelProtocolKIE, ModelChannelProtocolMiMo, ModelChannelProtocolAutoDL, ModelChannelProtocolArk, ModelChannelProtocolTokenDance, ModelChannelProtocolMidjourney}
 
 func init() {
 	compatible := modelProtocolAdapter{
@@ -42,7 +42,7 @@ func init() {
 		models:    fetchOpenAIAdminChannelModels,
 		testModel: testOpenAIChannelModel,
 	}
-	modelProtocolRegistry = make(map[string]modelProtocolAdapter, 11)
+	modelProtocolRegistry = make(map[string]modelProtocolAdapter, len(modelProtocolIDs))
 	for _, id := range modelProtocolIDs {
 		modelProtocolRegistry[id] = compatible
 	}
@@ -113,6 +113,13 @@ func init() {
 	tokenDance := compatible
 	tokenDance.buildURL = BuildTokenDanceChannelURL
 	modelProtocolRegistry[ModelChannelProtocolTokenDance] = tokenDance
+	midjourney := compatible
+	midjourney.buildURL = BuildMidjourneyChannelURL
+	midjourney.models = func(model.ModelChannel) ([]string, error) {
+		return MidjourneyModels(), nil
+	}
+	midjourney.testModel = TestMidjourneyChannelModel
+	modelProtocolRegistry[ModelChannelProtocolMidjourney] = midjourney
 	glm := compatible
 	glm.testModel = testGLMTTSChannelModel
 	modelProtocolRegistry["model:glm-tts"] = glm
@@ -121,6 +128,7 @@ func init() {
 // 发现模型、配置测试与生成的命中规则不同，分别保留原有优先级。
 var modelDiscoveryRules = []modelProtocolRule{
 	{ModelChannelProtocolAutoDL, func(channel model.ModelChannel, _ string) bool { return IsAutoDLChannel(channel) }},
+	{ModelChannelProtocolMidjourney, func(channel model.ModelChannel, _ string) bool { return IsMidjourneyChannel(channel) }},
 	{ModelChannelProtocolGemini, func(channel model.ModelChannel, _ string) bool { return IsGeminiChannel(channel) }},
 	{ModelChannelProtocolMiniMax, func(channel model.ModelChannel, _ string) bool { return IsMiniMaxChannel(channel) }},
 	{ModelChannelProtocolMiMo, func(channel model.ModelChannel, _ string) bool { return IsMiMoChannel(channel) }},
@@ -130,12 +138,14 @@ var modelDiscoveryRules = []modelProtocolRule{
 
 var modelConfigTestRules = []modelProtocolRule{
 	{ModelChannelProtocolAutoDL, func(channel model.ModelChannel, _ string) bool { return IsAutoDLChannel(channel) }},
+	{ModelChannelProtocolMidjourney, func(channel model.ModelChannel, _ string) bool { return IsMidjourneyChannel(channel) }},
 	{ModelChannelProtocolMiniMax, func(channel model.ModelChannel, _ string) bool { return IsMiniMaxChannel(channel) }},
 	{ModelChannelProtocolArk, func(channel model.ModelChannel, _ string) bool { return IsArkChannel(channel) }},
 }
 
 var modelGenerationTestRules = []modelProtocolRule{
 	{ModelChannelProtocolAutoDL, func(channel model.ModelChannel, _ string) bool { return IsAutoDLChannel(channel) }},
+	{ModelChannelProtocolMidjourney, func(channel model.ModelChannel, _ string) bool { return IsMidjourneyChannel(channel) }},
 	{"model:glm-tts", func(_ model.ModelChannel, modelName string) bool {
 		return strings.EqualFold(strings.TrimSpace(modelName), "glm-tts")
 	}},

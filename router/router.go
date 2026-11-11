@@ -28,6 +28,9 @@ func New() *gin.Engine {
 	api.GET("/files/:id/content", func(c *gin.Context) {
 		handler.FileContent(c.Writer, c.Request, c.Param("id"))
 	})
+	api.GET("/publish/media/:name", func(c *gin.Context) {
+		handler.PublishMedia(c.Writer, c.Request, c.Param("name"))
+	})
 	api.POST("/ai/direct-request", gin.WrapF(handler.PrepareDirectAIRequest))
 	api.POST("/ai/autodl/workflows", gin.WrapF(handler.AutoDLWorkflows))
 	anonymousFiles := api.Group("/anonymous/files", middleware.AnonymousStorage)
@@ -76,6 +79,17 @@ func New() *gin.Engine {
 		handler.DeleteUserWorkflow(c.Writer, c.Request, c.Param("id"))
 	})
 	v1.POST("/content/sources/parse", gin.WrapF(handler.ParseContentSource))
+	v1.GET("/publish/channels", gin.WrapF(handler.PublishChannels))
+	v1.POST("/publish/preflight", gin.WrapF(handler.PublishPreflight))
+	v1.POST("/publish/records", gin.WrapF(handler.PublishCreateRecord))
+	v1.GET("/publish/records", gin.WrapF(handler.PublishRecords))
+	v1.GET("/publish/records/:id", func(c *gin.Context) {
+		handler.PublishRecord(c.Writer, c.Request, c.Param("id"))
+	})
+	v1.POST("/publish/records/:id/confirm", func(c *gin.Context) {
+		handler.PublishConfirmRecord(c.Writer, c.Request, c.Param("id"))
+	})
+	v1.POST("/publish/media", gin.WrapF(handler.UploadPublishMedia))
 	v1.GET("/agent-skills", gin.WrapF(handler.UserAgentSkills))
 	v1.POST("/agent-skills", gin.WrapF(handler.SaveUserAgentSkill))
 	v1.DELETE("/agent-skills/:id", func(c *gin.Context) {
@@ -159,6 +173,7 @@ func New() *gin.Engine {
 	admin.POST("/settings", gin.WrapF(handler.AdminSaveSettings))
 	admin.POST("/settings/channel-models", gin.WrapF(handler.AdminChannelModels))
 	admin.POST("/settings/channel-test", gin.WrapF(handler.AdminTestChannelModel))
+	admin.POST("/publish/douyin/test", gin.WrapF(handler.AdminTestDouyinPublish))
 	admin.POST("/workflow-providers/runninghub/inspect", gin.WrapF(handler.AdminRunningHubInspect))
 	admin.GET("/comfy-bridges", gin.WrapF(handler.AdminComfyBridges))
 	admin.POST("/comfy-bridges", gin.WrapF(handler.AdminComfyBridges))

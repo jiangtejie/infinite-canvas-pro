@@ -83,27 +83,45 @@ test("material connections only wire source to material nodes", () => {
     assert.deepEqual(plan.nodes.map((node) => node.type), [CanvasNodeType.Text, CanvasNodeType.Image, CanvasNodeType.Image]);
 });
 
-test("remix plan adds prompt nodes and full connections", () => {
+test("remix plan fans out one image node per source image", () => {
     const plan = buildSourceMaterialPlan(sourceNode(), { includeRemix: true });
-    assert.equal(plan.nodes.length, 5);
-    assert.equal(plan.connections.length, 7);
+    assert.equal(plan.nodes.length, 6);
+    assert.equal(plan.connections.length, 8);
 
     const remixText = plan.nodes.find((node) => node.id === "source-1-remix-text");
-    const remixImage = plan.nodes.find((node) => node.id === "source-1-remix-image");
+    const remixImages = plan.nodes.filter((node) => node.id.startsWith("source-1-remix-image-"));
     assert.equal(remixText?.metadata?.prompt, SOURCE_REMIX_TEXT_PROMPT);
     assert.equal(remixText?.metadata?.status, "idle");
-    assert.equal(remixImage?.metadata?.prompt, SOURCE_REMIX_IMAGE_PROMPT);
-    assert.equal(remixImage?.metadata?.status, "idle");
+    assert.equal(remixImages.length, 2);
+    assert.deepEqual(remixImages.map((node) => node.title), ["复刻配图 1", "复刻配图 2"]);
+    assert.deepEqual(remixImages.map((node) => node.metadata?.remixIndex), [1, 2]);
+    assert.deepEqual(remixImages.map((node) => node.metadata?.remixSourceId), ["source-1", "source-1"]);
+    for (const image of remixImages) {
+        assert.ok(image.metadata?.prompt?.startsWith(SOURCE_REMIX_IMAGE_PROMPT));
+    }
+    assert.ok(remixImages[0]?.metadata?.prompt?.includes("第 1 张原图"));
+    assert.ok(remixImages[1]?.metadata?.prompt?.includes("第 2 张原图"));
     assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-material-text" && item.toNodeId === "source-1-remix-text"));
     assert.equal(plan.connections.some((item) => item.toNodeId === "source-1-remix-text" && item.fromNodeId !== "source-1-material-text"), false);
-    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-remix-text" && item.toNodeId === "source-1-remix-image"));
-    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-0" && item.toNodeId === "source-1-remix-image"));
+    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-remix-text" && item.toNodeId === "source-1-remix-image-0"));
+    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-remix-text" && item.toNodeId === "source-1-remix-image-1"));
+    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-0" && item.toNodeId === "source-1-remix-image-0"));
+    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-1" && item.toNodeId === "source-1-remix-image-1"));
+    assert.equal(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-0" && item.toNodeId === "source-1-remix-image-1"), false);
+    assert.equal(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-1" && item.toNodeId === "source-1-remix-image-0"), false);
 });
 
 test("remix plan falls back to the cover image and tolerates missing text", () => {
     const plan = buildSourceMaterialPlan(sourceNode({ metadata: { sourceKind: "video", sourceCoverUrl: "/api/files/cover/content", sourceImages: [] } }), { includeRemix: true });
-    assert.deepEqual(plan.nodes.map((node) => node.id), ["source-1-material-image-0", "source-1-remix-text", "source-1-remix-image"]);
+    assert.deepEqual(plan.nodes.map((node) => node.id), ["source-1-material-image-0", "source-1-remix-text", "source-1-remix-image-0"]);
     assert.equal(plan.nodes[0]?.metadata?.content, "/api/files/cover/content");
+    assert.equal(plan.connections.length, 3);
+});
+
+test("text-only source still gets one text-to-image remix node", () => {
+    const plan = buildSourceMaterialPlan(sourceNode({ metadata: { sourceTitle: "标题", sourceText: "正文", sourceImages: [] } }), { includeRemix: true });
+    assert.deepEqual(plan.nodes.map((node) => node.id), ["source-1-material-text", "source-1-remix-text", "source-1-remix-image-0"]);
+    assert.equal(plan.nodes.filter((node) => node.id.startsWith("source-1-remix-image-")).length, 1);
     assert.equal(plan.connections.length, 3);
 });
 

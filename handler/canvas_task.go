@@ -303,6 +303,17 @@ func runCanvasImageTask(task model.CanvasImageTask, user model.AuthUser, body []
 	task.StartedAt = current
 	task, _ = service.SaveCanvasImageTask(task)
 
+	ctx = context.WithValue(ctx, midjourneyTaskIDCallbackKey{}, func(taskID string) {
+		if strings.TrimSpace(taskID) == "" || task.UpstreamTaskID == taskID {
+			return
+		}
+		task.UpstreamTaskID = taskID
+		if saved, err := service.SaveCanvasImageTask(task); err == nil {
+			task = saved
+		} else {
+			log.Printf("canvas image task save upstream ID failed: task=%s err=%v", task.ID, err)
+		}
+	})
 	payload, status, responseContentType, err := executeCanvasAIRequest(ctx, user, task.Endpoint, body, contentType, channelID, userChannelID, func(progress int) {
 		if progress > task.Progress {
 			task.Progress = min(progress, 99)

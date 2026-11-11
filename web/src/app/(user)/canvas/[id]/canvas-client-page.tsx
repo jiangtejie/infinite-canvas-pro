@@ -26,6 +26,7 @@ import { normalizeConnection } from "./lib/canvas-connections";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
 import { buildGenerationConfig } from "./lib/canvas-generation-config";
 import { createCanvasNode } from "./lib/canvas-node-factory";
+import { collectPublishInputs } from "./lib/canvas-publish";
 import { syncAssistantReferences } from "./lib/canvas-assistant-references";
 import { isAudioFile, isHiddenBatchChild } from "./lib/canvas-graph";
 import { useCanvasViewport } from "./hooks/use-canvas-viewport";
@@ -36,6 +37,8 @@ import { useCanvasHistory } from "./hooks/use-canvas-history";
 import { useCanvasClipboard } from "./hooks/use-canvas-clipboard";
 import { useCanvasPointer } from "./hooks/use-canvas-pointer";
 import { useCanvasGeneration } from "./hooks/use-canvas-generation";
+import { useCanvasBatchGeneration } from "./hooks/use-canvas-batch-generation";
+import { collectBatchTargetNodeIds, collectRemixImageNodeIds } from "./lib/canvas-batch";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
@@ -594,8 +597,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const hasMultipleSelectedNodes = selectedNodeIds.size > 1;
     const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
     const contextMenuBusy = contextMenuNode?.metadata?.status === "loading" || contextMenuNode?.metadata?.status === "stopping";
-    const canGenerateFromContextMenu = Boolean(contextMenuNode && !contextMenuBusy && contextMenuNode.type !== CanvasNodeType.Group && contextMenuNode.type !== CanvasNodeType.Director);
-    const canEditFromContextMenu = Boolean(contextMenuNode && contextMenuNode.type !== CanvasNodeType.Group && contextMenuNode.type !== CanvasNodeType.Director);
+    const canGenerateFromContextMenu = Boolean(contextMenuNode && !contextMenuBusy && contextMenuNode.type !== CanvasNodeType.Group && contextMenuNode.type !== CanvasNodeType.Director && contextMenuNode.type !== CanvasNodeType.Publish);
+    const canEditFromContextMenu = Boolean(contextMenuNode && contextMenuNode.type !== CanvasNodeType.Group && contextMenuNode.type !== CanvasNodeType.Director && contextMenuNode.type !== CanvasNodeType.Publish);
     const contextMenuGenerateLabel = contextMenuNode?.metadata?.status === "error" || contextMenuNode?.metadata?.status === "stopped" ? "重新生成" : contextMenuNode?.type === CanvasNodeType.Text ? "用文本生图" : "生成";
     const batchChildCountById = useMemo(() => {
         const map = new Map<string, number>();
@@ -647,6 +650,14 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         nodes.forEach((node) => {
             if (node.type !== CanvasNodeType.Config) return;
             map.set(node.id, buildNodeGenerationInputs(node.id, nodes, connections));
+        });
+        return map;
+    }, [connections, nodes]);
+    const publishInputsById = useMemo(() => {
+        const map = new Map<string, ReturnType<typeof collectPublishInputs>>();
+        nodes.forEach((node) => {
+            if (node.type !== CanvasNodeType.Publish) return;
+            map.set(node.id, collectPublishInputs(node.id, nodes, connections));
         });
         return map;
     }, [connections, nodes]);
@@ -867,6 +878,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 ...source.metadata,
                 clientTaskId: undefined,
                 taskBackend: undefined,
+                ...(source.type === CanvasNodeType.Publish ? { publishRecord: undefined, publishStatus: "idle" as const, publishError: undefined } : {}),
                 ...(source.metadata.status === "stopping" || source.metadata.status === "stopped"
                     ? { status: source.metadata.content ? NODE_STATUS_SUCCESS : "idle" as const, errorDetails: undefined }
                     : {}),
@@ -1605,6 +1617,43 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         cancelPendingHistoryCommit,
     });
 
+    const { batchState, startBatch, stopBatch } = useCanvasBatchGeneration({
+        nodesRef,
+        connectionsRef,
+        effectiveConfig,
+        isAiConfigReady,
+        openConfigDialog,
+        selectMany,
+        handleGenerateNode,
+        handleStopNode,
+        message,
+    });
+
+    const remixImageNodeIdsBySourceId = useMemo(() => {
+        const map = new Map<string, string[]>();
+        nodes.forEach((node) => {
+            if (node.type !== CanvasNodeType.Source) return;
+            map.set(node.id, collectRemixImageNodeIds(nodes, node.id));
+        });
+        return map;
+    }, [nodes]);
+
+    const batchTargetCount = useMemo(() => collectBatchTargetNodeIds(nodes, selectedNodeIds).length, [nodes, selectedNodeIds]);
+
+    const handleBatchGenerateSelected = useCallback(() => {
+        const ids = collectBatchTargetNodeIds(nodesRef.current, selectedNodeIdsRef.current);
+        void startBatch(ids);
+    }, [selectedNodeIdsRef, startBatch]);
+
+    const handleGenerateAllSourceRemix = useCallback((sourceId: string) => {
+        const ids = collectRemixImageNodeIds(nodesRef.current, sourceId);
+        void startBatch(ids, { label: "生成全部复刻配图" });
+    }, [startBatch]);
+
+    const handleStopBatch = useCallback(() => {
+        void stopBatch();
+    }, [stopBatch]);
+
     const handleFontSizeChange = useCallback((nodeId: string, fontSize: number) => {
         setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, fontSize } } : node)));
     }, []);
@@ -1825,7 +1874,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             referenceConnectedNodeIds, dialogNodeId, selectionBox, batchChildCountById,
             groupChildCountById, dropTargetGroupId, collapsingBatchIds, openingBatchIds,
             batchMotionById, showImageInfo, mentionReferencesByNodeId, canvasNow,
-            configInputsById, handleConfigNodeChange, closeOverlay, runningNodeId,
+            configInputsById, publishInputsById, handleConfigNodeChange, closeOverlay, runningNodeId,
             connectedNodesByNodeId, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId, handleNodePromptChange,
             handleRetryNode, handleGenerateNode, handleStopNode, disconnectNodeReference,
             startNodeReferenceSelection, setNodeImageSettingsOpen, openOverlay, togglePromptOverlay,
@@ -1858,6 +1907,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
                 else message.success(`已清理 ${result.removed || 0} 个素材节点`);
             },
+            remixImageNodeIdsBySourceId,
+            onGenerateAllSourceRemix: handleGenerateAllSourceRemix,
+            batchGenerating: batchState.running,
             projectLoaded, exitNodeReferenceSelection,
         },
         overlays: {
@@ -1880,6 +1932,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             contextMenuGenerateLabel, captureVideoNodeFrame, runNodeGenerate, duplicateNode,
             deleteConnection, pendingPanoramaImport, finishPanoramaImport, imageInputRef,
             handleImageInputChange,
+            batchState, canBatchGenerate: batchTargetCount > 0,
+            onBatchGenerate: handleBatchGenerateSelected, onStopBatch: handleStopBatch,
         },
         dialogs: {
             handleAssetInsert, currentProject, setDeleteProjectConfirmOpen, setClearConfirmOpen,

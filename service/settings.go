@@ -23,6 +23,14 @@ import (
 
 var adminModelHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
+const adminModelTestResponseLimit = 8 << 20
+
+// readAdminModelTestBody 限制后台模型测试返回大小，避免上游异常返回超大 base64 拖垮进程/浏览器。
+func readAdminModelTestBody(body io.Reader) []byte {
+	data, _ := io.ReadAll(io.LimitReader(body, adminModelTestResponseLimit))
+	return data
+}
+
 func PublicSettings() (model.PublicSetting, error) {
 	settings, err := repository.GetSettings()
 	settings = normalizeSettings(settings)
@@ -31,12 +39,38 @@ func PublicSettings() (model.PublicSetting, error) {
 		settings.Public.ModelChannel.AvailableModels = enabledChannelModels(settings.Private.Channels)
 	}
 	settings.Public.Content.SourceParseEnabled = privateSourceParseEnabled(settings.Private.Content)
+	settings.Public.Publish = publicPublishSetting(settings.Private.Publish)
 	return settings.Public, err
 }
 
 // privateSourceParseEnabled 内容解析默认开启；只有管理员显式关闭才返回 false。
 func privateSourceParseEnabled(setting model.PrivateContentSetting) bool {
 	return setting.SourceParseEnabled == nil || *setting.SourceParseEnabled
+}
+
+// PublishSetting 返回当前发布私有配置（已归一化）。
+func PublishSetting() model.PrivatePublishSetting {
+	settings, err := repository.GetSettings()
+	if err != nil {
+		return normalizePrivatePublishSetting(model.PrivatePublishSetting{})
+	}
+	return normalizePrivatePublishSetting(settings.Private.Publish)
+}
+
+func publicPublishSetting(setting model.PrivatePublishSetting) model.PublicPublishSetting {
+	normalized := normalizePrivatePublishSetting(setting)
+	return model.PublicPublishSetting{
+		Configured:    strings.TrimSpace(normalized.DouyinClientKey) != "" && strings.TrimSpace(normalized.DouyinClientSecret) != "",
+		Mock:          normalized.DouyinMock,
+		PublicBaseURL: normalized.PublicBaseURL,
+	}
+}
+
+func normalizePrivatePublishSetting(setting model.PrivatePublishSetting) model.PrivatePublishSetting {
+	setting.PublicBaseURL = strings.TrimRight(strings.TrimSpace(setting.PublicBaseURL), "/")
+	setting.DouyinClientKey = strings.TrimSpace(setting.DouyinClientKey)
+	setting.DouyinClientSecret = strings.TrimSpace(setting.DouyinClientSecret)
+	return setting
 }
 
 // SourceParseEnabled 返回当前是否允许调用外部内容解析。
@@ -71,6 +105,7 @@ func SaveSettings(settings model.Settings) (model.Settings, error) {
 	keepPrivateAPIKeys(&settings, normalizeSettings(saved))
 	keepPrivateStorageSecrets(&settings, normalizeSettings(saved))
 	keepPrivatePaymentSecrets(&settings, normalizeSettings(saved))
+	keepPrivatePublishSecrets(&settings, normalizeSettings(saved))
 	for _, channel := range settings.Private.Channels {
 		if _, err := ParameterTranslationModels(channel.ParameterTranslation); err != nil {
 			return model.Settings{}, fmt.Errorf("渠道 %s：%w", channel.Name, err)
@@ -285,6 +320,7 @@ func normalizePrivateSetting(setting model.PrivateSetting) model.PrivateSetting 
 	setting.AILog = normalizeAILogSetting(setting.AILog)
 	setting.Storage = normalizePrivateStorageSetting(setting.Storage)
 	setting.Payment = normalizePaymentSetting(setting.Payment)
+	setting.Publish = normalizePrivatePublishSetting(setting.Publish)
 	if setting.Content.SourceParseEnabled == nil {
 		enabled := true
 		setting.Content.SourceParseEnabled = &enabled
@@ -361,6 +397,7 @@ func hidePrivateAPIKeys(settings model.Settings) model.Settings {
 	}
 	settings.Private.Payment.LXPayAppSecret = ""
 	settings.Private.Payment.LXPayAPIV3Key = ""
+	settings.Private.Publish.DouyinClientSecret = ""
 	return settings
 }
 
@@ -645,7 +682,7 @@ func fetchOpenAIAdminChannelModels(channel model.ModelChannel) ([]string, error)
 		return nil, safeMessageError{message: "读取模型失败：上游接口无响应或网络不可达"}
 	}
 	defer response.Body.Close()
-	body, _ := io.ReadAll(response.Body)
+	body := readAdminModelTestBody(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
 		if response.StatusCode == http.StatusNotFound && isArkAgentPlanChannel(channel) {
 			return nil, safeMessageError{message: "火山方舟 Agent Plan 未提供 OpenAI /models 模型列表接口，请手动填写模型名称，例如 doubao-seedance-2.0。"}
@@ -823,7 +860,7 @@ func testOpenAIChannelModel(channel model.ModelChannel, modelName string) (strin
 		return "", safeMessageError{message: "测试失败：上游接口无响应或网络不可达"}
 	}
 	defer response.Body.Close()
-	responseBody, _ := io.ReadAll(response.Body)
+	responseBody := readAdminModelTestBody(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
 		return "", readAdminChannelError(responseBody, response.StatusCode, "测试失败")
 	}
@@ -858,7 +895,7 @@ func fetchGeminiAdminChannelModels(channel model.ModelChannel) ([]string, error)
 		if err != nil {
 			return nil, safeMessageError{message: "读取模型失败：上游接口无响应或网络不可达"}
 		}
-		body, _ := io.ReadAll(response.Body)
+		body := readAdminModelTestBody(response.Body)
 		response.Body.Close()
 		if response.StatusCode >= http.StatusBadRequest {
 			return nil, readAdminChannelError(body, response.StatusCode, "读取模型失败")
@@ -919,7 +956,7 @@ func testGeminiChannelModel(channel model.ModelChannel, modelName string) (strin
 		return "", safeMessageError{message: "测试失败：上游接口无响应或网络不可达"}
 	}
 	defer response.Body.Close()
-	responseBody, _ := io.ReadAll(response.Body)
+	responseBody := readAdminModelTestBody(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
 		return "", readAdminChannelError(responseBody, response.StatusCode, "测试失败")
 	}
@@ -948,7 +985,7 @@ func testGLMTTSChannelModel(channel model.ModelChannel, modelName string) (strin
 		return "", safeMessageError{message: "测试失败：上游接口无响应或网络不可达"}
 	}
 	defer response.Body.Close()
-	responseBody, _ := io.ReadAll(response.Body)
+	responseBody := readAdminModelTestBody(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
 		return "", readAdminChannelError(responseBody, response.StatusCode, "测试失败")
 	}
@@ -981,7 +1018,7 @@ func testMiMoTTSChannelModel(channel model.ModelChannel, modelName string) (stri
 		return "", safeMessageError{message: "测试失败：上游接口无响应或网络不可达"}
 	}
 	defer response.Body.Close()
-	responseBody, _ := io.ReadAll(response.Body)
+	responseBody := readAdminModelTestBody(response.Body)
 	if response.StatusCode >= http.StatusBadRequest {
 		return "", readAdminChannelError(responseBody, response.StatusCode, "测试失败")
 	}
@@ -1053,6 +1090,12 @@ func (err safeMessageError) Error() string {
 
 func (err safeMessageError) SafeMessage() string {
 	return err.message
+}
+
+func keepPrivatePublishSecrets(settings *model.Settings, saved model.Settings) {
+	if strings.TrimSpace(settings.Private.Publish.DouyinClientSecret) == "" {
+		settings.Private.Publish.DouyinClientSecret = saved.Private.Publish.DouyinClientSecret
+	}
 }
 
 func keepPrivatePaymentSecrets(settings *model.Settings, saved model.Settings) {

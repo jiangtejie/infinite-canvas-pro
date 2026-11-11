@@ -45,6 +45,13 @@ import type { useCanvasTaskSystem } from "./use-canvas-task-system";
 
 type CanvasGenerationTaskSystem = ReturnType<typeof useCanvasTaskSystem>;
 
+export type CanvasGenerateNodeOptions = {
+    /** 批量队列后台生成：跳过选中节点、打开面板等交互副作用。 */
+    background?: boolean;
+    /** 覆盖本次生成的图片数量，批量队列固定按 1 张执行，避免全局 count 导致一张节点出多图。 */
+    countOverride?: string;
+};
+
 type CanvasGenerationMessage = {
     error: (content: string) => void;
     warning: (content: string) => void;
@@ -380,7 +387,8 @@ export function useCanvasGeneration({
     );
 
     const handleGenerateNode = useCallback(
-        async (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => {
+        async (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string, options?: CanvasGenerateNodeOptions) => {
+            const background = options?.background === true;
             const sourceNode = nodesRef.current.find((node) => node.id === nodeId);
             const generationConfig = buildGenerationConfig(effectiveConfig, sourceNode, mode);
             const workflowRef = mode === "text" ? undefined : sourceNode?.metadata?.workflowRef;
@@ -460,7 +468,7 @@ export function useCanvasGeneration({
                     const panoramaPrompt = buildPanoramaPrompt(effectivePrompt, referenceImages.length > 0);
                     const panoramaRequestPrompt = appendImageNegativePrompt(panoramaPrompt, imageNegativePrompt);
                     const panoramaGenerationConfig = { ...generationConfig, size: PANORAMA_IMAGE_SIZE };
-                    const count = getGenerationCount(panoramaGenerationConfig.count);
+                    const count = getGenerationCount(options?.countOverride ?? panoramaGenerationConfig.count);
                     const isEmptyPanoramaNode = !sourceNode?.metadata?.content;
                     const panoramaNodeConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Panorama];
                     const parentPosition = sourceNode?.position || { x: 0, y: 0 };
@@ -536,7 +544,7 @@ export function useCanvasGeneration({
                                         position: rootNode.position,
                                         width: rootNode.width,
                                         height: rootNode.height,
-                                        title: rootNode.title,
+                                        title: background ? node.title : rootNode.title,
                                         metadata: { ...node.metadata, ...rootNode.metadata, errorDetails: undefined },
                                     }
                                     : { ...node, metadata: { ...node.metadata, status: NODE_STATUS_SUCCESS, errorDetails: undefined } }
@@ -546,9 +554,11 @@ export function useCanvasGeneration({
                         ...childNodes,
                     ]);
                     setConnections((prev) => [...prev, ...batchConnections]);
-                    selectOnly(nodeId);
-                    setSelectedConnectionId(null);
-                    openOverlay({ kind: "prompt", nodeId });
+                    if (!background) {
+                        selectOnly(nodeId);
+                        setSelectedConnectionId(null);
+                        openOverlay({ kind: "prompt", nodeId });
+                    }
 
                     const taskResults = await Promise.all(
                         targetIds.map(async (targetId) => {
@@ -609,7 +619,7 @@ export function useCanvasGeneration({
                 }
 
                 if (mode === "image") {
-                    const count = !workflowRef && isKIESeedreamLayerDecompositionModel(generationConfig.model) ? 1 : getGenerationCount(generationConfig.count);
+                    const count = !workflowRef && isKIESeedreamLayerDecompositionModel(generationConfig.model) ? 1 : getGenerationCount(options?.countOverride ?? generationConfig.count);
                     const isConfigNode = sourceNode?.type === CanvasNodeType.Config;
                     const isImageNode = sourceNode?.type === CanvasNodeType.Image;
                     const isEmptyImageNode = isImageNode && (overwriteExisting || !sourceNode?.metadata?.content);
@@ -714,7 +724,7 @@ export function useCanvasGeneration({
                                             position: overwriteExisting ? node.position : rootNode.position,
                                             width: overwriteExisting ? node.width : rootNode.width,
                                             height: overwriteExisting ? node.height : rootNode.height,
-                                            title: rootNode.title,
+                                            title: background ? node.title : rootNode.title,
                                             metadata: { ...node.metadata, ...rootNode.metadata, ...(overwriteExisting ? { content: undefined, storageKey: "", imageTaskResultId: undefined, taskBackend: undefined, durationMs: undefined } : {}), errorDetails: undefined },
                                         }
                                         : isImageNode
@@ -740,9 +750,11 @@ export function useCanvasGeneration({
                         }),
                     ]);
                     setConnections((prev) => [...prev, ...batchConnections]);
-                    selectOnly(nodeId);
-                    setSelectedConnectionId(null);
-                    openOverlay({ kind: "prompt", nodeId });
+                    if (!background) {
+                        selectOnly(nodeId);
+                        setSelectedConnectionId(null);
+                        openOverlay({ kind: "prompt", nodeId });
+                    }
 
                     const taskResults = await Promise.all(
                         targetIds.map(async (targetId) => {

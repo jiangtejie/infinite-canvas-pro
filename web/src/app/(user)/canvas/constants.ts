@@ -19,6 +19,7 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Director]: { width: 360, height: 320, title: "导演台" },
     [CanvasNodeType.Group]: { width: 760, height: 480, title: "组" },
     [CanvasNodeType.Source]: { width: 420, height: 300, title: "素材源" },
+    [CanvasNodeType.Publish]: { width: 380, height: 280, title: "发布" },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
@@ -57,6 +58,10 @@ export const NODE_SPECS = {
     [CanvasNodeType.Source]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Source],
         metadata: { sourcePlatform: "douyin", sourceStatus: "idle", sourceInput: "" },
+    },
+    [CanvasNodeType.Publish]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.Publish],
+        metadata: { status: "idle", publishStatus: "idle" },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;
 

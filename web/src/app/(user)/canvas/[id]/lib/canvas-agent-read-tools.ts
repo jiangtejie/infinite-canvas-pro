@@ -23,7 +23,7 @@ export function queryAgentCanvasNodes({ nodes, nodeId = "", keyword = "", type =
         if (type && node.type !== type) return false;
         if (!normalizedKeyword) return true;
         const content = isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio ? "" : node.metadata?.content || "";
-        const sourceText = node.type === CanvasNodeType.Source ? `${node.metadata?.sourceText || ""} ${(node.metadata?.sourceTags || []).join(" ")}` : "";
+        const sourceText = node.type === CanvasNodeType.Source ? `${node.metadata?.sourceText || ""} ${(node.metadata?.sourceTags || []).join(" ")}` : node.type === CanvasNodeType.Publish ? `${node.metadata?.publishDraft?.title || ""} ${node.metadata?.publishDraft?.body || ""} ${(node.metadata?.publishDraft?.tags || []).join(" ")}` : "";
         return `${node.title} ${content} ${node.metadata?.prompt || ""} ${sourceText}`.toLowerCase().includes(normalizedKeyword);
     });
     return {

@@ -8,17 +8,23 @@ export function canvasAgentNodeSummary(node: CanvasNodeData) {
     const content = node.metadata?.content || "";
     const isText = node.type === CanvasNodeType.Text;
     const isSource = node.type === CanvasNodeType.Source;
+    const isPublish = node.type === CanvasNodeType.Publish;
     const sourceText = (node.metadata?.sourceText || "").trim();
     const sourceTags = (node.metadata?.sourceTags || []).map((tag) => "#" + tag).join(" ");
-    const text = isText ? content.slice(0, 4000) : isSource ? (sourceText + (sourceTags ? "\n" + sourceTags : "")).slice(0, 4000) : undefined;
+    const publishDraft = node.metadata?.publishDraft;
+    const publishText = [publishDraft?.title, publishDraft?.body, (publishDraft?.tags || []).map((tag) => "#" + tag).join(" ")]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join("\n");
+    const text = isText ? content.slice(0, 4000) : isSource ? (sourceText + (sourceTags ? "\n" + sourceTags : "")).slice(0, 4000) : isPublish ? publishText.slice(0, 4000) : undefined;
     return {
         id: node.id,
         type: node.type,
         title: node.title,
         text,
-        mediaUrl: !isText && !isSource && content && !content.startsWith("data:") ? content : undefined,
-        hasMedia: !isText ? Boolean(content) : undefined,
-        status: isSource ? node.metadata?.sourceStatus || "idle" : node.metadata?.status || "idle",
+        mediaUrl: !isText && !isSource && !isPublish && content && !content.startsWith("data:") ? content : undefined,
+        hasMedia: !isText && !isPublish ? Boolean(content) : undefined,
+        status: isSource ? node.metadata?.sourceStatus || "idle" : publishDisplayStatus(node),
         prompt: node.metadata?.prompt?.slice(0, 4000),
         model: node.metadata?.model,
         size: node.metadata?.size,
@@ -26,9 +32,16 @@ export function canvasAgentNodeSummary(node: CanvasNodeData) {
         generateAudio: node.metadata?.generateAudio,
         taskId: canvasRecoverableTaskId(node) || undefined,
         progress: node.metadata?.progress,
-        error: isSource ? node.metadata?.sourceError : node.metadata?.errorDetails,
+        error: isSource ? node.metadata?.sourceError : isPublish ? node.metadata?.publishError : node.metadata?.errorDetails,
         groupId: node.metadata?.groupId,
     };
+}
+
+function publishDisplayStatus(node: CanvasNodeData) {
+    if (node.type !== CanvasNodeType.Publish) return node.metadata?.status || "idle";
+    if (node.metadata?.publishStatus === "generating") return "loading";
+    if (node.metadata?.publishStatus === "error") return "error";
+    return node.metadata?.publishRecord ? "success" : "idle";
 }
 
 export function canvasAgentTaskSummary(node: CanvasNodeData) {

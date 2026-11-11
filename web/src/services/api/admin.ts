@@ -254,6 +254,11 @@ export type AdminPublicSettings = {
     content?: {
         sourceParseEnabled?: boolean;
     };
+    publish?: {
+        configured?: boolean;
+        mock?: boolean;
+        publicBaseUrl?: string;
+    };
 };
 
 export type AdminStorageProvider = {
@@ -319,6 +324,12 @@ export type AdminPrivateSettings = {
     content: {
         sourceParseEnabled: boolean;
     };
+    publish: {
+        publicBaseUrl: string;
+        douyinClientKey: string;
+        douyinClientSecret: string;
+        douyinMock: boolean;
+    };
 };
 
 export type AdminAICallLog = {
@@ -378,6 +389,17 @@ export async function fetchChannelModels(token: string, payload: AdminChannelAct
 
 export async function testChannelModel(token: string, payload: AdminChannelActionRequest) {
     return apiPost<string>("/api/admin/settings/channel-test", payload, token);
+}
+
+export type DouyinPublishTestResult = {
+    ok: boolean;
+    mock: boolean;
+    ticketExpiresIn: number;
+    tokenExpiresIn: number;
+};
+
+export async function testAdminDouyinPublish(token: string, payload: { clientKey?: string; clientSecret?: string; mock?: boolean }) {
+    return apiPost<DouyinPublishTestResult>("/api/admin/publish/douyin/test", payload, token);
 }
 
 export type StorageCapacityResult = {

@@ -8,7 +8,7 @@ import { tokenDanceRecoveryMessage } from "../protocols/tokendance";
 import { ReferenceImage } from "@/types/image";
 import { nanoid } from "nanoid";
 
-import { fetchErrorDetail, readAxiosError, requestWithTransientRetry, stringifyLogPayload, summarizeFormData, summarizeGeneratedImages, withSystemMessage, withTimeout, writeLocalAICallLog } from "./client";
+import { fetchErrorDetail, imageRequestRetries, readAxiosError, requestWithTransientRetry, stringifyLogPayload, summarizeFormData, summarizeGeneratedImages, withSystemMessage, withTimeout, writeLocalAICallLog } from "./client";
 import { IMAGE_MIME, IMAGE_REQUEST_TIMEOUT_SECONDS, applyAgnesImageSize, applyImageGenerationOptions, applyImageGenerationParams, assertImageReferencesSupported, createChatImageBody, createGeminiImageBody, createGrokImageEditBody, createImageRequestParams, createResponsesImageTool, createResponsesInput, imageTranslationInput, isAgnesImageModel, isGrok2APIImageConfig, isZhipuImageModel, publicHttpUrl, withPromptGuard, withSystemPrompt } from "./payload";
 import { isEventStreamResponse, parseChatImagesPayload, parseGeminiImages, parseImagePayload, parseImagesStreamResponse, parseResponsesPayload, parseResponsesStreamResponse, readJsonServerSentEvents } from "./stream";
 import { ImageRequestError } from "./types";
@@ -42,8 +42,7 @@ async function requestImageGenerationSingle(config: SeedableImageConfig, prompt:
                             body: JSON.stringify(body),
                             signal,
                         }),
-                    ),
-                ),
+                    ), imageRequestRetries(config)),
             async (response) => {
                 if (config.streamImages && isEventStreamResponse(response)) {
                     const images = await parseImagesStreamResponse(response, mime, params.signal);
@@ -83,8 +82,7 @@ async function requestImageGenerationSingle(config: SeedableImageConfig, prompt:
                         body: JSON.stringify(body),
                         signal,
                     }),
-                ),
-            ),
+                ), imageRequestRetries(config)),
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime, params.signal);
@@ -113,8 +111,7 @@ async function requestGrokImageEditSingle(config: AiConfig, prompt: string, refe
                         body: JSON.stringify(body),
                         signal,
                     }),
-                ),
-            ),
+                ), imageRequestRetries(config)),
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime, params.signal);
@@ -189,8 +186,7 @@ async function requestImageEditSingle(config: AiConfig, prompt: string, referenc
                         body: formData,
                         signal,
                     }),
-                ),
-            ),
+                ), imageRequestRetries(config)),
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime, params.signal);
@@ -226,8 +222,7 @@ async function requestResponsesSingle(config: AiConfig, prompt: string, inputIma
                         body: JSON.stringify(body),
                         signal,
                     }),
-                ),
-            ),
+                ), imageRequestRetries(config)),
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseResponsesStreamResponse(response, mime, params.signal);
@@ -251,7 +246,7 @@ async function requestChatImagesSingle(config: AiConfig, prompt: string, inputIm
             headers: aiHeaders(config, "application/json"),
             body: JSON.stringify(body),
             signal,
-        }))),
+        })), imageRequestRetries(config)),
         async (response) => {
             const payload = await response.json() as ChatImagesApiResponse;
             return { images: parseChatImagesPayload(payload), responseBody: stringifyLogPayload(payload) };
@@ -401,7 +396,7 @@ async function requestGeminiImageSingle(config: AiConfig, prompt: string, refere
         () => requestWithTransientRetry(() => withTimeout(params.timeoutSeconds, params.signal, (signal) => fetch(
             proxy ? `/api/v1${references.length ? "/images/edits" : "/images/generations"}` : geminiActionUrl(channel?.baseUrl || config.baseUrl, config.model, "generateContent"),
             { method: "POST", headers: proxy ? aiHeaders(config, "application/json") : geminiDirectHeaders(config), body: JSON.stringify(nativeBody), signal },
-        ))),
+        )), imageRequestRetries(config)),
         async (response) => {
             const payload = await response.json() as Record<string, unknown>;
             const images = parseGeminiImages(payload);
@@ -502,8 +497,7 @@ async function requestAgnesImageEdit(config: SeedableImageConfig, prompt: string
                         body: JSON.stringify(body),
                         signal,
                     }),
-                ),
-            ),
+                ), imageRequestRetries(config)),
         async (response) => {
             if (config.streamImages && isEventStreamResponse(response)) {
                 const images = await parseImagesStreamResponse(response, mime, params.signal);

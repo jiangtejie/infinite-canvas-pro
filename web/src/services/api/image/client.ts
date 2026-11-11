@@ -1,5 +1,5 @@
 import axios from "axios";
-import { localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
+import { channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { usesAccountProxy } from "../ai-request";
 
@@ -47,6 +47,20 @@ export async function withTimeout<T>(timeoutSeconds: number, externalSignal: Abo
     }
 }
 
+const MIDJOURNEY_MODEL_HINTS = ["midjourney", "mj-imagine", "mj_imagine"];
+
+/** Midjourney 提交不是幂等操作：协议或模型命中时禁止前端重试，后端 X-Midjourney-No-Retry 头作为双保险。 */
+export function isMidjourneyImageConfig(config: AiConfig) {
+    if ((channelProtocolForConfig(config) || "").trim().toLowerCase() === "midjourney") return true;
+    const model = (config.model || "").trim().toLowerCase();
+    return MIDJOURNEY_MODEL_HINTS.some((hint) => model.includes(hint));
+}
+
+/** 图片请求重试次数：Midjourney 传 0 关闭前端重试，其余渠道沿用默认值。 */
+export function imageRequestRetries(config: AiConfig) {
+    return isMidjourneyImageConfig(config) ? 0 : undefined;
+}
+
 function isTransientStatus(status: number) {
     return status === 429 || status === 502 || status === 503 || status === 504;
 }
@@ -60,6 +74,8 @@ export async function requestWithTransientRetry(run: () => Promise<Response>, re
     for (let attempt = 0; attempt <= retries; attempt += 1) {
         try {
             const response = await run();
+            // Midjourney 提交不是幂等操作；后端标记后禁止前端重试整个 POST。
+            if (response.headers.get("X-Midjourney-No-Retry") === "1") return response;
             if (!isTransientStatus(response.status) || attempt === retries) return response;
             lastError = new Error(`上游接口临时不可用：${response.status}`);
         } catch (error) {

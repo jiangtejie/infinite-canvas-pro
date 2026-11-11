@@ -22,8 +22,9 @@ export const emptySettings: AdminSettings = {
         auth: { allowRegister: true },
         storage: { mode: "local_indexeddb", allowUserProvider: false },
         content: { sourceParseEnabled: true },
+        publish: { configured: false, mock: false, publicBaseUrl: "" },
     },
-    private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, payment: { lxPayServerUrl: "", lxPayAppId: "", lxPayAppSecret: "", lxPayNotifyUrl: "", lxPayApiV3Key: "", lxPayPlatformCertPath: "", lxPayTimeoutMs: 10000, lxPayMaxRetries: 3, orderMinutes: 15 }, content: { sourceParseEnabled: true }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, autoSyncAllAssets: false, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
+    private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, payment: { lxPayServerUrl: "", lxPayAppId: "", lxPayAppSecret: "", lxPayNotifyUrl: "", lxPayApiV3Key: "", lxPayPlatformCertPath: "", lxPayTimeoutMs: 10000, lxPayMaxRetries: 3, orderMinutes: 15 }, content: { sourceParseEnabled: true }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, autoSyncAllAssets: false, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 }, publish: { publicBaseUrl: "", douyinClientKey: "", douyinClientSecret: "", douyinMock: false } },
 };
 export const emptyChannel: AdminModelChannel = { id: "", protocol: "openai", name: "", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [], weight: 1, timeout: 600, enabled: true, remark: "" };
 export const emptyS3StorageProvider: AdminStorageProvider = { id: "", name: "", type: "s3", endpoint: "", region: "auto", bucket: "", accessKeyId: "", secretAccessKey: "", publicBaseUrl: "", pathPrefix: "canvas", username: "", password: "", weight: 1, enabled: true, ownerUserId: "", capacityBytes: 0, capacityCheckedAt: "", capacityExceeded: false };
@@ -70,6 +71,11 @@ export function normalizePublicSetting(setting: Partial<AdminSettings["public"]>
         },
         content: {
             sourceParseEnabled: setting.content?.sourceParseEnabled !== false,
+        },
+        publish: {
+            configured: setting.publish?.configured === true,
+            mock: setting.publish?.mock === true,
+            publicBaseUrl: setting.publish?.publicBaseUrl || "",
         },
     };
 }
@@ -119,6 +125,12 @@ export function normalizePrivateSetting(setting: Partial<AdminSettings["private"
                 cron: setting.storage?.capacityCheck?.cron || "0 */6 * * *",
             },
             capacityLimitBytes: Number(setting.storage?.capacityLimitBytes) || 9 * 1024 * 1024 * 1024,
+        },
+        publish: {
+            publicBaseUrl: setting.publish?.publicBaseUrl || "",
+            douyinClientKey: setting.publish?.douyinClientKey || "",
+            douyinClientSecret: setting.publish?.douyinClientSecret || "",
+            douyinMock: setting.publish?.douyinMock === true,
         },
     };
 }

@@ -396,7 +396,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         event.stopPropagation();
                         return;
                     }
-                    if (data.type === CanvasNodeType.Source) {
+                    if (data.type === CanvasNodeType.Source || data.type === CanvasNodeType.Publish) {
                         event.preventDefault();
                         event.stopPropagation();
                         onOpenPanel?.(data);
@@ -479,18 +479,18 @@ export const CanvasNode = React.memo(function CanvasNode({
             {!referenceSelectionState && !isGroup ? (
                 <>
                     {data.type !== CanvasNodeType.Source ? <ConnectionHandleDot side="left" visible={hovered || isSelected || isConnecting} prominent={isSelected} label="连入：拖拽到上游节点，或按 Enter 后 Tab 选择节点" onPointerDown={(event) => onConnectStart(event, data.id, "target")} onActivate={() => onKeyboardConnect(data.id, "target")} /> : null}
-                    <ConnectionHandleDot side="right" visible={data.type !== CanvasNodeType.Config && (hovered || isSelected || isConnecting)} prominent={isSelected} label="连出：拖拽到目标节点，或按 Enter 后 Tab 选择目标连接点" onPointerDown={(event) => onConnectStart(event, data.id, "source")} onActivate={() => onKeyboardConnect(data.id, "source")} />
+                    {data.type !== CanvasNodeType.Publish ? <ConnectionHandleDot side="right" visible={data.type !== CanvasNodeType.Config && (hovered || isSelected || isConnecting)} prominent={isSelected} label="连出：拖拽到目标节点，或按 Enter 后 Tab 选择目标连接点" onPointerDown={(event) => onConnectStart(event, data.id, "source")} onActivate={() => onKeyboardConnect(data.id, "source")} /> : null}
                 </>
             ) : null}
 
-            {!referenceSelectionState && showPanel && !isGroup && renderPanel ? <div className={"absolute left-1/2 top-full z-[70] max-w-[calc(100vw-24px)] -translate-x-1/2 pt-4 " + (data.type === CanvasNodeType.Source ? "w-[620px]" : isCanvasImageNodeType(data.type) || data.type === CanvasNodeType.Video || data.type === CanvasNodeType.Audio ? "w-[682px]" : "w-[500px]")} style={{ transform: "scale(var(--canvas-inverse-scale))", transformOrigin: "top center" }}>{renderPanel(data)}</div> : null}
+            {!referenceSelectionState && showPanel && !isGroup && renderPanel ? <div className={"absolute left-1/2 top-full z-[70] max-w-[calc(100vw-24px)] -translate-x-1/2 pt-4 " + (data.type === CanvasNodeType.Source || data.type === CanvasNodeType.Publish ? "w-[620px]" : isCanvasImageNodeType(data.type) || data.type === CanvasNodeType.Video || data.type === CanvasNodeType.Audio ? "w-[682px]" : "w-[500px]")} style={{ transform: "scale(var(--canvas-inverse-scale))", transformOrigin: "top center" }}>{renderPanel(data)}</div> : null}
         </div>
     );
 });
 
 function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Group) return null;
-    if ((props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director || props.node.type === CanvasNodeType.Source) && props.renderNodeContent) return props.renderNodeContent(props.node);
+    if ((props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director || props.node.type === CanvasNodeType.Source || props.node.type === CanvasNodeType.Publish) && props.renderNodeContent) return props.renderNodeContent(props.node);
     if (props.isBatchRoot) return props.node.type === CanvasNodeType.Panorama ? <PanoramaNodeContent {...props} /> : <ImageNodeContent {...props} />;
     if (props.node.metadata?.status === "stopped") return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: props.theme.node.muted }}>
@@ -514,6 +514,7 @@ const nodeContentRenderers = {
     [CanvasNodeType.Audio]: AudioNodeContent,
     [CanvasNodeType.Director]: EmptyImageContent,
     [CanvasNodeType.Source]: EmptyImageContent,
+    [CanvasNodeType.Publish]: EmptyImageContent,
 } satisfies Partial<Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>>;
 
 function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "node" | "theme" | "now">) {

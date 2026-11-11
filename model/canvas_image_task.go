@@ -21,6 +21,7 @@ type CanvasImageTask struct {
 	ContentType     string   `json:"contentType"`
 	RequestBody     string   `json:"requestBody"`
 	ResponseBody    string   `json:"responseBody"`
+	UpstreamTaskID  string   `json:"upstreamTaskId,omitempty"`
 	Error           string   `json:"error"`
 	ErrorDetail     string   `json:"errorDetail"`
 	ImageURL        string   `json:"imageUrl"`

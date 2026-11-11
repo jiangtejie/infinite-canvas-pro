@@ -112,6 +112,7 @@ func DB() (*gorm.DB, error) {
 			&model.RechargePackage{},
 			&model.RechargeOrder{},
 			&model.InvoiceRequest{},
+			&model.PublishRecord{},
 		)
 	})
 	return db, dbErr
