@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowDown, ArrowUp, ChevronDown, CircleAlert, LoaderCircle, Plus, Send, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Heart, LoaderCircle, MessageCircle, Plus, Send, Share2, X } from "lucide-react";
 import { App, Button, Input, Modal, QRCode, Select, Tag, theme as antdTheme } from "antd";
 
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
@@ -58,6 +58,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
     const [confirming, setConfirming] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
     const [addImagesOpen, setAddImagesOpen] = useState(false);
+    const [previewIndex, setPreviewIndex] = useState(0);
     const [publishedUrl, setPublishedUrl] = useState(node.metadata?.publishRecord?.publishedUrl || "");
     const [now, setNow] = useState(Date.now());
     const uploadCacheRef = useRef(new Map<string, PublishMedia>());
@@ -80,6 +81,9 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
     const selectedImages = selectedImageIds.map((nodeId) => imageByNodeId.get(nodeId)!);
     const unselectedImages = inputs.images.filter((item) => !selectedImageIds.includes(item.nodeId));
     const orderedImages = selectedImages.slice(0, PUBLISH_MAX_IMAGES);
+    const selectedImageKey = selectedImageIds.join("|");
+    const safePreviewIndex = selectedImages.length ? Math.min(previewIndex, selectedImages.length - 1) : 0;
+    const previewImage = selectedImages[safePreviewIndex];
     const channel = channels?.channels.find((item) => item.id === "douyin-h5") || channels?.channels[0];
     const channelReady = Boolean(channel?.available);
     const unavailableText = channelsError || (channels && !channelReady ? publishChannelReasonText(channel?.reason) : "");
@@ -115,6 +119,10 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
         const timer = window.setInterval(() => setNow(Date.now()), 30_000);
         return () => window.clearInterval(timer);
     }, [qrExpiresAt]);
+
+    useEffect(() => {
+        setPreviewIndex(0);
+    }, [selectedImageKey]);
 
     const updateDraft = (patch: Partial<{ title: string; body: string; tags: string[]; imageNodeIds: string[] }>) => {
         onChange({
@@ -221,7 +229,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
     return (
         <div
             data-canvas-no-zoom
-            className="thin-scrollbar max-h-[min(72vh,640px)] overflow-y-auto rounded-2xl border p-3 shadow-2xl backdrop-blur"
+            className="thin-scrollbar relative left-1/2 max-h-[min(76vh,680px)] w-[min(760px,calc(100vw-24px))] -translate-x-1/2 overflow-y-auto rounded-2xl border p-3 shadow-2xl backdrop-blur"
             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onMouseDown={stopPointer}
             onPointerDown={stopPointer}
@@ -246,8 +254,53 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                 </div>
             ) : null}
 
-            <div className="mt-2 space-y-2 rounded-xl border p-2.5" style={sectionStyle}>
-                <div className="text-xs font-semibold">发布内容</div>
+            <div className="mt-2 grid gap-2 md:grid-cols-[240px_minmax(0,1fr)]">
+                <div className="order-2 min-w-0 md:order-1">
+                    <div className="rounded-[26px] border p-2" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
+                        <div className="overflow-hidden rounded-[18px]" style={{ background: theme.canvas.background }}>
+                            <div className="flex items-center justify-between px-3 pb-1 pt-2 text-[10px]" style={{ color: theme.node.placeholder }}>
+                                <span>抖音图文预览</span>
+                                <span>{selectedImages.length ? `${safePreviewIndex + 1}/${selectedImages.length}` : "0/0"}</span>
+                            </div>
+                            <div className="relative mx-2 aspect-[3/4] overflow-hidden rounded-lg" style={{ background: theme.toolbar.activeBg }}>
+                                {previewImage ? (
+                                    <img src={previewImage.image.dataUrl} alt={previewImage.title} draggable={false} className="size-full object-cover" />
+                                ) : (
+                                    <div className="flex size-full items-center justify-center px-4 text-center text-[11px]" style={{ color: theme.node.placeholder }}>暂无发布图片</div>
+                                )}
+                                {selectedImages.length > 1 ? (
+                                    <>
+                                        <button type="button" className="absolute left-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full opacity-80 transition hover:opacity-100" style={{ background: theme.toolbar.panel, color: theme.node.text }} aria-label="上一张预览图" onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => setPreviewIndex((safePreviewIndex - 1 + selectedImages.length) % selectedImages.length)}>
+                                            <ChevronLeft className="size-4" />
+                                        </button>
+                                        <button type="button" className="absolute right-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full opacity-80 transition hover:opacity-100" style={{ background: theme.toolbar.panel, color: theme.node.text }} aria-label="下一张预览图" onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => setPreviewIndex((safePreviewIndex + 1) % selectedImages.length)}>
+                                            <ChevronRight className="size-4" />
+                                        </button>
+                                        <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{safePreviewIndex + 1}/{selectedImages.length}</span>
+                                    </>
+                                ) : null}
+                            </div>
+                            <div className="px-2 pb-2 pt-1.5">
+                                <div className="line-clamp-2 text-xs font-semibold leading-5" style={{ color: theme.node.text }}>{draftTitle || "未填写标题"}</div>
+                                <p className="m-0 mt-0.5 line-clamp-3 text-[10px] leading-4" style={{ color: theme.node.muted }}>{draftBody || "未填写正文"}</p>
+                                {draftTags.length ? <p className="m-0 mt-1 line-clamp-1 text-[10px]" style={{ color: token.colorLink }}>{draftTags.map((tag) => `#${tag}`).join(" ")}</p> : null}
+                                <div className="mt-1.5 flex items-center justify-between border-t pt-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.placeholder }}>
+                                    {[{ icon: Heart, label: "赞" }, { icon: MessageCircle, label: "评论" }, { icon: Bookmark, label: "收藏" }, { icon: Share2, label: "分享" }].map(({ icon: Icon, label }) => (
+                                        <span key={label} className="inline-flex items-center gap-0.5 text-[10px]">
+                                            <Icon className="size-3" />
+                                            {label}
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="m-0 mt-1 text-center text-[9px] leading-3" style={{ color: theme.node.placeholder }}>仅预览，实际以抖音编辑页为准</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="order-1 min-w-0 space-y-2 md:order-2">
+                    <div className="space-y-2 rounded-xl border p-2.5" style={sectionStyle}>
+                        <div className="text-xs font-semibold">发布内容</div>
                 <Input size="small" value={draftTitle} maxLength={PUBLISH_TITLE_LIMIT} showCount disabled={locked} placeholder="发布标题（不超过 20 个字）" style={inputStyle} onChange={(event) => updateDraft({ title: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />
                 <Input.TextArea rows={3} value={draftBody} maxLength={1000} showCount disabled={locked} placeholder="发布正文" style={inputStyle} onChange={(event) => updateDraft({ body: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />
                 <Select
@@ -314,7 +367,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                 </div>
             </div>
 
-            <div className="mt-2 rounded-xl border p-2.5" style={sectionStyle}>
+            <div className="rounded-xl border p-2.5" style={sectionStyle}>
                 <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold">扫码发布</span>
                     {record && !expired && record.status !== "confirmed" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>有效期至 {formatPublishDeadline(record.expiresAt)}</span> : null}
@@ -401,6 +454,8 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                         </div>
                     </div>
                 )}
+            </div>
+                </div>
             </div>
 
             <Modal open={qrOpen} onCancel={() => setQrOpen(false)} footer={null} centered width={520} title="抖音扫码发布" destroyOnHidden>

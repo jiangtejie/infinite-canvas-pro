@@ -5,13 +5,13 @@ import { QRCode, Tag, theme as antdTheme } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { isPublishDraftDirty, publishQrExpired } from "../[id]/lib/canvas-publish";
+import { isPublishDraftDirty, publishQrExpired, PUBLISH_MAX_IMAGES, type CanvasPublishInputImage } from "../[id]/lib/canvas-publish";
 import type { CanvasNodeData } from "../types";
 
 /**
  * 发布节点卡片：展示发布标题、已选图片数、二维码与发布状态，点击或双击打开面板由外层处理。
  */
-export function CanvasPublishNodeCard({ node, imageCount, onOpen }: { node: CanvasNodeData; textCount: number; imageCount: number; onOpen: () => void }) {
+export function CanvasPublishNodeCard({ node, imageCount, images = [], onOpen }: { node: CanvasNodeData; textCount: number; imageCount: number; images?: CanvasPublishInputImage[]; onOpen: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const record = node.metadata?.publishRecord;
@@ -20,6 +20,10 @@ export function CanvasPublishNodeCard({ node, imageCount, onOpen }: { node: Canv
     const expired = publishQrExpired(record);
     const draftDirty = isPublishDraftDirty(record, node.metadata?.publishDraft, node.metadata?.publishDraftSnapshot);
     const draftTitle = node.metadata?.publishDraft?.title?.trim() || "";
+    const draftBody = node.metadata?.publishDraft?.body?.trim() || "";
+    const imageByNodeId = new Map(images.map((item) => [item.nodeId, item]));
+    const draftImageNodeIds = node.metadata?.publishDraft?.imageNodeIds;
+    const selectedImages = (draftImageNodeIds ? draftImageNodeIds.map((nodeId) => imageByNodeId.get(nodeId)).filter((item): item is CanvasPublishInputImage => Boolean(item)) : images).slice(0, PUBLISH_MAX_IMAGES);
     const selectedImageCount = node.metadata?.publishDraft?.imageNodeIds?.length ?? imageCount;
     const imageSummary = selectedImageCount > 0 ? `已选 ${selectedImageCount} 张图片` : `共 ${imageCount} 张图片`;
     const actionStyle = { background: theme.toolbar.itemHover, borderColor: theme.node.stroke, color: theme.node.text };
@@ -53,14 +57,29 @@ export function CanvasPublishNodeCard({ node, imageCount, onOpen }: { node: Canv
     }
 
     if (!record) {
+        const firstImage = selectedImages[0];
         return (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
-                <div className="flex size-12 items-center justify-center rounded-2xl" style={{ background: theme.toolbar.activeBg, color: theme.node.muted }}>
-                    <Send className="size-5" />
+            <div className="flex h-full w-full flex-col gap-2 p-3 text-left" style={{ color: theme.node.text }}>
+                <div className="flex min-h-0 flex-1 gap-2.5">
+                    <div className="h-[104px] w-[78px] shrink-0 overflow-hidden rounded-lg" style={{ background: theme.toolbar.activeBg }}>
+                        {firstImage ? (
+                            <img src={firstImage.image.dataUrl} alt={firstImage.title} draggable={false} className="size-full object-cover" />
+                        ) : (
+                            <span className="grid size-full place-items-center" style={{ color: theme.node.muted }}>
+                                <Send className="size-5" />
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <div className="line-clamp-2 text-sm font-semibold leading-5">{draftTitle || "编辑发布内容并生成二维码"}</div>
+                        <p className="m-0 mt-1 line-clamp-2 text-[11px] leading-4" style={{ color: theme.node.muted }}>{draftBody || "点开面板填写标题、正文并选择发布图片"}</p>
+                        <span className="mt-auto text-[11px]" style={{ color: theme.node.placeholder }}>已选 {selectedImages.length} 张图片</span>
+                    </div>
                 </div>
-                <p className="m-0 text-sm font-medium" style={{ color: theme.node.text }}>编辑发布内容并生成二维码</p>
-                <p className="m-0 text-[11px] leading-5" style={{ color: theme.node.placeholder }}>点开面板填写标题、正文并选择发布图片</p>
-                {openButton}
+                <div className="mt-auto flex items-center justify-between gap-2">
+                    <span className="truncate text-[11px]" style={{ color: theme.node.placeholder }}>图文预览，点开面板可生成二维码</span>
+                    {openButton}
+                </div>
             </div>
         );
     }

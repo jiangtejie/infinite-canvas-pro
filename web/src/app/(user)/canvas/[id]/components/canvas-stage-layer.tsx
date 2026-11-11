@@ -375,6 +375,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         node={contentNode}
                                         textCount={publishInputsById.get(contentNode.id)?.textNodeIds.length || 0}
                                         imageCount={publishInputsById.get(contentNode.id)?.images.length || 0}
+                                        images={publishInputsById.get(contentNode.id)?.images || []}
                                         onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
                                     />
                                 ) : (
