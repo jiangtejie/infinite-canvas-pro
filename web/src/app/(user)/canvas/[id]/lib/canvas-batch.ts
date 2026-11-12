@@ -3,6 +3,7 @@ import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 
 const REMIX_IMAGE_SUFFIX = "-remix-image-";
 const REMIX_TEXT_SUFFIX = "-remix-text";
+const REMIX_PLAN_SUFFIX = "-remix-plan";
 
 /** 可作为批量生成目标的图片节点：图片/全景图；批量组根节点只代表一组结果，不参与批量。 */
 export function isBatchTargetImageNode(node: CanvasNodeData) {
@@ -50,6 +51,13 @@ export function countSourceRemixImages(nodes: CanvasNodeData[], sourceId: string
 export function findSourceRemixTextNode(nodes: CanvasNodeData[], sourceId: string) {
     if (!sourceId) return undefined;
     const id = `${sourceId}${REMIX_TEXT_SUFFIX}`;
+    return nodes.find((node) => node.id === id && node.type === CanvasNodeType.Text);
+}
+
+/** 一键复刻的策划节点：读新文案与全部原图，产出整组共同设定与逐张配图提示词。 */
+export function findSourceRemixPlanNode(nodes: CanvasNodeData[], sourceId: string) {
+    if (!sourceId) return undefined;
+    const id = `${sourceId}${REMIX_PLAN_SUFFIX}`;
     return nodes.find((node) => node.id === id && node.type === CanvasNodeType.Text);
 }
 

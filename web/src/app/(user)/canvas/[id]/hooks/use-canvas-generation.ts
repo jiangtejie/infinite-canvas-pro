@@ -53,6 +53,8 @@ export type CanvasGenerateNodeOptions = {
     countOverride?: string;
     /** 强制原地覆盖已有内容，供复刻文案「重新生成」等内部流程使用。 */
     overwrite?: boolean;
+    /** 文本生成结果直接回传：nodesRef 在 useLayoutEffect 才同步，调用方 await 后立刻读会拿到旧值。 */
+    onText?: (text: string) => void;
 };
 
 type CanvasGenerationMessage = {
@@ -935,6 +937,7 @@ export function useCanvasGeneration({
                                     : node,
                     ) : prev,
                 );
+                options?.onText?.(answerByNodeId.get(nodeId) || streamed);
             } catch (error) {
                 if (submittedTask && !isNodeTaskActive(submittedTask.nodeId, submittedTask.id)) return;
                 const errorDetails = toErrorMessage(error, "生成失败");

@@ -13,12 +13,14 @@ export type CanvasSourceRemixTextStatus = "missing" | "idle" | "generating" | "s
 
 export type CanvasSourceRemixFlow = {
     textStatus: CanvasSourceRemixTextStatus;
+    planStatus: CanvasSourceRemixTextStatus;
     imageCount: number;
     readyImageCount: number;
     failedCount: number;
     publishNodeId?: string;
     busy: boolean;
     onGenerateText: () => void;
+    onGeneratePlan: () => void;
     onGenerateImages: () => void;
     onRetryFailedImages: () => void;
     onCreatePublishNode: () => void;
@@ -200,20 +202,36 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
                                     {remixFlow.textStatus === "missing" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>先点「一键复刻」生成文案节点</span> : null}
                                 </>
                             ))}
-                            {remixStep(theme, "2", "配图", (
+                            {remixStep(theme, "2", "策划", (
                                 <>
-                                    <Button size="small" type="primary" loading={remixFlow.busy && remixFlow.textStatus === "success"} disabled={remixFlow.textStatus !== "success" || remixFlow.busy || remixFlow.imageCount === 0} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGenerateImages}>
+                                    <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: remixTextStatusColor(remixFlow.planStatus, theme.node.placeholder) }}>
+                                        {remixFlow.planStatus === "generating" ? <LoaderCircle className="size-3 animate-spin" /> : null}
+                                        {remixTextStatusLabel(remixFlow.planStatus)}
+                                    </span>
+                                    <Button size="small" type={remixFlow.planStatus === "success" || remixFlow.planStatus === "error" ? "default" : "primary"} loading={remixFlow.planStatus === "generating"} disabled={remixFlow.textStatus !== "success" || remixFlow.planStatus === "generating" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGeneratePlan}>
+                                        {remixFlow.planStatus === "success" || remixFlow.planStatus === "error" ? "重新生成策划" : "生成复刻策划"}
+                                    </Button>
+                                    {remixFlow.textStatus !== "success" ? (
+                                        <span className="text-[11px]" style={{ color: theme.node.placeholder }}>需先生成复刻文案</span>
+                                    ) : remixFlow.planStatus === "success" ? (
+                                        <span className="text-[11px]" style={{ color: theme.node.placeholder }}>已按整组图写入 {remixFlow.imageCount} 张配图提示词</span>
+                                    ) : null}
+                                </>
+                            ))}
+                            {remixStep(theme, "3", "配图", (
+                                <>
+                                    <Button size="small" type="primary" loading={remixFlow.busy && remixFlow.planStatus === "success"} disabled={remixFlow.planStatus !== "success" || remixFlow.busy || remixFlow.imageCount === 0} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGenerateImages}>
                                         生成全部复刻配图（{remixFlow.imageCount} 张）
                                     </Button>
                                     {remixFlow.failedCount > 0 ? (
-                                        <Button size="small" danger disabled={remixFlow.textStatus !== "success" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onRetryFailedImages}>
+                                        <Button size="small" danger disabled={remixFlow.planStatus !== "success" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onRetryFailedImages}>
                                             重试失败配图（{remixFlow.failedCount} 张）
                                         </Button>
                                     ) : null}
-                                    {remixFlow.textStatus !== "success" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>需先生成复刻文案</span> : null}
+                                    {remixFlow.planStatus !== "success" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>需先生成复刻策划</span> : null}
                                 </>
                             ))}
-                            {remixStep(theme, "3", "发布", remixFlow.publishNodeId ? (
+                            {remixStep(theme, "4", "发布", remixFlow.publishNodeId ? (
                                 <Button size="small" disabled={remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onOpenPublishNode}>
                                     打开发布节点
                                 </Button>

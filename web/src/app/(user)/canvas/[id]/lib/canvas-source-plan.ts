@@ -10,8 +10,18 @@ export type CanvasSourcePlan = {
 export const SOURCE_REMIX_TEXT_PROMPT =
     "参考上游原文，写一篇同结构、同传播逻辑但完全原创的图文文案。要求：保留开头钩子和情绪节奏，换掉具体例子与措辞；标题不超过20字；正文口语化、短句；话题3-5个且不带#；不要照抄原句，不要写联系方式或绝对化用语。";
 
-export const SOURCE_REMIX_IMAGE_PROMPT =
-    "参考这张原图的画面构图、色调和图文排版风格，生成一张新的配图。要求：主体和场景可以替换，但构图、视觉重心、文字区位置和整体风格保持一致；画面清晰，适合图文发布。";
+export const SOURCE_REMIX_PLAN_PROMPT = `你要为一组图文做复刻策划。上游是新文案；如果附有图片，那是这组图的原始配图，按原图顺序排列，第 1 张对应 images[0]。先把整组图当成一个整体读懂，再逐张产出新配图提示词。
+
+第一步，判断整组图的关系：同一界面的连续截图、步骤递进、前后对比、并列清单还是总分结构。据此定下叙事顺序和每张图的职责（钩子 / 展开 / 结果）。
+
+第二步，提取必须跨图完全一致的视觉锚点：界面或场景类型、同一主体的外观（头像、昵称、名称、配色、字体、圆角、状态栏、气泡或卡片样式）、版式网格、文字区位置、色调与光线。这些是整组图的身份，任何一张改了整组就散。
+
+第三步，逐张提取并重写图内文字。图内文字是这类图的信息主体：标题、对话气泡、步骤编号、标注、按钮文案都要重写，服务于新文案，并且跨图连贯——同一段对话的多次截图必须接得上，步骤编号必须连续，不能各写各的。文字要短、字号大、位置明确，不要长段落，生图模型渲染不好密集中文。
+
+只输出 JSON，不要解释，不要 markdown 代码块：
+{"shared":"整组共同设定，150字以内，写清视觉锚点与统一风格","images":["第1张提示词","第2张提示词"]}
+
+images 条数必须与原图张数完全一致。每条只写本张的差异：承担的职责、画面内容、图内文字的确切内容与位置，不要重复 shared 已有的设定。参考图只用于版式与风格，画面内容按新文案替换，不要照抄原图文字。`;
 
 const MATERIAL_GAP = 96;
 const MATERIAL_TEXT_SIZE = NODE_DEFAULT_SIZE[CanvasNodeType.Text];
@@ -110,14 +120,28 @@ export function buildSourceMaterialPlan(source: CanvasNodeData, options?: { incl
         height: MATERIAL_TEXT_SIZE.height,
         metadata: { prompt: SOURCE_REMIX_TEXT_PROMPT, status: "idle" },
     });
-    // 复刻文案默认只引用原文：多数文本模型不读图，连图会直接报错。
-    // 需要参考画面时，用户可以手动把素材图连到复刻文案节点（文本模型需支持读图）。
+    // 复刻文案只引用原文：多数文本模型不读图，连图会直接报错；读整组图交给策划节点。
     if (materialText) connections.push(connection(materialTextId, remixTextId));
+
+    // 策划读新文案 + 全部原图，产出整组共同设定与逐张提示词，配图提示词由它写入。
+    const remixPlanId = `${source.id}-remix-plan`;
+    const remixPlanPosition = { x: remixTextPosition.x + MATERIAL_TEXT_SIZE.width + MATERIAL_GAP, y: source.position.y };
+    nodes.push({
+        id: remixPlanId,
+        type: CanvasNodeType.Text,
+        title: "复刻策划",
+        position: remixPlanPosition,
+        width: MATERIAL_TEXT_SIZE.width,
+        height: MATERIAL_TEXT_SIZE.height,
+        metadata: { prompt: SOURCE_REMIX_PLAN_PROMPT, status: "idle" },
+    });
+    connections.push(connection(remixTextId, remixPlanId));
+    for (const materialImageId of materialImageIds) connections.push(connection(materialImageId, remixPlanId));
 
     // 一张原图对应一张复刻图：不要把多张原图全塞给一个图片节点当参考，
     // 否则生成结果和原图顺序对不上，也无法逐张替换/发布。
     const remixImageCount = materialImageIds.length || 1;
-    const remixImagesX = remixTextPosition.x + MATERIAL_TEXT_SIZE.width + MATERIAL_GAP;
+    const remixImagesX = remixPlanPosition.x + MATERIAL_TEXT_SIZE.width + MATERIAL_GAP;
     for (let index = 0; index < remixImageCount; index++) {
         const remixImageId = `${source.id}-remix-image-${index}`;
         const column = index % REMIX_IMAGE_COLUMNS;
@@ -136,7 +160,7 @@ export function buildSourceMaterialPlan(source: CanvasNodeData, options?: { incl
             width: nodeSize.width,
             height: nodeSize.height,
             metadata: {
-                prompt: remixImagePrompt(index, materialImageIds.length),
+                prompt: "",
                 status: "idle",
                 remixIndex: index + 1,
                 remixSourceId: source.id,
@@ -151,11 +175,6 @@ export function buildSourceMaterialPlan(source: CanvasNodeData, options?: { incl
     }
 
     return { nodes, connections, sourcePatch };
-}
-
-function remixImagePrompt(index: number, total: number) {
-    if (total <= 0) return SOURCE_REMIX_IMAGE_PROMPT;
-    return `${SOURCE_REMIX_IMAGE_PROMPT}\n\n本张参考第 ${index + 1} 张原图（共 ${total} 张）：保持它的构图、视觉重心和画面风格，主体/场景/文案信息按复刻要求替换，避免和其他原图的画面内容混在一起。`;
 }
 
 function buildMaterialText(source: CanvasNodeData) {
