@@ -95,3 +95,5 @@
 - 未登录时画布项目和“我的素材”保存在浏览器本地；登录且账号同步可用时会同步保存到账号/云端，文档中不要忽略未登录本地保存场景。
 - 当前 AI API Key 存在浏览器本地，并由前端直接请求 OpenAI 兼容接口；涉及安全说明时要写清楚。
 - Docker 静态资源路径目前仍是待办项，文档中不要过度承诺生产部署已经完全验证。
+- 内置浏览器面板没打开时主页面 `innerWidth` 为 0、`visibilityState` 为 hidden，截图与真实鼠标 hover 不可用。需要真实布局数据时，在页面里注入同源、显式宽高的 iframe 探针（`f.src = location.origin + 路径`），读 `contentDocument` 的 `getBoundingClientRect` / `getComputedStyle`，改 iframe 宽度即可覆盖多档断点，用完移除。探针与真实页面同源、共享 localStorage 与 IndexedDB，不要用它往用户数据里造测试记录。
+- 隐藏帧里 `matchMedia` 的 `matches` 会随视口翻转但 `change` 事件不派发，rAF 暂停，React 连续事件（pointerover / pointermove 等）被严重延迟。因此 hover 时序、断点变化、定时器与轮播计时、rAF 聚焦这几类改动只能按代码与依赖源码核实，必须在 `docs/progress/pending-test.md` 标注「未实测」，不要写成已验证。点击、keydown、pointerdown 等离散事件会同步刷新，可以正常断言；派发合成 PointerEvent 时必须带 `pointerType: "mouse"`，否则会被 `event.pointerType === "mouse"` 的处理器忽略。
