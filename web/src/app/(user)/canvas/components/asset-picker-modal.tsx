@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { App, Button, Input, Modal, Pagination, Spin, Tabs, Tag } from "antd";
-import { ImagePlus, Plus, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button, Input, Modal, Pagination, Spin, Tabs, Tag } from "antd";
+import { Plus, Search } from "lucide-react";
 
+import { AssetFormModal } from "@/components/assets/asset-form-modal";
+import { ASSET_KIND_OPTIONS, assetKindLabel } from "@/components/assets/asset-browser";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
-import { EmptyState } from "@/components/ui/state-panel";
-import { useAssetStore, type Asset } from "@/stores/use-asset-store";
-import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
-import { uploadAssetMediaFile } from "@/services/file-storage";
-import { uploadImage } from "@/services/image-storage";
-import type { InsertAssetPayload } from "../types";
+import { EmptyState, ErrorState } from "@/components/ui/state-panel";
 import { errorMessage } from "@/lib/utils";
+import type { AssetKind } from "@/stores/use-asset-store";
+import { assetInsertPayload, libraryInsertPayload, useLibraryAssetBrowser, useMyAssetBrowser } from "../lib/canvas-asset-query";
+import type { InsertAssetPayload } from "../types";
 
 export type { InsertAssetPayload } from "../types";
 
@@ -48,14 +47,6 @@ export function AssetPickerModal({ open, defaultTab = "my-assets", onInsert, onC
 
 const PAGE_SIZE = 8;
 
-const kindOptions = [
-    { label: "全部", value: "all" },
-    { label: "文本", value: "text" },
-    { label: "图片", value: "image" },
-    { label: "视频", value: "video" },
-    { label: "音频", value: "audio" },
-];
-
 function AssetFilters({ categories, tags, category, selectedTags, onCategoryChange, onTagsChange }: { categories: string[]; tags: string[]; category: string; selectedTags: string[]; onCategoryChange: (value: string) => void; onTagsChange: (values: string[]) => void }) {
     return (
         <div className="grid gap-3">
@@ -75,44 +66,20 @@ function AssetFilters({ categories, tags, category, selectedTags, onCategoryChan
     );
 }
 
+function KindFilter({ kind, onChange }: { kind: string; onChange: (value: string) => void }) {
+    return (
+        <FilterTagGroup
+            inline
+            className="min-h-6 items-center"
+            options={ASSET_KIND_OPTIONS}
+            isSelected={(value) => (kind || "all") === value}
+            onSelect={(value) => onChange(value === "all" ? "" : value)}
+        />
+    );
+}
+
 function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => void }) {
-    const { message } = App.useApp();
-    const [keyword, setKeyword] = useState("");
-    const [kindFilter, setKindFilter] = useState("");
-    const [category, setCategory] = useState("");
-    const [selectedTags, setSelectedTags] = useState<string[]>([]);
-    const [page, setPage] = useState(1);
-    const [inserting, setInserting] = useState<string | null>(null);
-
-    const query = useQuery({
-        queryKey: ["asset-picker-library", keyword, kindFilter, category, selectedTags, page],
-        queryFn: () => fetchAssetLibrary({ keyword, type: kindFilter, category, tag: selectedTags, page, pageSize: PAGE_SIZE }),
-        retry: false,
-    });
-
-    const items = query.data?.items || [];
-    const total = query.data?.total || 0;
-    const categories = query.data?.categories || [];
-    const tags = query.data?.tags || [];
-
-    const handleInsert = async (asset: AssetLibraryItem) => {
-        try {
-            setInserting(asset.id);
-            if (asset.type === "text") {
-                onInsert({ kind: "text", content: asset.content, title: asset.title, source: "library" });
-            } else if (asset.type === "video") {
-                onInsert({ kind: "video", url: asset.url, title: asset.title, source: "library" });
-            } else if (asset.type === "audio") {
-                onInsert({ kind: "audio", url: asset.url, title: asset.title, source: "library" });
-            } else {
-                onInsert({ kind: "image", dataUrl: asset.url, title: asset.title, source: "library" });
-            }
-        } catch {
-            message.error("插入失败");
-        } finally {
-            setInserting(null);
-        }
-    };
+    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, query, items, categories, availableTags, total } = useLibraryAssetBrowser(PAGE_SIZE, "asset-picker-library");
 
     return (
         <div className="space-y-4">
@@ -124,42 +91,26 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
                     placeholder="搜索素材"
                     value={keyword}
                     allowClear
-                    onChange={(e) => {
-                        setPage(1);
-                        setKeyword(e.target.value);
-                    }}
+                    onChange={(event) => setKeyword(event.target.value)}
                 />
-                <FilterTagGroup
-                    inline
-                    className="min-h-6 items-center"
-                    options={[
-                        { label: "全部", value: "" },
-                        { label: "文本", value: "text" },
-                        { label: "图片", value: "image" },
-                        { label: "视频", value: "video" },
-                        { label: "音频", value: "audio" },
-                    ]}
-                    isSelected={(value) => kindFilter === value}
-                    onSelect={(value) => {
-                        setPage(1);
-                        setKindFilter(value);
-                    }}
-                />
+                <KindFilter kind={kind} onChange={setKind} />
             </div>
-            <AssetFilters categories={categories} tags={tags} category={category} selectedTags={selectedTags} onCategoryChange={(value) => { setPage(1); setCategory(value); }} onTagsChange={(values) => { setPage(1); setSelectedTags(values); }} />
+            <AssetFilters categories={categories} tags={availableTags} category={category} selectedTags={tags} onCategoryChange={setCategory} onTagsChange={setTags} />
 
             {query.isLoading ? (
                 <div className="flex justify-center py-16">
                     <Spin />
                 </div>
+            ) : query.isError ? (
+                <ErrorState className="py-12" description={errorMessage(query.error, "获取素材库失败，请稍后重试。")} onRetry={() => void query.refetch()} />
             ) : items.length ? (
                 <div className="grid grid-cols-4 gap-3">
                     {items.map((asset) => (
-                        <PickerCard key={asset.id} title={asset.title} kind={asset.type} cover={asset.coverUrl} loading={inserting === asset.id} onClick={() => void handleInsert(asset)} />
+                        <PickerCard key={asset.id} title={asset.title} kind={asset.type} cover={asset.coverUrl} onClick={() => onInsert(libraryInsertPayload(asset))} />
                     ))}
                 </div>
             ) : (
-                <EmptyState className="py-12" title="没有素材" description="调整筛选条件或先新增素材。" />
+                <EmptyState className="py-12" title="没有素材" description="调整筛选条件或联系管理员补充素材库。" />
             )}
 
             {total > PAGE_SIZE && (
@@ -171,13 +122,12 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
     );
 }
 
-function PickerCard({ title, kind, cover, loading, onClick }: { title: string; kind: string; cover: string; loading?: boolean; onClick: () => void }) {
+function PickerCard({ title, kind, cover, onClick }: { title: string; kind: AssetKind; cover: string; onClick: () => void }) {
     return (
         <button
             type="button"
             className="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-card text-left transition hover:border-foreground/40 hover:shadow-md"
             onClick={onClick}
-            disabled={loading}
         >
             {cover ? (
                 <img loading="lazy" decoding="async" src={cover} alt={title} className="aspect-[4/3] w-full object-cover" />
@@ -187,148 +137,17 @@ function PickerCard({ title, kind, cover, loading, onClick }: { title: string; k
             <div className="p-2.5">
                 <div className="flex items-center justify-between gap-2">
                     <span className="line-clamp-1 text-xs font-medium text-foreground">{title}</span>
-                    <Tag className="m-0 shrink-0 text-[10px]">{kind === "image" ? "图片" : kind === "video" ? "视频" : kind === "audio" ? "音频" : "文本"}</Tag>
+                    <Tag className="m-0 shrink-0 text-[10px]">{assetKindLabel(kind)}</Tag>
                 </div>
             </div>
-            {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-                    <Spin size="small" />
-                </div>
-            )}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 text-sm font-medium text-white opacity-0 transition group-hover:bg-black/55 group-hover:opacity-100">插入</div>
         </button>
     );
 }
 
 function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => void }) {
-    const { message } = App.useApp();
-    const assets = useAssetStore((state) => state.assets);
-    const addAsset = useAssetStore((state) => state.addAsset);
-    const [keyword, setKeyword] = useState("");
-    const [kindFilter, setKindFilter] = useState("all");
-    const [category, setCategory] = useState("");
-    const [selectedTags, setSelectedTags] = useState<string[]>([]);
-    const [page, setPage] = useState(1);
+    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, categories, availableTags, items, total } = useMyAssetBrowser(PAGE_SIZE);
     const [createOpen, setCreateOpen] = useState(false);
-    const [createKind, setCreateKind] = useState<"text" | "image" | "video" | "audio">("image");
-    const [createTitle, setCreateTitle] = useState("");
-    const [createText, setCreateText] = useState("");
-    const [createUrl, setCreateUrl] = useState("");
-    const [saving, setSaving] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-    const categories = useMemo(() => Array.from(new Set(assets.flatMap((asset) => asset.category ? [asset.category] : []))), [assets]);
-    const tags = useMemo(() => Array.from(new Set(assets.flatMap((asset) => asset.tags || []))), [assets]);
-
-    const filtered = useMemo(() => {
-        const query = keyword.trim().toLowerCase();
-        return assets
-            .filter((a) => a.kind === "text" || a.kind === "image" || a.kind === "video" || a.kind === "audio")
-            .filter((a) => kindFilter === "all" || a.kind === kindFilter)
-            .filter((a) => !category || a.category === category)
-            .filter((a) => !selectedTags.length || selectedTags.some((tag) => (a.tags || []).includes(tag)))
-            .filter((a) => !query || [a.title, ...(a.tags || [])].join(" ").toLowerCase().includes(query));
-    }, [assets, keyword, kindFilter, category, selectedTags]);
-
-    const visible = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
-
-    useEffect(() => {
-        const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-        setPage((v) => Math.min(v, maxPage));
-    }, [filtered.length]);
-
-    const handleInsert = (asset: Asset) => {
-        if (asset.kind === "text") {
-            onInsert({ kind: "text", content: asset.data.content, title: asset.title, assetId: asset.id, source: "asset" });
-        } else {
-            onInsert(
-                asset.kind === "video"
-                    ? { kind: "video", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, width: asset.data.width, height: asset.data.height, bytes: asset.data.bytes, mimeType: asset.data.mimeType, source: "asset" }
-                    : asset.kind === "audio"
-                      ? { kind: "audio", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, bytes: asset.data.bytes, mimeType: asset.data.mimeType, durationMs: asset.data.durationMs, source: "asset" }
-                      : { kind: "image", dataUrl: asset.data.dataUrl, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, width: asset.data.width, height: asset.data.height, bytes: asset.data.bytes, mimeType: asset.data.mimeType, source: "asset" },
-            );
-        }
-    };
-
-    const resetCreateForm = () => {
-        setCreateTitle("");
-        setCreateText("");
-        setCreateUrl("");
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-    };
-
-    const createAsset = async () => {
-        const title = createTitle.trim();
-        if (!title) {
-            message.error("请输入素材名称");
-            return;
-        }
-        setSaving(true);
-        try {
-            if (createKind === "text") {
-                const content = createText.trim();
-                if (!content) {
-                    message.error("请输入文本内容");
-                    return;
-                }
-                addAsset({ kind: "text", title, coverUrl: "", tags: [], source: "素材选择器", data: { content } });
-            } else if (createKind === "image") {
-                if (!selectedFile && !createUrl.trim()) {
-                    message.error("请选择图片或填写图片 URL");
-                    return;
-                }
-                const stored = selectedFile ? await uploadImage(selectedFile) : null;
-                addAsset({
-                    kind: "image",
-                    title,
-                    coverUrl: stored?.url || createUrl.trim(),
-                    tags: [],
-                    source: "素材选择器",
-                    data: stored ? { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType } : { dataUrl: createUrl.trim(), width: 0, height: 0, bytes: 0, mimeType: "image/*" },
-                });
-            } else if (createKind === "video") {
-                if (!selectedFile && !createUrl.trim()) {
-                    message.error("请选择视频或填写视频 URL");
-                    return;
-                }
-                const stored = selectedFile ? await uploadAssetMediaFile(selectedFile, "asset-video") : null;
-                addAsset({
-                    kind: "video",
-                    title,
-                    coverUrl: "",
-                    tags: [],
-                    source: "素材选择器",
-                    data: stored
-                        ? { url: stored.url, storageKey: stored.storageKey, width: stored.width || 0, height: stored.height || 0, bytes: stored.bytes, mimeType: stored.mimeType }
-                        : { url: createUrl.trim(), width: 0, height: 0, bytes: 0, mimeType: "video/mp4" },
-                });
-            } else {
-                if (!selectedFile && !createUrl.trim()) {
-                    message.error("请选择音频或填写音频 URL");
-                    return;
-                }
-                const stored = selectedFile ? await uploadAssetMediaFile(selectedFile, "asset-audio") : null;
-                addAsset({
-                    kind: "audio",
-                    title,
-                    coverUrl: "",
-                    tags: [],
-                    source: "素材选择器",
-                    data: stored ? { url: stored.url, storageKey: stored.storageKey, bytes: stored.bytes, mimeType: stored.mimeType, durationMs: stored.durationMs } : { url: createUrl.trim(), mimeType: "audio/mpeg" },
-                });
-            }
-            message.success("素材已新增");
-            setCreateOpen(false);
-            resetCreateForm();
-        } catch (error) {
-            message.error(errorMessage(error, "新增素材失败"));
-        } finally {
-            setSaving(false);
-        }
-    };
 
     return (
         <div className="space-y-4">
@@ -340,79 +159,37 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                     placeholder="搜索素材"
                     value={keyword}
                     allowClear
-                    onChange={(e) => {
-                        setPage(1);
-                        setKeyword(e.target.value);
-                    }}
+                    onChange={(event) => setKeyword(event.target.value)}
                 />
-                <FilterTagGroup
-                    inline
-                    options={kindOptions}
-                    isSelected={(value) => kindFilter === value}
-                    onSelect={(value) => {
-                        setPage(1);
-                        setKindFilter(value);
-                    }}
-                />
+                <KindFilter kind={kind} onChange={setKind} />
                 <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => setCreateOpen(true)}>
                     新增素材
                 </Button>
             </div>
-            <AssetFilters categories={categories} tags={tags} category={category} selectedTags={selectedTags} onCategoryChange={(value) => { setPage(1); setCategory(value); }} onTagsChange={(values) => { setPage(1); setSelectedTags(values); }} />
+            <AssetFilters categories={categories} tags={availableTags} category={category} selectedTags={tags} onCategoryChange={setCategory} onTagsChange={setTags} />
 
-            {visible.length ? (
+            {items.length ? (
                 <div className="grid grid-cols-4 gap-3">
-                    {visible.map((asset) => (
-                        <PickerCard key={asset.id} title={asset.title} kind={asset.kind} cover={asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "")} onClick={() => handleInsert(asset)} />
+                    {items.map((asset) => (
+                        <PickerCard
+                            key={asset.id}
+                            title={asset.title}
+                            kind={asset.kind}
+                            cover={asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : "")}
+                            onClick={() => onInsert(assetInsertPayload(asset))}
+                        />
                     ))}
                 </div>
             ) : (
                 <EmptyState className="py-12" title="没有素材" description="调整筛选条件或先新增素材。" />
             )}
 
-            {filtered.length > PAGE_SIZE && (
+            {total > PAGE_SIZE && (
                 <div className="flex justify-center">
-                    <Pagination size="small" current={page} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} showSizeChanger={false} />
+                    <Pagination size="small" current={page} pageSize={PAGE_SIZE} total={total} onChange={setPage} showSizeChanger={false} />
                 </div>
             )}
-            <Modal
-                title="新增素材"
-                open={createOpen}
-                onCancel={() => {
-                    setCreateOpen(false);
-                    resetCreateForm();
-                }}
-                onOk={() => void createAsset()}
-                okText="保存"
-                confirmLoading={saving}
-                destroyOnHidden
-            >
-                <div className="space-y-3 pt-2">
-                    <FilterTagGroup
-                        inline
-                        options={[
-                            { value: "image", label: "图片" },
-                            { value: "text", label: "文本" },
-                            { value: "video", label: "视频" },
-                            { value: "audio", label: "音频" },
-                        ]}
-                        isSelected={(value) => createKind === value}
-                        onSelect={(value) => setCreateKind(value as typeof createKind)}
-                    />
-                    <Input value={createTitle} placeholder="素材名称" onChange={(event) => setCreateTitle(event.target.value)} />
-                    {createKind === "text" ? (
-                        <Input.TextArea value={createText} autoSize={{ minRows: 5, maxRows: 10 }} placeholder="文本内容" onChange={(event) => setCreateText(event.target.value)} />
-                    ) : (
-                        <div className="space-y-2">
-                            <input ref={fileInputRef} type="file" accept={createKind === "image" ? "image/*" : createKind === "video" ? "video/*" : "audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav"} className="hidden" onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} />
-                            <Button icon={<ImagePlus className="size-4" />} onClick={() => fileInputRef.current?.click()}>
-                                {selectedFile ? selectedFile.name : createKind === "image" ? "选择图片" : createKind === "video" ? "选择视频" : "选择音频"}
-                            </Button>
-                            <Input value={createUrl} placeholder={createKind === "image" ? "图片 URL" : createKind === "video" ? "视频 URL" : "音频 URL"} onChange={(event) => setCreateUrl(event.target.value)} />
-                        </div>
-                    )}
-                </div>
-            </Modal>
+            <AssetFormModal open={createOpen} onClose={() => setCreateOpen(false)} />
         </div>
     );
 }

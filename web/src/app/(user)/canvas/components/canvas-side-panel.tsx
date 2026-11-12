@@ -13,13 +13,14 @@ import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
-import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
+import type { AssetLibraryItem } from "@/services/api/assets";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
 import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
-import { useAssetStore, type Asset } from "@/stores/use-asset-store";
+import type { Asset } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 
 import { canvasNodeDisplayStatus } from "../[id]/lib/canvas-node-meta";
+import { assetInsertPayload, libraryInsertPayload, useLibraryAssetBrowser, useMyAssetBrowser } from "../lib/canvas-asset-query";
 import { CanvasNodeType, type CanvasNodeData } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { InsertAssetPayload } from "./asset-picker-modal";
@@ -323,27 +324,12 @@ function AssetSourceTab({ label, active, theme, onClick }: { label: string; acti
 }
 
 function MyAssetsTab({ theme, onAdd, onAssetDragStart, onAssetDragEnd, onInsert }: { theme: CanvasTheme; onAdd: () => void; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void; onInsert: (payload: InsertAssetPayload) => void }) {
-    const assets = useAssetStore((state) => state.assets);
-    const [keyword, setKeyword] = useState("");
-    const [type, setType] = useState("");
-    const [category, setCategory] = useState("");
-    const [selectedTags, setSelectedTags] = useState<string[]>([]);
-    const [page, setPage] = useState(1);
-    const categories = useMemo(() => Array.from(new Set(assets.flatMap((asset) => asset.category ? [asset.category] : []))), [assets]);
-    const tags = useMemo(() => Array.from(new Set(assets.flatMap((asset) => asset.tags || []))), [assets]);
-    const filtered = useMemo(() => {
-        const query = keyword.trim().toLowerCase();
-        return assets.filter((asset) => (!type || asset.kind === type) && (!category || asset.category === category) && (!selectedTags.length || selectedTags.some((tag) => asset.tags.includes(tag))) && (!query || [asset.title, asset.category || "", ...(asset.tags || [])].join(" ").toLowerCase().includes(query)));
-    }, [assets, keyword, type, category, selectedTags]);
-    const items = filtered.slice((page - 1) * ASSET_PAGE_SIZE, page * ASSET_PAGE_SIZE);
-
-    useEffect(() => setPage((value) => Math.min(value, Math.max(1, Math.ceil(filtered.length / ASSET_PAGE_SIZE)))), [filtered.length]);
-    useEffect(() => setPage(1), [keyword, type, category, selectedTags]);
+    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, categories, availableTags, items, total } = useMyAssetBrowser(ASSET_PAGE_SIZE);
 
     return (
         <>
             <div className="flex items-center gap-4 px-3 pb-2">
-                {ASSET_TYPE_OPTIONS.map((option) => <AssetSourceTab key={option.value || "all"} label={option.label} active={type === option.value} theme={theme} onClick={() => setType(option.value)} />)}
+                {ASSET_TYPE_OPTIONS.map((option) => <AssetSourceTab key={option.value || "all"} label={option.label} active={kind === option.value} theme={theme} onClick={() => setKind(option.value)} />)}
             </div>
             <div className="grid grid-cols-2 gap-2 px-3 pb-2">
                 <div className="min-w-0">
@@ -352,7 +338,7 @@ function MyAssetsTab({ theme, onAdd, onAssetDragStart, onAssetDragEnd, onInsert 
                 </div>
                 <div className="min-w-0">
                     <div className="mb-1 text-xs opacity-50" style={{ color: theme.node.text }}>标签</div>
-                    <Select mode="multiple" size="small" className="w-full" value={selectedTags} placeholder="全部" allowClear maxTagCount={1} onChange={(values) => setSelectedTags(values.includes("") ? [] : values)} options={[{ label: "全部", value: "" }, ...tags.map((tag) => ({ label: tag, value: tag }))]} />
+                    <Select mode="multiple" size="small" className="w-full" value={tags} placeholder="全部" allowClear maxTagCount={1} onChange={(values) => setTags(values.includes("") ? [] : values)} options={[{ label: "全部", value: "" }, ...availableTags.map((tag) => ({ label: tag, value: tag }))]} />
                 </div>
             </div>
             <div className="flex items-center gap-2 px-3 pb-2">
@@ -363,29 +349,15 @@ function MyAssetsTab({ theme, onAdd, onAssetDragStart, onAssetDragEnd, onInsert 
                 </button>
             </div>
             <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-3">
-                {filtered.length ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{items.map((asset) => <AssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />}
-                {filtered.length > ASSET_PAGE_SIZE ? <Pagination className="!mt-3 flex justify-center" size="small" current={page} pageSize={ASSET_PAGE_SIZE} total={filtered.length} showSizeChanger={false} onChange={setPage} /> : null}
+                {total ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{items.map((asset) => <AssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />}
+                {total > ASSET_PAGE_SIZE ? <Pagination className="!mt-3 flex justify-center" size="small" current={page} pageSize={ASSET_PAGE_SIZE} total={total} showSizeChanger={false} onChange={setPage} /> : null}
             </div>
         </>
     );
 }
 
 function LibraryAssetsTab({ theme, onAssetDragStart, onAssetDragEnd, onInsert }: { theme: CanvasTheme; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void; onInsert: (payload: InsertAssetPayload) => void }) {
-    const [keyword, setKeyword] = useState("");
-    const [type, setType] = useState("");
-    const [category, setCategory] = useState("");
-    const [selectedTags, setSelectedTags] = useState<string[]>([]);
-    const [page, setPage] = useState(1);
-    const query = useQuery({
-        queryKey: ["canvas-side-library-assets", keyword, type, category, selectedTags, page],
-        queryFn: () => fetchAssetLibrary({ keyword, type, category, tag: selectedTags, page, pageSize: ASSET_PAGE_SIZE }),
-        retry: false,
-    });
-    const items = query.data?.items || [];
-    const categories = query.data?.categories || [];
-    const tags = query.data?.tags || [];
-
-    useEffect(() => setPage(1), [keyword, type, category, selectedTags]);
+    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, query, items, categories, availableTags, total } = useLibraryAssetBrowser(ASSET_PAGE_SIZE, "canvas-side-library-assets");
 
     return (
         <>
@@ -396,27 +368,27 @@ function LibraryAssetsTab({ theme, onAssetDragStart, onAssetDragEnd, onInsert }:
                 </div>
                 <div className="min-w-0">
                     <div className="mb-1 text-xs opacity-50" style={{ color: theme.node.text }}>标签</div>
-                    <Select mode="multiple" size="small" className="w-full" value={selectedTags} placeholder="全部" allowClear maxTagCount={1} onChange={(values) => setSelectedTags(values.includes("") ? [] : values)} options={[{ label: "全部", value: "" }, ...tags.map((tag) => ({ label: tag, value: tag }))]} />
+                    <Select mode="multiple" size="small" className="w-full" value={tags} placeholder="全部" allowClear maxTagCount={1} onChange={(values) => setTags(values.includes("") ? [] : values)} options={[{ label: "全部", value: "" }, ...availableTags.map((tag) => ({ label: tag, value: tag }))]} />
                 </div>
             </div>
             <div className="flex items-center gap-2 px-3 pb-2">
                 <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder="搜索素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
-                <Select size="small" variant="borderless" className="w-16" value={type} onChange={setType} options={ASSET_TYPE_OPTIONS} />
+                <Select size="small" variant="borderless" className="w-16" value={kind} onChange={setKind} options={ASSET_TYPE_OPTIONS} />
             </div>
             <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-3">
                 {query.isLoading ? <div className="flex justify-center pt-16"><Spin size="small" /></div> : query.isError ? <button type="button" onClick={() => void query.refetch()} className="block w-full py-16 text-center text-xs" style={{ color: canvasStatusColors.error }}>加载失败，点击重试</button> : items.length ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{items.map((asset) => <LibraryAssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />}
-                {query.data?.total && query.data.total > ASSET_PAGE_SIZE ? <Pagination className="!mt-3 flex justify-center" size="small" current={page} pageSize={ASSET_PAGE_SIZE} total={query.data.total} showSizeChanger={false} onChange={setPage} /> : null}
+                {total > ASSET_PAGE_SIZE ? <Pagination className="!mt-3 flex justify-center" size="small" current={page} pageSize={ASSET_PAGE_SIZE} total={total} showSizeChanger={false} onChange={setPage} /> : null}
             </div>
         </>
     );
 }
 
 function AssetDragCard({ asset, theme, onAssetDragStart, onAssetDragEnd, onInsert }: { asset: Asset; theme: CanvasTheme; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void; onInsert: (payload: InsertAssetPayload) => void }) {
-    return <DraggableAssetCard theme={theme} title={asset.title} payload={assetPayload(asset)} kind={asset.kind} imageUrl={asset.kind === "text" ? asset.coverUrl : asset.kind === "image" ? asset.coverUrl || asset.data.dataUrl : asset.kind === "video" ? asset.coverUrl || asset.data.url : ""} text={asset.kind === "text" ? asset.data.content : ""} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />;
+    return <DraggableAssetCard theme={theme} title={asset.title} payload={assetInsertPayload(asset)} kind={asset.kind} imageUrl={asset.kind === "text" ? asset.coverUrl : asset.kind === "image" ? asset.coverUrl || asset.data.dataUrl : asset.kind === "video" ? asset.coverUrl || asset.data.url : ""} text={asset.kind === "text" ? asset.data.content : ""} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />;
 }
 
 function LibraryAssetDragCard({ asset, theme, onAssetDragStart, onAssetDragEnd, onInsert }: { asset: AssetLibraryItem; theme: CanvasTheme; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void; onInsert: (payload: InsertAssetPayload) => void }) {
-    return <DraggableAssetCard theme={theme} title={asset.title} payload={libraryPayload(asset)} kind={asset.type} imageUrl={asset.coverUrl || asset.url} text={asset.content || asset.description} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />;
+    return <DraggableAssetCard theme={theme} title={asset.title} payload={libraryInsertPayload(asset)} kind={asset.type} imageUrl={asset.coverUrl || asset.url} text={asset.content || asset.description} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />;
 }
 
 function DraggableAssetCard({ theme, title, payload, kind, imageUrl, text, onAssetDragStart, onAssetDragEnd, onInsert }: { theme: CanvasTheme; title: string; payload: InsertAssetPayload; kind: "text" | "image" | "video" | "audio"; imageUrl: string; text: string; onAssetDragStart: (payload: InsertAssetPayload) => void; onAssetDragEnd: () => void; onInsert: (payload: InsertAssetPayload) => void }) {
@@ -455,20 +427,6 @@ function DraggableAssetCard({ theme, title, payload, kind, imageUrl, text, onAss
             {kind === "text" ? imageUrl ? <div className="flex size-full flex-col"><img src={imageUrl} alt={title} loading="lazy" decoding="async" className="h-1/2 w-full object-cover" /><div className="h-1/2 overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{text}</div></div> : <div className="size-full overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{text}</div> : kind === "audio" ? <span className="grid size-full place-items-center"><Music2 className="size-8 opacity-45" /></span> : imageUrl ? kind === "video" ? <video src={imageUrl + "#t=0.1"} muted playsInline preload="metadata" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" /> : <img src={imageUrl} alt={title} className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" /> : <span className="grid size-full place-items-center"><FileText className="size-8 opacity-45" /></span>}
         </div>
     );
-}
-
-function assetPayload(asset: Asset): InsertAssetPayload {
-    if (asset.kind === "text") return { kind: "text", content: asset.data.content, title: asset.title, assetId: asset.id, source: "asset" };
-    if (asset.kind === "image") return { kind: "image", dataUrl: asset.data.dataUrl, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, width: asset.data.width, height: asset.data.height, bytes: asset.data.bytes, mimeType: asset.data.mimeType, source: "asset" };
-    if (asset.kind === "video") return { kind: "video", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, width: asset.data.width, height: asset.data.height, bytes: asset.data.bytes, mimeType: asset.data.mimeType, source: "asset" };
-    return { kind: "audio", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, assetId: asset.id, bytes: asset.data.bytes, mimeType: asset.data.mimeType, durationMs: asset.data.durationMs, source: "asset" };
-}
-
-function libraryPayload(asset: AssetLibraryItem): InsertAssetPayload {
-    if (asset.type === "text") return { kind: "text", content: asset.content, title: asset.title, assetId: asset.id, source: "library" };
-    if (asset.type === "image") return { kind: "image", dataUrl: asset.url, title: asset.title, assetId: asset.id, source: "library" };
-    if (asset.type === "video") return { kind: "video", url: asset.url, title: asset.title, assetId: asset.id, source: "library" };
-    return { kind: "audio", url: asset.url, title: asset.title, assetId: asset.id, source: "library" };
 }
 
 const CanvasPromptsTab = memo(function CanvasPromptsTab({ theme, onInsert }: { theme: CanvasTheme; onInsert: (payload: InsertAssetPayload) => void }) {
