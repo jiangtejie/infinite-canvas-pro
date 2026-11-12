@@ -1,6 +1,7 @@
 "use client";
 
-import { CircleAlert, FileText, Link2, LoaderCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, CircleAlert, FileText, Link2, LoaderCircle } from "lucide-react";
 import { theme as antdTheme, Tooltip } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -13,6 +14,7 @@ import type { CanvasNodeData } from "../types";
 export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; onOpen: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
+    const [previewIndex, setPreviewIndex] = useState(0);
     const status = node.metadata?.sourceStatus || "idle";
     const parsing = node.metadata?.sourceParsing === true;
     const images = (node.metadata?.sourceImages || []).filter((image) => Boolean(image.url));
@@ -23,7 +25,14 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
     const stats = node.metadata?.sourceStats;
     const hasData = Boolean(title.trim() || text.trim() || images.length || coverUrl.trim());
     const previewUrls = images.length ? images.map((image) => image.url) : coverUrl ? [coverUrl] : [];
+    const previewKey = previewUrls.join("|");
+    const safePreviewIndex = previewUrls.length ? Math.min(previewIndex, previewUrls.length - 1) : 0;
+    const previewUrl = previewUrls[safePreviewIndex] || "";
     const actionStyle = { background: theme.toolbar.itemHover, borderColor: theme.node.stroke, color: theme.node.text };
+
+    useEffect(() => {
+        setPreviewIndex(0);
+    }, [node.id, previewKey]);
 
     if (parsing && !hasData) {
         return (
@@ -92,10 +101,51 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
             </div>
 
             {previewUrls.length ? (
-                <div className={`grid min-h-0 flex-1 gap-1.5 ${previewUrls.length === 1 ? "grid-cols-1" : previewUrls.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-                    {previewUrls.slice(0, 3).map((url, index) => (
-                        <img key={`${url}-${index}`} src={url} alt="" draggable={false} className="size-full min-h-0 rounded-lg object-cover" />
-                    ))}
+                <div
+                    className="relative min-h-0 flex-1 overflow-hidden rounded-lg"
+                    style={{ background: theme.toolbar.activeBg }}
+                    role="group"
+                    aria-label={`素材图片轮播，第 ${safePreviewIndex + 1} 张，共 ${previewUrls.length} 张`}
+                >
+                    <img src={previewUrl} alt={title || "素材图片"} draggable={false} className="size-full object-cover" />
+                    {previewUrls.length > 1 ? (
+                        <>
+                            <button
+                                type="button"
+                                className="absolute left-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full border opacity-85 shadow-md transition hover:opacity-100"
+                                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                                aria-label="上一张素材图片"
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    setPreviewIndex((safePreviewIndex - 1 + previewUrls.length) % previewUrls.length);
+                                }}
+                            >
+                                <ChevronLeft className="size-4" />
+                            </button>
+                            <button
+                                type="button"
+                                className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full border opacity-85 shadow-md transition hover:opacity-100"
+                                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                                aria-label="下一张素材图片"
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    setPreviewIndex((safePreviewIndex + 1) % previewUrls.length);
+                                }}
+                            >
+                                <ChevronRight className="size-4" />
+                            </button>
+                            <span
+                                className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px] tabular-nums"
+                                style={{ background: theme.toolbar.panel, color: theme.node.text }}
+                            >
+                                {safePreviewIndex + 1} / {previewUrls.length}
+                            </span>
+                        </>
+                    ) : null}
                 </div>
             ) : (
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
@@ -106,7 +156,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
 
             <div className="mt-auto flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-[11px]" style={{ color: theme.node.muted }}>
-                    {previewUrls.length ? `共 ${previewUrls.length} 张${previewUrls.length > 3 ? ` · 其余 ${previewUrls.length - 3} 张` : ""}` : text ? "纯文字素材" : "解析后可展开素材 / 一键复刻"}
+                    {previewUrls.length ? `共 ${previewUrls.length} 张` : text ? "纯文字素材" : "解析后可展开素材 / 一键复刻"}
                 </span>
                 <button type="button" className="shrink-0 rounded-lg border px-3 py-1.5 text-xs transition" style={actionStyle} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
                     打开素材面板
