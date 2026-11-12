@@ -5,6 +5,7 @@ import { Button, Input, Modal } from "antd";
 import { History, RotateCcw, Save, Trash2 } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import type { ScriptProject } from "../types";
 import { createScriptDraft, diffScriptDraft, draftWords } from "../utils/script-project";
@@ -19,7 +20,7 @@ type ScriptVersionsModalProps = {
 const STATUS_STYLE: Record<string, { label: string; className: string }> = {
     added: { label: "新增", className: "border-acid/35 text-acid" },
     removed: { label: "删除", className: "border-hot/35 text-hot" },
-    changed: { label: "修改", className: "border-amber-400/30 text-amber-300" },
+    changed: { label: "修改", className: "border-amber-400/30 text-amber-500" },
     same: { label: "不变", className: "border-border/60 text-muted-foreground/60" },
 };
 
@@ -94,11 +95,7 @@ export function ScriptVersionsModal({ open, project, onUpdate, onClose }: Script
 
                 <section className="grid min-w-0 gap-2">
                     {!selected || !diff ? (
-                        <div className="grid place-items-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/25 px-6 py-16 text-center">
-                            <History className="size-5 text-muted-foreground/40" />
-                            <p className="text-xs text-foreground">先保存一个版本</p>
-                            <p className="text-[11px] text-muted-foreground">保存后修改剧本，再回来就能看到场次级差异。</p>
-                        </div>
+                        <EmptyState className="rounded-lg border border-dashed border-border/70 bg-background/25 py-10" icon={<History className="size-5" />} title="先保存一个版本" description="保存后修改剧本，再回来就能看到场次级差异。" />
                     ) : (
                         <>
                             <div className="flex flex-wrap items-center gap-2">

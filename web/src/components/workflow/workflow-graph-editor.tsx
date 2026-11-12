@@ -3,6 +3,7 @@ import { Maximize, Power, PowerOff, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { WorkflowFieldMappingEditor } from "@/components/workflow/workflow-field-mapping-editor";
+import { truncateText } from "@/lib/utils";
 import type { WorkflowFieldMapping, WorkflowGraphPreview } from "@/lib/workflow-channel";
 
 type WorkflowNode = {
@@ -236,10 +237,10 @@ export function WorkflowGraphEditor({ workflowJson, workflowGraph, fields, onCha
                                         >
                                             <rect width={nodeWidth} height={nodeHeight} rx="10" />
                                             <text className="workflow-graph-node-title" x="11" y="22">
-                                                {truncate(node.title, 18)}
+                                                {truncateText(node.title, 18)}
                                             </text>
                                             <text className="workflow-graph-node-type" x="11" y="40">
-                                                {truncate(node.classType, 21)}
+                                                {truncateText(node.classType, 21)}
                                             </text>
                                             <text className="workflow-graph-node-id" x={nodeWidth - 9} y="20" textAnchor="end">
                                                 #{node.id}
@@ -400,9 +401,6 @@ function fieldKey(field: WorkflowFieldMapping) {
 }
 function mediaFieldCount(fields: WorkflowFieldMapping[]) {
     return fields.filter((field) => ["referenceImage", "referenceVideo", "referenceAudio", "mask"].includes(String(field.source || ""))).length;
-}
-function truncate(value: string, length: number) {
-    return Array.from(value).length > length ? `${Array.from(value).slice(0, length).join("")}…` : value;
 }
 function nodeCategory(classType: string) {
     const value = classType.toLowerCase();

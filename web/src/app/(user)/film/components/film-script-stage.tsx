@@ -5,9 +5,10 @@ import { App, Button, Checkbox, Input, InputNumber, Modal, Select } from "antd";
 import { Clapperboard, ClipboardList, FileUp, Link2, ListTree, Network, Plus, ShieldCheck, Sparkles, Trash2, Undo2 } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { cn } from "@/lib/utils";
-import type { FilmEpisode, FilmProject, FilmShot, FilmShotStatus } from "@/lib/film/types";
-import { addFilmEpisode, addFilmScene, addFilmShot, filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
+import { EmptyState } from "@/components/ui/state-panel";
+import { cn, errorMessage } from "@/lib/utils";
+import type { FilmEpisode, FilmProject, FilmShot } from "@/lib/film/types";
+import { addFilmEpisode, addFilmScene, addFilmShot, removeFilmScene } from "../utils/film-edits";
 import { useFilmAiParse } from "../hooks/use-film-ai-parse";
 import { useFilmContinuity } from "../hooks/use-film-continuity";
 import { useFilmScriptAnalysis } from "../hooks/use-film-script-analysis";
@@ -18,14 +19,14 @@ import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
 import { bindFilmCast } from "../utils/film-cast-bind";
 import { mergeFilmEpisodes } from "../utils/film-ai-parse";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
-import { resolveFilmStyleText } from "@/lib/film/film-styles";
-import { appendDirectorStyleToPrompt, directorStyleFor } from "@/lib/film/director-styles";
+import { directorStyleFor } from "@/lib/film/director-styles";
 import { countFilmScenes, flattenFilmShots } from "../utils/parse-script";
 import { deriveFilmShotStatus } from "../utils/film-status";
 import { filmScriptDocumentToEpisodes, parseFilmScriptDocument, readFilmScriptFile, scriptTextHash, type FilmScriptDocument } from "@/lib/film/film-script-import";
 import { buildScriptAnalysisAssets, normalizeEntityKey, validateFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
 import type { FilmScriptAnalysis, FilmScriptRelationshipAnalysis } from "@/lib/film/types";
 import { FilmShotDetail } from "./film-shot-detail";
+import { FilmShotStatusChip } from "./film-shot-status-chip";
 import { FilmScriptGraph } from "./film-script-graph";
 import { FilmContinuityNotebook } from "./film-continuity-notebook";
 import { FilmStructurePlanModal } from "./film-structure-plan-modal";
@@ -50,7 +51,7 @@ type FilmScriptStageProps = {
 export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerateImageBatch, generatingShotId, batchProgress, onStopBatch, onGenerateVideo, onStopVideo, generatingVideoShotId, videoProgress }: FilmScriptStageProps) {
     const { message } = App.useApp();
     const confirm = useConfirm();
-    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
+    const { confirmDelete } = useFilmDeleteConfirm();
     const { analyzingEpisodeId, analyzeEpisode } = useFilmContinuity();
     const { batchProgress: checkingBatchProgress, checkShots } = useFilmContinuityCheck();
     const { analyzing: analyzingScript, progress: analysisProgress, analyzeDocument } = useFilmScriptAnalysis();
@@ -77,8 +78,6 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         setSelectedShotId(shots[0]?.id ?? "");
     }, [selectedShotId, shots]);
 
-    const sceneTargets = useMemo(() => filmSceneOptions(episodes), [episodes]);
-    const selectedPosition = selectedShot ? filmShotPosition(episodes, selectedShot.id) : null;
     const currentScriptHash = useMemo(() => scriptTextHash(project.scriptText || ""), [project.scriptText]);
     const analysisStale = Boolean(project.scriptAnalysis && currentScriptHash !== project.scriptAnalysis.scriptHash);
 
@@ -128,16 +127,6 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         onGenerateImageBatch(sceneShots, { anchorShotId: sceneShots[0]?.id, skipExisting: true });
     };
 
-    const moveSelectedShot = (direction: "up" | "down") => {
-        if (!selectedShot) return;
-        onUpdate({ episodes: moveFilmShot(episodes, selectedShot.id, direction === "up" ? -1 : 1) });
-    };
-
-    const moveSelectedShotToScene = (sceneId: string) => {
-        if (!selectedShot || selectedPosition?.sceneId === sceneId) return;
-        onUpdate({ episodes: moveFilmShotToScene(episodes, selectedShot.id, sceneId) });
-    };
-
     const [pacing, setPacing] = useState<"fast" | "normal" | "slow">("normal");
     const [targetDuration, setTargetDuration] = useState<number | undefined>(undefined);
     const [importOpen, setImportOpen] = useState(false);
@@ -185,7 +174,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
             setImportError("");
         } catch (error) {
             setImportDoc(null);
-            setImportError(error instanceof Error ? error.message : "剧本解析失败");
+            setImportError(errorMessage(error, "剧本解析失败"));
         } finally {
             setImportParsing(false);
         }
@@ -208,7 +197,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
             setImportError("");
         } catch (error) {
             setImportDoc(null);
-            setImportError(error instanceof Error ? error.message : "文件读取失败");
+            setImportError(errorMessage(error, "文件读取失败"));
         } finally {
             setImportParsing(false);
         }
@@ -414,10 +403,6 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         });
     };
 
-    const removeShot = (shotId: string) => {
-        onUpdate({ episodes: removeFilmShot(episodes, shotId) });
-    };
-
     return (
         <div className="grid gap-4 lg:h-full lg:min-h-0 lg:grid-cols-[320px_minmax(0,1fr)_380px] xl:gap-5">
             <section className="punk-panel flex max-h-[70dvh] flex-col overflow-hidden rounded-xl lg:max-h-none lg:min-h-0">
@@ -543,13 +528,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 </div>
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
                     {episodes.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                            <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                                <Clapperboard className="size-5" />
-                            </div>
-                            <p className="mt-4 text-sm text-foreground">还没有剧集</p>
-                            <p className="mt-1.5 text-xs leading-6 text-muted-foreground">粘贴剧本后点「AI 解析」，或手动添加一集。</p>
-                        </div>
+                        <EmptyState className="py-10" icon={<Clapperboard className="size-5" />} title="还没有剧集" description="粘贴剧本后点「AI 解析」，或手动添加一集。" />
                     ) : null}
                     {episodes.map((episode, episodeIndex) => (
                         <div key={episode.id} className="border-b border-border/60 last:border-0">
@@ -628,7 +607,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                             <span className="w-12 shrink-0 font-mono text-[9px] tracking-wide text-muted-foreground/70">{shot.shotType ? filmShotTypeLabel(shot.shotType) : "—"}</span>
                                             <span className="min-w-0 flex-1 truncate text-xs text-foreground/80">{shot.description || "未填写描述"}</span>
                                             {shot.continuity ? <span className="shrink-0 font-mono text-[9px] text-acid/80">场记</span> : null}
-                                            <StatusDot status={deriveFilmShotStatus(shot)} />
+                                            <FilmShotStatusChip status={deriveFilmShotStatus(shot)} />
                                         </button>
                                     ))}
                                     {scene.shots.length === 0 ? <p className="border-t border-border/30 px-3 py-2 pl-9 text-[11px] text-muted-foreground/60">还没有分镜</p> : null}
@@ -649,40 +628,17 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                 {selectedShot ? (
                     <FilmShotDetail
                         shot={selectedShot}
-                        onChange={(patch) => onUpdate({ episodes: updateFilmShot(episodes, selectedShot.id, patch) })}
-                        onDelete={() => removeShot(selectedShot.id)}
+                        project={project}
+                        onUpdate={onUpdate}
                         onGenerate={() => onGenerateImage(selectedShot)}
                         generating={generatingShotId === selectedShot.id}
                         onGenerateVideo={() => onGenerateVideo(selectedShot)}
                         onStopVideo={onStopVideo}
                         generatingVideo={generatingVideoShotId === selectedShot.id}
                         videoProgress={videoProgress}
-                        characters={project.characters || []}
-                        locations={project.locations || []}
-                        aspect={project.aspect}
-                        styleText={resolveFilmStyleText(project)}
-                        directorStyle={directorStyle}
-                        branchTargets={shots.filter((shot) => shot.id !== selectedShot.id).map((shot) => ({ id: shot.id, label: shot.shotNo + " · " + (shot.description || "未填写画面") }))}
-                        variables={project.interactiveVariables || []}
-                        onApplyStylePrompt={() => {
-                            if (!directorStyle) return;
-                            onUpdate({ episodes: updateFilmShot(episodes, selectedShot.id, { prompt: appendDirectorStyleToPrompt(selectedShot.prompt, directorStyle) }) });
-                            message.success("已把导演风格提示补进镜头 prompt");
-                        }}
-                        onMove={moveSelectedShot}
-                        canMoveUp={Boolean(selectedPosition && selectedPosition.shotIndex > 0)}
-                        canMoveDown={Boolean(selectedPosition && selectedPosition.shotIndex < selectedPosition.sceneShotCount - 1)}
-                        onMoveToScene={moveSelectedShotToScene}
-                        sceneTargets={sceneTargets}
                     />
                 ) : (
-                    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                        <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
-                            <Plus className="size-5" />
-                        </div>
-                        <p className="mt-4 text-sm text-foreground">选择一个分镜</p>
-                        <p className="mt-1.5 text-xs leading-6 text-muted-foreground">在中间的剧集结构里点一个镜头，就能在这里编辑。</p>
-                    </div>
+                    <EmptyState className="flex-1 py-10" icon={<Plus className="size-5" />} title="选择一个分镜" description="在中间的剧集结构里点一个镜头，就能在这里编辑。" />
                 )}
             </section>
 
@@ -954,12 +910,6 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                     当前已有 {shots.length} 个分镜，本次解析出 {pendingParsed ? flattenFilmShots(pendingParsed).length : 0} 个。覆盖会替换现有分镜，追加会按集/场合并到现有分镜后面。
                 </p>
             </Modal>
-            {deleteConfirmNode}
         </div>
     );
-}
-
-function StatusDot({ status }: { status: FilmShotStatus }) {
-    const tone = status === "video_ready" ? "bg-acid" : status === "image_ready" ? "bg-acid/60" : status === "generating" ? "bg-acid/40 animate-pulse" : status === "failed" ? "bg-hot" : "bg-border";
-    return <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", tone)} />;
 }

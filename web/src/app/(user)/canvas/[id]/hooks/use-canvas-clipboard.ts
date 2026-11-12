@@ -3,6 +3,7 @@
 import { useCallback, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type ContextMenuState, type Position } from "../../types";
+import { cloneCanvasConnections, cloneCanvasNodes } from "../lib/canvas-clone";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { NODE_STATUS_SUCCESS } from "../lib/canvas-node-constants";
 
@@ -93,50 +94,8 @@ export function useCanvasClipboard({
         );
         const dx = offsetFromSelection ? 36 : center.x - (bounds.left + bounds.right) / 2;
         const dy = offsetFromSelection ? 36 : center.y - (bounds.top + bounds.bottom) / 2;
-        const idMap = new Map<string, string>();
-        const nextNodes = clipboard.nodes.map((node, index) => {
-            const id = `${node.type}-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
-            idMap.set(node.id, id);
-            return {
-                ...node,
-                id,
-                title: node.title.endsWith(" Copy") ? node.title : `${node.title} Copy`,
-                position: {
-                    x: node.position.x + dx,
-                    y: node.position.y + dy,
-                },
-                metadata: node.metadata ? {
-                    ...node.metadata,
-                    clientTaskId: undefined,
-                    taskBackend: undefined,
-                    ...(node.type === CanvasNodeType.Publish ? { publishRecord: undefined, publishStatus: "idle" as const, publishError: undefined } : {}),
-                    ...(node.metadata.status === "stopping" || node.metadata.status === "stopped"
-                        ? { status: node.metadata.content ? NODE_STATUS_SUCCESS : "idle" as const, errorDetails: undefined }
-                        : {}),
-                } : undefined,
-            };
-        });
-
-        const pastedNodes = nextNodes.map((node) => {
-            const groupId = node.metadata?.groupId;
-            const nextGroupId = groupId ? idMap.get(groupId) : undefined;
-            if (!groupId || nextGroupId) return nextGroupId ? { ...node, metadata: { ...node.metadata, groupId: nextGroupId } } : node;
-            return { ...node, metadata: { ...node.metadata, groupId: undefined } };
-        });
-
-        const nextConnections = clipboard.connections.flatMap((connection, index) => {
-            const fromNodeId = idMap.get(connection.fromNodeId);
-            const toNodeId = idMap.get(connection.toNodeId);
-            if (!fromNodeId || !toNodeId) return [];
-            return [
-                {
-                    ...connection,
-                    id: `conn-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
-                    fromNodeId,
-                    toNodeId,
-                },
-            ];
-        });
+        const { nodes: pastedNodes, idMap } = cloneCanvasNodes(clipboard.nodes, { offset: { x: dx, y: dy }, remapGroupIds: true });
+        const nextConnections = cloneCanvasConnections(clipboard.connections, idMap);
 
         setNodes((prev) => [...prev, ...pastedNodes]);
         setConnections((prev) => [...prev, ...nextConnections]);

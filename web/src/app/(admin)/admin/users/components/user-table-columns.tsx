@@ -45,7 +45,7 @@ export function buildUserColumns({
             dataIndex: "status",
             width: 90,
             align: "center",
-            render: (_, item) => <Tag color={item.status === "ban" ? "red" : "green"}>{item.status === "ban" ? "禁用" : "正常"}</Tag>,
+            render: (_, item) => <Tag color={item.status === "ban" ? "error" : "success"}>{item.status === "ban" ? "禁用" : "正常"}</Tag>,
         },
         {
             title: "算力点",

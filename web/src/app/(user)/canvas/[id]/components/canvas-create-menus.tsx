@@ -1,20 +1,19 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Globe2, ImageIcon, Images, Layers3, Link2, List, Music2, Send, Settings2, Upload, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CANVAS_Z } from "../../[id]/lib/canvas-layer";
 import { CanvasNodeType, type PendingConnectionCreate, type Position } from "../../types";
+import { useMenuNavigation } from "../../utils/use-menu-navigation";
 
 export function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: PendingConnectionCreate; onCreate: (type: CanvasNodeType) => void; onClose: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const menuRef = useRef<HTMLDivElement>(null);
     const [offsetY, setOffsetY] = useState(0);
-
-    useEffect(() => {
-        menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    }, []);
+    const menuNavigation = useMenuNavigation({ open: true, onClose, panelRef: menuRef });
 
     useLayoutEffect(() => {
         setOffsetY(0);
@@ -34,25 +33,20 @@ export function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: 
     return (
         <div
             ref={menuRef}
-            className="thin-scrollbar absolute z-[120] w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur"
+            className="thin-scrollbar absolute w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur"
             data-connection-create-menu
             role="menu"
             aria-label="引用节点生成"
-            style={{ left: pending.position.x, top: pending.position.y, maxHeight: "calc(100dvh - 24px)", transform: offsetY ? `translateY(-${offsetY}px)` : undefined, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+            style={{ left: pending.position.x, top: pending.position.y, maxHeight: "calc(100dvh - 24px)", transform: offsetY ? `translateY(-${offsetY}px)` : undefined, background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text, zIndex: CANVAS_Z.createMenu, "--canvas-menu-hover": theme.toolbar.itemHover } as CSSProperties}
             onMouseDown={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                    event.stopPropagation();
-                    onClose();
-                }
-            }}
+            onKeyDown={menuNavigation.handleKeyDown}
         >
             <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>
                     引用该节点生成
                 </span>
-                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:bg-white/10 hover:opacity-100" onClick={onClose} aria-label="关闭">
+                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:bg-[var(--canvas-menu-hover)] hover:opacity-100" onClick={onClose} aria-label="关闭">
                     ×
                 </button>
             </div>
@@ -99,18 +93,7 @@ export function NodeCreateMenu({
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const menuRef = useRef<HTMLDivElement>(null);
     const [offsetY, setOffsetY] = useState(0);
-
-    useEffect(() => {
-        menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    }, []);
-
-    useEffect(() => {
-        const handlePointerDown = (event: PointerEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) onClose();
-        };
-        document.addEventListener("pointerdown", handlePointerDown, true);
-        return () => document.removeEventListener("pointerdown", handlePointerDown, true);
-    }, [onClose]);
+    const menuNavigation = useMenuNavigation({ open: true, onClose, panelRef: menuRef });
 
     useLayoutEffect(() => {
         setOffsetY(0);
@@ -125,7 +108,7 @@ export function NodeCreateMenu({
     }, [offsetY, position.x, position.y]);
 
     return (
-        <div ref={menuRef} className="thin-scrollbar absolute z-[120] w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur" data-canvas-no-zoom role="menu" aria-label="添加节点" style={{ left: position.x, top: position.y, maxHeight: "calc(100dvh - 24px)", transform: `scale(calc(var(--canvas-inverse-scale) * 0.9)) translateY(-${offsetY / 0.9}px)`, transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }} onPointerDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+        <div ref={menuRef} className="thin-scrollbar absolute w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur" data-canvas-no-zoom role="menu" aria-label="添加节点" style={{ left: position.x, top: position.y, maxHeight: "calc(100dvh - 24px)", transform: `scale(calc(var(--canvas-inverse-scale) * 0.9)) translateY(-${offsetY / 0.9}px)`, transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text, zIndex: CANVAS_Z.createMenu }} onPointerDown={(event) => event.stopPropagation()} onKeyDown={menuNavigation.handleKeyDown}>
             <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>添加节点</span>
                 <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭">×</button>

@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Plus, BookOpen, ClipboardPaste, FolderPlus, Music2, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
+import { Plus, BookOpen, ClipboardPaste, FolderPlus, Music2, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
 import { App, Button, Input, Switch, Tag } from "antd";
 import { useEffect, useRef, type ReactNode } from "react";
 
@@ -8,11 +8,9 @@ import { boolConfig } from "@/lib/seedance-video";
 import type { AiConfig, VideoElementItem, VideoElementReference, VideoMultiPromptItem } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 
-import { normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount } from "../history";
+import { defaultKlingElementList, defaultKlingMultiPrompts, normalizeKlingElementList, normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount, type AssetPickerTarget, type UpdateAiConfig } from "../history";
 import { klingModeOptions, klingRatioOptions, klingSecondsOptions, klingV3DefaultSeconds, klingV3SecondsRange } from "@/components/workbench/kling-parameter-options";
-
-type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
-type AssetPickerTarget = "general" | "image" | "video" | "audio" | "firstFrame" | "lastFrame";
+import { ReferenceOrderButtons } from "./reference-strips";
 
 const TEXT = {
     prompt: "提示词",
@@ -151,7 +149,7 @@ export function KlingV26WorkbenchPanel({
     const multiShot = isKlingV3 && supportsMultiShot && boolConfig(config.videoMultiShot, false);
     const shotType = config.videoShotType === "customize" ? "customize" : "intelligence";
     const multiPrompts = normalizeMultiPrompts(config.videoMultiPrompt);
-    const elementList = normalizeElementList(config.videoElementList);
+    const elementList = normalizeKlingElementList(config.videoElementList);
     const initializedV3SecondsRef = useRef(false);
 
     useEffect(() => {
@@ -174,7 +172,7 @@ export function KlingV26WorkbenchPanel({
     const setMultiShot = (checked: boolean) => {
         updateConfig("videoMultiShot", String(checked));
         if (checked && supportsSmartShots && !config.videoShotType) updateConfig("videoShotType", "intelligence");
-        if (checked && !config.videoMultiPrompt?.length) updateConfig("videoMultiPrompt", defaultMultiPrompts());
+        if (checked && !config.videoMultiPrompt?.length) updateConfig("videoMultiPrompt", defaultKlingMultiPrompts());
     };
 
     const updateMultiPrompt = (index: number, patch: Partial<VideoMultiPromptItem>) => {
@@ -191,7 +189,7 @@ export function KlingV26WorkbenchPanel({
     };
 
     const updateElementList = (items: VideoElementItem[]) => {
-        updateConfig("videoElementList", normalizeElementList(items));
+        updateConfig("videoElementList", normalizeKlingElementList(items));
     };
 
     const updateElement = (index: number, patch: Partial<VideoElementItem>) => {
@@ -200,7 +198,7 @@ export function KlingV26WorkbenchPanel({
 
     const addElement = () => {
         if (elementList.length >= 3) return;
-        updateElementList([...elementList, defaultElementItem()]);
+        updateElementList([...elementList, ...defaultKlingElementList()]);
     };
 
     const removeElement = (index: number) => {
@@ -444,7 +442,7 @@ function KlingElementReferenceStrip({ references, onRemoveReference, onMoveRefer
                     {item.kind === "image" ? <img loading="lazy" decoding="async" src={item.dataUrl || item.url} alt={item.name} className="size-full object-cover" /> : item.kind === "video" ? <video src={item.url} className="size-full object-cover" muted preload="metadata" /> : <div className="flex size-full flex-col items-center justify-center gap-1 px-1 text-center text-xs text-muted-foreground"><Music2 className="size-5" /><span className="line-clamp-2">{item.name}</span></div>}
                     {item.kind === "video" ? <VideoIcon className="absolute bottom-1 left-1 size-3.5 text-white drop-shadow" /> : null}
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{index + 1}</span>
-                    <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
+                    <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
                     <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={() => onRemoveReference(item.id)} aria-label={TEXT.removeImage}>
                         <Trash2 className="size-3.5" />
                     </button>
@@ -462,23 +460,13 @@ function KlingReferenceImageStrip({ references, emptyText = TEXT.emptyImages, on
                 <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-border">
                     <img loading="lazy" decoding="async" src={item.dataUrl} alt={item.name} className="size-full object-cover" />
                     <span className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{TEXT.image}{index + 1}</span>
-                    <KlingReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
+                    <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => onMoveReference(index, offset)} />
                     <button type="button" className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-black/60 text-white shadow-sm" onClick={() => onRemoveReference(item.id)} aria-label={TEXT.removeImage}>
                         <Trash2 className="size-3.5" />
                     </button>
                 </div>
             ))}
             {!references.length ? <div className="flex min-w-full items-center justify-center text-sm text-muted-foreground">{emptyText}</div> : null}
-        </div>
-    );
-}
-
-function KlingReferenceOrderButtons({ index, total, onMove }: { index: number; total: number; onMove: (offset: number) => void }) {
-    if (total <= 1) return null;
-    return (
-        <div className="absolute inset-x-1 bottom-1 flex justify-between">
-            <Button size="small" className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !shadow-sm" icon={<ArrowLeft className="size-3" />} disabled={index <= 0} onClick={() => onMove(-1)} />
-            <Button size="small" className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !shadow-sm" icon={<ArrowRight className="size-3" />} disabled={index >= total - 1} onClick={() => onMove(1)} />
         </div>
     );
 }
@@ -503,21 +491,8 @@ function KlingTaskCount({ value, onChange }: { value: number; onChange: (value: 
 }
 
 
-function defaultMultiPrompts(): VideoMultiPromptItem[] {
-    return [{ prompt: "", duration: "1" }];
-}
-
-function defaultElementItem(): VideoElementItem {
-    return { name: "", description: "", references: [] };
-}
-
-function normalizeElementList(value: VideoElementItem[] | undefined): VideoElementItem[] {
-    if (!Array.isArray(value) || !value.length) return [defaultElementItem()];
-    return value.slice(0, 3).map((item) => ({ name: item?.name || "", description: item?.description || "", references: Array.isArray(item?.references) ? item.references.slice(0, 4) : [] }));
-}
-
 function normalizeMultiPrompts(value: VideoMultiPromptItem[] | undefined): VideoMultiPromptItem[] {
-    if (!Array.isArray(value) || !value.length) return defaultMultiPrompts();
+    if (!Array.isArray(value) || !value.length) return defaultKlingMultiPrompts();
     return value.map((item) => ({ prompt: item?.prompt || "", duration: item?.duration || "1" }));
 }
 

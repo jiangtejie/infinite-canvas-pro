@@ -32,6 +32,7 @@ import {
     type EditorMode,
     type SettingsTabKey,
 } from "./settings-utils";
+import { errorMessage } from "@/lib/utils";
 
 export function useAdminSettings() {
     const token = useUserStore((state) => state.token);
@@ -86,11 +87,27 @@ export function useAdminSettings() {
         setJsonText((current) => ({ ...current, [tab]: value }));
     };
 
+    /** 保存成功后统一收尾：清存储缓存、回填被隐藏的 API Key，并同步渠道/单价/已知模型。 */
+    function applySavedSettings(saved: AdminSettings, currentChannels: AdminModelChannel[]) {
+        clearImageStorageConfigCache();
+        clearMediaStorageConfigCache();
+        const merged = mergeChannelApiKeys(currentChannels, saved);
+        setChannels(merged.private.channels);
+        setModelCosts(merged.public.modelChannel.modelCosts);
+        rememberKnownModels(merged);
+        return merged;
+    }
+
+    async function saveSnapshot(values: AdminSettings, currentChannels: AdminModelChannel[]) {
+        if (!token) throw new Error("请先登录");
+        return applySavedSettings(await saveAdminSettings(token, values), currentChannels);
+    }
+
     const loadSettings = useCallback(async () => {
         if (!token) return;
         setIsLoading(true);
         try {
-            const data = normalizeSettings(await fetchAdminSettings(token));
+            const data = await fetchAdminSettings(token);
             settingsRef.current = data;
             form.setFieldsValue(data);
             setChannels(data.private.channels);
@@ -101,7 +118,7 @@ export function useAdminSettings() {
                 private: JSON.stringify(data.private, null, 2),
             });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "读取设置失败");
+            message.error(errorMessage(error, "读取设置失败"));
         } finally {
             setIsLoading(false);
         }
@@ -140,7 +157,7 @@ export function useAdminSettings() {
             rememberModels(channel.models);
             message.success("TokenDance 登录成功，API Key 已填入");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "TokenDance 授权结果读取失败");
+            message.error(errorMessage(error, "TokenDance 授权结果读取失败"));
         } finally {
             sessionStorage.removeItem(storageKey);
             url.searchParams.delete("tokendance_oauth");
@@ -163,22 +180,16 @@ export function useAdminSettings() {
         try {
             const values = await collectSettings(form, editorMode, jsonText, message);
             if (!values) return;
-            const saved = normalizeSettings(await saveAdminSettings(token, values));
-            clearImageStorageConfigCache();
-            clearMediaStorageConfigCache();
-            const merged = mergeChannelApiKeys(values.private.channels, saved);
+            const merged = await saveSnapshot(values, values.private.channels);
             settingsRef.current = merged;
             form.setFieldsValue(merged);
-            setChannels(merged.private.channels);
-            setModelCosts(merged.public.modelChannel.modelCosts);
-            rememberKnownModels(merged);
             setJsonText({
                 public: JSON.stringify(merged.public, null, 2),
                 private: JSON.stringify(merged.private, null, 2),
             });
             message.success("已保存");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "保存失败");
+            message.error(errorMessage(error, "保存失败"));
         } finally {
             savingRef.current = false;
             setIsSaving(false);
@@ -208,33 +219,26 @@ export function useAdminSettings() {
             if (snapshot) {
                 // 权限开关只自动保存当前公开配置。私有配置使用最近一次已加载/保存的快照，
                 // 避免私有页未挂载时默认值覆盖渠道、密钥等真实配置。
-                const current = normalizeSettings(form.getFieldsValue(true) as AdminSettings);
+                const current = normalizeSettings(form.getFieldsValue(true));
                 current.private = snapshot.private;
                 current.public.modelChannel.availableModels = filterModels(current.public.modelChannel.availableModels, collectChannelModels(current.private.channels));
                 current.public.modelChannel.availableWorkflows = filterModels(current.public.modelChannel.availableWorkflows, collectChannelWorkflows(current.private.channels).map((item) => item.value));
-                current.public.modelChannel.systemPrompt = current.public.modelChannel.systemPrompts.image || current.public.modelChannel.systemPrompts.text || "";
-                values = normalizeSettings(current);
+                values = current;
             } else {
                 const collected = await collectSettings(form, editorMode, jsonText, message);
                 if (!collected) return;
                 values = collected;
             }
-            const saved = normalizeSettings(await saveAdminSettings(token, values));
-            clearImageStorageConfigCache();
-            clearMediaStorageConfigCache();
-            const merged = mergeChannelApiKeys(values.private.channels, saved);
+            const merged = await saveSnapshot(values, values.private.channels);
             settingsRef.current = merged;
             form.setFieldsValue({ public: merged.public });
-            setChannels(merged.private.channels);
-            setModelCosts(merged.public.modelChannel.modelCosts);
-            rememberKnownModels(merged);
             setJsonText((current) => ({
                 ...current,
                 public: JSON.stringify(merged.public, null, 2),
             }));
             message.success("权限已自动保存");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "权限自动保存失败");
+            message.error(errorMessage(error, "权限自动保存失败"));
         } finally {
             savingRef.current = false;
         }
@@ -244,7 +248,7 @@ export function useAdminSettings() {
         if (nextMode === "json") {
             setJsonText((current) => ({
                 ...current,
-                [tab]: JSON.stringify(tab === "public" ? normalizePublicSetting(form.getFieldValue(["public"]) as Partial<AdminSettings["public"]>) : normalizePrivateSetting(form.getFieldValue(["private"]) as Partial<AdminSettings["private"]>), null, 2),
+                [tab]: JSON.stringify(tab === "public" ? normalizePublicSetting(form.getFieldValue(["public"])) : normalizePrivateSetting(form.getFieldValue(["private"])), null, 2),
             }));
             setEditorMode((current) => ({ ...current, [tab]: nextMode }));
             return;
@@ -257,7 +261,7 @@ export function useAdminSettings() {
         form.setFieldsValue({ [tab]: parsed } as Partial<AdminSettings>);
         if (tab === "private") setChannels((parsed as AdminSettings["private"]).channels);
         if (tab === "public") setModelCosts((parsed as AdminSettings["public"]).modelChannel.modelCosts);
-        rememberKnownModels({ ...normalizeSettings(form.getFieldsValue(true) as AdminSettings), [tab]: parsed });
+        rememberKnownModels({ ...normalizeSettings(form.getFieldsValue(true)), [tab]: parsed });
         setEditorMode((current) => ({ ...current, [tab]: nextMode }));
     };
 
@@ -299,7 +303,7 @@ export function useAdminSettings() {
             target: "admin",
             draft: channelForm.getFieldsValue(true) as unknown as Record<string, unknown>,
             editingChannelIndex,
-        }).catch((error) => message.error(error instanceof Error ? error.message : "TokenDance 登录失败"));
+        }).catch((error) => message.error(errorMessage(error, "TokenDance 登录失败")));
     };
 
     const saveChannel = async () => {
@@ -380,7 +384,7 @@ export function useAdminSettings() {
             const result = await testChannelModel(token, { index: testChannelIndex, channel, model });
             setTestResults((current) => ({ ...current, [model]: { status: "success", duration: `${((performance.now() - startedAt) / 1000).toFixed(2)}s`, message: result } }));
         } catch (error) {
-            setTestResults((current) => ({ ...current, [model]: { status: "error", message: error instanceof Error ? error.message : "测试失败" } }));
+            setTestResults((current) => ({ ...current, [model]: { status: "error", message: errorMessage(error, "测试失败") } }));
         } finally {
             setTestingModels((current) => current.filter((item) => item !== model));
         }
@@ -396,22 +400,15 @@ export function useAdminSettings() {
     const testModels = (testChannel?.models || []).filter((model) => `${model} ${modelLabel(model, testChannel)}`.toLowerCase().includes(testKeyword.trim().toLowerCase()));
 
     async function persistChannels(nextChannels: AdminModelChannel[]) {
-        if (!token) throw new Error("请先登录");
-        const values = normalizeSettings(form.getFieldsValue(true) as AdminSettings);
+        const values = normalizeSettings(form.getFieldsValue(true));
         const nextChannelModels = collectChannelModels(nextChannels);
         const nextChannelWorkflows = collectChannelWorkflows(nextChannels);
-        const nextSettings = normalizeSettings({
+        const nextSettings: AdminSettings = {
             ...values,
             public: { ...values.public, modelChannel: { ...values.public.modelChannel, availableModels: filterModels(values.public.modelChannel.availableModels, nextChannelModels), availableWorkflows: filterModels(values.public.modelChannel.availableWorkflows, nextChannelWorkflows.map((item) => item.value)) } },
             private: { ...values.private, channels: nextChannels },
-        });
-        const saved = normalizeSettings(await saveAdminSettings(token, nextSettings));
-        clearImageStorageConfigCache();
-        clearMediaStorageConfigCache();
-        const merged = mergeChannelApiKeys(nextChannels, saved);
-        setChannels(merged.private.channels);
-        setModelCosts(merged.public.modelChannel.modelCosts);
-        rememberKnownModels(merged);
+        };
+        const merged = await saveSnapshot(nextSettings, nextChannels);
         form.setFieldsValue(merged);
         setJsonText({
             public: JSON.stringify(merged.public, null, 2),
@@ -426,12 +423,12 @@ export function useAdminSettings() {
         setMeasuringProviderIndex(index);
         try {
             const result = await measureAdminStorageProvider(token, { index, provider });
-            const next = normalizeSettings(await fetchAdminSettings(token));
+            const next = await fetchAdminSettings(token);
             form.setFieldsValue(next);
             setJsonText({ public: JSON.stringify(next.public, null, 2), private: JSON.stringify(next.private, null, 2) });
             message.success(`容量统计完成：${formatStorageBytes(result.bytes)}${result.overLimit ? "，已达到上限并禁用" : ""}`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "容量统计失败");
+            message.error(errorMessage(error, "容量统计失败"));
         } finally {
             setMeasuringProviderIndex(null);
         }

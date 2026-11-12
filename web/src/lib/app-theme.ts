@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import type { ThemeConfig } from "antd";
 import { theme as antdTheme } from "antd";
 import { appFontFamily } from "@/lib/app-font";
@@ -38,14 +37,6 @@ const neutral = {
         tableSelectedBg: "rgba(255, 255, 255, 0.08)",
         tableSelectedHoverBg: "rgba(255, 255, 255, 0.12)",
     },
-};
-
-export const adminLayoutStyle = {
-    siderWidth: 240,
-    headerHeight: 60,
-    brandHeight: 60,
-    menu: { borderInlineEnd: 0, padding: "16px 10px", fontSize: 14 } satisfies CSSProperties,
-    menuItem: { height: 42, lineHeight: "42px", marginBlock: 3, borderRadius: 6 } satisfies CSSProperties,
 };
 
 export function getAntThemeConfig(dark: boolean): ThemeConfig {

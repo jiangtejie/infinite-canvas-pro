@@ -6,6 +6,7 @@ import { ImagePlus } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/state-panel";
 import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
+import { useResultsWindow } from "@/components/workbench/use-results-window";
 
 import type { GeneratedImage, GenerationCategory, GenerationLog, GenerationResult, ResultViewMode } from "../history";
 import { imageLogIdentityKeys, imageResultIdentityKeys } from "../history";
@@ -95,19 +96,21 @@ export function ResultsPanel({
     const { message } = App.useApp();
     const [creatingCategory, setCreatingCategory] = useState(false);
     const [categoryName, setCategoryName] = useState("");
-    const [visibleLogCount, setVisibleLogCount] = useState(48);
-    const liveImageIds = new Set(results.map((result) => result.image?.id).filter((id): id is string => Boolean(id)));
-    const liveLogIds = new Set(results.flatMap(imageResultIdentityKeys));
-    const baseVisibleLogs = logs.filter((log) => !imageLogIdentityKeys(log).some((key) => liveLogIds.has(key)) && !log.images.some((image) => liveImageIds.has(image.id)));
+    const { baseVisibleLogs, visibleLogs, displayedLogs, hasMore, loadMore, allSelected: allVisibleLogsSelected, toggleVisibleLogs } = useResultsWindow({
+        results,
+        logs,
+        selectedLogIds,
+        onSelectedLogIdsChange,
+        resultIdentityKeys: imageResultIdentityKeys,
+        isLogLive: (log, liveKeys) => imageLogIdentityKeys(log).some((key) => liveKeys.has(key)) || log.images.some((image) => liveKeys.has(image.id)),
+        filterLogs: (items) => (resultViewMode === "category" ? (activeCategoryId ? items.filter((log) => log.categoryIds.includes(activeCategoryId)) : items.filter((log) => !log.categoryIds.length)) : items),
+        resetKey: `${resultViewMode}:${activeCategoryId ?? ""}`,
+    });
     const categoryGroups = categories.map((category) => ({ category, logs: baseVisibleLogs.filter((log) => log.categoryIds.includes(category.id)) }));
     const activeCategory = activeCategoryId ? categories.find((category) => category.id === activeCategoryId) : null;
-    const visibleLogs = resultViewMode === "category" ? (activeCategoryId ? baseVisibleLogs.filter((log) => log.categoryIds.includes(activeCategoryId)) : baseVisibleLogs.filter((log) => !log.categoryIds.length)) : baseVisibleLogs;
-    const displayedLogs = visibleLogs.slice(0, visibleLogCount);
     const totalCount = results.length + (resultViewMode === "category" ? (activeCategoryId ? visibleLogs.length : categories.length + visibleLogs.length) : visibleLogs.length);
     const shouldShowGrid = totalCount > 0;
-    const allVisibleLogsSelected = Boolean(visibleLogs.length) && visibleLogs.every((log) => selectedLogIds.includes(log.id));
     const selectedImages = visibleLogs.flatMap((log) => (selectedLogIds.includes(log.id) ? log.images.filter((image) => Boolean(image.dataUrl)) : []));
-    const toggleVisibleLogs = () => onSelectedLogIdsChange(allVisibleLogsSelected ? selectedLogIds.filter((id) => !visibleLogs.some((log) => log.id === id)) : Array.from(new Set([...selectedLogIds, ...visibleLogs.map((log) => log.id)])));
     const createCategory = async () => {
         const name = categoryName.trim();
         if (!name) {
@@ -119,10 +122,6 @@ export function ResultsPanel({
         setCategoryName("");
         setCreatingCategory(false);
     };
-
-    useEffect(() => {
-        setVisibleLogCount(48);
-    }, [activeCategoryId, resultViewMode]);
 
     useEffect(() => {
         if (activeCategoryId && !categories.some((category) => category.id === activeCategoryId)) onActiveCategoryChange(null);
@@ -249,9 +248,9 @@ export function ResultsPanel({
                     ))}
                 </div>
             ) : null}
-            {visibleLogs.length > displayedLogs.length ? (
+            {hasMore ? (
                 <div className="mt-4 flex justify-center">
-                    <Button onClick={() => setVisibleLogCount((value) => value + 48)}>加载更多（剩余 {visibleLogs.length - displayedLogs.length}）</Button>
+                    <Button onClick={loadMore}>加载更多（剩余 {visibleLogs.length - displayedLogs.length}）</Button>
                 </div>
             ) : null}
             <Modal title="新建分类" open={creatingCategory} onCancel={() => setCreatingCategory(false)} onOk={() => void createCategory()} okText="创建" cancelText="取消" destroyOnHidden>

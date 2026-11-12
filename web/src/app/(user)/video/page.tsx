@@ -41,6 +41,7 @@ import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import type { WorkflowRef } from "@/lib/workflow-channel";
 
 import type { VideoGenerationSnapshot, VideoTaskRun } from "./task-types";
+import { errorMessage } from "@/lib/utils";
 
 const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const KlingV26WorkbenchPanel = dynamic(
@@ -257,7 +258,7 @@ export default function VideoPage() {
             updateElementReferences(elementIndex, (value) => [...value, ...filtered]);
             if (filtered.length) message.success(`已上传 ${filtered.length} 个元素资源`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "元素资源上传失败");
+            message.error(errorMessage(error, "元素资源上传失败"));
         } finally {
             hideLoading?.();
         }
@@ -327,7 +328,7 @@ export default function VideoPage() {
             setAudioReferences((value) => [...value, ...nextAudioReferences].slice(0, referenceLimits.audios));
             if (nextReferences.length) message.success(`已上传 ${nextReferences.length} 张参考图`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "参考素材上传失败");
+            message.error(errorMessage(error, "参考素材上传失败"));
         } finally {
             hideLoading?.();
         }
@@ -349,7 +350,7 @@ export default function VideoPage() {
             const next = { id: nanoid(), name: file.name, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey };
             slot === "first" ? setFirstFrame(next) : setLastFrame(next);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "首尾帧上传失败");
+            message.error(errorMessage(error, "首尾帧上传失败"));
         } finally {
             hideLoading();
         }
@@ -486,7 +487,7 @@ export default function VideoPage() {
         try {
             await deleteStoredImages([reference.storageKey]);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "参考图文件删除失败");
+            message.error(errorMessage(error, "参考图文件删除失败"));
         }
     };
 
@@ -497,7 +498,7 @@ export default function VideoPage() {
         try {
             await deleteStoredImages([reference.storageKey]);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "首尾帧文件删除失败");
+            message.error(errorMessage(error, "首尾帧文件删除失败"));
         }
     };
 
@@ -508,7 +509,7 @@ export default function VideoPage() {
         try {
             await deleteStoredMedia([reference.storageKey]);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "参考视频文件删除失败");
+            message.error(errorMessage(error, "参考视频文件删除失败"));
         }
     };
 
@@ -519,7 +520,7 @@ export default function VideoPage() {
         try {
             await deleteStoredMedia([reference.storageKey]);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "参考音频文件删除失败");
+            message.error(errorMessage(error, "参考音频文件删除失败"));
         }
     };
 
@@ -687,7 +688,7 @@ export default function VideoPage() {
         try {
             saveAs(await downloadRemoteMedia(video.url), "video.mp4");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "视频下载失败");
+            message.error(errorMessage(error, "视频下载失败"));
         } finally {
             hideLoading();
         }
@@ -702,7 +703,7 @@ export default function VideoPage() {
             message.success("视频已同步到云端存储");
             return { ...video, url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width || video.width, height: uploaded.height || video.height, bytes: uploaded.bytes || video.bytes, mimeType: uploaded.mimeType || video.mimeType };
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "视频同步失败");
+            message.error(errorMessage(error, "视频同步失败"));
             return null;
         } finally {
             hideLoading();

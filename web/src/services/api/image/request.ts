@@ -13,6 +13,7 @@ import { IMAGE_MIME, IMAGE_REQUEST_TIMEOUT_SECONDS, applyAgnesImageSize, applyIm
 import { isEventStreamResponse, parseChatImagesPayload, parseGeminiImages, parseImagePayload, parseImagesStreamResponse, parseResponsesPayload, parseResponsesStreamResponse, readJsonServerSentEvents } from "./stream";
 import { ImageRequestError } from "./types";
 import type { ChatCompletionMessage, ChatImagesApiResponse, GeneratedImage, ImageApiResponse, ImageRequestParams, ParsedImageResponse, ResponsesApiResponse, SeedableImageConfig } from "./types";
+import { errorMessage } from "@/lib/utils";
 
 
 async function requestImageGenerationSingle(config: SeedableImageConfig, prompt: string, params: ImageRequestParams): Promise<GeneratedImage[]> {
@@ -271,7 +272,7 @@ async function requestAndParseImages(config: AiConfig, endpoint: string, request
         return parsed.images;
     } catch (error) {
         if (!logged) {
-            void writeLocalAICallLog(config, endpoint, startedAt, 0, stringifyLogPayload(requestBody), "", error instanceof ImageRequestError ? error.detail || error.message : error instanceof Error ? error.message : "请求失败");
+            void writeLocalAICallLog(config, endpoint, startedAt, 0, stringifyLogPayload(requestBody), "", error instanceof ImageRequestError ? error.detail || error.message : errorMessage(error, "请求失败"));
         }
         throw error;
     }
@@ -317,7 +318,7 @@ export async function requestGeneration(config: SeedableImageConfig, prompt: str
         return syncGeneratedImages(images);
     } catch (error) {
         if (error instanceof ImageRequestError) throw error;
-        throw new Error(error instanceof Error ? error.message : "请求失败");
+        throw new Error(errorMessage(error, "请求失败"));
     }
 }
 
@@ -328,7 +329,7 @@ export async function requestEdit(config: SeedableImageConfig, prompt: string, r
         return syncGeneratedImages(images);
     } catch (error) {
         if (error instanceof ImageRequestError) throw error;
-        throw new Error(error instanceof Error ? error.message : "请求失败");
+        throw new Error(errorMessage(error, "请求失败"));
     }
 }
 

@@ -88,7 +88,7 @@ export function ImageWorkbenchPanel({
                 onGenerate={onGenerate}
                 hint={<WorkbenchCreditHint config={config} model={model} mode="image" count={config.count || 1} />}
             >
-                <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[1.3fr_1.1fr_0.9fr_0.9fr_0.9fr_0.85fr_0.8fr_0.8fr_auto_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
+                <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[1.3fr_auto_0.9fr_0.9fr_0.9fr_auto_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
                     <label className="grid gap-1 text-xs text-muted-foreground">
                         模型
                         <ModelPicker

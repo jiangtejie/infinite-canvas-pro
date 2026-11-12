@@ -7,6 +7,7 @@ import { fetchGrokTtsVoices } from "@/services/api/audio";
 import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { GrokTtsVoice } from "@/lib/grok-tts";
+import { errorMessage } from "@/lib/utils";
 
 type GrokTtsVoiceSelectProps = {
     config: AiConfig;
@@ -40,7 +41,7 @@ export function GrokTtsVoiceSelect({ config, model, value, onChange, enabled = t
                 if (active) setVoices(items);
             })
             .catch((reason) => {
-                if (active) setError(reason instanceof Error ? reason.message : "音色读取失败");
+                if (active) setError(errorMessage(reason, "音色读取失败"));
             })
             .finally(() => {
                 if (active) setLoading(false);

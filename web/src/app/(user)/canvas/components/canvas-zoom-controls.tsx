@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { Compass, Focus, HelpCircle } from "lucide-react";
 import { Button, Tooltip } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CANVAS_Z } from "../[id]/lib/canvas-layer";
+import { useMenuNavigation } from "../utils/use-menu-navigation";
 
 type CanvasZoomControlsProps = {
     scale: number;
@@ -22,37 +24,13 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
     const [zoomMenuOpen, setZoomMenuOpen] = useState(false);
     const zoomMenuRef = useRef<HTMLDivElement>(null);
     const zoomTriggerRef = useRef<HTMLButtonElement>(null);
+    const menuNavigation = useMenuNavigation({ open: zoomMenuOpen, onClose: () => setZoomMenuOpen(false), panelRef: zoomMenuRef, triggerRef: zoomTriggerRef, escapeScope: "document" });
 
-    useEffect(() => {
-        if (!zoomMenuOpen) return;
-        const closeOnPointerDown = (event: PointerEvent) => {
-            const target = event.target;
-            if (target instanceof Node && zoomMenuRef.current?.contains(target)) return;
-            setZoomMenuOpen(false);
-        };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key !== "Escape") return;
-            event.preventDefault();
-            setZoomMenuOpen(false);
-            zoomTriggerRef.current?.focus();
-        };
-        document.addEventListener("pointerdown", closeOnPointerDown, true);
-        document.addEventListener("keydown", closeOnEscape);
-        return () => {
-            document.removeEventListener("pointerdown", closeOnPointerDown, true);
-            document.removeEventListener("keydown", closeOnEscape);
-        };
-    }, [zoomMenuOpen]);
-
-    useEffect(() => {
-        if (zoomMenuOpen) zoomMenuRef.current?.querySelector<HTMLElement>("[role='menuitem']")?.focus();
-    }, [zoomMenuOpen]);
-
-    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)" };
+    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: theme.shadow.panel };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
 
     return (
-        <div data-canvas-no-zoom className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom))] left-4 z-50 sm:bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:left-5" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <div data-canvas-no-zoom className="absolute canvas-floating-zoom left-4 sm:left-5" style={{ zIndex: CANVAS_Z.toolbar }} onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button
@@ -85,10 +63,10 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
                         {Math.round(scale * 100)}%
                     </Button>
                     {zoomMenuOpen ? (
-                        <div role="menu" className="absolute bottom-full left-1/2 z-50 mb-2 w-52 -translate-x-1/2 rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}>
-                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5 [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitAll(); }}>查看全部（Shift + 1）</button>
-                            <button type="button" role="menuitem" disabled={!hasSelection} className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitSelected(); }}>聚焦选中（Shift + 2）</button>
-                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/5 [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onScaleChange(1); }}>100%（Shift + 0）</button>
+                        <div role="menu" onKeyDown={menuNavigation.handleKeyDown} className="absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: theme.shadow.float, zIndex: CANVAS_Z.toolbarMenu, "--canvas-menu-hover": theme.toolbar.itemHover } as CSSProperties}>
+                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[var(--canvas-menu-hover)] [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitAll(); }}>查看全部（Shift + 1）</button>
+                            <button type="button" role="menuitem" disabled={!hasSelection} className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[var(--canvas-menu-hover)] disabled:cursor-not-allowed disabled:opacity-40" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitSelected(); }}>聚焦选中（Shift + 2）</button>
+                            <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[var(--canvas-menu-hover)] [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onScaleChange(1); }}>100%（Shift + 0）</button>
                         </div>
                     ) : null}
                 </div>

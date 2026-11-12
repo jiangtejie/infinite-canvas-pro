@@ -7,6 +7,7 @@ import { deleteAdminRechargePackage, fetchAdminRechargePackages, saveAdminRechar
 import { useUserStore } from "@/stores/use-user-store";
 
 import type { PackageFormValues } from "../recharge-package-utils";
+import { errorMessage } from "@/lib/utils";
 
 export function useAdminRechargePackages() {
     const { message } = App.useApp();
@@ -23,7 +24,7 @@ export function useAdminRechargePackages() {
         try {
             setItems(await fetchAdminRechargePackages(token));
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "加载套餐失败");
+            message.error(errorMessage(error, "加载套餐失败"));
         } finally {
             setIsLoading(false);
         }
@@ -59,7 +60,7 @@ export function useAdminRechargePackages() {
             setEditing(null);
             await reload();
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "保存失败");
+            message.error(errorMessage(error, "保存失败"));
         } finally {
             setSaving(false);
         }
@@ -72,7 +73,7 @@ export function useAdminRechargePackages() {
             message.success("套餐已删除");
             await reload();
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "删除失败");
+            message.error(errorMessage(error, "删除失败"));
         }
     };
 
@@ -82,7 +83,7 @@ export function useAdminRechargePackages() {
             await saveAdminRechargePackage({ ...item, enabled }, token);
             setItems((current) => current.map((entry) => (entry.id === item.id ? { ...entry, enabled } : entry)));
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "更新失败");
+            message.error(errorMessage(error, "更新失败"));
             await reload();
         }
     };

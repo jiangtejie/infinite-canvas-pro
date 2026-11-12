@@ -35,6 +35,7 @@ import {
     type CanvasPublishInputs,
 } from "../[id]/lib/canvas-publish";
 import type { CanvasNodeData, CanvasNodeMetadata, CanvasPublishRecord } from "../types";
+import { errorMessage } from "@/lib/utils";
 
 export type CanvasPublishNodePanelProps = {
     node: CanvasNodeData;
@@ -108,7 +109,7 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
             })
             .catch((error: unknown) => {
                 if (cancelled) return;
-                setChannelsError(error instanceof Error ? error.message : "发布渠道加载失败");
+                setChannelsError(errorMessage(error, "发布渠道加载失败"));
             });
         return () => {
             cancelled = true;
@@ -212,7 +213,7 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
             });
             message.success("发布二维码已生成");
         } catch (error) {
-            const reason = error instanceof Error ? error.message : "生成发布二维码失败";
+            const reason = errorMessage(error, "生成发布二维码失败");
             onChange({ publishStatus: "error", publishError: reason });
             message.error(reason);
         } finally {
@@ -228,7 +229,7 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
             onChange({ publishRecord: toCanvasPublishRecord(result.record) });
             message.success(result.record.status === "confirmed" ? "已标记为发布成功" : "发布记录已更新");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "标记发布失败");
+            message.error(errorMessage(error, "标记发布失败"));
         } finally {
             setConfirming(false);
         }

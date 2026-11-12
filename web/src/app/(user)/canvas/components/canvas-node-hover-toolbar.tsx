@@ -9,6 +9,8 @@ import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CANVAS_Z } from "../[id]/lib/canvas-layer";
+import { canvasNodeDisplayStatus } from "../[id]/lib/canvas-node-meta";
 import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
 import { isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
 import { ImageToolSettingsModal, type ImageToolbarSettingsTool } from "./canvas-image-toolbar-settings-modal";
@@ -35,7 +37,6 @@ type CanvasNodeHoverToolbarProps = {
     onCrop: (node: CanvasNodeData) => void;
     onSplit: (node: CanvasNodeData) => void;
     onUpscale: (node: CanvasNodeData) => void;
-    onSuperResolve: (node: CanvasNodeData) => void;
     onAngle: (node: CanvasNodeData) => void;
     onViewImage: (node: CanvasNodeData) => void;
     onReversePrompt: (node: CanvasNodeData) => void;
@@ -75,7 +76,6 @@ export function CanvasNodeHoverToolbar({
     onCrop,
     onSplit,
     onUpscale,
-    onSuperResolve,
     onAngle,
     onViewImage,
     onReversePrompt,
@@ -154,7 +154,7 @@ export function CanvasNodeHoverToolbar({
         }
         copyText(prompt, "提示词已复制");
     };
-    const imageTools = buildImageToolbarTools(node, { onUpload, onToggleFreeResize, onMaskEdit, onCrop, onSplit, onUpscale, onSuperResolve, onAngle, onViewImage, onCopyPrompt: copyImagePrompt, onReversePrompt }).filter((tool) => !isPanorama || tool.id !== "replace");
+    const imageTools = buildImageToolbarTools(node, { onUpload, onToggleFreeResize, onMaskEdit, onCrop, onSplit, onUpscale, onAngle, onViewImage, onCopyPrompt: copyImagePrompt, onReversePrompt }).filter((tool) => !isPanorama || tool.id !== "replace");
 
     function openImageToolSettings() {
         onKeep(node!.id);
@@ -234,8 +234,8 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute z-[70] flex flex-wrap items-center justify-center gap-x-2 overflow-visible rounded-xl border px-2 text-[13px] shadow-xl"
-                style={{ left, top, maxWidth: `min(${toolbarMaxWidth}px, calc(100vw - 32px))`, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, transform: `translate(-50%, -100%) scale(${toolbarScale})`, transformOrigin: "bottom center" }}
+                className="absolute flex flex-wrap items-center justify-center gap-x-2 overflow-visible rounded-xl border px-2 text-[13px] shadow-xl"
+                style={{ left, top, maxWidth: `min(${toolbarMaxWidth}px, calc(100vw - 32px))`, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, transform: `translate(-50%, -100%) scale(${toolbarScale})`, transformOrigin: "bottom center", zIndex: CANVAS_Z.hoverToolbar }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
                     if (!imageToolSettingsOpen) onLeave();
@@ -315,12 +315,12 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                             <InfoRow label="类型" value={node.type === CanvasNodeType.Text ? "文本" : node.type === CanvasNodeType.Image ? "图片" : node.type === CanvasNodeType.Panorama ? "全景图" : node.type === CanvasNodeType.Video ? "视频" : node.type === CanvasNodeType.Audio ? "音频" : node.type === CanvasNodeType.Director ? "导演台" : node.type === CanvasNodeType.Group ? "组" : node.type === CanvasNodeType.Source ? "素材源" : node.type === CanvasNodeType.Publish ? "发布" : "生成配置"} />
                             <InfoRow label="尺寸" value={`${Math.round(node.width)} x ${Math.round(node.height)}`} />
                             <InfoRow label="位置" value={`${Math.round(node.position.x)}, ${Math.round(node.position.y)}`} />
-                            <InfoRow label="状态" value={(node.type === CanvasNodeType.Source ? node.metadata?.sourceStatus : node.type === CanvasNodeType.Publish ? (node.metadata?.publishStatus === "generating" ? "loading" : node.metadata?.publishStatus === "error" ? "error" : node.metadata?.publishRecord ? "success" : "idle") : node.metadata?.status) || "idle"} />
+                            <InfoRow label="状态" value={canvasNodeDisplayStatus(node) || "idle"} />
                             {batchCount > 1 ? <InfoRow label="图片组" value={`${batchCount} 张`} /> : null}
                             {(isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt) ? <InfoRow label="提示词" value={isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt} /> : null}
                             {imageBytes ? <InfoRow label="图片大小" value={formatBytes(imageBytes)} /> : null}
                             {node.metadata?.errorDetails ? (
-                                <div className="rounded-lg border p-3 text-red-400" style={{ borderColor: theme.node.stroke }}>
+                                <div className="rounded-lg border p-3" style={{ borderColor: theme.node.stroke, color: canvasStatusColors.error }}>
                                     {node.metadata.errorDetails}
                                 </div>
                             ) : null}

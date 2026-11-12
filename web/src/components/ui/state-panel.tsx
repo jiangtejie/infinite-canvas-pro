@@ -22,7 +22,7 @@ export function EmptyState({ title, description, action, icon, className }: {
                     {icon ?? <Inbox className="size-6" />}
                 </div>
             </div>
-            <div className="mt-5 flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2">
                 <span aria-hidden className="punk-signal" />
                 <p className="text-sm font-medium tracking-tight text-foreground">{title}</p>
             </div>

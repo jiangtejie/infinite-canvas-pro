@@ -1,16 +1,18 @@
 "use client";
 
 import { FolderPlus, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { App, Button, Input, Pagination } from "antd";
 import { AssetBrowserCard, AssetBrowserEmpty, AssetBrowserLoading, AssetKindFilter, type AssetBrowserItem, type AssetFilterKind } from "@/components/assets/asset-browser";
 import { AssetDetailDrawer, type AssetDetailModel } from "@/components/assets/asset-detail-drawer";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { PageHeader } from "@/components/ui/page-header";
+import { ErrorState } from "@/components/ui/state-panel";
 import { getProxyUrl } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets";
+import { errorMessage } from "@/lib/utils";
 
 const PAGE_SIZE = 12;
 
@@ -30,12 +32,6 @@ export default function AssetLibraryPage() {
         placeholderData: (previousData) => previousData,
         retry: false,
     });
-
-    useEffect(() => {
-        if (query.isError) {
-            message.error(query.error instanceof Error ? query.error.message : "获取素材库失败");
-        }
-    }, [message, query.error, query.isError]);
 
     const isReady = Boolean(query.data) || query.isError;
     const items = query.data?.items || [];
@@ -188,6 +184,12 @@ export default function AssetLibraryPage() {
                     <section className="flex flex-col gap-5">
                         {!isReady ? (
                             <AssetBrowserLoading label="正在加载素材库" />
+                        ) : query.isError ? (
+                            <ErrorState
+                                className="py-16"
+                                description={errorMessage(query.error, "获取素材库失败，请稍后重试。")}
+                                onRetry={() => void query.refetch()}
+                            />
                         ) : items.length ? (
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {items.map((asset, index) => (
@@ -209,7 +211,7 @@ export default function AssetLibraryPage() {
                             <AssetBrowserEmpty onClear={clearFilters} />
                         )}
 
-                        {isReady && total > PAGE_SIZE ? (
+                        {isReady && !query.isError && total > PAGE_SIZE ? (
                             <div className="flex justify-center pt-2">
                                 <Pagination current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={(nextPage) => setPage(nextPage)} />
                             </div>

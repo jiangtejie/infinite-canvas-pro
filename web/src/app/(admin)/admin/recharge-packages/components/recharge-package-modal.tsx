@@ -18,6 +18,9 @@ export function RechargePackageModal({
     onSave: () => void;
 }) {
     const { token: antToken } = theme.useToken();
+    const amountYuan = Form.useWatch("amountYuan", form);
+    const credits = Form.useWatch("credits", form);
+    const bonus = Form.useWatch("bonus", form);
     return (
             // Form 必须始终挂载：Modal 关闭时内容不渲染，若 useForm 实例一直没有连接 Form，
             // 开发环境会报 "Instance created by useForm is not connected to any Form element"。
@@ -67,8 +70,8 @@ export function RechargePackageModal({
                         </Col>
                     </Row>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, borderTop: `1px solid ${antToken.colorBorderSecondary}`, paddingTop: 12 }}>
-                        <Typography.Text type="secondary">用户端展示价格 ¥{(form.getFieldValue("amountYuan") || 0).toFixed(2)}</Typography.Text>
-                        <Typography.Text type="secondary">到账 {Number(form.getFieldValue("credits") || 0) + Number(form.getFieldValue("bonus") || 0)} 算力点</Typography.Text>
+                        <Typography.Text type="secondary">用户端展示价格 ¥{Number(amountYuan || 0).toFixed(2)}</Typography.Text>
+                        <Typography.Text type="secondary">到账 {Number(credits || 0) + Number(bonus || 0)} 算力点</Typography.Text>
                     </div>
                     </div>
                 </Modal>

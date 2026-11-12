@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Input, Select } from "antd";
 import { Clapperboard, PenLine, Plus, Sparkles } from "lucide-react";
 
+import { EmptyState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import type { ScriptProject, ScriptScene } from "../types";
 import { collectScriptCharacterNames, createScriptScene, normalizeScriptCharacters, scriptSceneHeading, scriptSceneMissingFields } from "../utils/script-project";
@@ -84,14 +85,13 @@ export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onU
 
     if (!scene) {
         return (
-            <div className="grid place-items-center rounded-xl border border-dashed border-border/70 bg-card/25 px-6 py-20 text-center">
-                <div className="grid justify-items-center gap-2">
-                    <Clapperboard className="size-6 text-muted-foreground/40" />
-                    <p className="text-sm text-foreground">还没有可以写的场景</p>
-                    <p className="text-[11px] text-muted-foreground">先建一场，再开始写动作和对白。</p>
-                    <Button className="mt-2" size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={addScene}>添加第一场</Button>
-                </div>
-            </div>
+            <EmptyState
+                className="rounded-xl border border-dashed border-border/70 bg-card/25 py-10"
+                icon={<Clapperboard className="size-5" />}
+                title="还没有可以写的场景"
+                description="先建一场，再开始写动作和对白。"
+                action={<Button size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={addScene}>添加第一场</Button>}
+            />
         );
     }
 

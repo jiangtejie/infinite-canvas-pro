@@ -27,6 +27,7 @@ import { applyNodeConfigPatch } from "../lib/canvas-node-builders";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { buildAgentMediaPlan } from "../lib/canvas-agent-media";
 import { AGENT_PRIMARY_SCRIPT_NODE_SIZE, planArrangeNodes, planCreateConnection, planCreateTextNode, planUpdateNodeTitle, planUpdateTextNode } from "../lib/canvas-agent-write-tools";
+import { errorMessage } from "@/lib/utils";
 
 type CanvasStoreState = ReturnType<typeof useCanvasStore.getState>;
 
@@ -412,7 +413,7 @@ export function useCanvasAgentExecutor({
 
                 return { ok: false, code: "unsupported_tool", message: "未实现工具 " + action.name };
             } catch (error) {
-                return { ok: false, code: "tool_error", message: error instanceof Error ? error.message : "画布工具执行失败" };
+                return { ok: false, code: "tool_error", message: errorMessage(error, "画布工具执行失败") };
             }
         },
         [agentEffectiveConfig, createGroupFromSelection, projectTitle, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, autoGenerateMedia, updateProject, selectMany, selectedNodeIdsRef, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],

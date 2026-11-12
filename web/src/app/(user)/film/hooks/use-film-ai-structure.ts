@@ -6,6 +6,7 @@ import { App } from "antd";
 import type { FilmProject, FilmStructurePlan } from "@/lib/film/types";
 import { requestFilmStructurePlan, requestFilmStructureScenePlan } from "../utils/film-ai-structure";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 /** 结构代理：只生成场次计划（purpose/beats/coverage），不生成画面。 */
 export function useFilmAiStructure(onGenerated: (plan: FilmStructurePlan) => void) {
@@ -24,7 +25,7 @@ export function useFilmAiStructure(onGenerated: (plan: FilmStructurePlan) => voi
             onGenerated(plan);
             message.success("已生成 " + plan.scenes.length + " 场结构计划");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "结构计划生成失败");
+            message.error(errorMessage(error, "结构计划生成失败"));
         } finally {
             setGenerating(false);
         }
@@ -45,7 +46,7 @@ export function useFilmAiStructure(onGenerated: (plan: FilmStructurePlan) => voi
             });
             message.success("已重生成「" + scene.sceneName + "」");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "单场结构重生成失败");
+            message.error(errorMessage(error, "单场结构重生成失败"));
         } finally {
             setRegeneratingScene(null);
         }

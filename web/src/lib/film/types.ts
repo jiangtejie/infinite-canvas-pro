@@ -258,8 +258,6 @@ export type FilmShot = {
     negativePrompt?: string;
     performance?: FilmPerformance;
     soundDesign?: FilmSoundDesign;
-    /** 单个分支（旧字段，仍兼容；新数据优先用 branches）。 */
-    branch?: FilmShotBranch;
     /** 一个镜头上的多个互动分支选项。 */
     branches?: FilmShotBranch[];
     /** 结构层标记：建立/反应/细节/关系/过渡，用于覆盖检查。 */

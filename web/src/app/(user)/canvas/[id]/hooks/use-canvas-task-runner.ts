@@ -9,6 +9,7 @@ import type { VideoResponse } from "@/services/api/video";
 import type { CanvasNodeData } from "../../types";
 import { canvasTaskFailed, canvasTaskMediaURL, canvasVideoTaskCompleted } from "../lib/canvas-task-helpers";
 import type { CanvasNodeTaskRun } from "./use-canvas-tasks";
+import { errorMessage } from "@/lib/utils";
 
 type UseCanvasTaskRunnerOptions = {
     nodeTaskRunsRef: MutableRefObject<Map<string, CanvasNodeTaskRun>>;
@@ -37,7 +38,7 @@ export function useCanvasTaskRunner({ nodeTaskRunsRef, setNodes }: UseCanvasTask
             run.backend = backend;
             setNodes((prev) => prev.map((node) => node.id === nodeId && node.metadata?.clientTaskId === id ? { ...node, metadata: { ...node.metadata, taskBackend: backend } } : node));
         }).then((task) => rememberNodeTask(nodeId, id, task), (error) => {
-            if (!nodeTaskRunsRef.current.get(`${nodeId}:${id}`)?.task) rememberNodeTask(nodeId, id, { id, source: run.backend === "workflow" ? "workflow" : undefined, status: "failed", error: { message: error instanceof Error ? error.message : "生成失败" } });
+            if (!nodeTaskRunsRef.current.get(`${nodeId}:${id}`)?.task) rememberNodeTask(nodeId, id, { id, source: run.backend === "workflow" ? "workflow" : undefined, status: "failed", error: { message: errorMessage(error, "生成失败") } });
             throw error;
         });
         run.submission = submission;

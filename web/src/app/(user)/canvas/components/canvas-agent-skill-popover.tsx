@@ -13,6 +13,7 @@ import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { CanvasAgentSkillSelection } from "../types";
+import { errorMessage } from "@/lib/utils";
 
 type CanvasAgentSkillPopoverProps = {
     selectedSkills?: CanvasAgentSkillSelection[];
@@ -99,7 +100,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const editingCoverStorageKey = Form.useWatch("coverStorageKey", form);
 
     useEffect(() => {
-        if (open) void loadSkills().catch((error) => message.error(error instanceof Error ? error.message : "Skill 加载失败"));
+        if (open) void loadSkills().catch((error) => message.error(errorMessage(error, "Skill 加载失败")));
     }, [loadSkills, message, open, token]);
 
     const skills = useMemo(() => {
@@ -126,7 +127,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
             if (selectedSkills?.some((selected) => selected.id === skill.id && selected.source === skill.source)) onDeleteSelected(skill.id, skill.source);
             message.success("Skill 已删除");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "Skill 删除失败");
+            message.error(errorMessage(error, "Skill 删除失败"));
         }
     };
 
@@ -208,7 +209,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
                         message.success("Skill 已导入");
                         setOpen(false);
                     } catch (error) {
-                        message.error(error instanceof Error ? error.message : "Skill 导入失败");
+                        message.error(errorMessage(error, "Skill 导入失败"));
                     }
                 }}
             />

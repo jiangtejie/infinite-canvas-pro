@@ -12,6 +12,7 @@ import {
     CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL, normalizeCanvasAgentAction,
     type CanvasAgentAction, type CanvasAgentToolResult,
 } from "./canvas-agent-tools";
+import { errorMessage } from "@/lib/utils";
 
 type Client = ReturnType<typeof createCodexAgentClient>;
 type RunInput = RunCanvasAgentInput & {
@@ -75,7 +76,7 @@ export function useCodexAgent(options: {
             return true;
         } catch (reason) {
             if (connectionAttempt.current === attempt) {
-                setError(reason instanceof Error ? reason.message : "连接本地 Agent 失败");
+                setError(errorMessage(reason, "连接本地 Agent 失败"));
                 setStatus("error");
             }
             return false;
@@ -218,7 +219,7 @@ export function useCodexAgent(options: {
                     signal.throwIfAborted();
                     await link.result(event.requestId, result);
                 } catch (reason) {
-                    if (!signal.aborted) await link.result(event.requestId, undefined, reason instanceof Error ? reason.message : "画布工具执行失败");
+                    if (!signal.aborted) await link.result(event.requestId, undefined, errorMessage(reason, "画布工具执行失败"));
                 } finally { toolControllers.delete(event.requestId); }
             }).catch(fail);
         };

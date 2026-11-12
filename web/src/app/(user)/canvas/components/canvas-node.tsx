@@ -484,10 +484,10 @@ export const CanvasNode = React.memo(function CanvasNode({
                     </div>
                 ) : null}
 
-                {!referenceSelectionState ? <ResizeHandle corner="top-left" onPointerDown={handleResizePointerDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="top-right" onPointerDown={handleResizePointerDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-left" onPointerDown={handleResizePointerDown} /> : null}
-                {!referenceSelectionState ? <ResizeHandle corner="bottom-right" onPointerDown={handleResizePointerDown} /> : null}
+                {!referenceSelectionState && (hovered || isSelected) ? <ResizeHandle corner="top-left" onPointerDown={handleResizePointerDown} /> : null}
+                {!referenceSelectionState && (hovered || isSelected) ? <ResizeHandle corner="top-right" onPointerDown={handleResizePointerDown} /> : null}
+                {!referenceSelectionState && (hovered || isSelected) ? <ResizeHandle corner="bottom-left" onPointerDown={handleResizePointerDown} /> : null}
+                {!referenceSelectionState && (hovered || isSelected) ? <ResizeHandle corner="bottom-right" onPointerDown={handleResizePointerDown} /> : null}
             </div>
 
             {!referenceSelectionState && !isGroup ? (

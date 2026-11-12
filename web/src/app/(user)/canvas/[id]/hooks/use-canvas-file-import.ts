@@ -14,6 +14,7 @@ import { isAudioFile } from "../lib/canvas-graph";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../../types";
 import type { PendingPanoramaImport } from "./use-canvas-ui-state";
 import type { useCanvasTaskSystem } from "./use-canvas-task-system";
+import { errorMessage } from "@/lib/utils";
 
 type CanvasFileImportTaskSystem = ReturnType<typeof useCanvasTaskSystem>;
 
@@ -68,7 +69,7 @@ export function useCanvasFileImport({
     const appendImportedImageNode = useCallback((image: UploadedImage, title: string, position: Position, type: CanvasNodeType.Image | CanvasNodeType.Panorama) => {
         const isPanorama = type === CanvasNodeType.Panorama;
         const size = isPanorama ? PANORAMA_NODE_SIZE : fitNodeSize(image.width, image.height);
-        const id = type + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+        const id = nanoid();
         const newNode: CanvasNodeData = {
             id,
             type,
@@ -128,7 +129,7 @@ export function useCanvasFileImport({
         try {
             const audio = await uploadMediaFile(file, "audio");
             const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Audio];
-            const id = `audio-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            const id = nanoid();
             setNodes((prev) => [
                 ...prev,
                 {
@@ -202,7 +203,7 @@ export function useCanvasFileImport({
             }
             return audioNodeId;
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "音频处理失败");
+            message.error(errorMessage(error, "音频处理失败"));
         } finally {
             await conversion?.cancel().catch(console.error);
             input?.dispose();

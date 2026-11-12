@@ -15,11 +15,8 @@ export type LocalLogStore = {
     iterate<T, U>(callback: (value: T) => U): Promise<U>;
 };
 
-/** 统一的错误文案提取。 */
-export function errorMessage(error: unknown) {
-    if (error instanceof Error && error.message) return error.message;
-    return String(error || "生成失败");
-}
+/** 统一的错误文案提取（实现与默认兜底见 lib/utils）。 */
+export { errorMessage } from "@/lib/utils";
 
 /** 统一的失败详情提取，detail 字段由各渠道的请求错误类型决定。 */
 export function errorDetailWith(error: unknown, isRequestError: (value: unknown) => boolean) {

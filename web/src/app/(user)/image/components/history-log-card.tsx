@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Checkbox, Image, Input, Tag } from "antd";
 import { AlertCircle, Brush, CloudUpload, Download, FolderPlus, PenLine, Plus, RotateCcw, Trash2 } from "lucide-react";
 
-import { FailureDetailModal, ReferenceThumbnailOverlay, TaskErrorLine, formatTaskTime } from "@/components/workbench/task-result";
+import { FailureDetailModal, ReferenceThumbnailOverlay, TaskErrorLine, TaskPromptBlock, formatTaskTime } from "@/components/workbench/task-result";
 import { formatDuration } from "@/lib/image-utils";
-import { ImageMetaLine, ImagePromptBlock } from "./image-card-parts";
+import { ImageMetaLine } from "./image-card-parts";
 import { useImagePreviewUrl } from "./use-preview-url";
 import type { GeneratedImage, GenerationCategory, GenerationLog } from "../history";
 
@@ -118,10 +118,10 @@ export function HistoryLogCard({
                     </div>
                 ) : (
                     <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center">
-                        <span className="flex size-9 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
+                        <span className="flex size-9 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
                             <AlertCircle className="size-4" aria-hidden />
                         </span>
-                        <span className="text-[13px] text-red-500">{log.errors[0] || "没有可显示的图片"}</span>
+                        <span className="text-[13px] text-destructive">{log.errors[0] || "没有可显示的图片"}</span>
                     </div>
                 )}
                 {displayImages.length > 1 ? (
@@ -134,7 +134,7 @@ export function HistoryLogCard({
                 <ReferenceThumbnailOverlay references={log.references} className="bottom-1.5 right-1.5" />
             </div>
             <div className="flex-1 space-y-2 border-t border-border/70 p-3 text-xs">
-                <ImagePromptBlock prompt={log.prompt} onCopyPrompt={onCopyPrompt} />
+                <TaskPromptBlock compact prompt={log.prompt} onCopyPrompt={onCopyPrompt} />
                 {logCategories.length ? (
                     <div className="flex flex-wrap gap-1">
                         {logCategories.slice(0, 3).map((category) => (
@@ -151,7 +151,7 @@ export function HistoryLogCard({
                     items={[formatTaskTime(log.createdAt), log.model, log.workflowName ? `工作流 ${log.workflowName}` : "", log.config.size || "auto", formatDuration(log.durationMs)]}
                 />
             </div>
-            <div className="flex items-center justify-between gap-1.5 border-t border-border/70 px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-1.5 border-t border-border/70 px-3 py-2.5">
                 <div ref={categoryMenuRef} className="relative flex items-center gap-1">
                     <Button size="small" onClick={() => closeThen(onPreview)}>
                         载入
@@ -181,7 +181,7 @@ export function HistoryLogCard({
                     ) : null}
                 </div>
                 {firstImage ? (
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="ml-auto flex shrink-0 items-center gap-1">
                         <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={firstImage.storageKey?.startsWith("server:")} onClick={() => closeThen(() => onSync(firstImage))} />
                         <Button size="small" title="保存到我的素材" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => closeThen(() => void onSaveAsset(firstImage, index))} />
                         <Button size="small" title="继续编辑" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => closeThen(() => void onEdit(firstImage, index))} />

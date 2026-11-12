@@ -34,6 +34,14 @@
     display: none;
 }
 
+/* 移动端页签溢出：右缘渐隐提示可横向滑动 */
+@media (max-width: 639px) {
+    .account-shell .acct-tabs {
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+        mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+    }
+}
+
 .account-shell .acct-tab {
     position: relative;
     display: inline-flex;

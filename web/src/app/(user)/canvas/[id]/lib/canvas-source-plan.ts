@@ -1,4 +1,4 @@
-import { NODE_DEFAULT_SIZE, SOURCE_LAYOUT_VERSION } from "../../constants";
+import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
 
 export type CanvasSourcePlan = {
@@ -186,79 +186,6 @@ function chooseRemixGenerationSize(width?: number, height?: number) {
     if (!width || !height || width <= 0 || height <= 0) return "";
     const ratio = width / height;
     return REMIX_GENERATION_SIZES.reduce((best, current) => Math.abs(current.ratio - ratio) < Math.abs(best.ratio - ratio) ? current : best).size;
-}
-
-/** 旧的自动连接把复刻文案接到复刻配图，会让正文被当成图片提示词；重新展开时移除这条旧自动连接。 */
-export function isLegacyRemixTextImageConnection(connection: CanvasConnection, sourceId: string) {
-    return connection.fromNodeId === `${sourceId}-remix-text` && connection.toNodeId.startsWith(`${sourceId}-remix-image-`);
-}
-
-/** 移除旧版复刻文案到配图的自动连接；只在初始化/重新展开时调用。 */
-export function stripLegacyRemixTextImageConnections(nodes: CanvasNodeData[], connections: CanvasConnection[]) {
-    const sourceIds = nodes.filter((node) => node.type === CanvasNodeType.Source).map((node) => node.id);
-    if (!sourceIds.length) return connections;
-    return connections.filter((connection) => !sourceIds.some((sourceId) => isLegacyRemixTextImageConnection(connection, sourceId)));
-}
-
-/**
- * 迁移旧的复刻配图空节点：按当前素材图比例补齐节点尺寸和生成尺寸。
- * 已有生成内容或用户已显式设置尺寸的节点保持不动。
- */
-export function migrateRemixNodeLayouts(nodes: CanvasNodeData[]) {
-    const plannedById = new Map<string, CanvasNodeData>();
-    for (const source of nodes) {
-        if (source.type !== CanvasNodeType.Source) continue;
-        for (const planned of buildSourceMaterialPlan(source, { includeRemix: true }).nodes) {
-            if (planned.id.startsWith(`${source.id}-remix-image-`)) plannedById.set(planned.id, planned);
-        }
-    }
-    if (!plannedById.size) return nodes;
-    let changed = false;
-    const next = nodes.map((node) => {
-        const planned = plannedById.get(node.id);
-        if (!planned || node.metadata?.content || node.metadata?.size) return node;
-        changed = true;
-        return {
-            ...node,
-            width: planned.width,
-            height: planned.height,
-            metadata: {
-                ...node.metadata,
-                size: planned.metadata?.size,
-                naturalWidth: planned.metadata?.naturalWidth,
-                naturalHeight: planned.metadata?.naturalHeight,
-            },
-        };
-    });
-    return changed ? next : nodes;
-}
-
-const LEGACY_SOURCE_NODE_SIZE = { width: 420, height: 300 };
-
-/**
- * 迁移旧素材源节点：无 sourceLayoutVersion 且仍是旧默认尺寸 420x300 的节点，
- * 以中心为基准扩到当前默认尺寸 520x380 并写版本；用户已自定义尺寸的节点保持不动。
- */
-export function migrateSourceNodeLayouts(nodes: CanvasNodeData[]) {
-    const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Source];
-    let changed = false;
-    const next = nodes.map((node) => {
-        if (node.type !== CanvasNodeType.Source) return node;
-        if (node.metadata?.sourceLayoutVersion) return node;
-        if (node.width !== LEGACY_SOURCE_NODE_SIZE.width || node.height !== LEGACY_SOURCE_NODE_SIZE.height) return node;
-        changed = true;
-        return {
-            ...node,
-            width: spec.width,
-            height: spec.height,
-            position: {
-                x: node.position.x + (node.width - spec.width) / 2,
-                y: node.position.y + (node.height - spec.height) / 2,
-            },
-            metadata: { ...node.metadata, sourceLayoutVersion: SOURCE_LAYOUT_VERSION },
-        };
-    });
-    return changed ? next : nodes;
 }
 
 function fitMaterialImageSize(width?: number, height?: number) {

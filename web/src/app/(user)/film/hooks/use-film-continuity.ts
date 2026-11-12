@@ -6,6 +6,7 @@ import { App } from "antd";
 import type { FilmContinuitySheet, FilmEpisode } from "@/lib/film/types";
 import { requestFilmContinuity } from "../utils/film-continuity-sheet";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 export function useFilmContinuity() {
     const { message } = App.useApp();
@@ -22,7 +23,7 @@ export function useFilmContinuity() {
             message.success(`已生成 ${sheets.length} 份场记交接单`);
             return sheets;
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "AI 场记分析失败");
+            message.error(errorMessage(error, "AI 场记分析失败"));
             return null;
         } finally {
             setAnalyzingEpisodeId("");

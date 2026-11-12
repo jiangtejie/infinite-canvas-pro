@@ -6,6 +6,7 @@ import { Clapperboard, ImageIcon, Maximize2, ZoomIn, ZoomOut } from "lucide-reac
 import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { filmAspectCssRatio } from "@/lib/film/film-aspects";
+import { EmptyState } from "@/components/ui/state-panel";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { deriveFilmShotStatus } from "../utils/film-status";
 import { FilmShotStatusChip } from "./film-shot-status-chip";
@@ -97,13 +98,7 @@ export function FilmStoryboardBoard({ project, selectedShotId, onSelect }: { pro
                 </div>
                 {columns.length === 0 ? (
                     <div className="absolute inset-0 grid place-items-center">
-                        <div className="text-center">
-                            <div className="film-float mx-auto grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                                <Clapperboard className="size-5" />
-                            </div>
-                            <p className="mt-4 text-sm text-foreground">还没有分镜</p>
-                            <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先去剧本页粘贴剧本并解析，分镜会自动出现在画布上。</p>
-                        </div>
+                        <EmptyState className="py-10" icon={<Clapperboard className="size-5" />} title="还没有分镜" description="先去剧本页粘贴剧本并解析，分镜会自动出现在画布上。" />
                     </div>
                 ) : null}
             </div>

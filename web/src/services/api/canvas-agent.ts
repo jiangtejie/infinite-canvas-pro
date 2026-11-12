@@ -8,6 +8,7 @@ import { tokenDanceRecoveryMessage } from "./protocols/tokendance";
 import type { CanvasAgentProtocolMessage, CanvasAgentToolCall, CanvasAgentToolMode } from "@/app/(user)/canvas/types";
 import type { CanvasAgentToolDefinition } from "@/app/(user)/canvas/agent/canvas-agent-tools";
 import { calibrateCanvasAgentTokenEstimate } from "@/app/(user)/canvas/agent/canvas-agent-memory";
+import { errorMessage } from "@/lib/utils";
 
 export type CanvasAgentModelTurn = {
     content: string;
@@ -569,7 +570,7 @@ async function readCanvasAgentStream(response: Response, onEvent: (event: Record
                 code = readErrorCode(detail) || geminiErrorCode(detail);
             } catch { /* 保留原始错误信息 */ }
         }
-        throw new CanvasAgentRequestError(error instanceof Error ? error.message : "流式响应读取失败", response.status, code);
+        throw new CanvasAgentRequestError(errorMessage(error, "流式响应读取失败"), response.status, code);
     }
 }
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { FilmProject, FilmShot } from "@/lib/film/types";
+import type { FilmProject, FilmShot, FilmShotBranch } from "@/lib/film/types";
 import { applyFilmBranchEffects, collectFilmVariableUsage, evaluateFilmBranchConditions, findFilmVariableIssues, initialFilmVariables } from "./film-interactive";
 
 function makeProject(shots: FilmShot[], variables: FilmProject["interactiveVariables"] = []): FilmProject {
@@ -12,8 +12,8 @@ function makeProject(shots: FilmShot[], variables: FilmProject["interactiveVaria
     };
 }
 
-function shot(id: string, branch?: FilmShot["branch"]): FilmShot {
-    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", branch };
+function shot(id: string, branch?: FilmShotBranch): FilmShot {
+    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", branches: branch ? [branch] : undefined };
 }
 
 const variables = [

@@ -1,70 +1,57 @@
 "use client";
 
-import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Card, Col, Form, Input, Row, Select, Space } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import { Col, Form, Input, Select } from "antd";
+import { useEffect, useState } from "react";
 
 import { assetTypeOptions } from "../asset-utils";
+import { AdminFilterBar, adminFilterFieldCol, adminFilterKeywordCol } from "../../components/admin-filter-bar";
 
 export function AssetFilterBar({
-    keywordText,
-    setKeywordText,
+    keyword,
     kind,
     tag,
     tags,
-    searchAssets,
+    onSearch,
     changeKind,
     changeTag,
-    resetFilters,
+    onReset,
 }: {
-    keywordText: string;
-    setKeywordText: (value: string) => void;
+    keyword: string;
     kind: string;
     tag: string[];
     tags: string[];
-    searchAssets: (value: string) => void;
+    onSearch: (keyword: string) => void;
     changeKind: (value: string) => void;
     changeTag: (value: string[]) => void;
-    resetFilters: () => void;
+    onReset: () => void;
 }) {
+    const [keywordText, setKeywordText] = useState(keyword);
+    useEffect(() => setKeywordText(keyword), [keyword]);
     const tagOptions = tags.map((item) => ({ label: item, value: item }));
     return (
-                <Card variant="borderless">
-                    <Form layout="vertical">
-                        <Row gutter={16} align="bottom">
-                            <Col flex="360px">
-                                <Form.Item label="关键词">
-                                    <Input.Search value={keywordText} placeholder="搜索标题、内容或标签" allowClear enterButton={<SearchOutlined />} onSearch={() => searchAssets(keywordText)} onChange={(event) => setKeywordText(event.target.value)} />
-                                </Form.Item>
-                            </Col>
-                            <Col flex="180px">
-                                <Form.Item label="类型">
-                                    <Select value={kind} onChange={changeKind} options={assetTypeOptions} />
-                                </Form.Item>
-                            </Col>
-                            <Col flex="220px">
-                                <Form.Item label="标签">
-                                    <Select mode="multiple" allowClear maxTagCount="responsive" value={tag} onChange={changeTag} options={tagOptions} placeholder="全部标签" />
-                                </Form.Item>
-                            </Col>
-                            <Col flex="none">
-                                <Form.Item>
-                                    <Space>
-                                        <Button
-                                            onClick={() => {
-                                                setKeywordText("");
-                                                resetFilters();
-                                            }}
-                                        >
-                                            重置
-                                        </Button>
-                                        <Button type="primary" icon={<ReloadOutlined />} onClick={() => searchAssets(keywordText)}>
-                                            查询
-                                        </Button>
-                                    </Space>
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                    </Form>
-                </Card>
+        <AdminFilterBar
+            onSearch={() => onSearch(keywordText)}
+            onReset={() => {
+                setKeywordText("");
+                onReset();
+            }}
+        >
+            <Col {...adminFilterKeywordCol}>
+                <Form.Item label="关键词">
+                    <Input.Search value={keywordText} placeholder="搜索标题、内容或标签" allowClear enterButton={<SearchOutlined />} onSearch={() => onSearch(keywordText)} onChange={(event) => setKeywordText(event.target.value)} />
+                </Form.Item>
+            </Col>
+            <Col {...adminFilterFieldCol}>
+                <Form.Item label="类型">
+                    <Select value={kind} onChange={changeKind} options={assetTypeOptions} />
+                </Form.Item>
+            </Col>
+            <Col {...adminFilterFieldCol}>
+                <Form.Item label="标签">
+                    <Select mode="multiple" allowClear maxTagCount="responsive" value={tag} onChange={changeTag} options={tagOptions} placeholder="全部标签" />
+                </Form.Item>
+            </Col>
+        </AdminFilterBar>
     );
 }

@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ImagePlus, Trash2, X } from "lucide-react";
-import { AutoComplete, Button, Image, Input, InputNumber, Select, Spin } from "antd";
+import { App, AutoComplete, Button, Image, Input, InputNumber, Select, Spin } from "antd";
 
+import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
-import type { FilmAsset, FilmContinuitySheet, FilmInteractiveVariable, FilmShot, FilmShotBranch } from "@/lib/film/types";
-import type { DirectorStyle } from "@/lib/film/director-styles";
+import type { FilmContinuitySheet, FilmProject, FilmShot, FilmShotBranch } from "@/lib/film/types";
+import { appendDirectorStyleToPrompt, directorStyleFor } from "@/lib/film/director-styles";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
+import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
+import { flattenFilmShots } from "../utils/parse-script";
 import { checkShotStyle } from "../utils/film-style-check";
 import { shotBranchList } from "../utils/film-branch";
 import { FilmBranchRuleEditor } from "./film-branch-rule-editor";
+import { useElapsedSeconds } from "../hooks/use-elapsed-seconds";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
 import { useFilmContinuityCheck } from "../hooks/use-film-continuity-check";
 import { filmAspectCssRatio } from "@/lib/film/film-aspects";
@@ -22,30 +27,18 @@ import { useEffectiveConfig } from "@/stores/use-config-store";
 
 type FilmShotDetailProps = {
     shot: FilmShot;
-    onChange: (patch: Partial<FilmShot>) => void;
-    onDelete: () => void;
+    project: FilmProject;
+    onUpdate: (patch: Partial<Pick<FilmProject, "episodes">>) => void;
     onGenerate?: () => void;
     generating?: boolean;
     onGenerateVideo?: () => void;
     onStopVideo?: () => void;
     generatingVideo?: boolean;
     videoProgress?: number;
-    characters?: FilmAsset[];
-    locations?: FilmAsset[];
-    onMove?: (direction: "up" | "down") => void;
-    canMoveUp?: boolean;
-    canMoveDown?: boolean;
-    onMoveToScene?: (sceneId: string) => void;
-    sceneTargets?: Array<{ value: string; label: string }>;
-    aspect?: string;
-    styleText?: string;
-    directorStyle?: DirectorStyle;
-    onApplyStylePrompt?: () => void;
-    branchTargets?: Array<{ id: string; label: string }>;
-    variables?: FilmInteractiveVariable[];
 };
 
-export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generating, onGenerateVideo, onStopVideo, generatingVideo, videoProgress, characters = [], locations = [], onMove, canMoveUp, canMoveDown, onMoveToScene, sceneTargets = [], aspect, styleText = "", directorStyle, onApplyStylePrompt, branchTargets = [], variables = [] }: FilmShotDetailProps) {
+export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating, onGenerateVideo, onStopVideo, generatingVideo, videoProgress }: FilmShotDetailProps) {
+    const { message } = App.useApp();
     const imageSrc = useFilmImageUrl(shot.imageUrl, shot.storageKey);
     const { checkingShotId, checkShot } = useFilmContinuityCheck();
     const [tab, setTab] = useState<"basic" | "performance" | "image" | "video">("basic");
@@ -53,8 +46,31 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
     const continuityCheck = shot.continuityCheck || "";
     const imageVersionsRef = useRef<HTMLDivElement>(null);
     const imageElapsed = useElapsedSeconds(Boolean(generating));
+    const characters = project.characters || [];
+    const locations = project.locations || [];
+    const variables = project.interactiveVariables || [];
+    const aspect = project.aspect;
+    const styleText = resolveFilmStyleText(project);
+    const directorStyle = directorStyleFor(project.directorStyleId);
+    const sceneTargets = useMemo(() => filmSceneOptions(project.episodes), [project.episodes]);
+    const branchTargets = useMemo(() => flattenFilmShots(project.episodes).filter((item) => item.id !== shot.id).map((item) => ({ id: item.id, label: item.shotNo + " · " + (item.description || "未填写画面") })), [project.episodes, shot.id]);
+    const position = filmShotPosition(project.episodes, shot.id);
+    const canMoveUp = Boolean(position && position.shotIndex > 0);
+    const canMoveDown = Boolean(position && position.shotIndex < position.sceneShotCount - 1);
     const frameStyle = { aspectRatio: aspect ? filmAspectCssRatio(aspect) : "16 / 9" };
     const styleIssues = checkShotStyle(shot, directorStyle);
+    const onChange = (patch: Partial<FilmShot>) => onUpdate({ episodes: updateFilmShot(project.episodes, shot.id, patch) });
+    const moveShot = (direction: "up" | "down") => onUpdate({ episodes: moveFilmShot(project.episodes, shot.id, direction === "up" ? -1 : 1) });
+    const moveShotToScene = (sceneId: string) => {
+        if (position?.sceneId === sceneId) return;
+        onUpdate({ episodes: moveFilmShotToScene(project.episodes, shot.id, sceneId) });
+    };
+    const deleteShot = () => onUpdate({ episodes: removeFilmShot(project.episodes, shot.id) });
+    const applyStylePrompt = () => {
+        if (!directorStyle) return;
+        onUpdate({ episodes: updateFilmShot(project.episodes, shot.id, { prompt: appendDirectorStyleToPrompt(shot.prompt, directorStyle) }) });
+        message.success("已把导演风格提示补进镜头 prompt");
+    };
     const filmConfig = useEffectiveConfig();
     const updatePerformance = (patch: Partial<NonNullable<FilmShot["performance"]>>) => {
         onChange({ performance: { objective: "", emotion: "", subtext: "", bodyLanguage: "", intensity: 3, ...shot.performance, ...patch } });
@@ -65,7 +81,7 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
     const branches = shotBranchList(shot);
     const updateBranches = (list: FilmShotBranch[]) => {
         const cleaned = list.filter((branch) => (branch.label || "").trim() || (branch.condition || "").trim() || branch.nextShotId);
-        onChange({ branches: cleaned, branch: undefined });
+        onChange({ branches: cleaned });
     };
     const updateBranchAt = (index: number, patch: Partial<FilmShotBranch>) => {
         updateBranches(branches.map((branch, branchIndex) => branchIndex === index ? { ...branch, ...patch } : branch));
@@ -175,11 +191,9 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">导演风格</span>
                             <span className="text-[11px] text-foreground/80">{directorStyle.name}</span>
-                            {onApplyStylePrompt ? (
-                                <Button size="small" type="text" className="!ml-auto !h-6 !px-1.5 !text-[10px]" onClick={onApplyStylePrompt}>
-                                    应用风格提示
-                                </Button>
-                            ) : null}
+                            <Button size="small" type="text" className="!ml-auto !h-6 !px-1.5 !text-[10px]" onClick={applyStylePrompt}>
+                                应用风格提示
+                            </Button>
                         </div>
                         <p className="text-[10px] leading-4 text-muted-foreground/70">{directorStyle.tagline}</p>
                         {styleIssues.map((issue) => (
@@ -409,27 +423,25 @@ export function FilmShotDetail({ shot, onChange, onDelete, onGenerate, generatin
                         用画面描述填充
                     </button>
                 </Field>
-                {onMove || onMoveToScene ? (
-                    <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">位置</span>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Button size="small" icon={<ArrowUp className="size-3.5" />} disabled={!canMoveUp} onClick={() => onMove?.("up")}>上移</Button>
-                            <Button size="small" icon={<ArrowDown className="size-3.5" />} disabled={!canMoveDown} onClick={() => onMove?.("down")}>下移</Button>
-                            {onMoveToScene && sceneTargets.length ? (
-                                <Select
-                                    size="small"
-                                    className="min-w-40 flex-1"
-                                    placeholder="移动到其他场"
-                                    value={undefined}
-                                    options={sceneTargets}
-                                    onChange={(value: string) => onMoveToScene(value)}
-                                />
-                            ) : null}
-                        </div>
+                <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
+                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">位置</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button size="small" icon={<ArrowUp className="size-3.5" />} disabled={!canMoveUp} onClick={() => moveShot("up")}>上移</Button>
+                        <Button size="small" icon={<ArrowDown className="size-3.5" />} disabled={!canMoveDown} onClick={() => moveShot("down")}>下移</Button>
+                        {sceneTargets.length ? (
+                            <Select
+                                size="small"
+                                className="min-w-40 flex-1"
+                                placeholder="移动到其他场"
+                                value={undefined}
+                                options={sceneTargets}
+                                onChange={(value: string) => moveShotToScene(value)}
+                            />
+                        ) : null}
                     </div>
-                ) : null}
+                </div>
                 <div className="pt-1">
-                    <Button danger size="small" icon={<Trash2 className="size-3.5" />} onClick={onDelete}>
+                    <Button danger size="small" icon={<Trash2 className="size-3.5" />} onClick={deleteShot}>
                         删除分镜
                     </Button>
                 </div>
@@ -463,32 +475,8 @@ function ContinuityRow({ label, value }: { label: string; value: string }) {
     );
 }
 
-function useElapsedSeconds(active: boolean) {
-    const [seconds, setSeconds] = useState(0);
-    useEffect(() => {
-        if (!active) {
-            setSeconds(0);
-            return;
-        }
-        const startedAt = Date.now();
-        setSeconds(0);
-        const timer = setInterval(() => setSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-        return () => clearInterval(timer);
-    }, [active]);
-    return seconds;
-}
-
 function formatVersionTime(value?: string) {
     if (!value) return "";
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString("zh-CN", { hour12: false });
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div className="grid gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{label}</span>
-            {children}
-        </div>
-    );
 }

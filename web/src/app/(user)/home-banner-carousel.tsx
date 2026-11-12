@@ -224,13 +224,6 @@ export const HomeBannerCarousel = memo(function HomeBannerCarousel({ banners }: 
                 <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ left: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronLeft className="size-5" />} onClick={() => changeBanner(-1)} aria-label="上一张" />
                 <Button type="text" shape="circle" className="!absolute !top-1/2 !z-10 !hidden !-translate-y-1/2 !bg-black/40 !text-white sm:!inline-flex" style={{ right: "calc(50% - min(742px, calc(50vw - 32px)))" }} icon={<ChevronRight className="size-5" />} onClick={() => changeBanner(1)} aria-label="下一张" />
             </div>
-            {banners[activeIndex]?.videoUrl ? (
-                <div className="mt-2 flex justify-center">
-                    <Button size="small" icon={<Play className="size-3.5 fill-current" />} onClick={() => { const banner = banners[activeIndex]; setActiveVideoUrl(banner.videoUrl!); setActiveVideoMp4Url(banner.videoMp4Url || ""); }}>
-                        播放 Agent 演示
-                    </Button>
-                </div>
-            ) : null}
             <div className="mt-1 flex items-center justify-center" role="group" aria-label="Banner 切换">
                 {banners.map((banner, index) => (
                     <button key={banner.imageUrl} type="button" className="grid size-8 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => selectBanner(index)} aria-label={"切换到第 " + (index + 1) + " 张：" + banner.alt} aria-pressed={index === activeIndex}>

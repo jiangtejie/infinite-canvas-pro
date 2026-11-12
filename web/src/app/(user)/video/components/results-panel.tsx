@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import { Button } from "antd";
 import { VideoIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/state-panel";
 import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
+import { useResultsWindow } from "@/components/workbench/use-results-window";
 
 import type { GeneratedVideo, GenerationLog, GenerationResult } from "../history";
 import { videoLogIdentityKeys, videoResultIdentityKeys } from "../history";
@@ -66,16 +67,18 @@ export function ResultsPanel({
     syncingVideoIds: string[];
     onUseExample: (prompt: string) => void;
 }) {
-    const visibleResults = results.filter((result) => result.status !== "failed" || pendingCount > 0);
-    const liveResultKeys = new Set(visibleResults.flatMap(videoResultIdentityKeys));
-    const liveLogIds = new Set(visibleResults.flatMap((result) => [result.taskLogId, result.id]).filter((id): id is string => Boolean(id)));
-    const visibleLogs = logs.filter((log) => !liveLogIds.has(log.id) && !videoLogIdentityKeys(log).some((key) => liveResultKeys.has(key)));
-    const [visibleLogCount, setVisibleLogCount] = useState(48);
-    const displayedLogs = visibleLogs.slice(0, visibleLogCount);
+    const visibleResults = results;
+    const { visibleLogs, displayedLogs, hasMore, loadMore, allSelected, toggleVisibleLogs } = useResultsWindow({
+        results,
+        logs,
+        selectedLogIds,
+        onSelectedLogIdsChange,
+        resultIdentityKeys: videoResultIdentityKeys,
+        resultIds: (result) => [result.taskLogId, result.id],
+        isLogLive: (log, liveKeys, liveIds) => liveIds.has(log.id) || videoLogIdentityKeys(log).some((key) => liveKeys.has(key)),
+    });
     const totalCount = visibleResults.length + visibleLogs.length;
-    const allSelected = Boolean(visibleLogs.length) && visibleLogs.every((log) => selectedLogIds.includes(log.id));
     const selectedVideos = visibleLogs.flatMap((log) => (selectedLogIds.includes(log.id) && log.video ? [log.video] : []));
-    const toggleVisibleLogs = () => onSelectedLogIdsChange(allSelected ? selectedLogIds.filter((id) => !visibleLogs.some((log) => log.id === id)) : Array.from(new Set([...selectedLogIds, ...visibleLogs.map((log) => log.id)])));
 
     return (
         <ResultsPanelShell
@@ -167,9 +170,9 @@ export function ResultsPanel({
                     ))}
                 </div>
             ) : null}
-            {visibleLogs.length > displayedLogs.length ? (
+            {hasMore ? (
                 <div className="mt-4 flex justify-center">
-                    <Button onClick={() => setVisibleLogCount((value) => value + 48)}>加载更多（剩余 {visibleLogs.length - displayedLogs.length}）</Button>
+                    <Button onClick={loadMore}>加载更多（剩余 {visibleLogs.length - displayedLogs.length}）</Button>
                 </div>
             ) : null}
         </ResultsPanelShell>

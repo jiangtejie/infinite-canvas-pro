@@ -8,6 +8,17 @@ type ApiResponse<T> = {
     msg: string;
 };
 
+/** 请求层错误：message 文案不变，额外携带 HTTP status（网络错误/未知状态为 0）。 */
+function apiError(message: string, status: number) {
+    return Object.assign(new Error(message), { status });
+}
+
+/** 读取请求层错误状态码；非请求层错误（无数字 status）返回 undefined。 */
+export function errorStatus(error: unknown): number | undefined {
+    const status = error instanceof Error ? (error as Error & { status?: unknown }).status : undefined;
+    return typeof status === "number" ? status : undefined;
+}
+
 export function compactApiParams(params: ApiParams) {
     return Object.fromEntries(Object.entries(params).filter(([, value]) => value !== "" && value !== undefined && (!Array.isArray(value) || value.length > 0))) as ApiParams;
 }
@@ -64,17 +75,17 @@ async function apiRequest<T>(config: { url: string; method: "GET" | "POST" | "DE
             validateStatus: () => true,
         });
     } catch {
-        throw new Error("接口连接失败，请确认后端服务已启动");
+        throw apiError("接口连接失败，请确认后端服务已启动", 0);
     }
 
     const result = response.data;
     if (!result || typeof result !== "object") {
-        throw new Error(response.status === 404 ? "接口不存在，请确认后端服务已启动" : "接口返回异常，请稍后重试");
+        throw apiError(response.status === 404 ? "接口不存在，请确认后端服务已启动" : "接口返回异常，请稍后重试", response.status);
     }
 
     const payload = result as ApiResponse<T>;
     if (response.status < 200 || response.status >= 300 || payload.code !== 0) {
-        throw new Error(payload.msg || "请求失败");
+        throw apiError(payload.msg || "请求失败", response.status);
     }
 
     return payload.data;

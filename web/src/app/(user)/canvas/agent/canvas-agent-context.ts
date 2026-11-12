@@ -4,6 +4,7 @@ import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { type AiConfig } from "@/stores/use-config-store";
 import { CanvasNodeType, type CanvasAgentState, type CanvasConnection, type CanvasNodeData } from "../types";
+import { canvasNodeDisplayStatus } from "../[id]/lib/canvas-node-meta";
 
 export type CanvasAgentContextNode = {
     id: string;
@@ -169,7 +170,7 @@ function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentConte
         type: node.type,
         title: node.title,
         hasMedia: !isText && !isPublish ? Boolean(content) : undefined,
-        status: isPublish ? publishDisplayStatus(node) : node.metadata?.status,
+        status: isPublish ? canvasNodeDisplayStatus(node) : node.metadata?.status,
         groupId: node.metadata?.groupId,
     };
     if (!detailed) return base;
@@ -185,12 +186,6 @@ function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentConte
         taskId: mediaTaskId(node) || undefined,
         error: isPublish ? node.metadata?.publishError : node.metadata?.errorDetails,
     };
-}
-
-function publishDisplayStatus(node: CanvasNodeData) {
-    if (node.metadata?.publishStatus === "generating") return "loading";
-    if (node.metadata?.publishStatus === "error") return "error";
-    return node.metadata?.publishRecord ? "success" : "idle";
 }
 
 function publishDraftText(node: CanvasNodeData) {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
-import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, migratePublishNodeLayouts, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired, reorderPublishImageIds } from "./canvas-publish";
+import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired, reorderPublishImageIds } from "./canvas-publish";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id,
@@ -126,33 +126,3 @@ test("source publish plan creates a node once and then only fills missing connec
     assert.equal(reused.createPosition, null);
     assert.deepEqual(reused.connectNodeIds, ["source-1-remix-image-0"]);
 });
-
-const publishLayoutVersion = (node: CanvasNodeData) => node.metadata?.publishLayoutVersion;
-
-test("migratePublishNodeLayouts upgrades legacy 380x280 and 480x340 nodes to 520x380 around center", () => {
-    const legacy = nodeAt("publish-legacy", CanvasNodeType.Publish, { position: { x: 100, y: 50 }, width: 380, height: 280, metadata: {} });
-    const previous = nodeAt("publish-previous", CanvasNodeType.Publish, { position: { x: 0, y: 0 }, width: 480, height: 340, metadata: { publishLayoutVersion: 2 } });
-    const current = nodeAt("publish-current", CanvasNodeType.Publish, { width: 520, height: 380, metadata: { publishLayoutVersion: 3 } });
-    const sized = nodeAt("publish-sized", CanvasNodeType.Publish, { width: 520, height: 380, metadata: { publishLayoutVersion: 2 } });
-    const custom = nodeAt("publish-custom", CanvasNodeType.Publish, { width: 420, height: 300 });
-    const textNode = nodeAt("text-legacy", CanvasNodeType.Text, { width: 380, height: 280 });
-    const migrated = migratePublishNodeLayouts([legacy, previous, current, sized, custom, textNode]);
-    assert.deepEqual([migrated[0].width, migrated[0].height], [520, 380]);
-    assert.deepEqual(migrated[0].position, { x: 30, y: 0 });
-    assert.equal(publishLayoutVersion(migrated[0]), 3);
-    assert.deepEqual([migrated[1].width, migrated[1].height], [520, 380]);
-    assert.deepEqual(migrated[1].position, { x: -20, y: -20 });
-    assert.equal(publishLayoutVersion(migrated[1]), 3);
-    assert.equal(migrated[2], current);
-    assert.deepEqual([migrated[3].width, migrated[3].height], [520, 380]);
-    assert.equal(publishLayoutVersion(migrated[3]), 3);
-    assert.equal(migrated[4], custom);
-    assert.equal(migrated[5], textNode);
-});
-
-test("migratePublishNodeLayouts keeps the array untouched when nothing needs migration", () => {
-    const current = nodeAt("publish-current", CanvasNodeType.Publish, { width: 520, height: 380, metadata: { publishLayoutVersion: 3 } });
-    const nodes = [current];
-    assert.equal(migratePublishNodeLayouts(nodes), nodes);
-});
-

@@ -15,6 +15,7 @@ import { normalizeFilmAspect } from "@/lib/film/film-aspects";
 import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import type { FilmViewPreset } from "../utils/film-view-presets";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 type AssetTaskTarget = Pick<FilmAssetTask, "target" | "label">;
 
@@ -91,7 +92,7 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
                 patchAsset(kind, asset.id, { pendingTask: undefined });
                 message.info("已停止生成，未完成的任务已取消");
             } else {
-                const reason = error instanceof Error ? error.message : "生成失败";
+                const reason = errorMessage(error, "生成失败");
                 patchAsset(kind, asset.id, { status: "failed", errorMessage: reason, pendingTask: undefined });
                 message.error(reason);
             }

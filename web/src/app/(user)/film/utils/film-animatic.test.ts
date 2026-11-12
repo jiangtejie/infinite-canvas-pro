@@ -64,8 +64,8 @@ test("选择的导演风格问题会合并进预演问题", () => {
 
 test("互动分支目标缺失或跳回自己会提示", () => {
     const animatic = buildFilmAnimatic(makeProject([
-        makeShot("01", { branch: { label: "跟上去", condition: "选择跟随", nextShotId: "missing" } }),
-        makeShot("02", { branch: { label: "跳回", condition: "", nextShotId: "02" } }),
+        makeShot("01", { branches: [{ label: "跟上去", condition: "选择跟随", nextShotId: "missing" }] }),
+        makeShot("02", { branches: [{ label: "跳回", condition: "", nextShotId: "02" }] }),
     ]));
     assert.ok(animatic.issues.some((issue) => issue.source === "branch" && issue.id === "branch-missing-01-0"));
     assert.ok(animatic.issues.some((issue) => issue.source === "branch" && issue.id === "branch-loop-02-0"));

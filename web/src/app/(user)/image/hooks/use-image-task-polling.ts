@@ -11,6 +11,7 @@ import { useUserStore } from "@/stores/use-user-store";
 
 import type { GenerationLog, GenerationResult, WorkflowPollContext } from "../history";
 import { imageLogFromTask, imageLogsFromTask, imageLogTaskId, imageResultMatchesLog, updateResultByLogId } from "../history";
+import { errorMessage } from "@/lib/utils";
 
 type UseImageTaskPollingOptions = {
     pollingLogIdsRef: MutableRefObject<Set<string>>;
@@ -52,8 +53,8 @@ export function useImageTaskPolling({ pollingLogIdsRef, imageTaskConfig, saveLog
                     return { ...log.task!, id: current.id, status: current.status, progress: current.progress, error: current.error ? { message: current.error } : undefined };
                 } catch (error) {
                     if (!active() || error instanceof Error && error.name === "AbortError") return null;
-                    onError(error instanceof Error ? error.message : "查询工作流任务失败");
-                    return { ...log.task!, status: isRetryableWorkflowError(error) ? "running" : "failed", error: { message: error instanceof Error ? error.message : "查询工作流任务失败" } };
+                    onError(errorMessage(error, "查询工作流任务失败"));
+                    return { ...log.task!, status: isRetryableWorkflowError(error) ? "running" : "failed", error: { message: errorMessage(error, "查询工作流任务失败") } };
                 }
             }));
             const tasks = [...normalTasks, ...workflowTasks.filter((task): task is CanvasImageTask => task !== null)];

@@ -6,6 +6,7 @@ import { ArrowLeft, Library, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { FilmAmbient } from "@/components/film/film-ambient";
+import { Field } from "@/components/ui/field";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "../components/film-asset-thumbnail";
@@ -16,7 +17,7 @@ import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 type Selection = { kind: FilmAssetKind; id: string };
 
 export default function FilmLibraryPage() {
-    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
+    const { confirmDelete } = useFilmDeleteConfirm();
     const hydrated = useFilmCastStore((state) => state.hydrated);
     const characters = useFilmCastStore((state) => state.characters);
     const locations = useFilmCastStore((state) => state.locations);
@@ -157,7 +158,6 @@ export default function FilmLibraryPage() {
                     ) : null}
                 </div>
             </main>
-            {deleteConfirmNode}
         </div>
     );
 }
@@ -200,15 +200,6 @@ function LibrarySection({ title, kind, assets, selection, onSelect }: {
                     </button>
                 ))}
             </div>
-        </div>
-    );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <div className="grid gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{label}</span>
-            {children}
         </div>
     );
 }

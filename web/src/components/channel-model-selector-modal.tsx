@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useAutoDLWorkflowNames } from "@/hooks/use-autodl-workflow";
 import { modelMatchesCapability, type ModelCapabilities, type ModelCapability } from "@/stores/use-config-store";
+import { errorMessage } from "@/lib/utils";
 
 type ModelSelectTabKey = "new" | "current";
 const ChannelParameterTranslationEditor = dynamic(() => import("@/components/channel-parameter-translation-editor").then((module) => module.ChannelParameterTranslationEditor), { ssr: false });
@@ -69,7 +70,7 @@ export function ChannelModelSelectorModal({ channel, parameterTranslation, model
             setActiveTab("new");
             message.success(`已获取 ${fetchedModels.length} 个模型，请选择后确认`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "读取模型失败");
+            message.error(errorMessage(error, "读取模型失败"));
         } finally {
             setFetching(false);
         }
@@ -98,7 +99,7 @@ export function ChannelModelSelectorModal({ channel, parameterTranslation, model
         try {
             await onConfirm(uniqueModels(selected), modelCapabilities, translation ?? parameterTranslation ?? "");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "保存渠道配置失败");
+            message.error(errorMessage(error, "保存渠道配置失败"));
         } finally {
             setSaving(false);
         }

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Button, Modal, Spin } from "antd";
-import { AlertTriangle, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button, Modal } from "antd";
+import { CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useEffectiveConfig } from "@/stores/use-config-store";
 import type { ScriptProject, ScriptScene } from "../types";
 import { useScriptAi } from "../hooks/use-script-ai";
 import type { ScriptSceneDiagnosis } from "../utils/script-ai";
@@ -18,33 +19,20 @@ type ScriptAiDiagnosisModalProps = {
 
 const SEVERITY_STYLE: Record<string, { label: string; className: string }> = {
     high: { label: "硬伤", className: "border-hot/35 text-hot" },
-    medium: { label: "建议", className: "border-amber-400/30 text-amber-300" },
+    medium: { label: "建议", className: "border-amber-400/30 text-amber-500" },
     low: { label: "可选", className: "border-border/70 text-muted-foreground" },
 };
 
 export function ScriptAiDiagnosisModal({ open, project, scene, onClose }: ScriptAiDiagnosisModalProps) {
     const { diagnosing, diagnoseScene } = useScriptAi();
+    const effectiveConfig = useEffectiveConfig();
+    const textModel = effectiveConfig.textModel || effectiveConfig.model;
     const [diagnosis, setDiagnosis] = useState<ScriptSceneDiagnosis | null>(null);
     const [attempted, setAttempted] = useState(false);
-    const latestRef = useRef({ open, project, scene, diagnoseScene });
 
     useEffect(() => {
-        latestRef.current = { open, project, scene, diagnoseScene };
-    }, [open, project, scene, diagnoseScene]);
-
-    useEffect(() => {
-        const { open: isOpen, project: currentProject, scene: currentScene, diagnoseScene: diagnose } = latestRef.current;
-        if (!isOpen || !currentScene) return;
-        let cancelled = false;
         setDiagnosis(null);
         setAttempted(false);
-        void (async () => {
-            const result = await diagnose(currentProject, currentScene);
-            if (cancelled) return;
-            setAttempted(true);
-            if (result) setDiagnosis(result);
-        })();
-        return () => { cancelled = true; };
     }, [open, scene?.id]);
 
     const run = async () => {
@@ -59,19 +47,13 @@ export function ScriptAiDiagnosisModal({ open, project, scene, onClose }: Script
         <Modal title={scene ? `AI 场景诊断 · ${scene.no} 场` : "AI 场景诊断"} open={open} onCancel={onClose} footer={null} width={680} destroyOnHidden>
             <div className="grid gap-3 py-1">
                 {!diagnosis ? (
-                    <div className="grid place-items-center gap-3 py-12 text-center">
-                        {diagnosing || !attempted ? (
-                            <>
-                                <Spin />
-                                <p className="text-[11px] text-muted-foreground">正在读这场戏的目标、冲突和对白…</p>
-                            </>
-                        ) : (
-                            <>
-                                <AlertTriangle className="size-5 text-muted-foreground/50" />
-                                <p className="text-[11px] text-muted-foreground">暂时没有拿到诊断结果。</p>
-                                <Button size="small" onClick={() => void run()}>重新诊断</Button>
-                            </>
-                        )}
+                    <div className="grid justify-items-center gap-3 px-4 py-10 text-center">
+                        <span className="grid size-11 place-items-center rounded-xl border border-acid/30 bg-acid/[0.06] text-acid"><Sparkles className="size-5" /></span>
+                        <p className="text-sm font-medium text-foreground">检查这场戏是否成立</p>
+                        <p className="max-w-sm text-[11px] leading-5 text-muted-foreground">用文本模型读这场戏的目标、冲突、转折和对白，给出场次成立度、问题和改法；只给建议，不会自动修改正文。</p>
+                        <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">模型 · {textModel || "未选择"}</span>
+                        {attempted ? <p className="text-[11px] text-muted-foreground">暂时没有拿到诊断结果，可以再试一次。</p> : null}
+                        <Button type="primary" icon={<Sparkles className="size-3.5" />} loading={diagnosing} disabled={!scene} onClick={() => void run()}>{attempted ? "重新诊断" : "开始诊断"}</Button>
                     </div>
                 ) : (
                     <>

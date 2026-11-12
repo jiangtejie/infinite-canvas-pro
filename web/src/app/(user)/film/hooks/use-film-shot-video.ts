@@ -19,6 +19,7 @@ import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from
 import { filmShotTypeLabel } from "../utils/film-shot-types";
 import { FilmVideoStoppedError, startFilmVideoTask, stopFilmVideoTask } from "../utils/film-video-task";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 export type FilmVideoBatchProgress = { done: number; total: number };
 
@@ -28,7 +29,7 @@ type ShotVideoHandlers = {
 };
 
 function friendlyVideoError(error: unknown) {
-    const message = error instanceof Error ? error.message : "分镜视频生成失败";
+    const message = errorMessage(error, "分镜视频生成失败");
     if (/unknown video model|video catalogue|not accepted/i.test(message)) {
         return `${message}。请在 AI 配置里使用该渠道「视频模型目录」中的完整模型 ID（通常是带厂商前缀的 ID），不要填简写或显示名。`;
     }

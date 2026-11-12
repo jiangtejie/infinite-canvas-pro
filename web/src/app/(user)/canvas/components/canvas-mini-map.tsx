@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { canvasNodeTypeColors } from "../lib/canvas-palette";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CANVAS_Z } from "../[id]/lib/canvas-layer";
 import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 
@@ -99,7 +100,7 @@ export function Minimap({ nodes, viewport, viewportSize, onViewportChange }: { n
     };
 
     return (
-        <div className="absolute bottom-[calc(13rem+env(safe-area-inset-bottom))] left-4 z-50 overflow-hidden rounded-xl border shadow-2xl backdrop-blur-md sm:bottom-[calc(6rem+env(safe-area-inset-bottom))] sm:left-5" style={{ width, height, background: theme.toolbar.panel, borderColor: theme.toolbar.border }}>
+        <div className="absolute canvas-floating-minimap left-4 overflow-hidden rounded-xl border shadow-2xl backdrop-blur-md sm:left-5" style={{ width, height, background: theme.toolbar.panel, borderColor: theme.toolbar.border, zIndex: CANVAS_Z.toolbar }}>
             <div
                 ref={containerRef}
                 className="relative h-full w-full cursor-crosshair"

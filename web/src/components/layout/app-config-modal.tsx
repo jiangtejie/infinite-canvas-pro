@@ -29,6 +29,7 @@ import { listWorkflowChannels, readWorkflowChannel, replaceWorkflowChannels, sav
 import { channelProtocolForConfig, filterChannelModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type LocalModelChannel, type ModelCapabilities, type ModelCapability } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
+import { errorMessage } from "@/lib/utils";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -108,7 +109,7 @@ export function AppConfigModal() {
         let canceled = false;
         void useChannelTranslationStore.getState().load(user?.id || "guest")
             .then((records) => { if (!canceled) setParameterTranslation(records[modelSelectChannelId] || ""); })
-            .catch((error) => { if (!canceled) message.error(error instanceof Error ? error.message : "读取传参配置失败"); });
+            .catch((error) => { if (!canceled) message.error(errorMessage(error, "读取传参配置失败")); });
         return () => { canceled = true; };
     }, [modelSelectChannelId, user?.id, message]);
 
@@ -118,7 +119,7 @@ export function AppConfigModal() {
         let canceled = false;
         void readWorkflowChannel(user?.id || "guest", modelSelectProtocol, modelSelectId)
             .then((items) => { if (!canceled) setWorkflowEntries(items); })
-            .catch((error) => { if (!canceled) message.error(error instanceof Error ? error.message : "读取工作流配置失败"); });
+            .catch((error) => { if (!canceled) message.error(errorMessage(error, "读取工作流配置失败")); });
         return () => { canceled = true; };
     }, [message, modelSelectId, modelSelectProtocol, user?.id]);
 
@@ -315,12 +316,12 @@ export function AppConfigModal() {
 
     const removeLocalChannel = (id: string) => {
         updateLocalChannels(normalizeLocalChannels(config).filter((channel) => channel.id !== id));
-        void useChannelTranslationStore.getState().save(user?.id || "guest", id, "").catch((error) => message.error(error instanceof Error ? error.message : "删除传参配置失败"));
+        void useChannelTranslationStore.getState().save(user?.id || "guest", id, "").catch((error) => message.error(errorMessage(error, "删除传参配置失败")));
     };
 
     const loginTokenDance = (channelId: string) => {
         void startTokenDanceOAuth({ target: "local", channelId })
-            .catch((error) => message.error(error instanceof Error ? error.message : "TokenDance 登录失败"));
+            .catch((error) => message.error(errorMessage(error, "TokenDance 登录失败")));
     };
 
     const openLocalModelSelector = (channel: LocalModelChannel) => setModelSelectChannelId(channel.id);
@@ -347,7 +348,7 @@ export function AppConfigModal() {
         setWorkflowEntries(items);
         patchLocalChannel(modelSelectChannel.id, { workflowSummaries: items.map(({ provider, kind, workflowId, title, capability, enabled }) => ({ provider, kind, workflowId, title, capability, enabled })) });
 		void saveWorkflowChannel(user?.id || "guest", protocol, modelSelectChannel.id, items).catch((error) => {
-			message.error(error instanceof Error ? error.message : "保存工作流配置失败");
+			message.error(errorMessage(error, "保存工作流配置失败"));
         });
     };
 
@@ -391,7 +392,7 @@ export function AppConfigModal() {
         }
         void syncPersonalWorkflows()
             .then(closeLocalModelSelector)
-            .catch((error) => message.error(error instanceof Error ? error.message : "同步工作流配置失败"));
+            .catch((error) => message.error(errorMessage(error, "同步工作流配置失败")));
     };
 
     const fetchLocalModelList = async () => {
@@ -430,7 +431,7 @@ export function AppConfigModal() {
             }
             message.success("容量统计完成");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "容量统计失败");
+            message.error(errorMessage(error, "容量统计失败"));
         } finally {
             setMeasuringStorageType(null);
         }
@@ -672,7 +673,7 @@ export function AppConfigModal() {
                     <div id="config-section-storage" className="scroll-mt-16">
                     {canUseUserStorageProvider ? (
                         <>
-                            <section className="mb-5 mt-4 rounded-xl border border-border bg-muted/50 p-3/50">
+                            <section className="mb-5 mt-4 rounded-xl border border-border bg-muted/50 p-3">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <div className="text-sm font-medium">用户 S3/R2 存储</div>
@@ -703,7 +704,7 @@ export function AppConfigModal() {
                                     </div>
                                 ) : null}
                             </section>
-                            <section className="mb-5 mt-4 rounded-xl border border-border bg-muted/50 p-3/50">
+                            <section className="mb-5 mt-4 rounded-xl border border-border bg-muted/50 p-3">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <div className="text-sm font-medium">WebDAV 存储</div>

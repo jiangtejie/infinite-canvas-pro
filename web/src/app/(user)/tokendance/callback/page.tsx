@@ -8,6 +8,7 @@ import type { TokenDanceOAuthState } from "@/lib/tokendance-oauth";
 import { fetchUserConfig, syncUserModelConfig } from "@/services/api/user-config";
 import { normalizeLocalChannels, useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { errorMessage } from "@/lib/utils";
 
 export default function TokenDanceCallbackPage() {
     const { message } = App.useApp();
@@ -115,7 +116,7 @@ export default function TokenDanceCallbackPage() {
                 store.openConfigDialog(false);
                 router.replace(safeReturnTo);
             } catch (reason) {
-                setError(reason instanceof Error ? reason.message : "TokenDance 授权失败");
+                setError(errorMessage(reason, "TokenDance 授权失败"));
             }
         })();
     }, [message, router]);

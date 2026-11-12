@@ -42,6 +42,7 @@ import { buildAngleLabel, buildAnglePrompt, findRetrySourceNode, sourceNodeRefer
 import { submitCanvasWorkflowTask, workflowAudioTask, workflowImageTask, workflowVideoTask } from "../lib/canvas-workflow-tasks";
 import type { CanvasNodeTaskRun } from "./use-canvas-tasks";
 import type { useCanvasTaskSystem } from "./use-canvas-task-system";
+import { errorMessage as toErrorMessage } from "@/lib/utils";
 
 type CanvasGenerationTaskSystem = ReturnType<typeof useCanvasTaskSystem>;
 
@@ -246,7 +247,7 @@ export function useCanvasGeneration({
                     }
                 }
 
-                const errorMessage = error instanceof Error ? error.message : "切图失败";
+                const errorMessage = toErrorMessage(error, "切图失败");
                 message.error(cleanupFailed ? `${errorMessage}；部分临时图片清理失败` : errorMessage);
             } finally {
                 hideSplitLoading();
@@ -295,7 +296,7 @@ export function useCanvasGeneration({
                 setConnections((prev) => isNodeTaskActive(childId, clientTaskId) ? applyCanvasImageTaskConnections(prev, childId, task) : prev);
             } catch (error) {
                 if (!isNodeTaskActive(childId, clientTaskId)) return;
-                const errorDetails = error instanceof Error ? error.message : "局部修改失败";
+                const errorDetails = toErrorMessage(error, "局部修改失败");
                 message.error(errorDetails);
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
             } finally {
@@ -331,7 +332,7 @@ export function useCanvasGeneration({
             selectOnly(childId);
             openOverlay({ kind: "prompt", nodeId: childId });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "图片放大失败");
+            message.error(toErrorMessage(error, "图片放大失败"));
         } finally {
             hideLoading();
         }
@@ -379,7 +380,7 @@ export function useCanvasGeneration({
                 setConnections((prev) => isNodeTaskActive(childId, clientTaskId) ? applyCanvasImageTaskConnections(prev, childId, task) : prev);
             } catch (error) {
                 if (!isNodeTaskActive(childId, clientTaskId)) return;
-                const errorDetails = error instanceof Error ? error.message : "生成失败";
+                const errorDetails = toErrorMessage(error, "生成失败");
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
             } finally {
                 if (runningRequestRef.current === runningRequest) setRunningNodeId(null);
@@ -599,7 +600,7 @@ export function useCanvasGeneration({
                                 return true;
                             } catch (error) {
                                 if (!isNodeTaskActive(targetId, targetTaskIds[targetId])) return true;
-                                const errorDetails = error instanceof Error ? error.message : "全景图生成失败";
+                                const errorDetails = toErrorMessage(error, "全景图生成失败");
                                 setNodes((prev) => workflowRef
                                     ? applyCanvasImageTaskUpdate(prev, targetId, { id: targetTaskIds[targetId], source: "workflow", status: "failed", error: { message: errorDetails } }, generationStartedAt, { width: panoramaNodeConfig.width, height: panoramaNodeConfig.height })
                                     : prev.map((node) => (node.id === targetId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node)));
@@ -800,7 +801,7 @@ export function useCanvasGeneration({
                                 return true;
                             } catch (error) {
                                 if (!isNodeTaskActive(targetId, targetTaskIds[targetId])) return true;
-                                const errorDetails = error instanceof Error ? error.message : "生成失败";
+                                const errorDetails = toErrorMessage(error, "生成失败");
                                 setNodes((prev) => workflowRef
                                     ? applyCanvasImageTaskUpdate(prev, targetId, { id: targetTaskIds[targetId], source: "workflow", status: "failed", error: { message: errorDetails } }, generationStartedAt, { width: imageSize.width, height: imageSize.height })
                                     : prev.map((node) => (node.id === targetId || (node.id === batchRoot?.id && node.metadata?.primaryImageId === targetId && node.metadata.imageTaskId === targetTaskIds[targetId]) ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node)));
@@ -936,7 +937,7 @@ export function useCanvasGeneration({
                 );
             } catch (error) {
                 if (submittedTask && !isNodeTaskActive(submittedTask.nodeId, submittedTask.id)) return;
-                const errorDetails = error instanceof Error ? error.message : "生成失败";
+                const errorDetails = toErrorMessage(error, "生成失败");
                 message.error(errorDetails);
                 setNodes((prev) => {
                     const isConfigNode = sourceNode?.type === CanvasNodeType.Config;
@@ -1097,7 +1098,7 @@ export function useCanvasGeneration({
                 if (task.source === "workflow" || task.image_url || task.url) setConnections((prev) => isNodeTaskActive(retryTargetId, retryImageTaskId) ? applyCanvasImageTaskConnections(prev, retryTargetId, task, retryBatchRootId) : prev);
             } catch (error) {
                 if (retryClientTaskId && !isNodeTaskActive(retryTargetId, retryClientTaskId)) return;
-                const errorDetails = error instanceof Error ? error.message : "生成失败";
+                const errorDetails = toErrorMessage(error, "生成失败");
                 message.error(errorDetails);
                 if (retryWorkflowRef && isCanvasImageNodeType(node.type)) {
                     const failedTask: CanvasImageTask = { id: retryImageTaskId, source: "workflow", status: "failed", error: { message: errorDetails } };

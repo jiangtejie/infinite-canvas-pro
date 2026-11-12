@@ -9,6 +9,7 @@ import type { Prompt } from "@/services/api/prompts";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
+import { buildAdminPagination, buildAdminTableProps } from "../components/admin-table-props";
 import { PromptFilterBar } from "./components/prompt-filter-bar";
 import { PromptDetailModal, PromptEditorModal, PromptSyncModal } from "./components/prompt-modals";
 import { buildPromptColumns } from "./components/prompt-table-columns";
@@ -41,7 +42,6 @@ export default function AdminPromptsPage() {
         deletePrompts,
     } = useAdminPrompts();
     const [form] = Form.useForm<Partial<Prompt> & { tagText?: string }>();
-    const [keywordText, setKeywordText] = useState(keyword);
     const [editingPrompt, setEditingPrompt] = useState<Partial<Prompt> | null>(null);
     const [detailPrompt, setDetailPrompt] = useState<Prompt | null>(null);
     const [deletingPrompt, setDeletingPrompt] = useState<Prompt | null>(null);
@@ -53,8 +53,6 @@ export default function AdminPromptsPage() {
     useEffect(() => {
         if (editingPrompt) form.setFieldsValue({ ...editingPrompt, tagText: editingPrompt.tags?.join(", ") || "" });
     }, [editingPrompt, form]);
-
-    useEffect(() => setKeywordText(keyword), [keyword]);
 
     const savePrompt = async () => {
         const value = await form.validateFields();
@@ -87,34 +85,28 @@ export default function AdminPromptsPage() {
         <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
                 <PromptFilterBar
-                    keywordText={keywordText}
-                    setKeywordText={setKeywordText}
+                    keyword={keyword}
                     category={category}
                     tag={tag}
                     categories={categories}
                     tags={tags}
-                    searchPrompts={searchPrompts}
+                    onSearch={searchPrompts}
                     changeCategory={changeCategory}
                     changeTag={changeTag}
-                    resetFilters={resetFilters}
+                    onReset={resetFilters}
                 />
                 <ProTable<Prompt>
+                    {...buildAdminTableProps({ onReload: () => void refreshPrompts() })}
                     rowKey="id"
                     columns={columns}
                     dataSource={prompts}
                     loading={isLoading}
-                    search={false}
-                    defaultSize="middle"
-                    tableLayout="fixed"
-                    scroll={{ x: 1000 }}
-                    cardProps={{ variant: "borderless" }}
                     headerTitle={
                         <Space>
                             <Typography.Text strong>提示词列表</Typography.Text>
                             <Tag>{total} 条</Tag>
                         </Space>
                     }
-                    options={{ density: true, setting: true, reload: () => void refreshPrompts() }}
                     rowSelection={{ selectedRowKeys: selectedPromptIds, onChange: (keys) => setSelectedPromptIds(keys.map(String)) }}
                     toolBarRender={() => [
                         <Button key="batch-delete" danger icon={<DeleteOutlined />} disabled={!selectedPromptIds.length} onClick={() => setIsBatchDeleteOpen(true)}>
@@ -130,15 +122,7 @@ export default function AdminPromptsPage() {
                             新增
                         </Button>,
                     ]}
-                    pagination={{
-                        current: page,
-                        pageSize,
-                        total,
-                        showSizeChanger: true,
-                        pageSizeOptions: [10, 20, 50, 100],
-                        showTotal: (value) => `共 ${value} 条`,
-                        onChange: (nextPage, nextPageSize) => (nextPageSize !== pageSize ? changePageSize(nextPageSize) : changePage(nextPage)),
-                    }}
+                    pagination={buildAdminPagination({ page, pageSize, total, changePage, changePageSize })}
                 />
             </Flex>
 

@@ -6,6 +6,9 @@ import { Bot, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Tr
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { canvasStatusColors } from "../../lib/canvas-palette";
+import { useMenuNavigation } from "../../utils/use-menu-navigation";
+import { CANVAS_Z } from "../../[id]/lib/canvas-layer";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
 import { useCanvasStore } from "../../stores/use-canvas-store";
@@ -98,42 +101,7 @@ export function CanvasTopBar({
         return () => document.removeEventListener("pointerdown", close, true);
     }, [accountOpen]);
 
-    useEffect(() => {
-        if (!menuOpen) return;
-        menuRef.current?.querySelector<HTMLElement>("[data-canvas-menu-item]")?.focus({ preventScroll: true });
-        const closeOnPointerDown = (event: PointerEvent) => {
-            const target = event.target;
-            if (!(target instanceof Element)) return;
-            if (target.closest("[data-canvas-topbar-menu]")) return;
-            setMenuOpen(false);
-        };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key !== "Escape") return;
-            event.preventDefault();
-            setMenuOpen(false);
-            menuButtonRef.current?.focus({ preventScroll: true });
-        };
-        document.addEventListener("pointerdown", closeOnPointerDown, true);
-        document.addEventListener("keydown", closeOnEscape);
-        return () => {
-            document.removeEventListener("pointerdown", closeOnPointerDown, true);
-            document.removeEventListener("keydown", closeOnEscape);
-        };
-    }, [menuOpen]);
-
-    const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-canvas-menu-item]:not(:disabled)"));
-        if (!items.length) return;
-        const index = items.indexOf(document.activeElement as HTMLElement);
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            const offset = event.key === "ArrowDown" ? 1 : -1;
-            items[(index + offset + items.length) % items.length]?.focus();
-        } else if (event.key === "Home" || event.key === "End") {
-            event.preventDefault();
-            items[event.key === "Home" ? 0 : items.length - 1]?.focus();
-        }
-    };
+    const menuNavigation = useMenuNavigation({ open: menuOpen, onClose: () => setMenuOpen(false), panelRef: menuRef, triggerRef: menuButtonRef, escapeScope: "document" });
     const runMenuAction = (action: () => void) => {
         setMenuOpen(false);
         action();
@@ -141,7 +109,7 @@ export function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}>
+            <div className="pointer-events-none absolute left-0 right-0 top-0 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover, zIndex: CANVAS_Z.toolbar } as React.CSSProperties}>
                 <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3 max-sm:w-full">
                     <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                         {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
@@ -166,9 +134,9 @@ export function CanvasTopBar({
                                 data-canvas-topbar-menu
                                 role="menu"
                                 aria-label="画布菜单"
-                                className="absolute left-0 top-[calc(100%+8px)] z-[60] w-60 rounded-2xl border p-1.5 shadow-2xl"
-                                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, backdropFilter: "blur(14px)", "--canvas-menu-hover": theme.toolbar.itemHover } as React.CSSProperties}
-                                onKeyDown={handleMenuKeyDown}
+                                className="absolute left-0 top-[calc(100%+8px)] w-60 rounded-2xl border p-1.5 shadow-2xl"
+                                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, backdropFilter: "blur(14px)", zIndex: CANVAS_Z.menu, "--canvas-menu-hover": theme.toolbar.itemHover } as React.CSSProperties}
+                                onKeyDown={menuNavigation.handleKeyDown}
                             >
                                 <CanvasMenuItem icon={<Home className="size-4" />} label="主页" onClick={() => runMenuAction(onHome)} />
                                 <CanvasMenuItem icon={<Images className="size-4" />} label="我的画布" onClick={() => runMenuAction(onProjects)} />
@@ -226,14 +194,13 @@ export function CanvasTopBar({
                     ) : saveStatus === "saved" ? (
                         <span className="hidden px-1.5 text-xs sm:inline" style={{ color: theme.node.muted }}>已保存</span>
                     ) : saveStatus === "error" ? (
-                        <button type="button" onClick={retrySave} title="点击重试保存" className="rounded-full px-2 py-1 text-xs transition-colors hover:bg-[var(--canvas-topbar-hover)]" style={{ color: "#f87171" }}>保存失败 · 重试</button>
+                        <button type="button" onClick={retrySave} title="点击重试保存" className="rounded-full px-2 py-1 text-xs transition-colors hover:bg-[var(--canvas-topbar-hover)]" style={{ color: canvasStatusColors.error }}>保存失败 · 重试</button>
                     ) : null}
                     <UserStatusActions
                         variant="canvas"
                         accountOpen={accountOpen}
                         onAccountOpenChange={setAccountOpen}
                         accountRef={accountRef}
-                        getPopupContainer={(node) => node.parentElement || document.body}
                         onOpenShortcuts={() => {
                             setShortcutsOpen(true);
                             setAccountOpen(false);
@@ -292,7 +259,7 @@ function CanvasMenuItem({ icon, label, shortcut, danger = false, disabled = fals
             data-canvas-menu-item
             disabled={disabled}
             className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm transition-colors enabled:hover:bg-[var(--canvas-menu-hover)] focus-visible:bg-[var(--canvas-menu-hover)] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ color: danger ? "#f87171" : undefined }}
+            style={{ color: danger ? canvasStatusColors.error : undefined }}
             onClick={onClick}
         >
             <span className="grid size-4 shrink-0 place-items-center opacity-70">{icon}</span>

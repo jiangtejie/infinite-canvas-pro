@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Drawer, Input, InputNumber, Select } from "antd";
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clapperboard, Clock3, GitBranch, Info, Pause, Play, Sparkles, XCircle } from "lucide-react";
 
+import { EmptyState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import { filmAspectCssRatio } from "@/lib/film/film-aspects";
 import type { FilmProject } from "@/lib/film/types";
@@ -15,7 +16,7 @@ import type { FilmShotBranch } from "@/lib/film/types";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
 
 const LEVEL_STYLE: Record<FilmAnimaticIssue["level"], { label: string; className: string; icon: typeof XCircle }> = {
-    error: { label: "严重", className: "border-red-500/40 text-red-500", icon: XCircle },
+    error: { label: "严重", className: "border-hot/40 text-hot", icon: XCircle },
     warning: { label: "提醒", className: "border-amber-500/40 text-amber-500", icon: AlertTriangle },
     info: { label: "建议", className: "border-border text-muted-foreground", icon: Info },
 };
@@ -175,11 +176,7 @@ export function FilmPrevisDrawer({ open, project, onClose, onJumpToShot }: { ope
                     <div className="flex min-h-0 flex-col">
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3.5">
                             {!animatic.shots.length ? (
-                                <div className="grid place-items-center rounded-xl border border-dashed border-border/70 px-6 py-16 text-center">
-                                    <div className="grid size-12 place-items-center rounded-xl border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70"><Clapperboard className="size-5" /></div>
-                                    <p className="mt-4 text-sm font-medium text-foreground">还没有分镜可以预演</p>
-                                    <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先在剧本页从剧本解析出镜头，或手动添加分镜。</p>
-                                </div>
+                                <EmptyState className="rounded-xl border border-dashed border-border/70 py-10" icon={<Clapperboard className="size-5" />} title="还没有分镜可以预演" description="先在剧本页从剧本解析出镜头，或手动添加分镜。" />
                             ) : (
                                 <>
                                     <div className="relative mx-auto w-full max-w-[760px] overflow-hidden rounded-xl border border-border/70 bg-muted/40" style={{ aspectRatio: filmAspectCssRatio(project.aspect), maxHeight: "42vh" }}>
@@ -287,7 +284,7 @@ export function FilmPrevisDrawer({ open, project, onClose, onJumpToShot }: { ope
                                 </button>
                             ))}
                             <span className="ml-auto flex items-center gap-1 font-mono text-[9px] text-muted-foreground/60">
-                                {issueCounts.error ? <span className="text-red-500">{issueCounts.error} 严重</span> : null}
+                                {issueCounts.error ? <span className="text-hot">{issueCounts.error} 严重</span> : null}
                                 {issueCounts.warning ? <span className="text-amber-500">{issueCounts.warning} 提醒</span> : null}
                                 {issueCounts.info ? <span>{issueCounts.info} 建议</span> : null}
                             </span>

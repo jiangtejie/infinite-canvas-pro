@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/state-panel";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
 import { TypewriterText } from "@/components/ui/typewriter-text";
 import { PunkAura } from "@/components/ui/punk-aura";
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import { uploadAssetMediaFile } from "@/services/file-storage";
 import { uploadImage } from "@/services/image-storage";
 import { useEffectiveConfig } from "@/stores/use-config-store";
@@ -82,6 +82,7 @@ export default function IndexPage() {
     const hydrated = useCanvasStore((state) => state.hydrated);
     const projects = useCanvasStore((state) => state.projects);
     const [promptShowcase, setPromptShowcase] = useState<Prompt[]>([]);
+    const [promptShowcaseStatus, setPromptShowcaseStatus] = useState<"loading" | "success" | "error">("loading");
     const [previewIndex, setPreviewIndex] = useState(0);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [prompt, setPrompt] = useState("");
@@ -104,9 +105,12 @@ export default function IndexPage() {
 
     useEffect(() => {
         void fetchPrompts({ pageSize: 12 })
-            .then((data) => setPromptShowcase(data.items))
-            .catch((error) => message.error(error instanceof Error ? error.message : "获取提示词失败"));
-    }, [message]);
+            .then((data) => {
+                setPromptShowcase(data.items);
+                setPromptShowcaseStatus("success");
+            })
+            .catch(() => setPromptShowcaseStatus("error"));
+    }, []);
 
     const addPendingAsset = (payload: InsertAssetPayload) => {
         const asset = toPendingAgentAsset(payload, canvasResourceLabel(payload.kind, pendingAssetCountsRef.current[payload.kind]++));
@@ -127,7 +131,7 @@ export default function IndexPage() {
                 throw new Error("仅支持图片、视频和音频文件");
             }
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "素材上传失败");
+            message.error(errorMessage(error, "素材上传失败"));
         }
     };
 
@@ -329,7 +333,13 @@ export default function IndexPage() {
                             <Button href="/prompts" icon={<ArrowRight className="size-4" />} iconPlacement="end">浏览提示词库</Button>
                         </div>
                     </div>
-                    {promptShowcase.length ? (
+                    {promptShowcaseStatus === "loading" ? (
+                        <div aria-hidden className="grid auto-rows-[240px] grid-cols-1 gap-3 sm:auto-rows-[210px] sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            {[0, 1, 2, 3].map((index) => (
+                                <div key={index} className="h-full rounded-xl border border-border bg-muted motion-safe:animate-pulse" />
+                            ))}
+                        </div>
+                    ) : promptShowcaseStatus === "success" && promptShowcase.length ? (
                         <div className="grid auto-rows-[240px] grid-cols-1 gap-3 sm:auto-rows-[210px] sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                             {promptShowcase.map((item, index) => (
                                 <button
@@ -364,14 +374,14 @@ export default function IndexPage() {
                                 </button>
                             ))}
                         </div>
-                    ) : (
+                    ) : promptShowcaseStatus === "success" ? (
                         <EmptyState
                             className="rounded-xl border border-dashed border-border bg-card/40 py-14"
                             title="提示词库正在整理"
                             description="去提示词库挑几条灵感，收藏后就会出现在这里。"
                             action={<Button href="/prompts">浏览提示词库</Button>}
                         />
-                    )}
+                    ) : null}
                 </section>
             </div>
             <AssetPickerModal

@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { testAdminDouyinPublish, type AdminSettings, type DouyinPublishTestResult } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
+import { errorMessage } from "@/lib/utils";
 
 export function AdminSettingsPrivatePublishSection() {
     const form = Form.useFormInstance<AdminSettings>();
@@ -32,7 +33,7 @@ export function AdminSettingsPrivatePublishSection() {
             setResult(data);
             message.success(data.mock ? "MOCK 模式配置正常" : "抖音 client_token / ticket 测试通过");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "抖音配置测试失败");
+            message.error(errorMessage(error, "抖音配置测试失败"));
         } finally {
             setTesting(false);
         }

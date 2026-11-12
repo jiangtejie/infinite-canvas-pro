@@ -60,7 +60,6 @@ export type CanvasDialogModel = {
     splitImageNode: (node: CanvasNodeData, params: CanvasImageSplitParams) => Promise<void>;
     upscaleNode: CanvasNodeData | null;
     upscaleImageNode: (node: CanvasNodeData, params: CanvasImageUpscaleParams) => Promise<void>;
-    superResolveNode: CanvasNodeData | null;
     angleNode: CanvasNodeData | null;
     generateAngleNode: (node: CanvasNodeData, params: CanvasImageAngleParams) => Promise<void>;
     previewNode: CanvasNodeData | null;
@@ -75,7 +74,7 @@ export type CanvasDialogModel = {
 };
 
 /**
- * 画布节点对话框与确认弹窗：信息/裁剪/切图/放大/超分/角度/局部编辑/预览/音频截取/删除与清空确认/素材选择。
+ * 画布节点对话框与确认弹窗：信息/裁剪/切图/放大/角度/局部编辑/预览/音频截取/删除与清空确认/素材选择。
  */
 export function CanvasDialogs({ model }: { model: CanvasDialogModel }) {
     const {
@@ -114,7 +113,6 @@ export function CanvasDialogs({ model }: { model: CanvasDialogModel }) {
         splitImageNode,
         upscaleNode,
         upscaleImageNode,
-        superResolveNode,
         angleNode,
         generateAngleNode,
         previewNode,
@@ -241,10 +239,6 @@ export function CanvasDialogs({ model }: { model: CanvasDialogModel }) {
                 {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => closeOverlay()} onConfirm={(params) => splitImageNode(splitNode!, params)} /> : null}
 
                 {upscaleNode?.metadata?.content ? <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => closeOverlay()} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} /> : null}
-
-                <Modal title="AI 超分" open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => closeOverlay()}>
-                    <div className="py-8 text-center text-base font-medium">暂未实现</div>
-                </Modal>
 
                 {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => closeOverlay()} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
 

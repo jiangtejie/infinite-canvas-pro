@@ -9,6 +9,7 @@ import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { PromptCard } from "./prompt-card";
 import { usePromptList } from "./use-prompt-list";
+import { errorMessage } from "@/lib/utils";
 
 export function PromptSelectDialog({ open, onOpenChange, onSelect }: { open: boolean; onOpenChange: (open: boolean) => void; onSelect: (prompt: string) => void }) {
     const { message } = App.useApp();
@@ -26,7 +27,7 @@ export function PromptSelectDialog({ open, onOpenChange, onSelect }: { open: boo
     };
 
     useEffect(() => {
-        if (query.isError) message.error(query.error instanceof Error ? query.error.message : "获取提示词失败");
+        if (query.isError) message.error(errorMessage(query.error, "获取提示词失败"));
     }, [message, query.error, query.isError]);
 
     const handleListScroll = (event: UIEvent<HTMLDivElement>) => {

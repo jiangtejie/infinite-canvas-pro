@@ -6,6 +6,7 @@ import { runCanvasAgent, type CanvasAgentBatchSummary, type RunCanvasAgentInput 
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
 import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
 import type { CanvasAgentState, CanvasAssistantMessage, CanvasAssistantReference, CanvasAssistantSession } from "../types";
+import { errorMessage } from "@/lib/utils";
 
 export type AssistantAgentRunner = (input: RunCanvasAgentInput) => Promise<Awaited<ReturnType<typeof runCanvasAgent>>>;
 
@@ -92,7 +93,7 @@ export async function runAssistantTurn(input: AssistantTurnInput) {
     } catch (error) {
         const stopped = error instanceof Error && error.name === "AbortError";
         input.updateMessage(input.session.id, input.assistantId, {
-            text: stopped ? "已停止继续执行。已经创建的节点和已经提交的媒体任务会保留。" : error instanceof Error ? error.message : "Agent 执行失败",
+            text: stopped ? "已停止继续执行。已经创建的节点和已经提交的媒体任务会保留。" : errorMessage(error, "Agent 执行失败"),
             status: stopped ? "waiting" : "error",
             activity: undefined,
         });

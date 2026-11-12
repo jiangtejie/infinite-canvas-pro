@@ -13,7 +13,7 @@ const CATEGORY_LABEL: Record<FilmConsistencyIssue["category"], string> = {
 };
 
 const LEVEL_STYLE: Record<FilmConsistencyIssue["level"], { icon: typeof XCircle; className: string }> = {
-    error: { icon: XCircle, className: "text-red-500" },
+    error: { icon: XCircle, className: "text-hot" },
     warning: { icon: AlertTriangle, className: "text-amber-500" },
     info: { icon: Info, className: "text-muted-foreground" },
 };

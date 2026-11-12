@@ -1,4 +1,5 @@
-// 每次调用独立保存配置和函数；主线程为每次同步求值设置一秒上限。
+
+import { errorMessage } from "@/lib/utils";// 每次调用独立保存配置和函数；主线程为每次同步求值设置一秒上限。
 export {};
 
 type Selector = string | ((value: unknown) => unknown) | undefined;
@@ -60,7 +61,7 @@ self.onmessage = (event: MessageEvent) => {
         }
         self.postMessage({ result: result === undefined ? undefined : JSON.parse(JSON.stringify(result)) });
     } catch (error) {
-        self.postMessage({ error: error instanceof Error ? error.message : "自定配置求值失败" });
+        self.postMessage({ error: errorMessage(error, "自定配置求值失败") });
     }
 };
 

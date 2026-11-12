@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams } from "next/navigation";
 import { Empty, Input, Pagination, Select, Spin } from "antd";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +19,7 @@ import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "
 import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 
+import { canvasNodeDisplayStatus } from "../[id]/lib/canvas-node-meta";
 import { CanvasNodeType, type CanvasNodeData } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { InsertAssetPayload } from "./asset-picker-modal";
@@ -154,7 +155,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
                     initial={{ x: -48 }}
                     animate={{ x: closing ? -28 : 0 }}
                     transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}
-                    style={{ width, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                    style={{ width, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, "--canvas-menu-hover": theme.toolbar.itemHover } as CSSProperties}
                     data-canvas-no-zoom
                 >
                 <div className="flex items-center gap-5 border-b px-4 pb-2 pt-3.5" style={{ borderColor: theme.toolbar.border }}>
@@ -240,10 +241,10 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                         {treeRows.map(({ node, depth, hasChildren }) => {
                             const Icon = NODE_TYPE_ICON[node.type] || FileText;
                             const hasImage = isCanvasImageNodeType(node.type) && node.metadata?.content;
-                            const nodeStatus = node.type === CanvasNodeType.Source ? node.metadata?.sourceStatus : node.type === CanvasNodeType.Publish ? publishNodeStatus(node) : node.metadata?.status;
+                            const nodeStatus = canvasNodeDisplayStatus(node);
                             const active = selectedNodeIds.has(node.id);
                             return (
-                                <div key={node.id} className={cn("relative flex items-center rounded-lg transition", depth && "ml-5", active ? "" : "hover:bg-black/5 dark:hover:bg-white/5")} style={active ? { background: theme.toolbar.activeBg } : undefined}>
+                                <div key={node.id} className={cn("relative flex items-center rounded-lg transition", depth && "ml-5", active ? "" : "hover:bg-[var(--canvas-menu-hover)]")} style={active ? { background: theme.toolbar.activeBg } : undefined}>
                                     {depth ? <span className="pointer-events-none absolute -left-3 top-[calc(-50%-0.4rem)] h-[calc(100%+0.4rem)] w-3 rounded-bl-md border-b border-l opacity-45" style={{ borderColor: theme.node.stroke }} /> : null}
                                     {node.type === CanvasNodeType.Group && hasChildren ? (
                                         <button type="button" onClick={() => setCollapsedGroups((current) => (current.has(node.id) ? new Set([...current].filter((id) => id !== node.id)) : new Set(current).add(node.id)))} className="ml-1 grid size-6 shrink-0 place-items-center opacity-55 transition hover:opacity-100" aria-label={node.title}>
@@ -356,7 +357,7 @@ function MyAssetsTab({ theme, onAdd, onAssetDragStart, onAssetDragEnd, onInsert 
             </div>
             <div className="flex items-center gap-2 px-3 pb-2">
                 <Input size="small" allowClear prefix={<Search className="size-3.5 text-muted-foreground" />} placeholder="搜索素材" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
-                <button type="button" onClick={onAdd} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition hover:bg-black/5 dark:hover:bg-white/10" style={{ color: theme.node.text }}>
+                <button type="button" onClick={onAdd} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold transition hover:bg-[var(--canvas-menu-hover)]" style={{ color: theme.node.text }}>
                     <Plus className="size-3.5" />
                     添加
                 </button>
@@ -403,7 +404,7 @@ function LibraryAssetsTab({ theme, onAssetDragStart, onAssetDragEnd, onInsert }:
                 <Select size="small" variant="borderless" className="w-16" value={type} onChange={setType} options={ASSET_TYPE_OPTIONS} />
             </div>
             <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-3">
-                {query.isLoading ? <div className="flex justify-center pt-16"><Spin size="small" /></div> : query.isError ? <button type="button" onClick={() => void query.refetch()} className="block w-full py-16 text-center text-xs text-red-500">加载失败，点击重试</button> : items.length ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{items.map((asset) => <LibraryAssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />}
+                {query.isLoading ? <div className="flex justify-center pt-16"><Spin size="small" /></div> : query.isError ? <button type="button" onClick={() => void query.refetch()} className="block w-full py-16 text-center text-xs" style={{ color: canvasStatusColors.error }}>加载失败，点击重试</button> : items.length ? <div className="grid grid-cols-2 gap-2 px-1 pt-1">{items.map((asset) => <LibraryAssetDragCard key={asset.id} asset={asset} theme={theme} onAssetDragStart={onAssetDragStart} onAssetDragEnd={onAssetDragEnd} onInsert={onInsert} />)}</div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无素材" className="pt-16" />}
                 {query.data?.total && query.data.total > ASSET_PAGE_SIZE ? <Pagination className="!mt-3 flex justify-center" size="small" current={page} pageSize={ASSET_PAGE_SIZE} total={query.data.total} showSizeChanger={false} onChange={setPage} /> : null}
             </div>
         </>
@@ -542,7 +543,7 @@ function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInser
             {open ? (
                 <div className="space-y-1.5 px-1 pb-2 pt-1">
                     {query.isLoading ? <div className="flex justify-center py-6"><Spin size="small" /></div> : query.isError ? (
-                        <button type="button" onClick={() => void query.refetch()} className="block w-full py-4 text-center text-xs text-red-500 opacity-80 transition hover:opacity-100">
+                        <button type="button" onClick={() => void query.refetch()} className="block w-full py-4 text-center text-xs opacity-80 transition hover:opacity-100" style={{ color: canvasStatusColors.error }}>
                             加载失败，点击重试
                         </button>
                     ) : items.length ? (
@@ -558,22 +559,16 @@ function PromptGroup({ category, keyword, open, theme, onToggle, onView, onInser
 
 function PromptRow({ item, theme, onView, onInsert }: { item: Prompt; theme: CanvasTheme; onView: () => void; onInsert: () => void }) {
     return (
-        <div className="group relative flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-black/5 dark:hover:bg-white/5">
+        <div className="group relative flex items-center gap-2.5 rounded-lg px-2 py-2 transition hover:bg-[var(--canvas-menu-hover)]">
             {item.coverUrl ? <img src={item.coverUrl} alt="" className="size-10 shrink-0 rounded-md object-cover" loading="lazy" decoding="async" /> : <span className="grid size-10 shrink-0 place-items-center rounded-md" style={{ background: theme.node.panel }}><FileText className="size-4 opacity-50" /></span>}
             <button type="button" onClick={onView} className="min-w-0 flex-1 text-left">
                 <span className="block truncate text-sm font-medium leading-snug">{item.title}</span>
                 <span className="mt-0.5 block truncate text-xs leading-snug opacity-50">{item.prompt}</span>
             </button>
             <div className="flex shrink-0 flex-col items-center gap-0.5">
-                <button type="button" onClick={onView} className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10" aria-label="查看详情"><Eye className="size-3.5" /></button>
-                <button type="button" onClick={onInsert} className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10" style={{ color: theme.toolbar.activeText }} aria-label="插入画布"><Plus className="size-3.5" /></button>
+                <button type="button" onClick={onView} className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-[var(--canvas-menu-hover)] hover:opacity-100" aria-label="查看详情"><Eye className="size-3.5" /></button>
+                <button type="button" onClick={onInsert} className="grid size-6 place-items-center rounded-md opacity-60 transition hover:bg-[var(--canvas-menu-hover)] hover:opacity-100" style={{ color: theme.toolbar.activeText }} aria-label="插入画布"><Plus className="size-3.5" /></button>
             </div>
         </div>
     );
-}
-
-function publishNodeStatus(node: CanvasNodeData) {
-    if (node.metadata?.publishStatus === "generating") return "loading";
-    if (node.metadata?.publishStatus === "error") return "error";
-    return node.metadata?.publishRecord ? "success" : "idle";
 }

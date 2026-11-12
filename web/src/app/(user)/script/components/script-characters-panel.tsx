@@ -4,6 +4,8 @@ import { Button, Input } from "antd";
 import { Plus, Trash2 } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Field } from "@/components/ui/field";
+import { EmptyState } from "@/components/ui/state-panel";
 import type { ScriptCharacter, ScriptProject } from "../types";
 import { createScriptCharacter } from "../utils/script-project";
 
@@ -31,10 +33,7 @@ export function ScriptCharactersPanel({ project, onUpdate }: ScriptCharactersPan
                 <Button size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={addCharacter}>添加角色</Button>
             </div>
             {project.characters.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/70 bg-card/25 px-6 py-12 text-center">
-                    <p className="text-sm text-foreground">还没有人物</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">先加主角和对手，把 want / need / flaw 写清楚。</p>
-                </div>
+                <EmptyState className="rounded-xl border border-dashed border-border/70 bg-card/25 py-10" title="还没有人物" description="先加主角和对手，把 want / need / flaw 写清楚。" />
             ) : (
                 <div className="grid gap-3 xl:grid-cols-2">
                     {project.characters.map((character, index) => (
@@ -56,25 +55,16 @@ export function ScriptCharactersPanel({ project, onUpdate }: ScriptCharactersPan
                                 />
                             </div>
                             <div className="grid gap-2 sm:grid-cols-2">
-                                <Field label="Want / 外在目标"><Input value={character.want} placeholder="他想要什么" onChange={(event) => updateCharacter(character.id, { want: event.target.value })} /></Field>
-                                <Field label="Need / 内心需要"><Input value={character.need} placeholder="他真正缺什么" onChange={(event) => updateCharacter(character.id, { need: event.target.value })} /></Field>
-                                <Field label="Flaw / 缺陷"><Input value={character.flaw} placeholder="什么阻止他" onChange={(event) => updateCharacter(character.id, { flaw: event.target.value })} /></Field>
-                                <Field label="Arc / 变化"><Input value={character.arc} placeholder="从什么样变成什么样" onChange={(event) => updateCharacter(character.id, { arc: event.target.value })} /></Field>
+                                <Field as="label" dense label="Want / 外在目标"><Input value={character.want} placeholder="他想要什么" onChange={(event) => updateCharacter(character.id, { want: event.target.value })} /></Field>
+                                <Field as="label" dense label="Need / 内心需要"><Input value={character.need} placeholder="他真正缺什么" onChange={(event) => updateCharacter(character.id, { need: event.target.value })} /></Field>
+                                <Field as="label" dense label="Flaw / 缺陷"><Input value={character.flaw} placeholder="什么阻止他" onChange={(event) => updateCharacter(character.id, { flaw: event.target.value })} /></Field>
+                                <Field as="label" dense label="Arc / 变化"><Input value={character.arc} placeholder="从什么样变成什么样" onChange={(event) => updateCharacter(character.id, { arc: event.target.value })} /></Field>
                             </div>
-                            <Field label="人物小传"><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} value={character.description} placeholder="经历、秘密、说话方式……" onChange={(event) => updateCharacter(character.id, { description: event.target.value })} /></Field>
+                            <Field as="label" dense label="人物小传"><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} value={character.description} placeholder="经历、秘密、说话方式……" onChange={(event) => updateCharacter(character.id, { description: event.target.value })} /></Field>
                         </section>
                     ))}
                 </div>
             )}
         </div>
-    );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <label className="grid gap-1">
-            <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">{label}</span>
-            {children}
-        </label>
     );
 }

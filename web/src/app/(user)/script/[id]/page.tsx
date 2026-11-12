@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { FilmAmbient } from "@/components/film/film-ambient";
 import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
+import { useDownloadFile } from "@/hooks/use-download-file";
 import type { ScriptProject } from "../types";
 import { useScriptStore } from "../stores/use-script-store";
 import { createScriptDraft, exportScriptText, scriptPageCount, scriptWordCount } from "../utils/script-project";
@@ -36,6 +37,7 @@ export default function ScriptProjectPage() {
     const params = useParams<{ id: string }>();
     const router = useRouter();
     const { message } = App.useApp();
+    const downloadFile = useDownloadFile();
     const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
     const hydrated = useScriptStore((state) => state.hydrated);
     const projects = useScriptStore((state) => state.projects);
@@ -115,13 +117,7 @@ export default function ScriptProjectPage() {
 
     const exportScript = () => {
         if (!project) return;
-        const blob = new Blob([exportScriptText(project)], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${project.title || "剧本"}.txt`;
-        link.click();
-        URL.revokeObjectURL(url);
+        downloadFile(new Blob([exportScriptText(project)], { type: "text/plain;charset=utf-8" }), `${project.title || "剧本"}.txt`);
     };
 
     if (!hydrated) {

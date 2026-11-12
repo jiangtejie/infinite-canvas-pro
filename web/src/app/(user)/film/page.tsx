@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { FilmAmbient } from "@/components/film/film-ambient";
 import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
+import { useDownloadFile } from "@/hooks/use-download-file";
 import { useFilmStore } from "@/stores/use-film-store";
 import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
 import type { FilmAspect, FilmProject, FilmStylePresetId } from "@/lib/film/types";
@@ -18,6 +19,7 @@ import { DEFAULT_DIRECTOR_STYLE_ID, DIRECTOR_STYLES, directorStyleLabel } from "
 import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel } from "@/lib/film/film-styles";
 import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
+import { errorMessage } from "@/lib/utils";
 
 const STAGE_LABEL: Record<FilmProject["stage"], string> = {
     script: "剧本",
@@ -35,7 +37,8 @@ export default function FilmListPage() {
     const importProject = useFilmStore((state) => state.importProject);
     const updateProject = useFilmStore((state) => state.updateProject);
     const deleteProjects = useFilmStore((state) => state.deleteProjects);
-    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
+    const { confirmDelete } = useFilmDeleteConfirm();
+    const downloadFile = useDownloadFile();
     const [createOpen, setCreateOpen] = useState(false);
     const [title, setTitle] = useState("");
     const [visualStyle, setVisualStyle] = useState("");
@@ -101,13 +104,7 @@ export default function FilmListPage() {
     };
 
     const exportProject = (project: FilmProject) => {
-        const blob = new Blob([serializeFilmProject(project)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${project.title || "影视项目"}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
+        downloadFile(new Blob([serializeFilmProject(project)], { type: "application/json" }), `${project.title || "影视项目"}.json`);
         message.success("项目备份已导出");
     };
 
@@ -120,7 +117,7 @@ export default function FilmListPage() {
             importProject(project);
             message.success(`已导入「${project.title}」`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "导入失败");
+            message.error(errorMessage(error, "导入失败"));
         }
     };
 
@@ -335,7 +332,6 @@ export default function FilmListPage() {
                     </label>
                 </div>
             </Modal>
-            {deleteConfirmNode}
         </div>
     );
 }

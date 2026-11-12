@@ -4,9 +4,10 @@ import { useMemo, useState } from "react";
 import { Button, Input, Modal, Select } from "antd";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, truncateText } from "@/lib/utils";
 import type { FilmScriptAnalysis } from "@/lib/film/types";
 import { FilmAmbient } from "@/components/film/film-ambient";
+import { useDownloadFile } from "@/hooks/use-download-file";
 
 type FilmScriptGraphProps = {
     analysis: FilmScriptAnalysis | null;
@@ -23,6 +24,7 @@ const MAX_RELATION_NODES = 24;
 const MAX_SCENES = 16;
 
 export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: FilmScriptGraphProps) {
+    const downloadFile = useDownloadFile();
     const [mode, setMode] = useState<"relations" | "scenes" | "beats" | "network">("relations");
     const [zoom, setZoom] = useState(1);
     const [minStrength, setMinStrength] = useState(1);
@@ -102,13 +104,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
             ]);
         }
         const csv = rows.map((row) => row.map((cell) => `"${String(cell || "").replace(/"/g, '""')}"`).join(",")).join("\n");
-        const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "剧情制作表.csv";
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        downloadFile(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }), "剧情制作表.csv");
     };
 
     if (!analysis) {
@@ -200,8 +196,8 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                             <g key={node.name} className="cursor-pointer" opacity={!matched || hoverDim ? 0.25 : 1} onMouseEnter={() => setHoveredCharacter(node.name)} onMouseLeave={() => setHoveredCharacter("")} onClick={() => { setSelectedCharacter(node.name); setSelectedScene(null); }}>
                                                 <title>{node.name}{node.role ? ` · ${node.role}` : ""}{node.aliases.length ? `（${node.aliases.join("、")}）` : ""}</title>
                                                 <circle cx={node.x} cy={node.y} r={selected ? 30 : 26} fill="var(--card)" stroke={selected ? "var(--acid)" : "var(--border)"} strokeWidth={selected ? 2 : 1.2} />
-                                                <text x={node.x} y={node.y - 2} textAnchor="middle" className="fill-foreground" style={{ fontSize: 11, fontWeight: 600 }}>{truncate(node.name, 5)}</text>
-                                                <text x={node.x} y={node.y + 11} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncate(node.role || "角色", 6)}</text>
+                                                <text x={node.x} y={node.y - 2} textAnchor="middle" className="fill-foreground" style={{ fontSize: 11, fontWeight: 600 }}>{truncateText(node.name, 5)}</text>
+                                                <text x={node.x} y={node.y + 11} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncateText(node.role || "角色", 6)}</text>
                                             </g>
                                         );
                                     })}
@@ -225,9 +221,9 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                                 ) : null}
                                                 <rect x={x} y={y} width={180} height={100} rx={8} fill="var(--card)" stroke={selected ? "var(--acid)" : "var(--border)"} strokeWidth={selected ? 2 : 1.2} />
                                                 <text x={x + 10} y={y + 18} className="fill-muted-foreground" style={{ fontSize: 8 }}>{scene.episode}</text>
-                                                <text x={x + 10} y={y + 34} className="fill-foreground" style={{ fontSize: 11, fontWeight: 600 }}>{truncate(scene.heading, 16)}</text>
-                                                <text x={x + 10} y={y + 50} className="fill-muted-foreground" style={{ fontSize: 9 }}>{truncate(scene.summary || "无摘要", 22)}</text>
-                                                <text x={x + 10} y={y + 66} className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncate(scene.characters.join("、") || "无角色", 20)}</text>
+                                                <text x={x + 10} y={y + 34} className="fill-foreground" style={{ fontSize: 11, fontWeight: 600 }}>{truncateText(scene.heading, 16)}</text>
+                                                <text x={x + 10} y={y + 50} className="fill-muted-foreground" style={{ fontSize: 9 }}>{truncateText(scene.summary || "无摘要", 22)}</text>
+                                                <text x={x + 10} y={y + 66} className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncateText(scene.characters.join("、") || "无角色", 20)}</text>
                                                 <text x={x + 10} y={y + 82} className="fill-muted-foreground" style={{ fontSize: 8 }}>{scene.mood ? `情绪：${scene.mood}` : ""}</text>
                                             </g>
                                         );
@@ -242,7 +238,7 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                             <g key={`network-char-${character.name}`} className="cursor-pointer" opacity={dim ? 0.25 : 1} onMouseEnter={() => setHoveredCharacter(character.name)} onMouseLeave={() => setHoveredCharacter("")} onClick={() => { setSelectedCharacter(character.name); setSelectedScene(null); }}>
                                                 <title>{character.name}{character.role ? ` · ${character.role}` : ""}</title>
                                                 <circle cx={position.x} cy={position.y} r={20} fill="var(--card)" stroke={selectedCharacter === character.name ? "var(--acid)" : "var(--border)"} strokeWidth={selectedCharacter === character.name ? 2 : 1.2} />
-                                                <text x={position.x} y={position.y + 3} textAnchor="middle" className="fill-foreground" style={{ fontSize: 10, fontWeight: 600 }}>{truncate(character.name, 5)}</text>
+                                                <text x={position.x} y={position.y + 3} textAnchor="middle" className="fill-foreground" style={{ fontSize: 10, fontWeight: 600 }}>{truncateText(character.name, 5)}</text>
                                             </g>
                                         );
                                     })}
@@ -262,8 +258,8 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
                                             <g key={`network-scene-${scene.sceneIndex}`} className="cursor-pointer" opacity={dim ? 0.25 : 1} onMouseEnter={() => setHoveredScene(scene.sceneIndex)} onMouseLeave={() => setHoveredScene(null)} onClick={() => { setSelectedScene(scene.sceneIndex); setSelectedCharacter(""); }}>
                                                 <title>{scene.heading} · {scene.summary || "无摘要"}</title>
                                                 <rect x={position.x - 92} y={position.y - 26} width={184} height={52} rx={7} fill="var(--card)" stroke={selectedScene === scene.sceneIndex ? "var(--acid)" : "var(--border)"} strokeWidth={selectedScene === scene.sceneIndex ? 2 : 1.2} />
-                                                <text x={position.x} y={position.y - 6} textAnchor="middle" className="fill-foreground" style={{ fontSize: 9, fontWeight: 600 }}>{truncate(scene.heading, 18)}</text>
-                                                <text x={position.x} y={position.y + 9} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncate(scene.episode, 14)}</text>
+                                                <text x={position.x} y={position.y - 6} textAnchor="middle" className="fill-foreground" style={{ fontSize: 9, fontWeight: 600 }}>{truncateText(scene.heading, 18)}</text>
+                                                <text x={position.x} y={position.y + 9} textAnchor="middle" className="fill-muted-foreground" style={{ fontSize: 8 }}>{truncateText(scene.episode, 14)}</text>
                                             </g>
                                         );
                                     })}
@@ -357,11 +353,6 @@ export function FilmScriptGraph({ analysis, open, onClose, onApplyAssets }: Film
             </div>
         </Modal>
     );
-}
-
-function truncate(value: string, max: number) {
-    const text = (value || "").trim();
-    return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 function GraphOverview({ analysis, mode, beatCount }: { analysis: FilmScriptAnalysis; mode: "relations" | "scenes" | "beats" | "network"; beatCount: number }) {

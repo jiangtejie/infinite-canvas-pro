@@ -53,9 +53,6 @@ export function AdminSettingsPublicConfig({ settings }: { settings: AdminSetting
                                 <Input.TextArea rows={5} placeholder="控制 AI 创建工作流的输出规范和默认参数" />
                             </Form.Item>
                         </Col>
-                        <Form.Item name={["public", "modelChannel", "systemPrompt"]} hidden>
-                            <Input />
-                        </Form.Item>
                     </Row>
                 </AdminSettingsSection>
 

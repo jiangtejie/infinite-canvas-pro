@@ -2,11 +2,6 @@ import { CanvasNodeType } from "./types";
 import type { CanvasNodeMetadata } from "./types";
 import { PANORAMA_IMAGE_SIZE, PANORAMA_NODE_SIZE } from "./utils/canvas-panorama";
 
-/** 素材源节点布局版本：用于迁移旧默认尺寸节点。 */
-export const SOURCE_LAYOUT_VERSION = 2;
-/** 发布节点布局版本：用于迁移旧默认尺寸节点。 */
-export const PUBLISH_LAYOUT_VERSION = 3;
-
 type CanvasNodeSpec = {
     width: number;
     height: number;
@@ -62,11 +57,11 @@ export const NODE_SPECS = {
     },
     [CanvasNodeType.Source]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Source],
-        metadata: { sourcePlatform: "douyin", sourceStatus: "idle", sourceInput: "", sourceLayoutVersion: SOURCE_LAYOUT_VERSION },
+        metadata: { sourcePlatform: "douyin", sourceStatus: "idle", sourceInput: "" },
     },
     [CanvasNodeType.Publish]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Publish],
-        metadata: { status: "idle", publishStatus: "idle", publishLayoutVersion: PUBLISH_LAYOUT_VERSION },
+        metadata: { status: "idle", publishStatus: "idle" },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;
 

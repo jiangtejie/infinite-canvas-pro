@@ -1,10 +1,13 @@
+import { isAutoDLConfig } from "@/lib/autodl";
 import { defaultConfig, resolveModelForCapability, type AiConfig } from "@/stores/use-config-store";
 
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
 import type { CanvasNodeData } from "../../types";
 import { PANORAMA_IMAGE_SIZE, isPanoramaNodeType } from "../../utils/canvas-panorama";
 
-export function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefined, mode: CanvasNodeGenerationMode): AiConfig {
+/** resolveTextModel=false 时保持「节点模型优先、不做能力回退」，供生成配置面板沿用原展示逻辑。 */
+export function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefined, mode: CanvasNodeGenerationMode, options?: { resolveTextModel?: boolean }): AiConfig {
+    const resolveTextModel = options?.resolveTextModel ?? true;
     const defaultModel = mode === "image" ? config.imageModel : mode === "video" ? config.videoModel : mode === "audio" ? config.audioModel : config.textModel;
     const channelId = node?.metadata?.channelId || "";
     const imageChannelId = mode === "image" ? channelId || config.imageChannelId : config.imageChannelId;
@@ -14,7 +17,7 @@ export function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | u
     const activeChannelId = mode === "image" ? imageChannelId : mode === "video" ? videoChannelId : mode === "text" ? textChannelId : mode === "audio" ? audioChannelId || config.activeChannelId : config.activeChannelId;
     return {
         ...config,
-        model: mode === "text" ? resolveModelForCapability(config, node?.metadata?.model, "text") : node?.metadata?.model || defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model),
+        model: mode === "text" && resolveTextModel ? resolveModelForCapability(config, node?.metadata?.model, "text") : node?.metadata?.model || defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model),
         activeChannelId,
         imageChannelId,
         videoChannelId,
@@ -22,7 +25,9 @@ export function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | u
         audioChannelId,
         quality: node?.metadata?.quality || config.quality || defaultConfig.quality,
         size: isPanoramaNodeType(node?.type) ? PANORAMA_IMAGE_SIZE : node?.metadata?.size || (mode === "video" ? config.videoSize || defaultConfig.videoSize : config.size || defaultConfig.size),
-        videoSeconds: node?.metadata?.seconds || config.videoSeconds || defaultConfig.videoSeconds,
+        videoSeconds: isAutoDLConfig({ ...config, activeChannelId, videoChannelId }, node?.metadata?.model || defaultModel)
+            ? node?.metadata?.seconds ?? config.videoSeconds
+            : node?.metadata?.seconds || config.videoSeconds || defaultConfig.videoSeconds,
         vquality: node?.metadata?.vquality || config.vquality || defaultConfig.vquality,
         videoMode: node?.metadata?.mode || config.videoMode || defaultConfig.videoMode,
         videoNegativePrompt: node?.metadata?.negativePrompt || config.videoNegativePrompt || defaultConfig.videoNegativePrompt,

@@ -23,8 +23,19 @@ export function ReferenceThumbnailOverlay({ references, className = "" }: { refe
     );
 }
 
-export function TaskPromptBlock({ prompt, onCopyPrompt }: { prompt: string; onCopyPrompt: (text: string) => void | Promise<void> }) {
+export function TaskPromptBlock({ prompt, onCopyPrompt, compact = false }: { prompt: string; onCopyPrompt: (text: string) => void | Promise<void>; compact?: boolean }) {
     const [expanded, setExpanded] = useState(false);
+    if (compact) {
+        return (
+            <div className="rounded-lg border border-border/50 bg-muted/50 px-2.5 py-2 text-xs">
+                <p className={`whitespace-pre-wrap break-words text-[12px] leading-5 text-foreground/80 ${expanded ? "" : "line-clamp-2"}`}>{prompt}</p>
+                <div className="mt-1 flex justify-end gap-0.5">
+                    <Button size="small" type="text" title="复制提示词" aria-label="复制提示词" className="!h-5 !px-1 !text-[10px]" icon={<Copy className="size-3" />} onClick={() => void onCopyPrompt(prompt)} />
+                    <Button size="small" type="text" title={expanded ? "收起" : "展开"} aria-label={expanded ? "收起" : "展开"} className="!h-5 !px-1 !text-[10px]" icon={expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />} onClick={() => setExpanded((value) => !value)} />
+                </div>
+            </div>
+        );
+    }
     return (
         <div className="rounded-lg border border-border/50 bg-muted/60 p-2.5">
             <div className={`${expanded ? "" : "line-clamp-2"} whitespace-pre-wrap text-[12px] leading-5 text-foreground/80`}>{prompt}</div>
@@ -57,7 +68,7 @@ export function TaskResultInfo({ prompt, tags, error, onCopyPrompt }: {
 
 export function TaskErrorLine({ error, onDetail }: { error: string; onDetail?: () => void }) {
     return (
-        <div className="flex items-start justify-between gap-2 rounded-lg border border-red-200/70 bg-red-50 px-2.5 py-2 text-red-600 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300">
+        <div className="flex items-start justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-destructive">
             <span className="line-clamp-2 min-w-0">{error}</span>
             {onDetail ? (
                 <Button size="small" type="text" className="!h-auto !p-0 text-xs" onClick={onDetail}>
@@ -87,17 +98,17 @@ export function FailedResultCard({ mediaClassName, references, error, detail, in
 }) {
     const [detailOpen, setDetailOpen] = useState(false);
     return (
-        <div role="alert" className="overflow-hidden rounded-lg border border-red-200/70 bg-red-50 dark:border-red-950 dark:bg-red-950/20">
+        <div role="alert" className="overflow-hidden rounded-lg border border-destructive/30 bg-destructive/10">
             <div className={`relative flex flex-col items-center justify-center gap-3 p-6 text-center ${mediaClassName}`}>
                 <ReferenceThumbnailOverlay references={references} className="left-1.5 top-1.5" />
-                <AlertCircle className="size-7 text-red-500" aria-hidden />
-                <div className="text-sm font-medium text-red-600 dark:text-red-300">生成失败</div>
-                <Typography.Paragraph ellipsis={{ rows: 4 }} className="!mb-0 !text-xs !text-red-500 dark:!text-red-300">
+                <AlertCircle className="size-7 text-destructive" aria-hidden />
+                <div className="text-sm font-medium text-destructive">生成失败</div>
+                <Typography.Paragraph ellipsis={{ rows: 4 }} className="!mb-0 !text-xs !text-destructive">
                     {error}
                 </Typography.Paragraph>
             </div>
             {info}
-            <div className="flex items-center justify-between gap-2 border-t border-red-200/70 p-3.5 dark:border-red-950">
+            <div className="flex items-center justify-between gap-2 border-t border-destructive/30 p-3.5">
                 <div className="flex gap-2">{extraActions}</div>
                 <div className="flex gap-2">
                     <Button size="small" onClick={() => setDetailOpen(true)}>
@@ -115,47 +126,51 @@ export function FailedResultCard({ mediaClassName, references, error, detail, in
     );
 }
 
-export function MediaResultCard({ media, mediaClassName, mediaBackgroundClassName = "bg-muted", overlay, references, prompt, tags, meta, actions, onCopyPrompt }: {
+export function MediaResultCard({ media, mediaClassName, mediaBackgroundClassName = "bg-muted", overlay, references, prompt, tags, meta, actions, info, className = "", onCopyPrompt }: {
     media: ReactNode;
     mediaClassName: string;
     mediaBackgroundClassName?: string;
     overlay?: ReactNode;
     references?: ReferenceImage[];
-    prompt: string;
+    prompt?: string;
     tags?: ReactNode;
-    meta: ReactNode;
+    meta?: ReactNode;
     actions?: ReactNode;
-    onCopyPrompt: (text: string) => void | Promise<void>;
+    info?: ReactNode;
+    className?: string;
+    onCopyPrompt?: (text: string) => void | Promise<void>;
 }) {
     return (
-        <div className="overflow-hidden rounded-xl border border-border/70 bg-background transition-[border-color,box-shadow] duration-200 hover:border-acid/40 hover:shadow-sm">
+        <div className={`overflow-hidden rounded-xl border border-border/70 bg-background transition-[border-color,box-shadow] duration-200 hover:border-acid/40 hover:shadow-sm ${className}`}>
             <div className={`relative ${mediaClassName} ${mediaBackgroundClassName}`}>
                 {overlay}
                 <ReferenceThumbnailOverlay references={references} className="left-1.5 top-1.5" />
                 {media}
             </div>
-            <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} />
+            {info ?? (prompt && onCopyPrompt ? <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} /> : null)}
             <ResultMediaMeta meta={meta} actions={actions} />
         </div>
     );
 }
 
-export function PendingMediaCard({ mediaClassName, prompt, tags, onCopyPrompt, children }: {
+export function PendingMediaCard({ mediaClassName, prompt, tags, info, className = "", onCopyPrompt, children }: {
     mediaClassName: string;
-    prompt: string;
+    prompt?: string;
     tags?: ReactNode;
-    onCopyPrompt: (text: string) => void | Promise<void>;
+    info?: ReactNode;
+    className?: string;
+    onCopyPrompt?: (text: string) => void | Promise<void>;
     children: ReactNode;
 }) {
     return (
-        <div className="overflow-hidden rounded-xl border border-dashed border-border/70 bg-muted/40">
+        <div className={`overflow-hidden rounded-xl border border-dashed border-border/70 bg-muted/40 ${className}`}>
             <div className={`relative ${mediaClassName}`}>{children}</div>
-            <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} />
+            {info ?? (prompt && onCopyPrompt ? <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} /> : null)}
         </div>
     );
 }
 
-export function ResultMediaMeta({ meta, actions }: { meta: ReactNode; actions?: ReactNode }) {
+export function ResultMediaMeta({ meta, actions }: { meta?: ReactNode; actions?: ReactNode }) {
     return (
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border/70 px-3 py-2.5">
             <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-[10px] text-muted-foreground/90">{meta}</div>

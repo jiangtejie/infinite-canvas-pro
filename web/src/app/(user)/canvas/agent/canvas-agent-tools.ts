@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 
 import type { CanvasAgentPhase } from "../types";
+import { errorMessage } from "@/lib/utils";
 
 export const CANVAS_AGENT_ACTION_NAMES = [
     "get_canvas_summary",
@@ -368,7 +369,7 @@ export async function parseCanvasAgentJson(content: string, { allowRepair = fals
         });
         return { parsed: true, actions, reply: typeof payload.reply === "string" ? payload.reply.trim() : "" };
     } catch (error) {
-        if (actionPayload) return { parsed: false, actions: [], reply: "", error: error instanceof Error ? error.message : "工具 JSON 格式错误" };
+        if (actionPayload) return { parsed: false, actions: [], reply: "", error: errorMessage(error, "工具 JSON 格式错误") };
         return { parsed: false, actions: [], reply: content.trim() };
     }
 }

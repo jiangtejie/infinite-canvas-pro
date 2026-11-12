@@ -3,12 +3,16 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
+import { errorMessage } from "@/lib/utils";
 import { fetchUserConfig } from "@/services/api/user-config";
 import { replaceWorkflowChannels } from "@/services/workflow-channel-storage";
 import { defaultUserStorageProvider, defaultUserWebDAVStorageProvider, saveUserStorageProvider, saveUserWebDAVStorageProvider } from "@/services/image-storage";
 import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
 import { useConfigStore, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+
+/** 账号配置同步失败：由 ClientRootInit 统一监听提示一次，避免每个页面各弹一次。 */
+export const CONFIG_SYNC_FAILED_EVENT = "infinite-canvas:config-sync-failed";
 
 /**
  * 登录会话引导：token / 账号变化后统一拉取账号配置，并同步模型配置、工作流、画布与素材。
@@ -93,7 +97,10 @@ export function useSessionBootstrap() {
                     });
                 }
             })
-            .catch(() => {});
+            .catch((error) => {
+                if (isStale()) return;
+                window.dispatchEvent(new CustomEvent(CONFIG_SYNC_FAILED_EVENT, { detail: errorMessage(error, "") }));
+            });
         return () => {
             canceled = true;
         };

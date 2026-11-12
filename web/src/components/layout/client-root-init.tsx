@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { App } from "antd";
 
-import { useSessionBootstrap } from "@/hooks/use-session-bootstrap";
+import { CONFIG_SYNC_FAILED_EVENT, useSessionBootstrap } from "@/hooks/use-session-bootstrap";
 import { STORAGE_SYNC_FAILED_EVENT } from "@/services/image-storage";
 import { defaultConfig, useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -36,6 +36,15 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         };
         window.addEventListener(STORAGE_SYNC_FAILED_EVENT, onSyncFailed);
         return () => window.removeEventListener(STORAGE_SYNC_FAILED_EVENT, onSyncFailed);
+    }, [message]);
+
+    useEffect(() => {
+        const onConfigSyncFailed = (event: Event) => {
+            const detail = (event as CustomEvent<string>).detail;
+            message.warning({ key: CONFIG_SYNC_FAILED_EVENT, content: `账号配置同步失败，已沿用本地配置${detail ? `：${detail}` : ""}` });
+        };
+        window.addEventListener(CONFIG_SYNC_FAILED_EVENT, onConfigSyncFailed);
+        return () => window.removeEventListener(CONFIG_SYNC_FAILED_EVENT, onConfigSyncFailed);
     }, [message]);
 
     useEffect(() => {

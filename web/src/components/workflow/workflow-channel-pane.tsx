@@ -4,6 +4,7 @@ import { App, AutoComplete, Button, Form, Input, Segmented, Select, Switch, Tag 
 import { useEffect, useRef, useState } from "react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useCopyText } from "@/hooks/use-copy-text";
 import { WorkflowFieldMappingEditor } from "@/components/workflow/workflow-field-mapping-editor";
 import { WorkflowGraphEditor } from "@/components/workflow/workflow-graph-editor";
 import { WorkflowTestWorkbench } from "@/components/workflow/workflow-test-workbench";
@@ -13,6 +14,7 @@ import { createComfyBridge, deleteComfyBridge, inspectComfyBridge, listComfyBrid
 import { inspectRunningHub } from "@/services/api/runninghub";
 import type { AdminModelChannel } from "@/services/api/admin";
 import styles from "./workflow-channel-pane.module.css";
+import { errorMessage } from "@/lib/utils";
 
 export type WorkflowChannelSettings = {
     id: string;
@@ -41,6 +43,7 @@ const entryKey = (item: WorkflowEntry) => `${item.kind}:${item.workflowId}`;
 
 export function WorkflowChannelPane({ channel, workflows, token, admin, onChannelChange, onBridgeDeleted, onWorkflowsChange, onBeforeTest }: Props) {
     const { message } = App.useApp();
+    const copyText = useCopyText();
     const confirm = useConfirm();
     const [selectedKey, setSelectedKey] = useState("");
     const [kind, setKind] = useState<WorkflowKind>("workflow");
@@ -68,7 +71,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
 
     useEffect(() => {
         if (channel.protocol !== "comfyui" || !token) return;
-        void listComfyBridges(token, isAdmin).then(setBridges).catch((error) => message.error(error instanceof Error ? error.message : "读取 Bridge 失败"));
+        void listComfyBridges(token, isAdmin).then(setBridges).catch((error) => message.error(errorMessage(error, "读取 Bridge 失败")));
     }, [channel.protocol, isAdmin, message, token]);
 
     const choose = (key?: string) => {
@@ -114,7 +117,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
             setJsonText(next.workflowJson ? JSON.stringify(next.workflowJson, null, 2) : "");
             message.success(channel.protocol === "runninghub" ? next.fields.some((field) => field.enabled !== false && ["referenceImage", "referenceVideo", "referenceAudio", "mask"].includes(field.source || "")) ? `RunningHub ${kind === "app" ? "App" : "工作流"}参数已保存；生成时会调用 RunningHub 素材上传接口` : `RunningHub ${kind === "app" ? "App" : "工作流"}参数已重新拉取并保存` : "ComfyUI 工作流配置已保存");
         } catch (error) {
-            if (activeRef.current) message.error(error instanceof Error ? error.message : "拉取工作流失败");
+            if (activeRef.current) message.error(errorMessage(error, "拉取工作流失败"));
         } finally {
             if (activeRef.current) setBusy(false);
         }
@@ -140,7 +143,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
                 if (activeRef.current) setBusy(false);
             }
         } catch (error) {
-            if (activeRef.current) message.error(error instanceof Error ? error.message : "API JSON 无效");
+            if (activeRef.current) message.error(errorMessage(error, "API JSON 无效"));
         }
     };
 
@@ -159,7 +162,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
             await refreshBridges();
             setBridgeName("");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "注册 Bridge 失败");
+            message.error(errorMessage(error, "注册 Bridge 失败"));
         }
     };
 
@@ -183,7 +186,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
                     try {
                         await deleteComfyBridge(token, bridgeId, Boolean(admin));
                     } catch (error) {
-                        message.error(error instanceof Error ? error.message : "删除设备失败");
+                        message.error(errorMessage(error, "删除设备失败"));
                         return;
                     }
                     onBridgeDeleted(bridgeId);
@@ -195,7 +198,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
                 <Form.Item label="工作流目录" className="!mb-0"><Input value={channel.workflowDir || bridge?.capabilities?.workflowDir || ""} onChange={(event) => onChannelChange({ workflowDir: event.target.value })} placeholder="workflows" /></Form.Item>
             </div>
             <div className="flex gap-2"><Input value={bridgeName} onChange={(event) => setBridgeName(event.target.value)} placeholder="新 Bridge 名称" /><Button onClick={() => void registerBridge()}>注册 Bridge</Button></div>
-            {newToken && channel.bridgeId === newTokenBridgeId ? <div className="space-y-2 rounded border p-3 text-xs">专用 Token 只显示这一次，关闭后无法找回：<Input.Password readOnly visibilityToggle value={newToken} /><div>下载对应程序，在能访问 ComfyUI 的机器上运行：</div><pre className="overflow-x-auto whitespace-pre-wrap rounded bg-[var(--muted)] p-2 select-text">Windows PowerShell: {windowsBridgeCommand}{"\n"}Linux: {linuxBridgeCommand}</pre><div className="flex gap-2"><Button size="small" onClick={() => void navigator.clipboard.writeText(windowsBridgeCommand).then(() => message.success("Windows 启动命令已复制"))}>复制 Windows 命令</Button><Button size="small" onClick={() => void navigator.clipboard.writeText(linuxBridgeCommand).then(() => message.success("Linux 启动命令已复制"))}>复制 Linux 命令</Button><Button size="small" onClick={() => setNewToken("")}>我已保存</Button></div><div>Linux ARM64：将命令中的 amd64 改为 arm64。</div></div> : null}
+            {newToken && channel.bridgeId === newTokenBridgeId ? <div className="space-y-2 rounded border p-3 text-xs">专用 Token 只显示这一次，关闭后无法找回：<Input.Password readOnly visibilityToggle value={newToken} /><div>下载对应程序，在能访问 ComfyUI 的机器上运行：</div><pre className="overflow-x-auto whitespace-pre-wrap rounded bg-[var(--muted)] p-2 select-text">Windows PowerShell: {windowsBridgeCommand}{"\n"}Linux: {linuxBridgeCommand}</pre><div className="flex gap-2"><Button size="small" onClick={() => copyText(windowsBridgeCommand, "Windows 启动命令已复制")}>复制 Windows 命令</Button><Button size="small" onClick={() => copyText(linuxBridgeCommand, "Linux 启动命令已复制")}>复制 Linux 命令</Button><Button size="small" onClick={() => setNewToken("")}>我已保存</Button></div><div>Linux ARM64：将命令中的 amd64 改为 arm64。</div></div> : null}
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2"><Tag color="blue" className="!m-0 shrink-0">下载 Bridge</Tag><span className="text-xs text-[var(--ant-color-text-secondary)]">在可访问 ComfyUI 的设备运行独立 Bridge，一个 Bridge 可运行该目录中的多条工作流，启动后点击“刷新发现”同步工作流</span></div>
                 <div className="flex flex-wrap gap-2"><Button type="primary" ghost size="small" href="/InfiniteCanvas-ComfyBridge.exe" download>下载 Windows</Button><Button type="primary" ghost size="small" href="/InfiniteCanvas-ComfyBridge-linux-amd64" download>下载 Linux x64</Button><Button type="primary" ghost size="small" href="/InfiniteCanvas-ComfyBridge-linux-arm64" download>下载 Linux ARM64</Button></div>

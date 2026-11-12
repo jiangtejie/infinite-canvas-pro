@@ -5,6 +5,7 @@ import { Wrench } from "lucide-react";
 import { App, Button, Input } from "antd";
 
 import { resolveImageUrl, uploadImage } from "@/services/image-storage";
+import { errorMessage } from "@/lib/utils";
 
 type AgentSkillCoverProps = {
     name: string;
@@ -63,7 +64,7 @@ export function AgentSkillCoverEditor({ name, coverUrl = "", coverStorageKey = "
             const image = await uploadImage(file);
             onChange({ coverUrl: image.url, coverStorageKey: image.storageKey });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "封面上传失败");
+            message.error(errorMessage(error, "封面上传失败"));
         } finally {
             setUploading(false);
         }

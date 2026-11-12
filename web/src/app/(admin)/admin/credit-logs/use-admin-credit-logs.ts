@@ -1,30 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { App } from "antd";
 
-import { deleteAdminCreditLog, fetchAdminCreditLogs, saveAdminCreditLog, type AdminCreditLog } from "@/services/api/admin";
-import { useUserStore } from "@/stores/use-user-store";
+import { errorMessage as toErrorMessage } from "@/lib/utils";
+import { deleteAdminCreditLog, fetchAdminCreditLogs, saveAdminCreditLog, type AdminCreditLog, type AdminCreditLogListResponse } from "@/services/api/admin";
 
-const defaultPageSize = 10;
+import { useAdminList } from "../components/use-admin-list";
+
+type CreditLogListFilters = { keyword: string; date: string };
 
 export function useAdminCreditLogs() {
     const { message } = App.useApp();
     const queryClient = useQueryClient();
-    const token = useUserStore((state) => state.token);
-    const clearSession = useUserStore((state) => state.clearSession);
-    const [keyword, setKeyword] = useState("");
-    const [date, setDate] = useState("");
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(defaultPageSize);
-
-    const query = useQuery({
-        queryKey: ["admin", "credit-logs", token, keyword, date, page, pageSize],
-        queryFn: () => fetchAdminCreditLogs(token, { keyword, date, page, pageSize }),
-        enabled: Boolean(token),
-        retry: false,
+    const list = useAdminList<CreditLogListFilters, AdminCreditLogListResponse>({
+        queryKey: ({ token, filters, page, pageSize }) => ["admin", "credit-logs", token, filters.keyword, filters.date, page, pageSize],
+        fetcher: ({ token, filters, page, pageSize }) => fetchAdminCreditLogs(token, { keyword: filters.keyword, date: filters.date, page, pageSize }),
+        initialFilters: { keyword: "", date: "" },
+        errorFallback: "读取日志失败",
     });
+    const token = list.token;
 
     const saveMutation = useMutation({
         mutationFn: (log: Partial<AdminCreditLog>) => saveAdminCreditLog(token, log),
@@ -32,7 +27,7 @@ export function useAdminCreditLogs() {
             await queryClient.invalidateQueries({ queryKey: ["admin", "credit-logs"] });
             message.success(log.id ? "日志已保存" : "日志已新增");
         },
-        onError: (error) => message.error(error instanceof Error ? error.message : "保存失败"),
+        onError: (error) => message.error(toErrorMessage(error, "保存失败")),
     });
 
     const deleteMutation = useMutation({
@@ -41,41 +36,24 @@ export function useAdminCreditLogs() {
             await queryClient.invalidateQueries({ queryKey: ["admin", "credit-logs"] });
             message.success("日志已删除");
         },
-        onError: (error) => message.error(error instanceof Error ? error.message : "删除失败"),
+        onError: (error) => message.error(toErrorMessage(error, "删除失败")),
     });
 
-    useEffect(() => {
-        if (query.isError) {
-            const errorMessage = query.error instanceof Error ? query.error.message : "读取日志失败";
-            message.error(errorMessage);
-            if (errorMessage.includes("未登录") || errorMessage.includes("权限不足") || errorMessage.includes("登录状态无效")) clearSession();
-        }
-    }, [clearSession, message, query.error, query.isError]);
-
-    const updateFilters = (next: Partial<{ keyword: string; date: string; page: number; pageSize: number }>) => {
-        const queryState = { keyword, date, page, pageSize, ...next };
-        if (next.keyword !== undefined || next.date !== undefined || next.pageSize !== undefined) queryState.page = 1;
-        setKeyword(queryState.keyword);
-        setDate(queryState.date);
-        setPage(queryState.page);
-        setPageSize(queryState.pageSize);
-    };
-
-    const data = query.data;
+    const data = list.query.data;
 
     return {
         logs: data?.items || [],
-        keyword,
-        date,
-        page,
-        pageSize,
+        keyword: list.filters.keyword,
+        date: list.filters.date,
+        page: list.page,
+        pageSize: list.pageSize,
         total: data?.total || 0,
-        isLoading: query.isFetching || saveMutation.isPending || deleteMutation.isPending,
-        searchLogs: (value = keyword, selectedDate = date) => updateFilters({ keyword: value, date: selectedDate }),
-        changePage: (value: number) => updateFilters({ page: value }),
-        changePageSize: (value: number) => updateFilters({ pageSize: value }),
-        resetFilters: () => updateFilters({ keyword: "", date: "", page: 1, pageSize: defaultPageSize }),
-        refreshLogs: () => query.refetch(),
+        isLoading: list.query.isFetching || saveMutation.isPending || deleteMutation.isPending,
+        searchLogs: (value = list.filters.keyword, selectedDate = list.filters.date) => list.applyFilters({ keyword: value, date: selectedDate }),
+        changePage: list.changePage,
+        changePageSize: list.changePageSize,
+        resetFilters: list.resetFilters,
+        refreshLogs: () => list.query.refetch(),
         saveLog: (log: Partial<AdminCreditLog>) => saveMutation.mutateAsync(log),
         deleteLog: (id: string) => deleteMutation.mutateAsync(id),
     };

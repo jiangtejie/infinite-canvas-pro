@@ -30,6 +30,12 @@ export const canvasThemes = {
             activeBg: "#e9e7e1",
             activeText: "#292524",
         },
+        shadow: {
+            /** 菜单等浮层投影。 */
+            float: "0 12px 32px rgba(0,0,0,0.28)",
+            /** 底部工具条/缩放条投影（不含顶部高光）。 */
+            panel: "0 16px 40px rgba(28,25,23,.12)",
+        },
     },
     dark: {
         canvas: {
@@ -57,6 +63,10 @@ export const canvasThemes = {
             itemHover: "#26261f",
             activeBg: "#34342c",
             activeText: "#f5f5f4",
+        },
+        shadow: {
+            float: "0 12px 32px rgba(0,0,0,0.28)",
+            panel: "0 18px 45px rgba(0,0,0,.32)",
         },
     },
 } as const;

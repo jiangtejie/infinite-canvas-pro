@@ -9,6 +9,7 @@ import { isWorkflowProtocol } from "@/lib/model-channel";
 import { modelSummary } from "../settings-utils";
 import type { AdminSettingsController } from "../use-admin-settings";
 import { AdminSettingsSection } from "./settings-section";
+import { errorMessage } from "@/lib/utils";
 
 export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSettingsController }) {
     const { message } = App.useApp();
@@ -67,7 +68,7 @@ export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSett
                                                             try {
                                                                 await persistChannels(nextChannels);
                                                             } catch (error) {
-                                                                message.error(error instanceof Error ? error.message : "删除渠道失败");
+                                                                message.error(errorMessage(error, "删除渠道失败"));
                                                             }
                                                         }}
                                                     />

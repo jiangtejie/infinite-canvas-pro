@@ -13,6 +13,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ui/state-pane
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { ALL_PROMPTS_OPTION, type Prompt } from "@/services/api/prompts";
+import { errorMessage } from "@/lib/utils";
 
 export default function PromptsPage() {
     const { message } = App.useApp();
@@ -99,8 +100,8 @@ export default function PromptsPage() {
                     {!query.isLoading && query.isError ? (
                         <ErrorState
                             className="py-16"
-                            description={query.error instanceof Error ? query.error.message : "获取提示词失败，请检查网络后重试。"}
-                            detail={query.error instanceof Error ? query.error.stack : undefined}
+                            description={errorMessage(query.error, "获取提示词失败，请检查网络后重试。")}
+                            detail={process.env.NODE_ENV === "production" ? undefined : query.error instanceof Error ? query.error.stack : undefined}
                             onRetry={() => void query.refetch()}
                         />
                     ) : null}

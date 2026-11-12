@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { IMAGE_MIME } from "./payload";
 import { ImageRequestError } from "./types";
 import type { ChatImagesApiResponse, GeneratedImage, ImageApiResponse, ResponsesApiResponse } from "./types";
+import { errorMessage } from "@/lib/utils";
 
 
 function normalizeBase64Image(value: string, fallbackMime: string) {
@@ -119,7 +120,7 @@ export async function readJsonServerSentEvents(response: Response, onEvent: (eve
         try {
             event = parseServerSentEventBlock(block);
         } catch (error) {
-            throw new ImageRequestError(error instanceof Error ? error.message : "流式响应解析失败", block);
+            throw new ImageRequestError(errorMessage(error, "流式响应解析失败"), block);
         }
         if (!event) return;
         events.push(event);
@@ -195,7 +196,7 @@ export async function parseResponsesStreamResponse(response: Response, mime: str
         return parseResponsesPayload(completedPayload || { output }, mime);
     } catch (error) {
         if (!partialImages.length) {
-            throw new ImageRequestError(error instanceof Error ? error.message : "Responses API 没有返回图片", {
+            throw new ImageRequestError(errorMessage(error, "Responses API 没有返回图片"), {
                 completedPayload,
                 output,
                 events,

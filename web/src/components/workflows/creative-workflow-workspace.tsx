@@ -12,6 +12,7 @@ import { ModelPicker } from "@/components/model-picker";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/state-panel";
+import { useCopyText } from "@/hooks/use-copy-text";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { FailureDetailModal, TaskErrorLine } from "@/components/workbench/task-result";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
@@ -26,6 +27,7 @@ import { channelProtocolForConfig, defaultConfig, localChannelForActiveModel, no
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
+import { errorMessage } from "@/lib/utils";
 
 type WorkflowVariableType = "text" | "textarea" | "number" | "select" | "boolean";
 type WorkflowMode = "single_image" | "multi_image_series";
@@ -380,6 +382,7 @@ export function CreativeWorkflowWorkspace({
 } = {}) {
     useScreenLoadTiming(embedded ? "工作流（嵌入）" : "工作流");
     const { message } = App.useApp();
+    const copyText = useCopyText();
     const confirm = useConfirm();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const effectiveConfig = useEffectiveConfig();
@@ -583,7 +586,7 @@ export function CreativeWorkflowWorkspace({
             try {
                 await deleteStoredImages([reference.storageKey]);
             } catch (error) {
-                message.error(error instanceof Error ? error.message : "参考图文件删除失败");
+                message.error(errorMessage(error, "参考图文件删除失败"));
             }
         }
     };
@@ -606,7 +609,7 @@ export function CreativeWorkflowWorkspace({
             try {
                 await deleteStoredImages([reference.storageKey]);
             } catch (error) {
-                message.error(error instanceof Error ? error.message : "参考图文件删除失败");
+                message.error(errorMessage(error, "参考图文件删除失败"));
             }
         }
     };
@@ -614,7 +617,7 @@ export function CreativeWorkflowWorkspace({
     const cleanupAgentReferences = async () => {
         const keys = agentReferences.filter(isDisposableReferenceFile).map((item) => item.storageKey).filter((key): key is string => Boolean(key));
         setAgentReferences([]);
-        if (keys.length) await deleteStoredImages(keys).catch((error) => message.error(error instanceof Error ? error.message : "参考图文件删除失败"));
+        if (keys.length) await deleteStoredImages(keys).catch((error) => message.error(errorMessage(error, "参考图文件删除失败")));
     };
 
     const insertWorkflowAsset = (payload: InsertAssetPayload) => {
@@ -775,7 +778,7 @@ export function CreativeWorkflowWorkspace({
             setAgentDraft(normalizeAgentDraft(result.draft, effectiveConfig, agentScope));
             setAgentWarnings(result.warnings || []);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "工作流 Agent 生成失败");
+            message.error(errorMessage(error, "工作流 Agent 生成失败"));
         } finally {
             setAgentLoading(false);
         }
@@ -824,7 +827,7 @@ export function CreativeWorkflowWorkspace({
                 }, 0);
             }
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "多图提示词生成失败");
+            message.error(errorMessage(error, "多图提示词生成失败"));
         } finally {
             setSeriesDraftLoading(false);
         }
@@ -1043,7 +1046,7 @@ export function CreativeWorkflowWorkspace({
             // 轮询失败只提示一次，避免每 10 秒弹一次相同错误。
             if (!recoveredPollErrorRef.current) {
                 recoveredPollErrorRef.current = true;
-                message.error(error instanceof Error ? error.message : "读取工作流任务状态失败");
+                message.error(errorMessage(error, "读取工作流任务状态失败"));
             }
             return;
         }
@@ -1084,7 +1087,7 @@ export function CreativeWorkflowWorkspace({
         } catch (error) {
             if (!recoveredPollErrorRef.current) {
                 recoveredPollErrorRef.current = true;
-                message.error(error instanceof Error ? error.message : "回写工作流任务结果失败");
+                message.error(errorMessage(error, "回写工作流任务结果失败"));
             }
             return;
         }
@@ -1158,7 +1161,7 @@ export function CreativeWorkflowWorkspace({
             onGenerationLogSaved?.();
             message.success("工作流任务已停止");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "停止工作流任务失败");
+            message.error(errorMessage(error, "停止工作流任务失败"));
             await pollRecoveredTasksRef.current().catch(() => undefined);
         } finally {
             setStoppingTaskIds((value) => value.filter((id) => id !== task.id));
@@ -1271,7 +1274,7 @@ export function CreativeWorkflowWorkspace({
                     await saveWorkflowTaskLog(savedLog);
                     createdLogs.push(savedLog);
                 } catch (error) {
-                    const messageText = error instanceof Error ? error.message : "工作流图片任务创建失败";
+                    const messageText = errorMessage(error, "工作流图片任务创建失败");
                     await saveWorkflowTaskLog({ ...log, status: "失败", durationMs: Date.now() - startedAt, failCount: 1, errors: [messageText], lastPolledAt: Date.now() });
                     throw error;
                 }
@@ -1403,7 +1406,7 @@ export function CreativeWorkflowWorkspace({
             message.success("工作流运行完成，结果已写入生图历史");
         } catch (error) {
             const finishedAt = Date.now();
-            const messageText = error instanceof Error ? error.message : "工作流运行失败";
+            const messageText = errorMessage(error, "工作流运行失败");
             if (seriesDraftId) {
                 updateSeriesDraft(seriesDraftId, { status: "failed", error: messageText });
             }
@@ -1530,7 +1533,7 @@ export function CreativeWorkflowWorkspace({
                         </div>
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                             {workflowTasks.map((task) => (
-                                <WorkflowTaskCard key={task.id} task={task} now={now} stopping={stoppingTaskIds.includes(task.id)} onCopyPrompt={() => void navigator.clipboard.writeText(task.prompt)} onRetry={() => retryWorkflowTask(task)} onStop={() => void stopWorkflowTask(task)} onDownload={(image, index) => saveAs(image.imageUrl, `workflow-task-${index + 1}.png`)} />
+                                <WorkflowTaskCard key={task.id} task={task} now={now} stopping={stoppingTaskIds.includes(task.id)} onCopyPrompt={() => copyText(task.prompt)} onRetry={() => retryWorkflowTask(task)} onStop={() => void stopWorkflowTask(task)} onDownload={(image, index) => saveAs(image.imageUrl, `workflow-task-${index + 1}.png`)} />
                             ))}
                         </div>
                     </section>
@@ -1557,7 +1560,7 @@ export function CreativeWorkflowWorkspace({
                                             <Tag className="m-0 text-[10px]">{formatDuration(result.durationMs)}</Tag>
                                         </div>
                                         <div className="flex justify-end gap-1">
-                                            <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => void navigator.clipboard.writeText(result.prompt)} />
+                                            <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => copyText(result.prompt)} />
                                             <Button size="small" icon={<Download className="size-3.5" />} onClick={() => saveAs(result.imageUrl, `workflow-${index + 1}.png`)} />
                                         </div>
                                     </div>
@@ -1779,7 +1782,7 @@ export function CreativeWorkflowWorkspace({
                             <div className="rounded-lg border border-border p-3">
                                 <div className="mb-2 flex items-center justify-between">
                                     <span className="text-sm font-medium">生成提示词预览</span>
-                                    <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => void navigator.clipboard.writeText(renderedPrompt)}>
+                                    <Button size="small" icon={<Copy className="size-3.5" />} onClick={() => copyText(renderedPrompt)}>
                                         复制
                                     </Button>
                                 </div>
@@ -1829,7 +1832,7 @@ export function CreativeWorkflowWorkspace({
                                                         isLast={index === seriesDrafts.length - 1}
                                                         onChange={(patch) => updateSeriesDraft(draft.id, patch)}
                                                         onGenerate={() => void runSeriesDraft(draft, index)}
-                                                        onCopy={() => void navigator.clipboard.writeText(draft.prompt)}
+                                                        onCopy={() => copyText(draft.prompt)}
                                                         onMoveUp={() => moveSeriesDraft(draft.id, -1)}
                                                         onMoveDown={() => moveSeriesDraft(draft.id, 1)}
                                                         onDelete={() => deleteSeriesDraft(draft.id)}

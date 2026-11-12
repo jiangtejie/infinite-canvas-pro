@@ -31,10 +31,8 @@ export type FilmBranchPath = {
     truncated: boolean;
 };
 
-/** 兼容旧字段 branch 与新字段 branches；新数据优先 branches。 */
 export function shotBranchList(shot: FilmShot): FilmShotBranch[] {
-    if (shot.branches?.length) return shot.branches;
-    return shot.branch ? [shot.branch] : [];
+    return shot.branches || [];
 }
 
 export function collectFilmBranches(project: Pick<FilmProject, "episodes">): FilmBranchEdge[] {

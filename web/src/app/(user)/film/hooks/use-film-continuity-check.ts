@@ -7,6 +7,7 @@ import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmShot } from "@/lib/film/types";
 import { formatFilmContinuityCheck, requestFilmShotContinuityCheck } from "../utils/film-continuity-check";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 export function useFilmContinuityCheck() {
     const { message } = App.useApp();
@@ -34,7 +35,7 @@ export function useFilmContinuityCheck() {
             else message.warning(`场记校验发现问题：${result.issues.slice(0, 2).join("；") || result.summary}`);
             return check;
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "场记校验失败");
+            message.error(errorMessage(error, "场记校验失败"));
             return null;
         } finally {
             setCheckingShotId("");

@@ -7,6 +7,7 @@ import type { MiniMaxTtsVoice } from "@/lib/minimax-tts";
 import { fetchMiniMaxTtsVoices } from "@/services/api/audio";
 import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { errorMessage } from "@/lib/utils";
 
 export function MiniMaxTtsVoiceSelect({ config, model, value, onChange, enabled = true }: { config: AiConfig; model: string; value: string; onChange: (value: string) => void; enabled?: boolean }) {
     const configRef = useRef(config);
@@ -30,7 +31,7 @@ export function MiniMaxTtsVoiceSelect({ config, model, value, onChange, enabled 
                 if (active) setVoices(items);
             })
             .catch((reason) => {
-                if (active) setError(reason instanceof Error ? reason.message : "音色读取失败");
+                if (active) setError(errorMessage(reason, "音色读取失败"));
             })
             .finally(() => {
                 if (active) setLoading(false);

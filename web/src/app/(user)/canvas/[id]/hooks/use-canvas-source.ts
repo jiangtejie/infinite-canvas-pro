@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type Set
 import { parseContentSource } from "@/services/api/content";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
-import { buildSourceMaterialPlan, isLegacyRemixTextImageConnection, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
+import { buildSourceMaterialPlan, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
+import { errorMessage } from "@/lib/utils";
 
 export type CanvasSourceActionResult = { ok: boolean; reason?: string; removed?: number; blocked?: number };
 
@@ -115,7 +116,7 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
             if (requestId !== parseRequestRef.current || controller.signal.aborted) return { ok: false };
             parseControllerRef.current = null;
             parseSnapshotRef.current = null;
-            const reason = error instanceof Error ? error.message : "解析失败";
+            const reason = errorMessage(error, "解析失败");
             if (snapshot.hasMaterial) {
                 // 刷新解析失败时保留上一次结果，只提示错误，避免用户误以为素材丢了。
                 setNodes((prev) => patchSourceMetadata(prev, nodeId, {
@@ -183,9 +184,7 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
             })
             .concat(plan.nodes.filter((node) => !existingIds.has(node.id)))
             .map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...plan.sourcePatch } } : node);
-        const retainedConnections = includeRemix
-            ? prune.connections.filter((connection) => !isLegacyRemixTextImageConnection(connection, nodeId))
-            : prune.connections;
+        const retainedConnections = prune.connections;
         const existingPairs = new Set(retainedConnections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
         const nextConnections = retainedConnections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));
         setNodes(nextNodes);

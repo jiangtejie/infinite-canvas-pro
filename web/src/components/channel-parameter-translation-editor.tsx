@@ -9,6 +9,7 @@ import { useRef, useState } from "react";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { translationAuthoringPrompt, translationConfigItems, translationPrograms, translationResultHint, translationRuleHint, translationTemplate, translationVariableGroups, type TranslationVariable } from "@/lib/channel-parameter-translation";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { errorMessage } from "@/lib/utils";
 
 const editorTheme = EditorView.theme({
     "&": { backgroundColor: "var(--ant-color-bg-container)", color: "var(--ant-color-text)" },
@@ -62,7 +63,7 @@ export function ChannelParameterTranslationEditor({ name, baseUrl, models, value
             onSave(draft.trim());
             close();
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "配置校验失败");
+            message.error(errorMessage(error, "配置校验失败"));
         } finally {
             setSaving(false);
         }

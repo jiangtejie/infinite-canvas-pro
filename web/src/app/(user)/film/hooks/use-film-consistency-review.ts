@@ -6,6 +6,7 @@ import { App } from "antd";
 import type { FilmConsistencyReview, FilmProject } from "@/lib/film/types";
 import { requestFilmConsistencyReview } from "../utils/film-ai-consistency";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 /** 一致性代理：检查结构覆盖、连续性、风格漂移与绑定，把结论存回项目。 */
 export function useFilmConsistencyReview(onReviewed: (review: FilmConsistencyReview) => void) {
@@ -23,7 +24,7 @@ export function useFilmConsistencyReview(onReviewed: (review: FilmConsistencyRev
             onReviewed(result);
             message.success(result.issues.length ? "一致性检查完成：" + result.issues.length + " 条问题" : "一致性检查通过");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "一致性检查失败");
+            message.error(errorMessage(error, "一致性检查失败"));
         } finally {
             setReviewing(false);
         }

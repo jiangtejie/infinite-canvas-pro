@@ -2,6 +2,7 @@ import { isCogVideoX3Model, modelKey } from "@/lib/video-model-capabilities";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
+import { canvasNodeDisplayStatus } from "./canvas-node-meta";
 import { canvasVideoTaskId } from "./canvas-task-helpers";
 
 export function canvasAgentNodeSummary(node: CanvasNodeData) {
@@ -24,7 +25,7 @@ export function canvasAgentNodeSummary(node: CanvasNodeData) {
         text,
         mediaUrl: !isText && !isSource && !isPublish && content && !content.startsWith("data:") ? content : undefined,
         hasMedia: !isText && !isPublish ? Boolean(content) : undefined,
-        status: isSource ? node.metadata?.sourceStatus || "idle" : publishDisplayStatus(node),
+        status: canvasNodeDisplayStatus(node) || "idle",
         prompt: node.metadata?.prompt?.slice(0, 4000),
         model: node.metadata?.model,
         size: node.metadata?.size,
@@ -35,13 +36,6 @@ export function canvasAgentNodeSummary(node: CanvasNodeData) {
         error: isSource ? node.metadata?.sourceError : isPublish ? node.metadata?.publishError : node.metadata?.errorDetails,
         groupId: node.metadata?.groupId,
     };
-}
-
-function publishDisplayStatus(node: CanvasNodeData) {
-    if (node.type !== CanvasNodeType.Publish) return node.metadata?.status || "idle";
-    if (node.metadata?.publishStatus === "generating") return "loading";
-    if (node.metadata?.publishStatus === "error") return "error";
-    return node.metadata?.publishRecord ? "success" : "idle";
 }
 
 export function canvasAgentTaskSummary(node: CanvasNodeData) {

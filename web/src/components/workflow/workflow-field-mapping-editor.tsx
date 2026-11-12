@@ -170,7 +170,7 @@ export function WorkflowFieldMappingEditor({ fields, onChange, disabled = false 
                                             步长
                                             <InputNumber className="w-full" min={0.000001} value={numberOrUndefined(field.step)} disabled={fieldDisabled} onChange={(value) => updateField(index, { step: value ?? undefined })} />
                                         </label>
-                                        {configurationError ? <div className="text-xs text-error md:col-span-2 lg:col-span-3">{configurationError}</div> : null}
+                                        {configurationError ? <div className="text-xs text-hot md:col-span-2 lg:col-span-3">{configurationError}</div> : null}
                                     </>
                                 ) : null}
                                 {sourceUsesIndex(source) ? (

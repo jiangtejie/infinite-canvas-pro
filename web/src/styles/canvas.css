@@ -1,4 +1,32 @@
 /* 画布私有样式：由 globals.css 统一 @import，只保留仍在组件里使用的类。 */
+
+/* 画布底部浮层间距：工具条、缩放条、小地图、批量进度统一在这里维护。 */
+.canvas-floating-toolbar {
+    bottom: calc(1.25rem + env(safe-area-inset-bottom));
+}
+
+.canvas-floating-zoom {
+    bottom: calc(8rem + env(safe-area-inset-bottom));
+}
+
+.canvas-floating-minimap {
+    bottom: calc(13rem + env(safe-area-inset-bottom));
+}
+
+.canvas-floating-batch {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+    .canvas-floating-zoom {
+        bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    }
+
+    .canvas-floating-minimap {
+        bottom: calc(6rem + env(safe-area-inset-bottom));
+    }
+}
+
 @media (min-width: 640px) {
     .canvas-image-settings-popover .ant-segmented {
         border-radius: 999px;

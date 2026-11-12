@@ -5,6 +5,7 @@ import { Button } from "antd";
 import { Clapperboard, ListVideo, Play, SkipForward } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/state-panel";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
 import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { filmShotTypeLabel } from "../utils/film-shot-types";
@@ -31,16 +32,13 @@ export function FilmEditStage({ project, onGoStoryboard }: { project: FilmProjec
     if (!shots.length) {
         return (
             <div className="grid h-full place-items-center">
-                <div className="flex flex-col items-center px-6 py-16 text-center">
-                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                        <Clapperboard className="size-5" />
-                    </div>
-                    <p className="mt-4 text-sm text-foreground">还没有分镜</p>
-                    <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先去剧本页解析剧本，再来这里预览成片。</p>
-                    <button type="button" className="mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoStoryboard}>
-                        去导演台
-                    </button>
-                </div>
+                <EmptyState
+                    className="py-10"
+                    icon={<Clapperboard className="size-5" />}
+                    title="还没有分镜"
+                    description="先去剧本页解析剧本，再来这里预览成片。"
+                    action={<button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoStoryboard}>去导演台</button>}
+                />
             </div>
         );
     }

@@ -7,6 +7,7 @@ import { Button, Card, Flex, Space, Tag, Typography } from "antd";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { AdminRechargePackage } from "@/services/api/admin";
 
+import { buildAdminTableProps } from "../components/admin-table-props";
 import { RechargePackageModal } from "./components/recharge-package-modal";
 import { buildRechargePackageColumns } from "./components/recharge-package-table-columns";
 import { useAdminRechargePackages } from "./hooks/use-admin-recharge-packages";
@@ -35,22 +36,17 @@ export default function AdminRechargePackagesPage() {
                     </Typography.Text>
                 </Card>
                 <ProTable<AdminRechargePackage>
+                    {...buildAdminTableProps({ onReload: () => void reload() })}
                     rowKey="id"
                     columns={columns}
                     dataSource={items}
                     loading={isLoading}
-                    search={false}
-                    defaultSize="middle"
-                    tableLayout="fixed"
-                    scroll={{ x: 1000 }}
-                    cardProps={{ variant: "borderless" }}
                     headerTitle={
                         <Space>
                             <Typography.Text strong>充值套餐</Typography.Text>
                             <Tag>{items.length} 个</Tag>
                         </Space>
                     }
-                    options={{ density: true, setting: true, reload: () => void reload() }}
                     toolBarRender={() => [
                         <Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditing({ ...DEFAULT_PACKAGE_VALUES, sort: items.length + 1 })}>
                             新增套餐

@@ -24,6 +24,14 @@ export function AnnouncementBanner() {
         }
     }, []);
 
+    // 公告条高度会影响全局消息（.ant-message）的落点，用 data 标记让 CSS 读到当前状态
+    useEffect(() => {
+        document.documentElement.dataset.announcement = visible ? "visible" : "hidden";
+        return () => {
+            delete document.documentElement.dataset.announcement;
+        };
+    }, [visible]);
+
     useEffect(() => {
         if (!visible || paused || ANNOUNCEMENTS.length < 2) return;
         const timer = window.setInterval(() => {

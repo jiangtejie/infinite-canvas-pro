@@ -33,6 +33,7 @@ import { deleteImagePreviews, deleteStoredImages, imageToDataUrl, resolveImageUr
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
+import { errorMessage as toErrorMessage } from "@/lib/utils";
 
 const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const RESULT_VIEW_MODE_KEY = "infinite-canvas:image-result-view-mode";
@@ -313,7 +314,7 @@ export default function ImagePage() {
             try {
                 await deleteStoredImages([reference.storageKey]);
             } catch (error) {
-                message.error(error instanceof Error ? error.message : "参考图文件删除失败");
+                message.error(toErrorMessage(error, "参考图文件删除失败"));
             }
         }
     };
@@ -384,7 +385,7 @@ export default function ImagePage() {
             const markedReference = { id: nanoid(), name: "mask-edit.png", type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey, temporary: true };
             await submitGenerationBatch({ ...snapshot, references: [markedReference] });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "局部重绘失败");
+            message.error(toErrorMessage(error, "局部重绘失败"));
         }
     };
 
@@ -395,7 +396,7 @@ export default function ImagePage() {
             const blob = await response.blob();
             saveAs(blob, `image-${index + 1}.${imageExtension(image.mimeType || blob.type || dataUrl || image.dataUrl)}`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "图片下载失败");
+            message.error(toErrorMessage(error, "图片下载失败"));
         }
     };
 
@@ -411,7 +412,7 @@ export default function ImagePage() {
             }
             message.success("已加入参考图");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "加入参考图失败");
+            message.error(toErrorMessage(error, "加入参考图失败"));
         }
     };
 
@@ -447,7 +448,7 @@ export default function ImagePage() {
             message.success("图片已同步到云端存储");
             return { ...image, dataUrl: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width || image.width, height: uploaded.height || image.height, bytes: uploaded.bytes || image.bytes, mimeType: uploaded.mimeType || image.mimeType };
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "";
+            const errorMessage = toErrorMessage(error, "");
             if (errorMessage.includes("服务端对象存储未启用") || errorMessage.includes("用户对象存储配置不完整")) {
                 message.error("未添加云存储");
             } else {

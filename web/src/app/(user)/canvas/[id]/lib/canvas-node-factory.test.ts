@@ -18,7 +18,7 @@ test("keeps metadata overrides and uses the type spec", () => {
     assert.equal(text.type, CanvasNodeType.Text);
     assert.equal(text.metadata?.prompt, "hello");
     assert.equal(text.title.length > 0, true);
-    assert.ok(text.id.startsWith("text-"));
+    assert.ok(text.id.length > 8);
     const config = createCanvasNode(CanvasNodeType.Config, { x: 0, y: 0 });
     assert.equal(config.type, CanvasNodeType.Config);
     assert.ok(config.width > 0 && config.height > 0);

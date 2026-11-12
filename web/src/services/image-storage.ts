@@ -9,6 +9,7 @@ import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/servic
 import { apiGet } from "@/services/api/request";
 import { comfyOutputStorageKey } from "@/services/api/workflow-generation";
 import { useUserStore } from "@/stores/use-user-store";
+import { errorMessage } from "@/lib/utils";
 
 export type UploadedImage = {
     url: string;
@@ -296,7 +297,7 @@ export async function autoSyncImage(url: string, resultId: string, storageKey?: 
 }
 
 function reportStorageSyncFailure(error: unknown) {
-    window.dispatchEvent(new CustomEvent(STORAGE_SYNC_FAILED_EVENT, { detail: error instanceof Error ? error.message : "" }));
+    window.dispatchEvent(new CustomEvent(STORAGE_SYNC_FAILED_EVENT, { detail: errorMessage(error, "") }));
 }
 
 export function canUseGlobalStorage(config: StorageConfig) {
@@ -589,7 +590,7 @@ export async function imageToDataUrl(image: { url?: string; dataUrl?: string; st
             }
             return blobToDataUrl(await response.blob());
         } catch (error) {
-            lastError = error instanceof Error ? error.message : "读取参考图失败";
+            lastError = errorMessage(error, "读取参考图失败");
         }
     }
     throw new Error(lastError || "读取参考图失败");

@@ -1,42 +1,3 @@
-/* 后台系统设置页签：胶囊样式，和前台筛选胶囊保持一致 */
-.settings-tabs.ant-tabs .ant-tabs-nav::before {
-    border-bottom: none !important;
-}
-
-.settings-tabs.ant-tabs .ant-tabs-ink-bar {
-    display: none !important;
-}
-
-.settings-tabs.ant-tabs .ant-tabs-nav-list {
-    gap: 6px;
-}
-
-.settings-tabs.ant-tabs .ant-tabs-tab {
-    margin: 0 !important;
-    padding: 6px 16px !important;
-    border-radius: 5px;
-    background: color-mix(in oklch, var(--foreground) 6%, transparent) !important;
-    transition: background-color 0.2s ease;
-}
-
-.settings-tabs.ant-tabs .ant-tabs-tab:hover {
-    background: color-mix(in oklch, var(--foreground) 10%, transparent) !important;
-}
-
-.settings-tabs.ant-tabs .ant-tabs-tab-active {
-    background: color-mix(in oklch, var(--foreground) 14%, transparent) !important;
-}
-
-.settings-tabs.ant-tabs .ant-tabs-tab .ant-tabs-tab-btn {
-    color: var(--muted-foreground) !important;
-}
-
-
-.settings-tabs.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
-    color: var(--foreground) !important;
-    font-weight: 500;
-}
-
 /* 后台表格窄屏横滑：让滚动条常驻，作为「还有列」的提示 */
 @media (max-width: 640px) {
     .admin-shell .ant-table-content {
@@ -362,13 +323,14 @@
     letter-spacing: 0.05em;
 }
 
-.admin-shell .ant-tag-green {
+.admin-shell .ant-tag-success {
     border-color: color-mix(in oklch, var(--acid) 42%, transparent);
     background: color-mix(in oklch, var(--acid) 10%, transparent);
     color: color-mix(in oklch, var(--acid) 85%, var(--foreground));
 }
 
-.admin-shell .ant-tag-gold {
+.admin-shell .ant-tag-gold,
+.admin-shell .ant-tag-warning {
     border-color: color-mix(in oklch, var(--hot) 42%, transparent);
     background: color-mix(in oklch, var(--hot) 10%, transparent);
     color: color-mix(in oklch, var(--hot) 82%, var(--foreground));

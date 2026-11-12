@@ -34,7 +34,7 @@ export function buildRechargePackageColumns({
                 width: 110,
                 align: "right",
                 render: (_, item) =>
-                    item.bonus > 0 ? <Tag color="gold">+{item.bonus}</Tag> : <Typography.Text type="secondary">-</Typography.Text>,
+                    item.bonus > 0 ? <Tag color="warning">+{item.bonus}</Tag> : <Typography.Text type="secondary">-</Typography.Text>,
             },
             { title: "排序", dataIndex: "sort", width: 80, align: "right" },
             {

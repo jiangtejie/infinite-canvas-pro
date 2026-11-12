@@ -6,6 +6,7 @@ import { App } from "antd";
 import { useModelConfig } from "@/hooks/use-model-config";
 import type { ScriptProject, ScriptScene } from "../types";
 import { requestScriptRewrite, requestScriptSceneDiagnosis, type ScriptRewriteMode, type ScriptSceneDiagnosis } from "../utils/script-ai";
+import { errorMessage } from "@/lib/utils";
 
 export function useScriptAi() {
     const { message } = App.useApp();
@@ -21,7 +22,7 @@ export function useScriptAi() {
         try {
             return await requestScriptSceneDiagnosis(config, project, scene);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "AI 场景诊断失败");
+            message.error(errorMessage(error, "AI 场景诊断失败"));
             return null;
         } finally {
             setDiagnosing(false);
@@ -36,7 +37,7 @@ export function useScriptAi() {
         try {
             return await requestScriptRewrite(config, project, scene, { mode, instruction, selectedText });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "AI 改写失败");
+            message.error(errorMessage(error, "AI 改写失败"));
             return null;
         } finally {
             setRewriting(false);

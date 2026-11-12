@@ -18,7 +18,7 @@ function makeProject(shots: FilmShot[]): FilmProject {
 
 test("收集分支点与目标镜头", () => {
     const project = makeProject([
-        makeShot("01", { branch: { label: "跟上去", condition: "选择跟随", nextShotId: "02" } }),
+        makeShot("01", { branches: [{ label: "跟上去", condition: "选择跟随", nextShotId: "02" }] }),
         makeShot("02"),
     ]);
     const edges = collectFilmBranches(project);
@@ -31,8 +31,8 @@ test("收集分支点与目标镜头", () => {
 
 test("缺失目标与跳回自己会被标记", () => {
     const project = makeProject([
-        makeShot("01", { branch: { label: "未知", condition: "", nextShotId: "missing" } }),
-        makeShot("02", { branch: { label: "跳回", condition: "", nextShotId: "02" } }),
+        makeShot("01", { branches: [{ label: "未知", condition: "", nextShotId: "missing" }] }),
+        makeShot("02", { branches: [{ label: "跳回", condition: "", nextShotId: "02" }] }),
     ]);
     const edges = collectFilmBranches(project);
     assert.equal(edges.find((edge) => edge.shotId === "01")?.missing, true);

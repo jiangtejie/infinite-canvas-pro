@@ -1,7 +1,7 @@
 import type { ReferenceImage } from "@/types/image";
 
 import { buildNodeGenerationInputs } from "../../components/canvas-node-generation";
-import { NODE_DEFAULT_SIZE, PUBLISH_LAYOUT_VERSION } from "../../constants";
+import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
 
 export const PUBLISH_TITLE_LIMIT = 20;
@@ -163,42 +163,6 @@ export function planSourcePublishNode(nodes: CanvasNodeData[], connections: Canv
     }
     const createPosition = getPublishNodePlacement(nodes, upstreamNodeIds);
     return { upstreamNodeIds, existingPublishNodeId: null, createPosition, connectNodeIds: createPosition ? upstreamNodeIds : [] };
-}
-
-const LEGACY_PUBLISH_NODE_SIZES = [
-    { width: 380, height: 280 },
-    { width: 480, height: 340 },
-];
-
-/**
- * 迁移旧发布节点：无布局版本或版本较旧、且仍是旧默认尺寸（380x280 / 480x340）的节点，
- * 以中心为基准升级到当前默认尺寸 520x380 并写入版本；已是当前尺寸的只补版本；自定义尺寸不动。
- */
-export function migratePublishNodeLayouts(nodes: CanvasNodeData[]) {
-    const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Publish];
-    let changed = false;
-    const next = nodes.map((node) => {
-        if (node.type !== CanvasNodeType.Publish) return node;
-        if ((node.metadata?.publishLayoutVersion || 0) >= PUBLISH_LAYOUT_VERSION) return node;
-        if (node.width === spec.width && node.height === spec.height) {
-            changed = true;
-            return { ...node, metadata: { ...node.metadata, publishLayoutVersion: PUBLISH_LAYOUT_VERSION } };
-        }
-        const legacySize = LEGACY_PUBLISH_NODE_SIZES.find((size) => size.width === node.width && size.height === node.height);
-        if (!legacySize) return node;
-        changed = true;
-        return {
-            ...node,
-            width: spec.width,
-            height: spec.height,
-            position: {
-                x: node.position.x + (node.width - spec.width) / 2,
-                y: node.position.y + (node.height - spec.height) / 2,
-            },
-            metadata: { ...node.metadata, publishLayoutVersion: PUBLISH_LAYOUT_VERSION },
-        };
-    });
-    return changed ? next : nodes;
 }
 
 /** 二维码是否已过期；时间解析失败时按未过期处理，交给后端预检兜底。 */

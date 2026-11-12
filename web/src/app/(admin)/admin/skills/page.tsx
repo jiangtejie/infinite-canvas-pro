@@ -4,7 +4,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutli
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { App, Button, Card, Col, Flex, Form, Input, Row, Space, Tag, theme, Tooltip, Typography } from "antd";
+import { App, Button, Col, Flex, Form, Input, Space, Tag, theme, Tooltip, Typography } from "antd";
 import { useMemo, useState } from "react";
 
 import { AgentSkillCover } from "@/components/agent-skill-cover";
@@ -15,7 +15,10 @@ import { deleteStoredImages } from "@/services/image-storage";
 import { invalidateAgentSkillCache } from "@/stores/use-agent-skill-store";
 import { useUserStore } from "@/stores/use-user-store";
 
+import { AdminFilterBar, adminFilterKeywordCol } from "../components/admin-filter-bar";
+import { buildAdminTableProps } from "../components/admin-table-props";
 import { SkillEditorModal } from "./components/skill-editor-modal";
+import { errorMessage } from "@/lib/utils";
 
 export default function AdminSkillsPage() {
     const { message } = App.useApp();
@@ -33,7 +36,7 @@ export default function AdminSkillsPage() {
             await queryClient.invalidateQueries({ queryKey: ["admin", "agent-skills"] });
             message.success("Skill 已删除");
         },
-        onError: (error) => message.error(error instanceof Error ? error.message : "删除失败"),
+        onError: (error) => message.error(errorMessage(error, "删除失败")),
     });
     const skills = useMemo(() => {
         const queryText = keyword.trim().toLowerCase();
@@ -79,35 +82,18 @@ export default function AdminSkillsPage() {
     return (
         <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
-                <Card variant="borderless">
-                    <Form layout="vertical">
-                        <Row gutter={16} align="bottom">
-                            <Col flex="420px">
-                                <Form.Item label="关键词"><Input.Search value={keyword} allowClear enterButton={<SearchOutlined />} placeholder="搜索名称、描述或内容" onChange={(event) => setKeyword(event.target.value)} /></Form.Item>
-                            </Col>
-                            <Col flex="none">
-                                <Form.Item>
-                                    <Space>
-                                        <Button onClick={() => setKeyword("")}>重置</Button>
-                                        <Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>刷新</Button>
-                                    </Space>
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                    </Form>
-                </Card>
+                <AdminFilterBar onReset={() => setKeyword("")} extraActions={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>刷新</Button>}>
+                    <Col {...adminFilterKeywordCol}>
+                        <Form.Item label="关键词"><Input.Search value={keyword} allowClear enterButton={<SearchOutlined />} placeholder="搜索名称、描述或内容" onChange={(event) => setKeyword(event.target.value)} /></Form.Item>
+                    </Col>
+                </AdminFilterBar>
                 <ProTable<AgentSkill>
+                    {...buildAdminTableProps({ onReload: () => void query.refetch() })}
                     rowKey="id"
                     columns={columns}
                     dataSource={skills}
                     loading={query.isFetching || deleteMutation.isPending}
-                    search={false}
-                    defaultSize="middle"
-                    tableLayout="fixed"
-                    scroll={{ x: 1000 }}
-                    cardProps={{ variant: "borderless" }}
                     headerTitle={<Space><Typography.Text strong>系统预设 Skill</Typography.Text><Tag>{skills.length} 条</Tag></Space>}
-                    options={{ density: true, setting: true, reload: () => void query.refetch() }}
                     pagination={{ defaultPageSize: 10, showSizeChanger: true }}
                     toolBarRender={() => [<Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingSkill({ enabled: true, sort: 0 })}>新增</Button>]}
                 />

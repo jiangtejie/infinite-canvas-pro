@@ -60,7 +60,7 @@ export function PendingVideoCard({ result, now, onCopyPrompt, onStop, onRetry, o
             <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--foreground) 12%, transparent) 1.4px, transparent 1.6px)", backgroundSize: "16px 16px" }} />
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
                 {stopped ? <span className="flex size-9 items-center justify-center rounded-xl bg-muted"><Square className="size-4" /></span> : <LoaderCircle className="size-6 animate-spin" />}
-                {stopped || stopping ? <span>{stopped ? "已停止" : result.error ? "停止未确认" : "停止中"}</span> : progress !== null ? <span className="animate-pulse font-semibold text-sky-500">正在创作 {progress}%</span> : <span>生成中</span>}
+                {stopped || stopping ? <span>{stopped ? "已停止" : result.error ? "停止未确认" : "停止中"}</span> : progress !== null ? <span className="animate-pulse font-semibold text-acid-ink">正在创作 {progress}%</span> : <span>生成中</span>}
                 <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(durationMs)}</span>
                 <Button type={stopped ? "default" : "primary"} danger={!stopped} disabled={stopping && !result.error} onClick={stopped ? onRetry : onStop} aria-label={stopped ? "重新生成" : stopping ? result.error ? "重试停止" : "停止中" : "停止"} className="!h-6 !min-w-12 !rounded-full !px-3">
                     {stopped ? <RotateCcw className="size-3" /> : stopping && !result.error ? <LoaderCircle className="size-3.5 animate-spin" /> : <Square className="size-3" fill="currentColor" />}
@@ -74,7 +74,7 @@ export function PendingVideoCard({ result, now, onCopyPrompt, onStop, onRetry, o
                         <span>{progress}%</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.5)] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+                        <div className="h-full rounded-full bg-acid shadow-[0_0_8px_-2px_var(--acid)] transition-[width] duration-300" style={{ width: `${progress}%` }} />
                     </div>
                 </div>
             ) : null}
@@ -100,17 +100,17 @@ export function FailedVideoCard({ result, error, onCopyPrompt, onPreview, onRetr
 export function HistoryLogCard({ log, selected, active, syncing, onSelectedChange, onDelete, onPreview, onRetry, onCopyPrompt, onDownload, onSync, onSaveAsset }: { log: GenerationLog; index: number; selected: boolean; active: boolean; syncing: boolean; onSelectedChange: (checked: boolean) => void; onDelete: () => void; onPreview: () => void; onRetry: () => void; onCopyPrompt: (text: string) => void | Promise<void>; onDownload: (video: GeneratedVideo) => void; onSync: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
     const [detailOpen, setDetailOpen] = useState(false);
     return (
-        <div className={`overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] duration-200 hover:shadow-sm ${active ? "border-acid/60 shadow-sm" : "border-border/70 hover:border-acid/40"}`}>
+        <div className={`group overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] duration-200 hover:shadow-sm ${active ? "border-acid/60 shadow-sm" : "border-border/70 hover:border-acid/40"}`}>
             <div className="relative aspect-video bg-muted">
-                <div className="absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm">
+                <div className={`absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 ${selected ? "sm:opacity-100" : ""}`}>
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />
-                    <Button size="small" type="text" danger title="删除" aria-label="删除视频结果" className="!h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={onDelete} />
+                    {selected ? <Button size="small" type="text" danger title="删除" aria-label="删除视频结果" className="!h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
                 </div>
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     {log.video ? <VideoSourceTag video={log.video} /> : null}
                     <Tag className="m-0 !text-[10px]" color={log.status === "成功" ? "blue" : log.status === "生成中" || log.status === "停止中" ? "processing" : log.status === "已停止" ? undefined : "red"}>{log.status}</Tag>
                 </div>
-                {log.video ? <video src={log.video.url} controls className="size-full bg-black object-contain" /> : log.status === "已停止" ? <div className="flex size-full flex-col items-center justify-center gap-2 text-sm"><Square className="size-7" /><span>已停止</span></div> : <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center text-sm text-red-500"><AlertCircle className="size-7" /><span>{log.error || "没有可显示的视频"}</span></div>}
+                {log.video ? <video src={log.video.url} controls className="size-full bg-black object-contain" /> : log.status === "已停止" ? <div className="flex size-full flex-col items-center justify-center gap-2 text-sm"><Square className="size-7" /><span>已停止</span></div> : <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center text-sm text-destructive"><AlertCircle className="size-7" /><span>{log.error || "没有可显示的视频"}</span></div>}
                 <ReferenceThumbnailOverlay references={log.references} className="bottom-1.5 right-1.5" />
             </div>
             <div className="space-y-2 border-t border-border/70 p-3 text-xs">

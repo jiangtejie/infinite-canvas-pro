@@ -16,6 +16,7 @@ import { runImageTask, stopFilmImageTask } from "../utils/film-image-task";
 import { compressFilmReference } from "../utils/film-image-compress";
 import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master" | "card";
 
@@ -215,7 +216,7 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         } catch (error) {
             markPending(characterId, undefined);
             if (stopRequestedRef.current) message.info("已停止生成，未完成的任务已取消");
-            else message.error(error instanceof Error ? error.message : "全身合成失败");
+            else message.error(errorMessage(error, "全身合成失败"));
         } finally {
             task.finish();
         }
@@ -290,7 +291,7 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         } catch (error) {
             markPending(characterId, undefined);
             if (stopRequestedRef.current) message.info("已停止生成，未完成的任务已取消");
-            else message.error(error instanceof Error ? error.message : "角色卡生成失败");
+            else message.error(errorMessage(error, "角色卡生成失败"));
             return false;
         } finally {
             controllerRef.current = null;

@@ -1,7 +1,7 @@
 "use client";
 
 import { App, Button, Empty, Form, Input, Modal, QRCode, Table, Tag } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CreditCard, FileText, LockKeyhole, ReceiptText, Wallet } from "lucide-react";
 
@@ -29,6 +29,7 @@ type Tab = (typeof TABS)[number];
 
 const CARD = "acct-card";
 const LABEL = "flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.12em] text-muted-foreground/80 uppercase";
+const PAGE_SIZE = 10;
 
 export default function AccountPage() {
     const { message } = App.useApp();
@@ -40,10 +41,15 @@ export default function AccountPage() {
     const [tab, setTab] = useState<Tab>(params.get("tab") === "recharge" ? "微信充值" : "概览");
     const [packages, setPackages] = useState<RechargePackage[]>([]);
     const [orders, setOrders] = useState<RechargeOrder[]>([]);
+    const [orderTotal, setOrderTotal] = useState(0);
+    const [orderPage, setOrderPage] = useState(1);
     const [logs, setLogs] = useState<CreditLog[]>([]);
+    const [logTotal, setLogTotal] = useState(0);
+    const [logPage, setLogPage] = useState(1);
     const [invoices, setInvoices] = useState<InvoiceRequest[]>([]);
     const [activeOrder, setActiveOrder] = useState<RechargeOrder | null>(null);
     const [saving, setSaving] = useState(false);
+    const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
     // 头像菜单等入口会以 /account?tab=recharge 打开；同路由跳转时组件不重建，需要跟随参数切页签。
     useEffect(() => {
@@ -52,12 +58,14 @@ export default function AccountPage() {
 
     useEffect(() => {
         if (!token) return;
-        Promise.all([fetchAccountProfile(token), fetchRechargePackages(token), fetchRechargeOrders(token), fetchCreditLogs(token), fetchInvoices(token)])
+        Promise.all([fetchAccountProfile(token), fetchRechargePackages(token), fetchRechargeOrders(token, 1, PAGE_SIZE), fetchCreditLogs(token, 1, PAGE_SIZE), fetchInvoices(token)])
             .then(([profile, pkgs, os, ls, inv]) => {
                 setSession(token, profile);
                 setPackages(pkgs);
                 setOrders(os.items);
+                setOrderTotal(os.total);
                 setLogs(ls.items);
+                setLogTotal(ls.total);
                 setInvoices(inv);
             })
             .catch((error) => message.error(error.message));
@@ -70,10 +78,14 @@ export default function AccountPage() {
                 const next = await fetchRechargeOrder(activeOrder.id, token);
                 setActiveOrder(next);
                 if (next.status === "paid") {
-                    const [profile, os, ls] = await Promise.all([fetchAccountProfile(token), fetchRechargeOrders(token), fetchCreditLogs(token)]);
+                    const [profile, os, ls] = await Promise.all([fetchAccountProfile(token), fetchRechargeOrders(token, 1, PAGE_SIZE), fetchCreditLogs(token, 1, PAGE_SIZE)]);
                     setSession(token, profile);
                     setOrders(os.items);
+                    setOrderTotal(os.total);
+                    setOrderPage(1);
                     setLogs(ls.items);
+                    setLogTotal(ls.total);
+                    setLogPage(1);
                     message.success("充值成功");
                 }
             } catch {
@@ -85,6 +97,16 @@ export default function AccountPage() {
 
     const balance = useMemo(() => Number(user?.credits || 0).toLocaleString(), [user?.credits]);
     const displayName = user?.displayName || user?.username || "未登录";
+    const activeTabIndex = TABS.indexOf(tab);
+
+    const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+        const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+        if (!step && event.key !== "Home" && event.key !== "End") return;
+        event.preventDefault();
+        const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? TABS.length - 1 : (index + step + TABS.length) % TABS.length;
+        tabRefs.current[nextIndex]?.focus();
+        setTab(TABS[nextIndex]);
+    };
 
     async function saveProfile(values: { displayName: string; avatarUrl: string; email: string }) {
         setSaving(true);
@@ -125,6 +147,28 @@ export default function AccountPage() {
             const item = await createInvoice(values, token);
             setInvoices((old) => [item, ...old]);
             message.success("开票申请已提交");
+        } catch (error) {
+            message.error((error as Error).message);
+        }
+    }
+
+    async function loadOrders(page: number) {
+        try {
+            const result = await fetchRechargeOrders(token, page, PAGE_SIZE);
+            setOrders(result.items);
+            setOrderTotal(result.total);
+            setOrderPage(page);
+        } catch (error) {
+            message.error((error as Error).message);
+        }
+    }
+
+    async function loadLogs(page: number) {
+        try {
+            const result = await fetchCreditLogs(token, page, PAGE_SIZE);
+            setLogs(result.items);
+            setLogTotal(result.total);
+            setLogPage(page);
         } catch (error) {
             message.error((error as Error).message);
         }
@@ -177,37 +221,44 @@ export default function AccountPage() {
                 </section>
 
                 <div role="tablist" aria-label="用户中心分区" className="acct-tabs -mt-1">
-                    {TABS.map((item) => (
+                    {TABS.map((item, index) => (
                         <button
                             key={item}
+                            ref={(node) => {
+                                tabRefs.current[index] = node;
+                            }}
                             type="button"
                             role="tab"
+                            id={`acct-tab-${index}`}
+                            aria-controls="acct-tabpanel"
                             aria-selected={tab === item}
+                            tabIndex={tab === item ? 0 : -1}
                             data-active={tab === item}
                             className="acct-tab"
                             style={tab === item ? { backgroundColor: "transparent" } : undefined}
                             onClick={() => setTab(item)}
+                            onKeyDown={(event) => handleTabKeyDown(event, index)}
                         >
                             {item}
                         </button>
                     ))}
                 </div>
 
-                <div className="mt-8 pb-16">
+                <div id="acct-tabpanel" role="tabpanel" aria-labelledby={`acct-tab-${activeTabIndex}`} className="mt-8 pb-16">
                     {tab === "概览" ? (
                         <div className="grid gap-5 sm:grid-cols-3">
                             <div className={cn(CARD, "acct-stat flex min-h-[112px] items-center gap-5 p-6")}>
                                 <span className="grid size-12 shrink-0 place-items-center rounded-[8px] border border-border bg-background text-foreground/70"><CreditCard className="size-5" /></span>
                                 <div className="min-w-0">
                                     <div className={LABEL}>充值订单</div>
-                                    <div className="mt-1 font-mono text-3xl font-semibold tabular-nums">{orders.length} <span className="text-sm font-normal text-foreground/55">笔</span></div>
+                                    <div className="mt-1 font-mono text-3xl font-semibold tabular-nums">{orderTotal} <span className="text-sm font-normal text-foreground/55">笔</span></div>
                                 </div>
                             </div>
                             <div className={cn(CARD, "acct-stat flex min-h-[112px] items-center gap-5 p-6")}>
                                 <span className="grid size-12 shrink-0 place-items-center rounded-[8px] border border-border bg-background text-foreground/70"><FileText className="size-5" /></span>
                                 <div className="min-w-0">
                                     <div className={LABEL}>积分流水</div>
-                                    <div className="mt-1 font-mono text-3xl font-semibold tabular-nums">{logs.length} <span className="text-sm font-normal text-foreground/55">条</span></div>
+                                    <div className="mt-1 font-mono text-3xl font-semibold tabular-nums">{logTotal} <span className="text-sm font-normal text-foreground/55">条</span></div>
                                 </div>
                             </div>
                             <div className={cn(CARD, "acct-stat flex min-h-[112px] items-center gap-5 p-6")}>
@@ -224,7 +275,7 @@ export default function AccountPage() {
                         <div className="grid gap-5 md:grid-cols-2">
                             <div className={cn(CARD, "p-7")}>
                                 <h2 className="text-base font-semibold">基本资料</h2>
-                                <Form className="mt-4" layout="vertical" requiredMark={false} initialValues={{ displayName: user?.displayName, avatarUrl: user?.avatarUrl, email: "" }} onFinish={saveProfile}>
+                                <Form className="mt-4" layout="vertical" requiredMark={false} initialValues={{ displayName: user?.displayName, avatarUrl: user?.avatarUrl, email: user?.email ?? "" }} onFinish={saveProfile}>
                                     <Form.Item label="昵称" name="displayName"><Input maxLength={40} /></Form.Item>
                                     <Form.Item label="头像地址" name="avatarUrl"><Input maxLength={500} /></Form.Item>
                                     <Form.Item label="邮箱" name="email"><Input type="email" maxLength={120} /></Form.Item>
@@ -273,7 +324,7 @@ export default function AccountPage() {
                                 rowKey="id"
                                 size="middle"
                                 dataSource={orders}
-                                pagination={false}
+                                pagination={{ current: orderPage, pageSize: PAGE_SIZE, total: orderTotal, showSizeChanger: false, hideOnSinglePage: true, onChange: (page) => void loadOrders(page) }}
                                 locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无充值订单" /> }}
                                 columns={[
                                     { title: "订单号", dataIndex: "orderNo" },
@@ -293,7 +344,7 @@ export default function AccountPage() {
                                 rowKey="id"
                                 size="middle"
                                 dataSource={logs}
-                                pagination={{ pageSize: 10 }}
+                                pagination={{ current: logPage, pageSize: PAGE_SIZE, total: logTotal, showSizeChanger: false, hideOnSinglePage: true, onChange: (page) => void loadLogs(page) }}
                                 locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无积分流水" /> }}
                                 columns={[
                                     { title: "类型", dataIndex: "type", align: "center", render: (value: string) => ({ recharge: "充值", ai_consume: "AI 消耗", ai_refund: "AI 退款", admin_adjust: "管理员调整" })[value] || value },

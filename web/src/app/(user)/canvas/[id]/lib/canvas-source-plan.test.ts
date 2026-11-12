@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
-import { buildSourceMaterialPlan, isLegacyRemixTextImageConnection, migrateRemixNodeLayouts, migrateSourceNodeLayouts, pruneSourceDerivedNodes, SOURCE_REMIX_IMAGE_PROMPT, SOURCE_REMIX_TEXT_PROMPT, stripLegacyRemixTextImageConnections } from "./canvas-source-plan";
+import { buildSourceMaterialPlan, pruneSourceDerivedNodes, SOURCE_REMIX_IMAGE_PROMPT, SOURCE_REMIX_TEXT_PROMPT } from "./canvas-source-plan";
 
 const sourceNode = (patch: Partial<CanvasNodeData> = {}): CanvasNodeData => ({
     id: "source-1",
@@ -143,33 +143,6 @@ test("empty source returns an empty plan", () => {
     assert.deepEqual(plan.sourcePatch, { sourceExpanded: true });
 });
 
-test("legacy remix text to image connections are identified for cleanup", () => {
-    assert.equal(isLegacyRemixTextImageConnection({ id: "a", fromNodeId: "source-1-remix-text", toNodeId: "source-1-remix-image-0" }, "source-1"), true);
-    assert.equal(isLegacyRemixTextImageConnection({ id: "b", fromNodeId: "source-1-remix-text", toNodeId: "publish-1" }, "source-1"), false);
-    assert.equal(isLegacyRemixTextImageConnection({ id: "c", fromNodeId: "other-remix-text", toNodeId: "source-1-remix-image-0" }, "source-1"), false);
-});
-
-test("legacy remix connections are stripped on project restore", () => {
-    const source = sourceNode();
-    const connections = [
-        { id: "legacy", fromNodeId: "source-1-remix-text", toNodeId: "source-1-remix-image-0" },
-        { id: "publish", fromNodeId: "source-1-remix-text", toNodeId: "publish-1" },
-        { id: "material", fromNodeId: "source-1-material-image-0", toNodeId: "source-1-remix-image-0" },
-    ];
-    assert.deepEqual(stripLegacyRemixTextImageConnections([source], connections).map((item) => item.id), ["publish", "material"]);
-});
-
-test("idle remix image nodes migrate to the reference aspect size", () => {
-    const source = sourceNode();
-    const idle = { id: "source-1-remix-image-0", type: CanvasNodeType.Image, title: "复刻配图 1", position: { x: 0, y: 0 }, width: 320, height: 400, metadata: {} } satisfies CanvasNodeData;
-    const generated = { ...idle, id: "source-1-remix-image-1", metadata: { content: "https://example.com/generated.png" } };
-    const migrated = migrateRemixNodeLayouts([source, idle, generated]);
-    const migratedIdle = migrated.find((node) => node.id === idle.id);
-    assert.equal(migratedIdle?.width, 300);
-    assert.equal(migratedIdle?.height, 400);
-    assert.equal(migratedIdle?.metadata?.size, "768x1024");
-    assert.equal(migrated.find((node) => node.id === generated.id), generated);
-});
 
 test("prune derived nodes removes stale materials without external links", () => {
     const source = sourceNode();
@@ -217,23 +190,4 @@ test("reset removes all derived nodes when nothing is referenced externally", ()
     assert.equal(plan.removedNodeIds.length, 2);
     assert.deepEqual(plan.nodes.map((node) => node.id), [source.id]);
     assert.deepEqual(plan.connections, []);
-});
-test("legacy source nodes migrate to 520x380 around their center", () => {
-    const legacy = sourceNode({ position: { x: 100, y: 200 } });
-    const current = { ...sourceNode(), id: "source-current", width: 520, height: 380, metadata: { sourceStatus: "success", sourceLayoutVersion: 2 } } satisfies CanvasNodeData;
-    const custom = { ...sourceNode(), id: "source-custom", width: 480, height: 320, metadata: { sourceStatus: "success" } } satisfies CanvasNodeData;
-    const image = { id: "image-1", type: CanvasNodeType.Image, title: "图片", position: { x: 0, y: 0 }, width: 420, height: 300, metadata: {} } satisfies CanvasNodeData;
-    const migrated = migrateSourceNodeLayouts([legacy, current, custom, image]);
-    assert.deepEqual([migrated[0].width, migrated[0].height], [520, 380]);
-    assert.deepEqual(migrated[0].position, { x: 50, y: 160 });
-    assert.equal(migrated[0].metadata?.sourceLayoutVersion, 2);
-    assert.equal(migrated[1], current);
-    assert.equal(migrated[2], custom);
-    assert.equal(migrated[3], image);
-});
-
-test("source node layout migration keeps the array untouched when nothing needs migration", () => {
-    const current = { ...sourceNode(), width: 520, height: 380, metadata: { sourceStatus: "success", sourceLayoutVersion: 2 } } satisfies CanvasNodeData;
-    const nodes = [current];
-    assert.equal(migrateSourceNodeLayouts(nodes), nodes);
 });

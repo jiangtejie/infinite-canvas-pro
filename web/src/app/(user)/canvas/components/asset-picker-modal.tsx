@@ -12,6 +12,7 @@ import { fetchAssetLibrary, type AssetLibraryItem } from "@/services/api/assets"
 import { uploadAssetMediaFile } from "@/services/file-storage";
 import { uploadImage } from "@/services/image-storage";
 import type { InsertAssetPayload } from "../types";
+import { errorMessage } from "@/lib/utils";
 
 export type { InsertAssetPayload } from "../types";
 
@@ -323,7 +324,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
             setCreateOpen(false);
             resetCreateForm();
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "新增素材失败");
+            message.error(errorMessage(error, "新增素材失败"));
         } finally {
             setSaving(false);
         }

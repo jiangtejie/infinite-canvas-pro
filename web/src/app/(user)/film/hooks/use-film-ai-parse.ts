@@ -6,6 +6,7 @@ import { App } from "antd";
 import type { FilmEpisode } from "@/lib/film/types";
 import { requestFilmAiStoryboard, type FilmParseOptions } from "../utils/film-ai-parse";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 export function useFilmAiParse(onParsed: (episodes: FilmEpisode[]) => void) {
     const { message } = App.useApp();
@@ -29,7 +30,7 @@ export function useFilmAiParse(onParsed: (episodes: FilmEpisode[]) => void) {
             onParsed(episodes);
             message.success(`AI 拆出 ${total} 个分镜`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "AI 解析失败");
+            message.error(errorMessage(error, "AI 解析失败"));
         } finally {
             setParsing(false);
             setProgress(null);

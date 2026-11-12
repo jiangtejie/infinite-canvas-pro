@@ -34,5 +34,5 @@ export function useFilmDeleteConfirm() {
         });
     };
 
-    return { confirmDelete, deleteConfirmNode: null };
+    return { confirmDelete };
 }

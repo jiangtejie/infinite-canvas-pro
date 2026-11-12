@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import type { AdminAsset } from "@/services/api/admin";
 
+import { buildAdminPagination, buildAdminTableProps } from "../components/admin-table-props";
 import type { AssetFormValues } from "./asset-utils";
 import { AssetFilterBar } from "./components/asset-filter-bar";
 import { AssetDeleteModal, AssetDetailModal, AssetEditorModal } from "./components/asset-modals";
@@ -16,7 +17,6 @@ import { useAdminAssets } from "./use-admin-assets";
 export default function AdminAssetsPage() {
     const { assets, tags, keyword, kind, tag, page, pageSize, total, isLoading, searchAssets, changeKind, changeTag, changePage, changePageSize, resetFilters, refreshAssets, saveAsset: saveAdminAsset, deleteAsset } = useAdminAssets();
     const [form] = Form.useForm<AssetFormValues>();
-    const [keywordText, setKeywordText] = useState(keyword);
     const [editingAsset, setEditingAsset] = useState<Partial<AdminAsset> | null>(null);
     const [detailAsset, setDetailAsset] = useState<AdminAsset | null>(null);
     const [deletingAsset, setDeletingAsset] = useState<AdminAsset | null>(null);
@@ -35,8 +35,6 @@ export default function AdminAssetsPage() {
             tagText: editingAsset.tags?.join(", ") || "",
         });
     }, [editingAsset, form]);
-
-    useEffect(() => setKeywordText(keyword), [keyword]);
 
     const saveAsset = async () => {
         const value = await form.validateFields();
@@ -70,47 +68,33 @@ export default function AdminAssetsPage() {
         <main className="p-3 md:p-6">
             <Flex vertical gap={16}>
                 <AssetFilterBar
-                    keywordText={keywordText}
-                    setKeywordText={setKeywordText}
+                    keyword={keyword}
                     kind={kind}
                     tag={tag}
                     tags={tags}
-                    searchAssets={searchAssets}
+                    onSearch={searchAssets}
                     changeKind={changeKind}
                     changeTag={changeTag}
-                    resetFilters={resetFilters}
+                    onReset={resetFilters}
                 />
                 <ProTable<AdminAsset>
+                    {...buildAdminTableProps({ onReload: () => void refreshAssets() })}
                     rowKey="id"
                     columns={columns}
                     dataSource={assets}
                     loading={isLoading}
-                    search={false}
-                    defaultSize="middle"
-                    tableLayout="fixed"
-                    scroll={{ x: 1000 }}
-                    cardProps={{ variant: "borderless" }}
                     headerTitle={
                         <Space>
                             <Typography.Text strong>素材列表</Typography.Text>
                             <Tag>{total} 条</Tag>
                         </Space>
                     }
-                    options={{ density: true, setting: true, reload: () => void refreshAssets() }}
                     toolBarRender={() => [
                         <Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingAsset({ type: "text", tags: [] })}>
                             新增
                         </Button>,
                     ]}
-                    pagination={{
-                        current: page,
-                        pageSize,
-                        total,
-                        showSizeChanger: true,
-                        pageSizeOptions: [10, 20, 50, 100],
-                        showTotal: (value) => `共 ${value} 条`,
-                        onChange: (nextPage, nextPageSize) => (nextPageSize !== pageSize ? changePageSize(nextPageSize) : changePage(nextPage)),
-                    }}
+                    pagination={buildAdminPagination({ page, pageSize, total, changePage, changePageSize })}
                 />
             </Flex>
 

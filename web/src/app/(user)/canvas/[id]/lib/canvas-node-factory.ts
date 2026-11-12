@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid";
+
 import { defaultConfig } from "@/stores/use-config-store";
 
 import { getNodeSpec } from "../../constants";
@@ -9,7 +11,7 @@ export function createCanvasNode(type: CanvasNodeType, position: Position, metad
     const spec = getNodeSpec(type);
     const defaults = type === CanvasNodeType.Image || type === CanvasNodeType.Video ? useCanvasUiStore.getState().generationDefaults[type] : undefined;
     const initialSize = defaults?.size || (type === CanvasNodeType.Image ? defaultConfig.size : undefined);
-    const id = nodeId || `${type}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const id = nodeId || nanoid();
 
     const node: CanvasNodeData = {
         id,

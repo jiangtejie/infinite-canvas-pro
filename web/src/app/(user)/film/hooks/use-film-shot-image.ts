@@ -18,6 +18,7 @@ import { collectFilmShotReferences } from "../utils/film-references";
 import { selectFilmBatchShots } from "../utils/film-batch";
 import { formatFilmContinuityPrompt, previousFilmShot } from "../utils/film-continuity-sheet";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 export type FilmImageBatchProgress = { done: number; total: number };
 
@@ -99,8 +100,8 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
             });
             message.success("分镜图已生成");
         } catch (error) {
-            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: error instanceof Error ? error.message : "分镜图生成失败", pendingTask: undefined }) });
-            message.error(error instanceof Error ? error.message : "分镜图生成失败");
+            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: errorMessage(error, "分镜图生成失败"), pendingTask: undefined }) });
+            message.error(errorMessage(error, "分镜图生成失败"));
         } finally {
             setGeneratingShotId("");
         }
@@ -160,7 +161,7 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
                         onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: undefined }) });
                     } else {
                         failed += 1;
-                        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: error instanceof Error ? error.message : "分镜图生成失败", pendingTask: undefined }) });
+                        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: errorMessage(error, "分镜图生成失败"), pendingTask: undefined }) });
                     }
                 } finally {
                     batchControllerRef.current = null;

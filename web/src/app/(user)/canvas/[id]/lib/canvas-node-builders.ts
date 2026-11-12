@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid";
+
 import type { UploadedFile } from "@/services/file-storage";
 import type { UploadedImage } from "@/services/image-storage";
 import type { ReferenceImage } from "@/types/image";
@@ -35,7 +37,7 @@ export function videoMetadata(video: UploadedFile): CanvasNodeMetadata {
 export function buildImportedVideoNode(video: UploadedFile, title: string, center: Position): CanvasNodeData {
     const size = fitNodeSize(video.width || 1280, video.height || 720, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
     return {
-        id: `video-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: nanoid(),
         type: CanvasNodeType.Video,
         title,
         position: { x: center.x - size.width / 2, y: center.y - size.height / 2 },

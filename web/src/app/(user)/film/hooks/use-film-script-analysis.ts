@@ -7,6 +7,7 @@ import type { FilmScriptAnalysis } from "@/lib/film/types";
 import { requestFilmScriptAnalysis, type FilmScriptAnalysisIssue } from "../utils/film-script-analysis";
 import type { FilmScriptDocument } from "@/lib/film/film-script-import";
 import { useModelConfig } from "@/hooks/use-model-config";
+import { errorMessage } from "@/lib/utils";
 
 export function useFilmScriptAnalysis() {
     const { message } = App.useApp();
@@ -24,7 +25,7 @@ export function useFilmScriptAnalysis() {
             message.success(`AI 语义分析完成：${result.analysis.characters.length} 个角色、${result.analysis.relationships.length} 条关系${result.reusedScenes ? `（复用 ${result.reusedScenes} 场未变化内容）` : ""}`);
             return result;
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "AI 语义分析失败");
+            message.error(errorMessage(error, "AI 语义分析失败"));
             return null;
         } finally {
             setAnalyzing(false);

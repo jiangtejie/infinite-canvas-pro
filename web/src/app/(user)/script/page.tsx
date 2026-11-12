@@ -7,20 +7,25 @@ import Link from "next/link";
 import { App, Button, Input, Modal, Select } from "antd";
 import { ArrowUpRight, Download, FileUp, Plus, ScrollText, Trash2 } from "lucide-react";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { FilmAmbient } from "@/components/film/film-ambient";
 import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
+import { useDownloadFile } from "@/hooks/use-download-file";
 import type { ScriptFormat, ScriptProject } from "./types";
 import { useScriptStore } from "./stores/use-script-store";
 import { SCRIPT_FORMAT_OPTIONS, exportScriptText, scriptPageCount, scriptWordCount } from "./utils/script-project";
 import { scriptProjectFromFile, scriptProjectFromText } from "./utils/script-import";
+import { errorMessage } from "@/lib/utils";
 
 const formatLabel = (format: ScriptFormat) => SCRIPT_FORMAT_OPTIONS.find((item) => item.value === format)?.label || "电影";
 
 export default function ScriptListPage() {
     const router = useRouter();
     const { message } = App.useApp();
+    const confirm = useConfirm();
+    const downloadFile = useDownloadFile();
     const projects = useScriptStore((state) => state.projects);
     const hydrated = useScriptStore((state) => state.hydrated);
     const createProject = useScriptStore((state) => state.createProject);
@@ -38,7 +43,6 @@ export default function ScriptListPage() {
     const [importFileName, setImportFileName] = useState("");
     const [importPreview, setImportPreview] = useState<ScriptProject | null>(null);
     const [importing, setImporting] = useState(false);
-    const [deletingProject, setDeletingProject] = useState<ScriptProject | null>(null);
 
     const ordered = useMemo(() => [...projects].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
     const totalScenes = projects.reduce((total, project) => total + project.scenes.length, 0);
@@ -67,7 +71,7 @@ export default function ScriptListPage() {
             setImportPreview(project);
             if (!nextTitle.trim()) setImportTitle(project.title);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "剧本解析失败");
+            message.error(errorMessage(error, "剧本解析失败"));
         }
     };
 
@@ -83,7 +87,7 @@ export default function ScriptListPage() {
             setImportTitle((current) => current || file.name.replace(/\.[^.]+$/, ""));
             message.success(`已解析 ${project.scenes.length} 场`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "文件解析失败");
+            message.error(errorMessage(error, "文件解析失败"));
         } finally {
             setImporting(false);
         }
@@ -102,14 +106,28 @@ export default function ScriptListPage() {
     };
 
     const exportProject = (project: ScriptProject) => {
-        const blob = new Blob([exportScriptText(project)], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${project.title || "剧本"}.txt`;
-        link.click();
-        URL.revokeObjectURL(url);
+        downloadFile(new Blob([exportScriptText(project)], { type: "text/plain;charset=utf-8" }), `${project.title || "剧本"}.txt`);
         message.success("剧本已导出");
+    };
+
+    const removeProject = (project: ScriptProject) => {
+        void confirm({
+            title: `删除「${project.title}」？`,
+            description: (
+                <div className="grid gap-1.5">
+                    <span>故事、人物、场景卡和剧本正文会一起删除，无法恢复。</span>
+                    <span className="break-words rounded-md border border-border/60 bg-background/40 px-2 py-1 font-mono text-[10px] leading-5 text-muted-foreground/70">
+                        {project.scenes.length} 场 · {project.characters.length} 角色 · {scriptWordCount(project).toLocaleString()} 字
+                    </span>
+                </div>
+            ),
+            confirmText: "删除剧本",
+            tone: "danger",
+        }).then((ok) => {
+            if (!ok) return;
+            deleteProjects([project.id]);
+            message.success("剧本已删除");
+        });
     };
 
     return (
@@ -183,7 +201,7 @@ export default function ScriptListPage() {
                                         <button type="button" aria-label="导出剧本" title="导出剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-foreground/5 hover:text-foreground" onClick={(event) => { event.preventDefault(); exportProject(project); }}>
                                             <Download className="size-3" />
                                         </button>
-                                        <button type="button" aria-label="删除剧本" title="删除剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-hot/10 hover:text-hot" onClick={(event) => { event.preventDefault(); setDeletingProject(project); }}>
+                                        <button type="button" aria-label="删除剧本" title="删除剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-hot/10 hover:text-hot" onClick={(event) => { event.preventDefault(); removeProject(project); }}>
                                             <Trash2 className="size-3" />
                                         </button>
                                     </div>
@@ -265,35 +283,6 @@ export default function ScriptListPage() {
                         </div>
                     ) : null}
                 </div>
-            </Modal>
-
-            <Modal
-                title="删除剧本"
-                open={Boolean(deletingProject)}
-                onCancel={() => setDeletingProject(null)}
-                footer={null}
-                width={420}
-                centered
-                destroyOnHidden
-            >
-                {deletingProject ? (
-                    <div className="grid gap-4 pt-1">
-                        <div className="flex items-start gap-3">
-                            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-hot/35 bg-hot/10 text-hot"><Trash2 className="size-5" /></span>
-                            <div className="grid gap-1">
-                                <h3 className="text-[15px] font-semibold leading-6 text-foreground">删除「{deletingProject.title}」？</h3>
-                                <p className="text-[11px] leading-5 text-muted-foreground/80">故事、人物、场景卡和剧本正文会一起删除，无法恢复。</p>
-                            </div>
-                        </div>
-                        <div className="rounded-lg border border-border/60 bg-background/40 px-3 py-2 font-mono text-[10px] text-muted-foreground/70">
-                            {deletingProject.scenes.length} 场 · {deletingProject.characters.length} 角色 · {scriptWordCount(deletingProject).toLocaleString()} 字
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <Button size="large" onClick={() => setDeletingProject(null)}>取消</Button>
-                            <Button size="large" type="primary" danger onClick={() => { deleteProjects([deletingProject.id]); setDeletingProject(null); message.success("剧本已删除"); }}>删除剧本</Button>
-                        </div>
-                    </div>
-                ) : null}
             </Modal>
         </div>
     );

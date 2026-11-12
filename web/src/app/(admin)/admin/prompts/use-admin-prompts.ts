@@ -1,25 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App } from "antd";
 
+import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { deleteAdminPrompt, deleteAdminPrompts, fetchAdminPrompts, fetchAdminPromptCategories, saveAdminPrompt, syncAdminPromptCategoriesAll, syncAdminPromptCategory, type AdminPromptCategory } from "@/services/api/admin";
-import type { Prompt } from "@/services/api/prompts";
-import { useUserStore } from "@/stores/use-user-store";
+import type { Prompt, PromptListResponse } from "@/services/api/prompts";
 
-const defaultPageSize = 10;
+import { useAdminList, useAdminQueryError } from "../components/use-admin-list";
+
+type PromptListFilters = { keyword: string; category: string; tag: string[] };
 
 export function useAdminPrompts() {
     const { message } = App.useApp();
     const queryClient = useQueryClient();
-    const token = useUserStore((state) => state.token);
-    const clearSession = useUserStore((state) => state.clearSession);
-    const [keyword, setKeyword] = useState("");
-    const [category, setCategory] = useState("");
-    const [tag, setTag] = useState<string[]>([]);
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(defaultPageSize);
+    const list = useAdminList<PromptListFilters, PromptListResponse>({
+        queryKey: ({ token, filters, page, pageSize }) => ["admin", "prompts", token, filters.keyword, filters.category, filters.tag, page, pageSize],
+        fetcher: ({ token, filters, page, pageSize }) => fetchAdminPrompts(token, { keyword: filters.keyword, category: filters.category, tag: filters.tag, page, pageSize }),
+        initialFilters: { keyword: "", category: "", tag: [] },
+        errorFallback: "读取提示词失败",
+    });
+    const token = list.token;
 
     const categoriesQuery = useQuery({
         queryKey: ["admin", "prompt-categories", token],
@@ -28,12 +29,7 @@ export function useAdminPrompts() {
         retry: false,
     });
 
-    const promptsQuery = useQuery({
-        queryKey: ["admin", "prompts", token, keyword, category, tag, page, pageSize],
-        queryFn: () => fetchAdminPrompts(token, { keyword, category, tag, page, pageSize }),
-        enabled: Boolean(token),
-        retry: false,
-    });
+    useAdminQueryError(categoriesQuery.error, categoriesQuery.isError && !list.query.isError, "读取提示词失败");
 
     const syncMutation = useMutation({
         mutationFn: (category: string) => syncAdminPromptCategory(token, category),
@@ -43,7 +39,7 @@ export function useAdminPrompts() {
             message.success("远程提示词源已同步");
         },
         onError: (error) => {
-            message.error(error instanceof Error ? error.message : "同步失败");
+            message.error(toErrorMessage(error, "同步失败"));
         },
     });
 
@@ -55,7 +51,7 @@ export function useAdminPrompts() {
             message.success("全部远程提示词源已同步");
         },
         onError: (error) => {
-            message.error(error instanceof Error ? error.message : "同步失败");
+            message.error(toErrorMessage(error, "同步失败"));
         },
     });
 
@@ -67,7 +63,7 @@ export function useAdminPrompts() {
             message.success(prompt.id ? "提示词已保存" : "提示词已新增");
         },
         onError: (error) => {
-            message.error(error instanceof Error ? error.message : "保存失败");
+            message.error(toErrorMessage(error, "保存失败"));
         },
     });
 
@@ -79,7 +75,7 @@ export function useAdminPrompts() {
             message.success("提示词已删除");
         },
         onError: (error) => {
-            message.error(error instanceof Error ? error.message : "删除失败");
+            message.error(toErrorMessage(error, "删除失败"));
         },
     });
 
@@ -91,53 +87,35 @@ export function useAdminPrompts() {
             message.success("提示词已批量删除");
         },
         onError: (error) => {
-            message.error(error instanceof Error ? error.message : "批量删除失败");
+            message.error(toErrorMessage(error, "批量删除失败"));
         },
     });
 
-    useEffect(() => {
-        const error = categoriesQuery.error || promptsQuery.error;
-        if (!error) return;
-        const errorMessage = error instanceof Error ? error.message : "读取提示词失败";
-        message.error(errorMessage);
-        if (errorMessage.includes("未登录") || errorMessage.includes("权限不足") || errorMessage.includes("登录状态无效")) clearSession();
-    }, [categoriesQuery.error, clearSession, message, promptsQuery.error]);
-
-    const updateFilters = (next: Partial<{ keyword: string; category: string; tag: string[]; page: number; pageSize: number }>) => {
-        const queryState = { keyword, category, tag, page, pageSize, ...next };
-        if (next.keyword !== undefined || next.category !== undefined || next.tag !== undefined || next.pageSize !== undefined) queryState.page = 1;
-        setKeyword(queryState.keyword);
-        setCategory(queryState.category);
-        setTag(queryState.tag);
-        setPage(queryState.page);
-        setPageSize(queryState.pageSize);
-    };
-
-    const data = promptsQuery.data;
+    const data = list.query.data;
 
     return {
         categories: categoriesQuery.data || [],
         prompts: data?.items || [],
         tags: data?.tags || [],
-        keyword,
-        category,
-        tag,
-        page,
-        pageSize,
+        keyword: list.filters.keyword,
+        category: list.filters.category,
+        tag: list.filters.tag,
+        page: list.page,
+        pageSize: list.pageSize,
         total: data?.total || 0,
-        isLoading: categoriesQuery.isFetching || promptsQuery.isFetching || saveMutation.isPending || deleteMutation.isPending || batchDeleteMutation.isPending,
+        isLoading: categoriesQuery.isFetching || list.query.isFetching || saveMutation.isPending || deleteMutation.isPending || batchDeleteMutation.isPending,
         isSyncing: syncMutation.isPending || syncAllMutation.isPending,
         syncCategory: (category: string) => syncMutation.mutateAsync(category),
         syncAllCategories: () => syncAllMutation.mutateAsync(),
-        searchPrompts: (value = keyword) => updateFilters({ keyword: value }),
-        changeCategory: (value: string) => updateFilters({ category: value, tag: [] }),
-        changeTag: (value: string[]) => updateFilters({ tag: value }),
-        changePage: (value: number) => updateFilters({ page: value }),
-        changePageSize: (value: number) => updateFilters({ pageSize: value }),
-        resetFilters: () => updateFilters({ keyword: "", category: "", tag: [], page: 1, pageSize: defaultPageSize }),
+        searchPrompts: (value = list.filters.keyword) => list.applyFilters({ keyword: value }),
+        changeCategory: (value: string) => list.applyFilters({ category: value, tag: [] }),
+        changeTag: (value: string[]) => list.applyFilters({ tag: value }),
+        changePage: list.changePage,
+        changePageSize: list.changePageSize,
+        resetFilters: list.resetFilters,
         refreshPrompts: async () => {
             await categoriesQuery.refetch();
-            await promptsQuery.refetch();
+            await list.query.refetch();
         },
         savePrompt: (prompt: Partial<Prompt>) => saveMutation.mutateAsync(prompt),
         deletePrompt: (id: string) => deleteMutation.mutateAsync(id),

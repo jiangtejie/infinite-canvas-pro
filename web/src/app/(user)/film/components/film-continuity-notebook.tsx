@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Select } from "antd";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, truncateText } from "@/lib/utils";
 import type { FilmContinuitySheet, FilmShot } from "@/lib/film/types";
 import { FILM_CONTINUITY_FIELDS, FILM_CONTINUITY_GROUPS } from "../utils/film-continuity-sheet";
 
@@ -153,7 +153,7 @@ export function FilmContinuityNotebook({ episodeTitle, sheets, onJumpToShot }: F
                         size="small"
                         className="w-40"
                         value={shot.id}
-                        options={sheets.map((item) => ({ value: item.shot.id, label: `${item.shot.shotNo} · ${truncate(item.shot.description, 12)}` }))}
+                        options={sheets.map((item) => ({ value: item.shot.id, label: `${item.shot.shotNo} · ${truncateText(item.shot.description, 12)}` }))}
                         onChange={(shodId: string) => setPage(Math.max(0, sheets.findIndex((item) => item.shot.id === shodId)))}
                     />
                     <Button size="small" disabled={safePage <= 0} onClick={() => setPage(0)}>首页</Button>
@@ -162,9 +162,4 @@ export function FilmContinuityNotebook({ episodeTitle, sheets, onJumpToShot }: F
             </div>
         </div>
     );
-}
-
-function truncate(value: string, max: number) {
-    const text = (value || "").trim();
-    return text.length > max ? `${text.slice(0, max)}…` : text;
 }

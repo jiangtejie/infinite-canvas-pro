@@ -3,12 +3,13 @@
 import { Copy, Download, FileUp, LayoutGrid, Package, PencilLine, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
-import { App, Button, Input, Modal, Pagination } from "antd";
+import { App, Button, Input, Pagination, type InputRef } from "antd";
 import { saveAs } from "file-saver";
 
 import { AssetBrowserCard, AssetBrowserEmpty, AssetBrowserLoading, AssetKindFilter, assetKindLabel, type AssetBrowserItem, type AssetFilterKind } from "@/components/assets/asset-browser";
 import { AssetDetailDrawer, type AssetDetailModel } from "@/components/assets/asset-detail-drawer";
 import { PageHeader } from "@/components/ui/page-header";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { formatBytes } from "@/lib/image-utils";
@@ -18,8 +19,10 @@ import { AssetFormModal } from "@/components/assets/asset-form-modal";
 
 export default function AssetsPage() {
     const { message } = App.useApp();
+    const confirm = useConfirm();
     const copyText = useCopyText();
     const assetInputRef = useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<InputRef>(null);
     const assets = useAssetStore((state) => state.assets);
     const addAsset = useAssetStore((state) => state.addAsset);
     const removeAsset = useAssetStore((state) => state.removeAsset);
@@ -32,22 +35,20 @@ export default function AssetsPage() {
     const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
     const [isAssetOpen, setIsAssetOpen] = useState(false);
     const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
-    const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
     const [assetsHydrated, setAssetsHydrated] = useState(false);
-    const validAssets = useMemo(() => assets.filter((asset) => asset.kind === "text" || asset.kind === "image" || asset.kind === "video" || asset.kind === "audio"), [assets]);
-    const categories = useMemo(() => Array.from(new Set(validAssets.flatMap((asset) => asset.category ? [asset.category] : []))), [validAssets]);
-    const tags = useMemo(() => Array.from(new Set(validAssets.flatMap((asset) => asset.tags))), [validAssets]);
+    const categories = useMemo(() => Array.from(new Set(assets.flatMap((asset) => asset.category ? [asset.category] : []))), [assets]);
+    const tags = useMemo(() => Array.from(new Set(assets.flatMap((asset) => asset.tags))), [assets]);
 
     const filteredAssets = useMemo(() => {
         const query = keyword.trim().toLowerCase();
-        return validAssets.filter((asset) => {
+        return assets.filter((asset) => {
             if (kindFilter !== "all" && asset.kind !== kindFilter) return false;
             if (categoryFilter && asset.category !== categoryFilter) return false;
             if (tagFilters.length && !tagFilters.some((tag) => asset.tags.includes(tag))) return false;
             if (!query) return true;
             return assetSearchText(asset).includes(query);
         });
-    }, [validAssets, keyword, kindFilter, categoryFilter, tagFilters]);
+    }, [assets, keyword, kindFilter, categoryFilter, tagFilters]);
 
     const visibleAssets = useMemo(() => {
         const start = (page - 1) * pageSize;
@@ -65,6 +66,18 @@ export default function AssetsPage() {
         if (useAssetStore.persist.hasHydrated()) setAssetsHydrated(true);
         return unsubscribe;
     }, [assetsHydrated]);
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+            const target = event.target as HTMLElement | null;
+            if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+            event.preventDefault();
+            searchInputRef.current?.focus();
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, []);
 
     const clearFilters = () => {
         setPage(1);
@@ -96,11 +109,11 @@ export default function AssetsPage() {
     };
 
     const exportAllAssets = async () => {
-        if (!validAssets.length) {
+        if (!assets.length) {
             message.warning("暂无素材可导出");
             return;
         }
-        await exportAssets(validAssets);
+        await exportAssets(assets);
     };
 
     const importAssetZip = async (file?: File) => {
@@ -122,11 +135,11 @@ export default function AssetsPage() {
         }
     };
 
-    const confirmDelete = () => {
-        if (!deletingAsset) return;
-        removeAsset(deletingAsset.id);
+    const deleteAsset = async (asset: Asset) => {
+        const confirmed = await confirm({ title: "删除素材", description: `确定删除「${asset.title}」吗？删除后会从我的素材中移除。`, confirmText: "删除", tone: "danger" });
+        if (!confirmed) return;
+        removeAsset(asset.id);
         message.success("素材已删除");
-        setDeletingAsset(null);
     };
 
     return (
@@ -140,7 +153,7 @@ export default function AssetsPage() {
                         meta={
                             <>
                                 <span className="chip chip-acid">{filteredAssets.length} 条结果</span>
-                                <span className="chip">全部 {validAssets.length} 条</span>
+                                <span className="chip">全部 {assets.length} 条</span>
                             </>
                         }
                         actions={
@@ -166,6 +179,7 @@ export default function AssetsPage() {
                             <div className="flex h-11 w-full items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-md">
                                 <Search className="size-4 shrink-0 text-muted-foreground" />
                                 <Input
+                                    ref={searchInputRef}
                                     variant="borderless"
                                     className="!bg-transparent"
                                     allowClear
@@ -210,7 +224,7 @@ export default function AssetsPage() {
                                                         <Button type="text" size="small" className="!px-1.5" icon={<Download className="size-3.5" />} onClick={() => downloadAsset(asset)} aria-label="下载" title="下载" />
                                                     )}
                                                     <Button type="text" size="small" className="!px-1.5" icon={<PencilLine className="size-3.5" />} onClick={() => openEdit(asset)} aria-label="编辑" title="编辑" />
-                                                    <Button type="text" size="small" className="!px-1.5" icon={<Trash2 className="size-3.5" />} onClick={() => setDeletingAsset(asset)} aria-label="删除" title="删除" />
+                                                    <Button type="text" size="small" className="!px-1.5" icon={<Trash2 className="size-3.5" />} onClick={() => void deleteAsset(asset)} aria-label="删除" title="删除" />
                                                 </>
                                             }
                                         />
@@ -246,9 +260,6 @@ export default function AssetsPage() {
 
             <input ref={assetInputRef} type="file" accept="application/zip,.zip" className="hidden" onChange={(event) => void importAssetZip(event.target.files?.[0])} />
 
-            <Modal title="删除素材" open={Boolean(deletingAsset)} onCancel={() => setDeletingAsset(null)} onOk={confirmDelete} okText="删除" okButtonProps={{ danger: true }} cancelText="取消">
-                确定删除「{deletingAsset?.title}」吗？删除后会从我的素材中移除。
-            </Modal>
         </div>
     );
 }
@@ -261,7 +272,7 @@ function toBrowserItem(asset: Asset): AssetBrowserItem {
         videoUrl: asset.kind === "video" ? asset.data.url : undefined,
         kind: asset.kind,
         summary: assetSummary(asset),
-        tags: asset.tags || [],
+        tags: asset.tags,
         meta: asset.source || "未标注来源",
     };
 }
@@ -273,7 +284,7 @@ function toAssetDetail(asset: Asset): AssetDetailModel {
         coverUrl: asset.coverUrl || (asset.kind === "image" ? asset.data.dataUrl : ""),
         videoUrl: asset.kind === "video" ? asset.data.url : undefined,
         audioUrl: asset.kind === "audio" ? asset.data.url : undefined,
-        tags: asset.tags || [],
+        tags: asset.tags,
         category: asset.category,
         textContent: asset.kind === "text" ? asset.data.content : undefined,
         prompt: assetPrompt(asset) || undefined,
@@ -317,6 +328,6 @@ function assetSummary(asset: Asset) {
 }
 
 function assetSearchText(asset: Asset) {
-    return [asset.title, asset.source || "", asset.category || "", (asset.tags || []).join(" "), asset.kind === "text" ? asset.data.content : asset.data.mimeType].join(" ").toLowerCase();
+    return [asset.title, asset.source || "", asset.category || "", asset.tags.join(" "), asset.kind === "text" ? asset.data.content : asset.data.mimeType].join(" ").toLowerCase();
 }
 

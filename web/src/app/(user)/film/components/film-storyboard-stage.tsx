@@ -5,12 +5,12 @@ import { App, Button, InputNumber, Modal, Select } from "antd";
 import { Check, Clapperboard, GitBranch, ImageIcon, LayoutGrid, Link2, List, Maximize2, Pencil, ShieldAlert, Table2, Trash2 } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "../utils/parse-script";
-import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
+import { removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { filmAspectCssRatio, filmAspectLabel } from "@/lib/film/film-aspects";
-import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { checkFilmBindingIssues } from "../utils/film-binding-check";
 import { FILM_SHOT_TYPE_OPTIONS, filmShotTypeLabel } from "../utils/film-shot-types";
 import { deriveFilmShotStatus } from "../utils/film-status";
@@ -25,7 +25,6 @@ import { FilmShotGroupPanel } from "./film-shot-group-panel";
 import { FilmStoryboardBoard } from "./film-storyboard-board";
 import { FilmShotThumbnail } from "./film-shot-thumbnail";
 import { checkFilmStyle } from "../utils/film-style-check";
-import { appendDirectorStyleToPrompt } from "@/lib/film/director-styles";
 
 type ViewMode = "list" | "groups" | "table" | "board";
 
@@ -99,19 +98,6 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
         setSelectedIds((prev) => prev.includes(shotId) ? prev.filter((id) => id !== shotId) : [...prev, shotId]);
     };
     const selectedShot = shots.find((shot) => shot.id === selectedShotId) ?? null;
-    const sceneTargets = useMemo(() => filmSceneOptions(project.episodes), [project.episodes]);
-    const selectedPosition = selectedShot ? filmShotPosition(project.episodes, selectedShot.id) : null;
-
-    const moveSelectedShot = (direction: "up" | "down") => {
-        if (!selectedShot) return;
-        onUpdate({ episodes: moveFilmShot(project.episodes, selectedShot.id, direction === "up" ? -1 : 1) });
-    };
-
-    const moveSelectedShotToScene = (sceneId: string) => {
-        if (!selectedShot || selectedPosition?.sceneId === sceneId) return;
-        onUpdate({ episodes: moveFilmShotToScene(project.episodes, selectedShot.id, sceneId) });
-    };
-
     const openBatchEdit = () => {
         setBatchDuration(undefined);
         setBatchShotType("");
@@ -269,16 +255,13 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         </div>
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-auto">
                             {shots.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                                        <Clapperboard className="size-5" />
-                                    </div>
-                                    <p className="mt-4 text-sm text-foreground">还没有分镜</p>
-                                    <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先去剧本页用 AI 解析剧本，表格会自动生成。</p>
-                                    <button type="button" className="mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoScript}>
-                                        去剧本页
-                                    </button>
-                                </div>
+                                <EmptyState
+                                    className="py-10"
+                                    icon={<Clapperboard className="size-5" />}
+                                    title="还没有分镜"
+                                    description="先去剧本页用 AI 解析剧本，表格会自动生成。"
+                                    action={<button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoScript}>去剧本页</button>}
+                                />
                             ) : (
                                 <table className="w-full min-w-[900px] border-collapse text-left text-xs">
                                     <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
@@ -331,16 +314,13 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         </div>
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                             {shots.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                                        <Clapperboard className="size-5" />
-                                    </div>
-                                    <p className="mt-4 text-sm text-foreground">还没有分镜</p>
-                                    <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先去剧本页粘贴剧本并解析，分组会自动生成。</p>
-                                    <button type="button" className="mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoScript}>
-                                        去剧本页
-                                    </button>
-                                </div>
+                                <EmptyState
+                                    className="py-10"
+                                    icon={<Clapperboard className="size-5" />}
+                                    title="还没有分镜"
+                                    description="先去剧本页粘贴剧本并解析，分组会自动生成。"
+                                    action={<button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoScript}>去剧本页</button>}
+                                />
                             ) : null}
                             <div className="grid gap-3 xl:grid-cols-2">
                                 {groups.map((group) => (
@@ -368,16 +348,13 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                         </div>
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                             {shots.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                                    <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                                        <Clapperboard className="size-5" />
-                                    </div>
-                                    <p className="mt-4 text-sm text-foreground">还没有分镜</p>
-                                    <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先去剧本页粘贴剧本并解析，分镜会自动同步到这里。</p>
-                                    <button type="button" className="mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoScript}>
-                                        去剧本页
-                                    </button>
-                                </div>
+                                <EmptyState
+                                    className="py-10"
+                                    icon={<Clapperboard className="size-5" />}
+                                    title="还没有分镜"
+                                    description="先去剧本页粘贴剧本并解析，分镜会自动同步到这里。"
+                                    action={<button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60" onClick={onGoScript}>去剧本页</button>}
+                                />
                             ) : null}
                             {project.episodes.map((episode) => (
                                 <div key={episode.id} className="mb-6 last:mb-0">
@@ -482,40 +459,17 @@ export function FilmStoryboardStage({ project, onUpdate, onGoScript, onGenerateI
                     {selectedShot ? (
                         <FilmShotDetail
                             shot={selectedShot}
-                            onChange={(patch) => onUpdate({ episodes: updateFilmShot(project.episodes, selectedShot.id, patch) })}
-                            onDelete={() => onUpdate({ episodes: project.episodes.map((episode) => ({ ...episode, scenes: episode.scenes.map((scene) => ({ ...scene, shots: scene.shots.filter((shot) => shot.id !== selectedShot.id) })) })) })}
+                            project={project}
+                            onUpdate={onUpdate}
                             onGenerate={() => onGenerateImage(selectedShot)}
                             generating={generatingShotId === selectedShot.id}
                             onGenerateVideo={() => onGenerateVideo(selectedShot)}
                             onStopVideo={onStopVideo}
                             generatingVideo={generatingVideoShotId === selectedShot.id}
                             videoProgress={videoProgress}
-                            characters={project.characters || []}
-                            locations={project.locations || []}
-                            aspect={project.aspect}
-                            styleText={resolveFilmStyleText(project)}
-                            directorStyle={styleReport.style}
-                            branchTargets={shots.filter((shot) => shot.id !== selectedShot.id).map((shot) => ({ id: shot.id, label: shot.shotNo + " · " + (shot.description || "未填写画面") }))}
-                            variables={project.interactiveVariables || []}
-                            onApplyStylePrompt={() => {
-                                if (!styleReport.style) return;
-                                onUpdate({ episodes: updateFilmShot(project.episodes, selectedShot.id, { prompt: appendDirectorStyleToPrompt(selectedShot.prompt, styleReport.style) }) });
-                                message.success("已把导演风格提示补进镜头 prompt");
-                            }}
-                            onMove={moveSelectedShot}
-                            canMoveUp={Boolean(selectedPosition && selectedPosition.shotIndex > 0)}
-                            canMoveDown={Boolean(selectedPosition && selectedPosition.shotIndex < selectedPosition.sceneShotCount - 1)}
-                            onMoveToScene={moveSelectedShotToScene}
-                            sceneTargets={sceneTargets}
                         />
                     ) : (
-                        <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                            <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground">
-                                <Clapperboard className="size-5" />
-                            </div>
-                            <p className="mt-4 text-sm text-foreground">选择一个分镜</p>
-                            <p className="mt-1.5 text-xs leading-6 text-muted-foreground">点左侧的镜头卡，就能在这里编辑景别、时长和提示词。</p>
-                        </div>
+                        <EmptyState className="flex-1 py-10" icon={<Clapperboard className="size-5" />} title="选择一个分镜" description="点左侧的镜头卡，就能在这里编辑景别、时长和提示词。" />
                     )}
                 </section>
             </div>

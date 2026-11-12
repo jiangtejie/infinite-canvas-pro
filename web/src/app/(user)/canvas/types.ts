@@ -150,7 +150,6 @@ export type CanvasNodeMetadata = {
     sourceWarnings?: string[];
     sourceParsing?: boolean;
     sourceExpanded?: boolean;
-    sourceLayoutVersion?: number;
     remixIndex?: number;
     remixSourceId?: string;
     publishSourceId?: string;
@@ -159,7 +158,6 @@ export type CanvasNodeMetadata = {
     publishRecord?: CanvasPublishRecord;
     publishStatus?: "idle" | "generating" | "error";
     publishError?: string;
-    publishLayoutVersion?: number;
 };
 
 export type CanvasDirectorPanorama = {

@@ -31,19 +31,6 @@
     --font-heading: "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     --font-sans: "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
-    --color-sidebar-ring: var(--sidebar-ring);
-    --color-sidebar-border: var(--sidebar-border);
-    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-    --color-sidebar-accent: var(--sidebar-accent);
-    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-    --color-sidebar-primary: var(--sidebar-primary);
-    --color-sidebar-foreground: var(--sidebar-foreground);
-    --color-sidebar: var(--sidebar);
-    --color-chart-5: var(--chart-5);
-    --color-chart-4: var(--chart-4);
-    --color-chart-3: var(--chart-3);
-    --color-chart-2: var(--chart-2);
-    --color-chart-1: var(--chart-1);
     --color-input: var(--input);
     --color-destructive: var(--destructive);
     --color-accent-foreground: var(--accent-foreground);
@@ -109,19 +96,6 @@
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
     --input: oklch(0.88 0.004 95);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.975 0.004 95);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.88 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
@@ -160,19 +134,6 @@
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
     --input: oklch(1 0 0 / 20%);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.265 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.315 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 16%);
-    --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -629,10 +590,6 @@
         }
     }
 
-    .punk-scanlines {
-        background-image: repeating-linear-gradient(180deg, color-mix(in oklch, var(--foreground) 5%, transparent) 0 1px, transparent 1px 5px);
-    }
-
     /* 面板内部：顶部 1px 高光 + 上浅下深的玻璃渐变 */
     .neon-panel {
         background-image: linear-gradient(180deg, color-mix(in oklch, white 5%, transparent), transparent 46%);
@@ -660,22 +617,6 @@
 
     .ant-table-wrapper .ant-table-tbody > tr:hover > td {
         background: color-mix(in oklch, var(--foreground) 4%, transparent);
-    }
-
-    /* 首页示例胶囊：暗底细边，悬停时透出霓虹描边 */
-    .neon-pill {
-        border: 1px solid color-mix(in oklch, var(--neon-line) 32%, var(--border));
-        background: color-mix(in oklch, var(--foreground) 4%, transparent);
-        transition:
-            color 0.2s ease,
-            border-color 0.2s ease,
-            background-color 0.2s ease,
-            box-shadow 0.2s ease;
-    }
-
-    .neon-pill:hover:not(:disabled) {
-        border-color: color-mix(in oklch, var(--neon-line) 70%, transparent);
-        box-shadow: 0 0 20px -8px var(--neon-line);
     }
 
     .dark .neon-title {
@@ -831,19 +772,6 @@
 
 .ant-tag {
     font-weight: 500;
-}
-
-.ant-modal .ant-modal-content {
-    border: 1px solid var(--border);
-    box-shadow: 0 48px 96px -48px oklch(0 0 0 / 78%);
-}
-
-.ant-modal .ant-modal-header {
-    margin-bottom: 18px;
-}
-
-.ant-drawer .ant-drawer-content {
-    border-left: 1px solid var(--border);
 }
 
 .ant-popover .ant-popover-inner,
@@ -1259,9 +1187,19 @@ body .ant-image-preview .ant-image-preview-progress {
     color: var(--foreground);
 }
 
-/* 全局消息：落到顶栏下方，避免压住公告条 */
+/* 全局消息：顶栏（60px）下方 16px；公告条可见时由 AnnouncementBanner 在 html 上打 data 标记叠加高度 */
 .ant-message {
-    top: 108px !important;
+    top: calc(76px + var(--app-announcement-offset, 0px)) !important;
+}
+
+html[data-announcement="visible"] {
+    --app-announcement-offset: 40px;
+}
+
+@media (max-width: 639px) {
+    html[data-announcement="visible"] {
+        --app-announcement-offset: 56px;
+    }
 }
 
 .ant-message .ant-message-notice-content {

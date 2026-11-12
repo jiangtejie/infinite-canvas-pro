@@ -1,54 +1,27 @@
 "use client";
 
-import { ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Card, Col, Form, Input, Row, Space } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import { Col, Form, Input } from "antd";
+import { useEffect, useState } from "react";
 
-export function UserFilterBar({
-    keywordText,
-    setKeywordText,
-    searchUsers,
-    resetFilters,
-}: {
-    keywordText: string;
-    setKeywordText: (value: string) => void;
-    searchUsers: (value: string) => void;
-    resetFilters: () => void;
-}) {
+import { AdminFilterBar, adminFilterKeywordCol } from "../../components/admin-filter-bar";
+
+export function UserFilterBar({ keyword, onSearch, onReset }: { keyword: string; onSearch: (keyword: string) => void; onReset: () => void }) {
+    const [keywordText, setKeywordText] = useState(keyword);
+    useEffect(() => setKeywordText(keyword), [keyword]);
     return (
-                <Card variant="borderless">
-                    <Form layout="vertical">
-                        <Row gutter={16} align="bottom">
-                            <Col flex="360px">
-                                <Form.Item label="关键词">
-                                    <Input.Search
-                                        value={keywordText}
-                                        placeholder="搜索用户名、昵称或邮箱"
-                                        allowClear
-                                        enterButton={<SearchOutlined />}
-                                        onSearch={() => searchUsers(keywordText)}
-                                        onChange={(event) => setKeywordText(event.target.value)}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col flex="none">
-                                <Form.Item>
-                                    <Space>
-                                        <Button
-                                            onClick={() => {
-                                                setKeywordText("");
-                                                resetFilters();
-                                            }}
-                                        >
-                                            重置
-                                        </Button>
-                                        <Button type="primary" icon={<ReloadOutlined />} onClick={() => searchUsers(keywordText)}>
-                                            查询
-                                        </Button>
-                                    </Space>
-                                </Form.Item>
-                            </Col>
-                        </Row>
-                    </Form>
-                </Card>
+        <AdminFilterBar
+            onSearch={() => onSearch(keywordText)}
+            onReset={() => {
+                setKeywordText("");
+                onReset();
+            }}
+        >
+            <Col {...adminFilterKeywordCol}>
+                <Form.Item label="关键词">
+                    <Input.Search value={keywordText} placeholder="搜索用户名、昵称或邮箱" allowClear enterButton={<SearchOutlined />} onSearch={() => onSearch(keywordText)} onChange={(event) => setKeywordText(event.target.value)} />
+                </Form.Item>
+            </Col>
+        </AdminFilterBar>
     );
 }

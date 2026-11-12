@@ -7,6 +7,7 @@ import { runWorkflowTask, workflowMediaSource, type WorkflowGenerationTask } fro
 import type { WorkflowCapability, WorkflowFieldMapping, WorkflowRef } from "@/lib/workflow-channel";
 import { workflowFieldChoiceValues, workflowOptionText, workflowOptionValue } from "@/lib/workflow-field-options";
 import { useConfigStore, type AiConfig } from "@/stores/use-config-store";
+import { errorMessage } from "@/lib/utils";
 
 type WorkflowProvider = "runninghub" | "comfyui";
 type MediaKind = "image" | "video" | "audio";
@@ -188,7 +189,7 @@ export function WorkflowTestWorkbench({ workflowRef, token, provider, workflowId
                 setStage("已停止等待");
                 return;
             }
-            const detail = reason instanceof Error ? reason.message : "工作流测试失败";
+            const detail = errorMessage(reason, "工作流测试失败");
             setError(detail);
             setStage("测试失败");
             message.error(detail);

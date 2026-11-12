@@ -5,12 +5,15 @@ import { App, Button, Checkbox, Image, Input, Modal, Select, Spin } from "antd";
 import { Download, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/state-panel";
+import { useDownloadFile } from "@/hooks/use-download-file";
 import { cn } from "@/lib/utils";
 import styles from "./film-character.module.css";
 import { uploadImage } from "@/services/image-storage";
 import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmImageRef, FilmProject } from "@/lib/film/types";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { useFilmCharacterImage } from "../hooks/use-film-character-image";
+import { useElapsedSeconds } from "../hooks/use-elapsed-seconds";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
 import { addFilmAsset, importFilmAsset, removeFilmAsset } from "../utils/film-edits";
 import { CHARACTER_PART_DEFINITIONS, characterCardSignature, characterMasterImages, characterProgress, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel } from "../utils/film-character";
@@ -27,7 +30,8 @@ type UploadTarget = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"
 export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
     const { message } = App.useApp();
     const confirm = useConfirm();
-    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
+    const { confirmDelete } = useFilmDeleteConfirm();
+    const downloadFile = useDownloadFile();
     const characters = useMemo(() => project.characters || [], [project.characters]);
     const libraryCharacters = useFilmCastStore((state) => state.characters);
     const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
@@ -213,10 +217,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
 
     const downloadCard = () => {
         if (!cardImage || !selected) return;
-        const link = document.createElement("a");
-        link.href = cardImage.url;
-        link.download = `${selected.name}-角色卡.png`;
-        link.click();
+        downloadFile(cardImage.url, `${selected.name}-角色卡.png`);
     };
 
     const toggleMasterLock = () => {
@@ -306,14 +307,13 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     </div>
 
                     {!selected ? (
-                        <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                            <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                                <UserRound className="size-5" />
-                            </div>
-                            <p className="mt-4 text-sm text-foreground">还没有角色</p>
-                            <p className="mt-1.5 text-xs leading-6 text-muted-foreground">新建角色后按「面部 → 发型 → 上身 → 中段 → 下身 → 四肢」逐块补齐参考。</p>
-                            <Button className="mt-4" size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createCharacter}>新建第一个角色</Button>
-                        </div>
+                        <EmptyState
+                            className="flex-1 py-10"
+                            icon={<UserRound className="size-5" />}
+                            title="还没有角色"
+                            description="新建角色后按「面部 → 发型 → 上身 → 中段 → 下身 → 四肢」逐块补齐参考。"
+                            action={<Button size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createCharacter}>新建第一个角色</Button>}
+                        />
                     ) : (
                         <div className={cn(styles.characterBody, "min-h-0 p-3")}>
                             <div className={cn(styles.slotColumn, "hidden lg:flex")}>
@@ -474,13 +474,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                             <Button size="small" icon={part?.locked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={() => updatePart(selectedPart, { locked: !part?.locked })}>{part?.locked ? "解锁" : "锁定"}</Button>
                         </div>
                     ) : (
-                        <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                            <div className="grid size-12 place-items-center rounded-[10px] border border-dashed border-border/70 text-muted-foreground/50">
-                                <ImagePlus className="size-5" />
-                            </div>
-                            <p className="mt-4 text-sm text-foreground">选择一个角色</p>
-                            <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">左侧选择角色后，这里会显示面部、身体和道具参考图。</p>
-                        </div>
+                        <EmptyState className="flex-1 py-10" icon={<ImagePlus className="size-5" />} title="选择一个角色" description="左侧选择角色后，这里会显示面部、身体和道具参考图。" />
                     )}
                 </section>
             </div>
@@ -534,24 +528,8 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     ))}
                 </div>
             </Modal>
-            {deleteConfirmNode}
         </>
     );
-}
-
-function useElapsedSeconds(active: boolean) {
-    const [seconds, setSeconds] = useState(0);
-    useEffect(() => {
-        if (!active) {
-            setSeconds(0);
-            return;
-        }
-        const startedAt = Date.now();
-        setSeconds(0);
-        const timer = setInterval(() => setSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-        return () => clearInterval(timer);
-    }, [active]);
-    return seconds;
 }
 
 function PartSlot({ partKey, profile, selected, generating, onSelect, onGenerate }: {

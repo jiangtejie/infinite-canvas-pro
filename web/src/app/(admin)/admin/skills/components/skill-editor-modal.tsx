@@ -14,6 +14,7 @@ import { invalidateAgentSkillCache } from "@/stores/use-agent-skill-store";
 import { useUserStore } from "@/stores/use-user-store";
 
 import { buildSkillTree, compareSkillEntries, isSkillPathWithin, nextSkillEntrySort, normalizeSkillEntryName, replaceSkillPathPrefix, skillEntryParentPath, type SkillTreeNode } from "../skill-file-utils";
+import { errorMessage } from "@/lib/utils";
 
 export function SkillEditorModal({ editingSkill, onClose }: { editingSkill: Partial<AgentSkill> | null; onClose: () => void }) {
     const { message } = App.useApp();
@@ -43,7 +44,7 @@ export function SkillEditorModal({ editingSkill, onClose }: { editingSkill: Part
             await queryClient.invalidateQueries({ queryKey: ["admin", "agent-skills"] });
             message.success(skill.id ? "Skill 已保存" : "Skill 已新增");
         },
-        onError: (error) => message.error(error instanceof Error ? error.message : "保存失败"),
+        onError: (error) => message.error(errorMessage(error, "保存失败")),
     });
 
     useEffect(() => {

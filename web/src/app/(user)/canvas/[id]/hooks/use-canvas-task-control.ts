@@ -8,6 +8,7 @@ import { CanvasNodeType, type CanvasNodeData } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import type { CanvasNodeTaskRun } from "./use-canvas-tasks";
+import { errorMessage } from "@/lib/utils";
 
 type CanvasTaskHistoryRef = MutableRefObject<{ past: Array<{ nodes: CanvasNodeData[] }>; future: Array<{ nodes: CanvasNodeData[] }> }>;
 
@@ -67,7 +68,7 @@ export function useCanvasTaskControl({ nodeTaskRunsRef, nodesRef, historyRef, la
             pollingAudioNodeIdsRef.current.get(nodeId)?.abort();
             updateTaskNodes((prev) => prev.map((item) => ((item.id === nodeId && item.metadata?.clientTaskId === id && item.metadata?.status === "stopping") || (item.id === root?.id && item.metadata?.primaryImageId === nodeId && item.metadata.imageTaskId === root?.metadata?.imageTaskId && item.metadata.status === "stopping")) ? { ...item, metadata: { ...item.metadata, ...(item.metadata?.batchRootId ? { count: 1 } : {}), status: "stopped", durationMs: Date.now() - (item.metadata?.startedAt || Date.now()), errorDetails: undefined } } : item));
         } catch (error) {
-            const errorDetails = error instanceof Error ? error.message : "停止失败，请重试停止";
+            const errorDetails = errorMessage(error, "停止失败，请重试停止");
             onError(errorDetails);
             updateTaskNodes((prev) => prev.map((item) => (item.id === nodeId && item.metadata?.clientTaskId === id) || (item.id === root?.id && item.metadata?.primaryImageId === nodeId && item.metadata?.imageTaskId === root?.metadata?.imageTaskId && item.metadata.status === "stopping") ? { ...item, metadata: { ...item.metadata, errorDetails } } : item));
         } finally {

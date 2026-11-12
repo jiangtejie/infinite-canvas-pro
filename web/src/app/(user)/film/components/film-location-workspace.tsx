@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { App, Button, Input, Modal, Select } from "antd";
 import { ImagePlus, Library, MapPin, Plus, Trash2 } from "lucide-react";
 
+import { Field } from "@/components/ui/field";
+import { EmptyState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
 import type { FilmAsset, FilmAssetKind, FilmProject } from "@/lib/film/types";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
@@ -23,7 +25,7 @@ type FilmLocationWorkspaceProps = {
 
 export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGenerateView, onStopAsset, generatingAssetId }: FilmLocationWorkspaceProps) {
     const { message } = App.useApp();
-    const { confirmDelete, deleteConfirmNode } = useFilmDeleteConfirm();
+    const { confirmDelete } = useFilmDeleteConfirm();
     const locations = useMemo(() => project.locations || [], [project.locations]);
     const libraryLocations = useFilmCastStore((state) => state.locations);
     const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
@@ -160,14 +162,13 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-                        <div className="film-float grid size-12 place-items-center rounded-[10px] border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70">
-                            <MapPin className="size-5" />
-                        </div>
-                        <p className="mt-4 text-sm text-foreground">还没有场景</p>
-                        <p className="mt-1.5 text-xs leading-6 text-muted-foreground">先新建场景，再生成概念图。</p>
-                        <Button className="mt-4" size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createLocation}>新建第一个场景</Button>
-                    </div>
+                    <EmptyState
+                        className="flex-1 py-10"
+                        icon={<MapPin className="size-5" />}
+                        title="还没有场景"
+                        description="先新建场景，再生成概念图。"
+                        action={<Button size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createLocation}>新建第一个场景</Button>}
+                    />
                 )}
             </section>
 
@@ -185,16 +186,6 @@ export function FilmLocationWorkspace({ project, onUpdate, onGenerateAsset, onGe
                     ))}
                 </div>
             </Modal>
-            {deleteConfirmNode}
-        </div>
-    );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <div className="grid gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{label}</span>
-            {children}
         </div>
     );
 }

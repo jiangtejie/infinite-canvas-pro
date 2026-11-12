@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button, Segmented, Switch, Tooltip } from "antd";
 import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
 
@@ -9,6 +9,8 @@ import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type Ca
 import { useThemeStore } from "@/stores/use-theme-store";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
+import { CANVAS_Z } from "../[id]/lib/canvas-layer";
+import { useMenuNavigation } from "../utils/use-menu-navigation";
 
 export type CanvasAlignKind = "left" | "centerX" | "right" | "top" | "centerY" | "bottom";
 
@@ -98,7 +100,7 @@ export function CanvasToolbar({
     const dockRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLElement | null>(null);
-    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: `inset 0 1px 0 ${colorTheme === "dark" ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.55)"}, ${colorTheme === "dark" ? "0 18px 45px rgba(0,0,0,.32)" : "0 16px 40px rgba(28,25,23,.12)"}` };
+    const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: `inset 0 1px 0 ${colorTheme === "dark" ? "rgba(255,255,255,.06)" : "rgba(255,255,255,.55)"}, ${theme.shadow.panel}` };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
     const addItems: DockMenuItem[] = [
         { key: "text", label: "文本", icon: <Type className="size-4" />, onClick: onAddText },
@@ -165,47 +167,10 @@ export function CanvasToolbar({
         item.onClick();
     };
 
-    useEffect(() => {
-        if (!openMenu) return;
-        panelRef.current?.querySelector<HTMLElement>("[data-dock-item]")?.focus({ preventScroll: true });
-
-        const closeOnPointerDown = (event: PointerEvent) => {
-            const target = event.target;
-            if (!(target instanceof Element)) return;
-            if (target.closest("[data-canvas-dock-panel],[data-canvas-dock-trigger]")) return;
-            setOpenMenu(null);
-        };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key !== "Escape") return;
-            event.preventDefault();
-            setOpenMenu(null);
-            triggerRef.current?.focus({ preventScroll: true });
-        };
-
-        document.addEventListener("pointerdown", closeOnPointerDown, true);
-        document.addEventListener("keydown", closeOnEscape);
-        return () => {
-            document.removeEventListener("pointerdown", closeOnPointerDown, true);
-            document.removeEventListener("keydown", closeOnEscape);
-        };
-    }, [openMenu]);
-
-    const handlePanelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-dock-item]"));
-        if (!items.length) return;
-        const index = items.indexOf(document.activeElement as HTMLElement);
-        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            const offset = event.key === "ArrowDown" ? 1 : -1;
-            items[(index + offset + items.length) % items.length]?.focus();
-        } else if (event.key === "Home" || event.key === "End") {
-            event.preventDefault();
-            items[event.key === "Home" ? 0 : items.length - 1]?.focus();
-        }
-    };
+    const menuNavigation = useMenuNavigation({ open: openMenu !== null, onClose: () => setOpenMenu(null), panelRef, triggerRef, escapeScope: "document" });
 
     return (
-        <div data-canvas-no-zoom data-canvas-toolbar className="pointer-events-none absolute inset-x-2 z-50 flex justify-center md:left-[var(--canvas-toolbar-left)]" style={{ "--canvas-toolbar-left": `${sidePanelWidth + 16}px`, bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" } as CSSProperties}>
+        <div data-canvas-no-zoom data-canvas-toolbar className="pointer-events-none absolute inset-x-2 canvas-floating-toolbar flex justify-center md:left-[var(--canvas-toolbar-left)]" style={{ "--canvas-toolbar-left": `${sidePanelWidth + 16}px`, zIndex: CANVAS_Z.toolbar } as CSSProperties}>
             <div ref={dockRef} className="pointer-events-auto relative flex h-14 max-w-full items-center gap-1 rounded-xl border px-1.5 shadow-lg backdrop-blur max-sm:h-auto max-sm:flex-wrap max-sm:justify-center max-sm:gap-0 max-sm:gap-y-0.5 max-sm:px-0.5 max-sm:py-1 sm:px-2" style={dockStyle}>
                 <Tooltip title={shortcutTitle("选择", CANVAS_SHORTCUT_LABELS.select)} placement="top"><Button type="text" aria-label="选择" aria-pressed={canvasTool === "select"} className="!size-10 !min-w-10 !p-0" style={canvasTool === "select" ? activeStyle : { color: theme.toolbar.item }} icon={<MousePointer2 className="size-4.5" />} onClick={() => onCanvasToolChange("select")} /></Tooltip>
                 <Tooltip title={shortcutTitle("移动画布", CANVAS_SHORTCUT_LABELS.pan)} placement="top"><Button type="text" aria-label="移动画布" aria-pressed={canvasTool === "pan"} className="!size-10 !min-w-10 !p-0" style={canvasTool === "pan" ? activeStyle : { color: theme.toolbar.item }} icon={<Hand className="size-4.5" />} onClick={() => onCanvasToolChange("pan")} /></Tooltip>
@@ -246,7 +211,7 @@ export function CanvasToolbar({
                         aria-label={openMenu === "appearance" ? "画布外观" : openMenu === "align" ? "对齐与分组" : "工具菜单"}
                         className="absolute bottom-[calc(100%+12px)] z-10 rounded-2xl border p-1.5 text-sm shadow-2xl [@media(pointer:coarse)]:[&_[data-dock-item]]:min-h-10"
                         style={{ left: menuLeft, width: menuWidth, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, backdropFilter: "blur(14px)", ["--dock-hover" as string]: theme.toolbar.itemHover } as CSSProperties}
-                        onKeyDown={handlePanelKeyDown}
+                        onKeyDown={menuNavigation.handleKeyDown}
                     >
                         {openMenu === "appearance" ? (
                             <div className="px-1.5 pb-1.5 pt-1">

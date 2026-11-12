@@ -36,6 +36,7 @@ import {
     type CanvasAgentToolResult,
 } from "./canvas-agent-tools";
 import { canvasAgentActionReversible, canvasAgentActionRisk } from "./canvas-agent-registry";
+import { errorMessage } from "@/lib/utils";
 
 const MAX_AGENT_STEPS = 12;
 
@@ -189,7 +190,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
             try {
                 nativeActions = turn.toolCalls.map((toolCall) => normalizeCanvasAgentAction(toolCall.name, toolCall.arguments, toolCall.id));
             } catch (error) {
-                actionError = error instanceof Error ? error.message : "工具参数无效";
+                actionError = errorMessage(error, "工具参数无效");
             }
         }
         if (!actionError && expectedAction && !nativeActions.length && !parsedJson.actions.length) {
@@ -353,7 +354,7 @@ export async function executeActions(
                 result: {
                     ok: false,
                     code: error instanceof Error && error.name === "AbortError" ? "cancelled" : "tool_execution_failed",
-                    message: error instanceof Error ? error.message : "工具执行失败",
+                    message: errorMessage(error, "工具执行失败"),
                     audit: { actionId: action.id, risk: canvasAgentActionRisk(action.name), startedAt, durationMs: Date.now() - startedAt },
                 } satisfies CanvasAgentToolResult,
             };

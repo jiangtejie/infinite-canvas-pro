@@ -12,6 +12,7 @@ import { CanvasToolbar, type CanvasAlignKind } from "../../components/canvas-too
 import { type AssetPickerTab } from "../../components/asset-picker-modal";
 import { CanvasZoomControls } from "../../components/canvas-zoom-controls";
 import { CanvasBatchProgress } from "./canvas-batch-progress";
+import { CANVAS_Z } from "../lib/canvas-layer";
 import { CanvasNodeType, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type ContextMenuState, type Position } from "../../types";
 import type { CanvasSidePanelState } from "../../stores/use-canvas-store";
 import type { ViewportTransform } from "../../types";
@@ -228,7 +229,6 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onCrop={(node) => openOverlay({ kind: "crop", nodeId: node.id })}
                     onSplit={(node) => openOverlay({ kind: "split", nodeId: node.id })}
                     onUpscale={(node) => openOverlay({ kind: "upscale", nodeId: node.id })}
-                    onSuperResolve={(node) => openOverlay({ kind: "superResolve", nodeId: node.id })}
                     onAngle={(node) => openOverlay({ kind: "angle", nodeId: node.id })}
                     onViewImage={(node) => openOverlay({ kind: "preview", nodeId: node.id })}
                     onReversePrompt={createImageReversePromptNodes}
@@ -325,8 +325,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
 
                 {pendingPanoramaImport ? (
                     <div
-                        className="fixed left-1/2 top-1/2 z-[130] w-56 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border shadow-xl backdrop-blur"
-                        style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }}
+                        className="fixed left-1/2 top-1/2 w-56 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border shadow-xl backdrop-blur"
+                        style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, zIndex: CANVAS_Z.dialog }}
                         onMouseDown={(event) => event.stopPropagation()}
                         onPointerDown={(event) => event.stopPropagation()}
                     >

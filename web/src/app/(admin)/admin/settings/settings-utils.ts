@@ -1,7 +1,10 @@
+import type { FormInstance } from "antd";
+
 import { videoResolutionOptions } from "@/components/video-settings-panel";
 import { isWorkflowProtocol } from "@/lib/model-channel";
 import { modelChannelDefaultBaseUrls } from "@/lib/model-channel";
 import type { AdminModelChannel, AdminModelCost, AdminSettings, AdminStorageProvider } from "@/services/api/admin";
+import { errorMessage } from "@/lib/utils";
 
 export const emptySettings: AdminSettings = {
     public: {
@@ -43,40 +46,26 @@ export function normalizeSettings(settings: Partial<AdminSettings> = {}): AdminS
     };
 }
 
+/** 用 emptySettings 作为唯一默认值来源；JSON 编辑器粘贴部分字段时仍能补齐。 */
 export function normalizePublicSetting(setting: Partial<AdminSettings["public"]> = {}): AdminSettings["public"] {
+    const base = emptySettings.public;
+    const modelChannel: Partial<AdminSettings["public"]["modelChannel"]> = setting.modelChannel || {};
     return {
-        ...emptySettings.public,
+        ...base,
+        ...setting,
         modelChannel: {
-            ...emptySettings.public.modelChannel,
-            ...(setting.modelChannel || {}),
-            availableModels: setting.modelChannel?.availableModels || [],
-            availableWorkflows: setting.modelChannel?.availableWorkflows || [],
-            modelCosts: normalizeModelCosts(setting.modelChannel?.modelCosts || []),
-            channels: setting.modelChannel?.channels || [],
-            systemPrompts: {
-                ...emptySettings.public.modelChannel.systemPrompts,
-                image: setting.modelChannel?.systemPrompts?.image || setting.modelChannel?.systemPrompt || "",
-                video: setting.modelChannel?.systemPrompts?.video || "",
-                text: setting.modelChannel?.systemPrompts?.text || setting.modelChannel?.systemPrompt || "",
-                workflow: setting.modelChannel?.systemPrompts?.workflow || "",
-                workflowAgent: setting.modelChannel?.systemPrompts?.workflowAgent || "",
-            },
+            ...base.modelChannel,
+            ...modelChannel,
+            availableModels: modelChannel.availableModels || [],
+            availableWorkflows: modelChannel.availableWorkflows || [],
+            modelCosts: normalizeModelCosts(modelChannel.modelCosts || []),
+            channels: modelChannel.channels || [],
+            systemPrompts: { ...base.modelChannel.systemPrompts, ...modelChannel.systemPrompts },
         },
-        auth: {
-            allowRegister: setting.auth?.allowRegister !== false,
-        },
-        storage: {
-            mode: setting.storage?.mode || "local_indexeddb",
-            allowUserProvider: setting.storage?.allowUserProvider === true,
-        },
-        content: {
-            sourceParseEnabled: setting.content?.sourceParseEnabled !== false,
-        },
-        publish: {
-            configured: setting.publish?.configured === true,
-            mock: setting.publish?.mock === true,
-            publicBaseUrl: setting.publish?.publicBaseUrl || "",
-        },
+        auth: { ...base.auth, ...setting.auth },
+        storage: { ...base.storage, ...setting.storage },
+        content: { ...base.content, ...setting.content },
+        publish: { ...base.publish, ...setting.publish },
     };
 }
 
@@ -106,53 +95,40 @@ export function normalizeModelCosts(items: Partial<AdminSettings["public"]["mode
 }
 
 export function normalizePrivateSetting(setting: Partial<AdminSettings["private"]> = {}): AdminSettings["private"] {
+    const base = emptySettings.private;
+    const storage: Partial<AdminSettings["private"]["storage"]> = setting.storage || {};
     return {
+        ...base,
+        ...setting,
         channels: (setting.channels || []).map(normalizeChannel),
-        promptSync: {
-            enabled: setting.promptSync?.enabled !== false,
-            cron: setting.promptSync?.cron || "0 0 * * *",
-        },
+        promptSync: { ...base.promptSync, ...setting.promptSync },
         aiLog: {
-            localDirectReportEnabled: setting.aiLog?.localDirectReportEnabled === true,
+            ...base.aiLog,
+            ...setting.aiLog,
             cleanup: {
-                enabled: setting.aiLog?.cleanup?.enabled === true,
-                retentionDays: Number(setting.aiLog?.cleanup?.retentionDays) || 14,
-                cron: setting.aiLog?.cleanup?.cron || "0 3 * * *",
+                ...base.aiLog.cleanup,
+                ...setting.aiLog?.cleanup,
+                retentionDays: Number(setting.aiLog?.cleanup?.retentionDays) || base.aiLog.cleanup.retentionDays,
             },
         },
-        content: {
-            sourceParseEnabled: setting.content?.sourceParseEnabled !== false,
-        },
+        content: { ...base.content, ...setting.content },
         payment: {
-            lxPayServerUrl: setting.payment?.lxPayServerUrl || "",
-            lxPayAppId: setting.payment?.lxPayAppId || "",
-            lxPayAppSecret: setting.payment?.lxPayAppSecret || "",
-            lxPayNotifyUrl: setting.payment?.lxPayNotifyUrl || "",
-            lxPayApiV3Key: setting.payment?.lxPayApiV3Key || "",
-            lxPayPlatformCertPath: setting.payment?.lxPayPlatformCertPath || "",
-            lxPayTimeoutMs: Number(setting.payment?.lxPayTimeoutMs) || 10000,
-            lxPayMaxRetries: Number(setting.payment?.lxPayMaxRetries) || 3,
-            orderMinutes: Number(setting.payment?.orderMinutes) || 15,
+            ...base.payment,
+            ...setting.payment,
+            lxPayTimeoutMs: Number(setting.payment?.lxPayTimeoutMs) || base.payment.lxPayTimeoutMs,
+            lxPayMaxRetries: Number(setting.payment?.lxPayMaxRetries) || base.payment.lxPayMaxRetries,
+            orderMinutes: Number(setting.payment?.orderMinutes) || base.payment.orderMinutes,
         },
         storage: {
-            mode: setting.storage?.mode || "local_indexeddb",
-            allowUserProvider: setting.storage?.allowUserProvider === true,
-            allowUserGlobalProvider: setting.storage?.allowUserGlobalProvider === true,
-            autoSyncAllAssets: setting.storage?.autoSyncAllAssets === true,
-            providers: (setting.storage?.providers || []).map(normalizeStorageProvider),
-            roundRobinCursor: Number(setting.storage?.roundRobinCursor) || 0,
-            capacityCheck: {
-                enabled: setting.storage?.capacityCheck?.enabled === true,
-                cron: setting.storage?.capacityCheck?.cron || "0 */6 * * *",
-            },
-            capacityLimitBytes: Number(setting.storage?.capacityLimitBytes) || 9 * 1024 * 1024 * 1024,
+            ...base.storage,
+            ...storage,
+            allowUserGlobalProvider: storage.allowUserGlobalProvider === true,
+            providers: (storage.providers || []).map(normalizeStorageProvider),
+            roundRobinCursor: Number(storage.roundRobinCursor) || base.storage.roundRobinCursor,
+            capacityCheck: { ...base.storage.capacityCheck, ...storage.capacityCheck },
+            capacityLimitBytes: Number(storage.capacityLimitBytes) || base.storage.capacityLimitBytes,
         },
-        publish: {
-            publicBaseUrl: setting.publish?.publicBaseUrl || "",
-            douyinClientKey: setting.publish?.douyinClientKey || "",
-            douyinClientSecret: setting.publish?.douyinClientSecret || "",
-            douyinMock: setting.publish?.douyinMock === true,
-        },
+        publish: { ...base.publish, ...setting.publish },
     };
 }
 
@@ -206,7 +182,7 @@ export function modelCostCredits(items: AdminSettings["public"]["modelChannel"][
     return items.find((item) => item.model === model && (item.resolution || "") === resolution)?.credits || 0;
 }
 
-export function setModelCost(form: any, setModelCosts: (items: AdminModelCost[]) => void, model: string, credits: number, resolution = "", previousResolution = resolution) {
+export function setModelCost(form: FormInstance<AdminSettings>, setModelCosts: (items: AdminModelCost[]) => void, model: string, credits: number, resolution = "", previousResolution = resolution) {
     const current = (form.getFieldValue(["public", "modelChannel", "modelCosts"]) || []) as AdminSettings["public"]["modelChannel"]["modelCosts"];
     const next = current.filter((item) => item.model !== model || (item.resolution || "") !== previousResolution);
     next.push({ model, resolution, credits: Math.max(0, credits) });
@@ -214,13 +190,13 @@ export function setModelCost(form: any, setModelCosts: (items: AdminModelCost[])
     setModelCosts(next);
 }
 
-export function addModelResolutionCost(form: any, setModelCosts: (items: AdminModelCost[]) => void, model: string) {
+export function addModelResolutionCost(form: FormInstance<AdminSettings>, setModelCosts: (items: AdminModelCost[]) => void, model: string) {
     const current = (form.getFieldValue(["public", "modelChannel", "modelCosts"]) || []) as AdminModelCost[];
     const resolution = videoResolutionOptions.find((option) => !current.some((item) => item.model === model && item.resolution === option.value))?.value;
     if (resolution) setModelCost(form, setModelCosts, model, 0, resolution);
 }
 
-export function removeModelCost(form: any, setModelCosts: (items: AdminModelCost[]) => void, model: string, resolution: string) {
+export function removeModelCost(form: FormInstance<AdminSettings>, setModelCosts: (items: AdminModelCost[]) => void, model: string, resolution: string) {
     const current = (form.getFieldValue(["public", "modelChannel", "modelCosts"]) || []) as AdminModelCost[];
     const next = current.filter((item) => item.model !== model || item.resolution !== resolution);
     form.setFieldValue(["public", "modelChannel", "modelCosts"], next);
@@ -288,8 +264,8 @@ export function parseTabJson(tab: SettingsTabKey, value: string): AdminSettings[
     }
 }
 
-export async function collectSettings(form: any, editorMode: Record<SettingsTabKey, EditorMode>, jsonText: Record<SettingsTabKey, string>, message: { error: (value: string) => void }) {
-    const values = normalizeSettings(form.getFieldsValue(true) as AdminSettings);
+export async function collectSettings(form: FormInstance<AdminSettings>, editorMode: Record<SettingsTabKey, EditorMode>, jsonText: Record<SettingsTabKey, string>, message: { error: (value: string) => void }) {
+    const values = normalizeSettings(form.getFieldsValue(true));
     if (editorMode.public === "json") {
         const publicSetting = parseTabJson("public", jsonText.public);
         if (!publicSetting) {
@@ -308,8 +284,7 @@ export async function collectSettings(form: any, editorMode: Record<SettingsTabK
     }
     values.public.modelChannel.availableModels = filterModels(values.public.modelChannel.availableModels, collectChannelModels(values.private.channels));
     values.public.modelChannel.availableWorkflows = filterModels(values.public.modelChannel.availableWorkflows, collectChannelWorkflows(values.private.channels).map((item) => item.value));
-    values.public.modelChannel.systemPrompt = values.public.modelChannel.systemPrompts.image || values.public.modelChannel.systemPrompts.text || "";
-    return normalizeSettings(values);
+    return values;
 }
 
 export function getJsonError(value: string) {
@@ -317,6 +292,6 @@ export function getJsonError(value: string) {
         JSON.parse(value);
         return "";
     } catch (error) {
-        return error instanceof Error ? error.message : "JSON 格式不正确";
+        return errorMessage(error, "JSON 格式不正确");
     }
 }

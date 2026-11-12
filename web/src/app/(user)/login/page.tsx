@@ -9,6 +9,7 @@ import { Suspense, useEffect, useState } from "react";
 import { PunkAura } from "@/components/ui/punk-aura";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { errorMessage } from "@/lib/utils";
 
 type LoginFormValues = {
     username: string;
@@ -65,7 +66,7 @@ function LoginContent() {
             router.replace(redirect);
             router.refresh();
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "登录失败");
+            message.error(errorMessage(error, "登录失败"));
         }
     };
 

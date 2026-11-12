@@ -19,7 +19,6 @@ type UserStatusActionsProps = {
     accountOpen?: boolean;
     onAccountOpenChange?: (open: boolean) => void;
     accountRef?: RefObject<HTMLDivElement | null>;
-    getPopupContainer?: (node: HTMLElement) => HTMLElement;
 };
 
 const MENU_ROW = "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--canvas-topbar-hover,var(--accent))] focus-visible:bg-[var(--canvas-topbar-hover,var(--accent))] focus-visible:outline-none";

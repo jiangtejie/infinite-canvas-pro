@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Brain, FolderOpen, ImageIcon, Menu, Navigation, Square, Upload, Video } from "lucide-react";
 import { Button } from "antd";
 import { createPortal } from "react-dom";
@@ -9,7 +9,9 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAgentSkillSelection, type CanvasAssistantReference } from "../types";
+import { CANVAS_Z } from "../[id]/lib/canvas-layer";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
+import { useMenuNavigation } from "../utils/use-menu-navigation";
 import { CanvasAgentSkillPopover } from "./canvas-agent-skill-popover";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
 import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
@@ -62,31 +64,7 @@ export function CanvasAssistantComposer({
     const assetMenuRef = useRef<HTMLDivElement>(null);
     const assetMenuPanelRef = useRef<HTMLDivElement>(null);
     const canSend = isRunning || Boolean(prompt.trim());
-
-    useEffect(() => {
-        if (!assetMenuOpen) return;
-        const closeOnPointerDown = (event: PointerEvent) => {
-            const target = event.target;
-            if (target instanceof Node && (assetMenuRef.current?.contains(target) || assetMenuPanelRef.current?.contains(target))) return;
-            setAssetMenuOpen(false);
-        };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key !== "Escape") return;
-            event.preventDefault();
-            setAssetMenuOpen(false);
-        };
-        const closeOnViewportChange = () => setAssetMenuOpen(false);
-        document.addEventListener("pointerdown", closeOnPointerDown, true);
-        document.addEventListener("keydown", closeOnEscape);
-        window.addEventListener("resize", closeOnViewportChange);
-        window.addEventListener("scroll", closeOnViewportChange, true);
-        return () => {
-            document.removeEventListener("pointerdown", closeOnPointerDown, true);
-            document.removeEventListener("keydown", closeOnEscape);
-            window.removeEventListener("resize", closeOnViewportChange);
-            window.removeEventListener("scroll", closeOnViewportChange, true);
-        };
-    }, [assetMenuOpen]);
+    const assetMenuNavigation = useMenuNavigation({ open: assetMenuOpen, onClose: () => setAssetMenuOpen(false), panelRef: assetMenuPanelRef, ignoreRef: assetMenuRef, escapeScope: "document", closeOnViewportChange: true });
     const effectiveConfig = useEffectiveConfig();
     const reasoningEnabled = agentConfig.textReasoningEnabled === true;
     const imageConfig = useMemo(() => ({ ...effectiveConfig, quality: agentConfig.imageQuality, size: agentConfig.imageSize }), [agentConfig.imageQuality, agentConfig.imageSize, effectiveConfig]);
@@ -139,14 +117,15 @@ export function CanvasAssistantComposer({
                                       <div
                                           ref={assetMenuPanelRef}
                                           role="menu"
+                                          onKeyDown={assetMenuNavigation.handleKeyDown}
                                           className="w-40 overflow-hidden rounded-xl border p-1"
-                                          style={{ position: "fixed", zIndex: 1200, left: assetMenuPosition.left, top: assetMenuPosition.top, bottom: assetMenuPosition.bottom, background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: "0 12px 32px rgba(0,0,0,0.28)" }}
+                                          style={{ position: "fixed", zIndex: CANVAS_Z.popover, left: assetMenuPosition.left, top: assetMenuPosition.top, bottom: assetMenuPosition.bottom, background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: theme.shadow.float, "--canvas-menu-hover": theme.toolbar.itemHover } as CSSProperties}
                                       >
-                                          <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenUpload(); }}>
+                                          <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--canvas-menu-hover)]" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenUpload(); }}>
                                               <Upload className="size-4 shrink-0 opacity-70" />
                                               上传文件
                                           </button>
-                                          <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-white/5" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenAssets(); }}>
+                                          <button type="button" role="menuitem" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--canvas-menu-hover)]" style={{ color: theme.node.text }} onClick={() => { setAssetMenuOpen(false); onOpenAssets(); }}>
                                               <FolderOpen className="size-4 shrink-0 opacity-70" />
                                               我的素材
                                           </button>

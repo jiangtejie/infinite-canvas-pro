@@ -20,7 +20,7 @@ export function buildAiLogColumns({ onDetail }: { onDetail: (detail: AiLogDetail
             {
                 title: "操作",
                 key: "actions",
-                width: 180,
+                width: 240,
                 align: "center",
                 fixed: "right" as const,
                 render: (_: unknown, item: AdminAICallLog) => (

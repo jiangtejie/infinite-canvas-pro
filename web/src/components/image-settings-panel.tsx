@@ -281,8 +281,3 @@ function readSizeDimensions(size: string, fallback: { width: number; height: num
 function alignDimension(value: number, enabled: boolean) {
     return enabled ? Math.ceil(value / DIMENSION_STEP) * DIMENSION_STEP : value;
 }
-
-export function imageFormatLabel(format: string) {
-    const map: Record<string, string> = { png: "PNG", jpeg: "JPEG", webp: "WebP" };
-    return map[format] || format;
-}
