@@ -107,7 +107,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                     role="group"
                     aria-label={`素材图片轮播，第 ${safePreviewIndex + 1} 张，共 ${previewUrls.length} 张`}
                 >
-                    <img src={previewUrl} alt={title || "素材图片"} draggable={false} className="size-full object-cover" />
+                    <img src={previewUrl} alt={title || "素材图片"} draggable={false} className="size-full object-contain" />
                     {previewUrls.length > 1 ? (
                         <>
                             <button
