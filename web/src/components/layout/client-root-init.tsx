@@ -42,6 +42,25 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         void loadPublicSettings();
     }, [loadPublicSettings]);
 
+    // 公开配置可能在管理员保存、用户登录或页面长时间停留后变化；登录态和重新聚焦时刷新，
+    // 避免普通用户一直沿用旧的 allowUserRemoteChannel / allowCustomChannel。
+    useEffect(() => {
+        if (!token) return;
+        void loadPublicSettings();
+    }, [loadPublicSettings, token]);
+
+    useEffect(() => {
+        const refresh = () => {
+            if (document.visibilityState === "visible") void loadPublicSettings();
+        };
+        window.addEventListener("focus", refresh);
+        document.addEventListener("visibilitychange", refresh);
+        return () => {
+            window.removeEventListener("focus", refresh);
+            document.removeEventListener("visibilitychange", refresh);
+        };
+    }, [loadPublicSettings]);
+
     useEffect(() => {
         if (!isLoginPage) void hydrateUser();
     }, [hydrateUser, isLoginPage]);

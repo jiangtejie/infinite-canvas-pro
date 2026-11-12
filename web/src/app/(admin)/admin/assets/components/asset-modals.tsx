@@ -21,9 +21,10 @@ export function AssetEditorModal({
     onOk: () => void;
 }) {
     const formType = Form.useWatch("type", form) || editingAsset?.type || "text";
+    // Form 必须常驻挂载：Modal 关闭时内容不渲染，若 useForm 实例一直没有连接 Form，开发环境会报 "Instance created by useForm is not connected to any Form element"。
     return (
-            <Modal forceRender title={editingAsset?.id ? "编辑素材" : "新增素材"} open={Boolean(editingAsset)} width={760} onCancel={onCancel} onOk={onOk} okText="保存" cancelText="取消">
-                <Form form={form} layout="vertical" requiredMark={false}>
+            <Form form={form} component={false} layout="vertical" requiredMark={false}>
+                <Modal forceRender title={editingAsset?.id ? "编辑素材" : "新增素材"} open={Boolean(editingAsset)} width={760} onCancel={onCancel} onOk={onOk} okText="保存" cancelText="取消">
                     <Form.Item name="type" label="类型" rules={[{ required: true, message: "请选择类型" }]}>
                         <Select options={assetEditTypeOptions} />
                     </Form.Item>
@@ -51,8 +52,8 @@ export function AssetEditorModal({
                             <Input.TextArea rows={6} />
                         </Form.Item>
                     )}
-                </Form>
-            </Modal>
+                </Modal>
+            </Form>
     );
 }
 

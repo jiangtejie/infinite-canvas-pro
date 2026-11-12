@@ -39,6 +39,8 @@ import type { CanvasNodeData, CanvasNodeMetadata, CanvasPublishRecord } from "..
 export type CanvasPublishNodePanelProps = {
     node: CanvasNodeData;
     inputs: CanvasPublishInputs;
+    /** 画布缩放较低时切换为单列堆叠，避免双列在反缩放后过窄。 */
+    compact?: boolean;
     onChange: (patch: Partial<CanvasNodeMetadata>) => void;
     onClose: () => void;
 };
@@ -47,7 +49,7 @@ export type CanvasPublishNodePanelProps = {
  * 发布节点面板：直接编辑要发布的标题/正文/话题与图片（已选图可排序/移除，未选图折叠添加），
  * 转存图片、预检并生成抖音扫码发布二维码。
  */
-export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: CanvasPublishNodePanelProps) {
+export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange, onClose }: CanvasPublishNodePanelProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const { message } = App.useApp();
@@ -263,8 +265,8 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                 </div>
             ) : null}
 
-            <div className="mt-2 grid gap-2 md:grid-cols-[240px_minmax(0,1fr)]">
-                <div className="order-2 min-w-0 space-y-2 md:order-1">
+            <div className={`mt-2 grid gap-2 ${compact ? "" : "md:grid-cols-[240px_minmax(0,1fr)]"}`}>
+                <div className={`order-2 min-w-0 space-y-2 ${compact ? "" : "md:order-1"}`}>
                     <div className="rounded-[26px] border p-2" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
                         <div className="overflow-hidden rounded-[18px]" style={{ background: theme.canvas.background }}>
                             <div className="flex items-center justify-between px-3 pb-1 pt-2 text-[10px]" style={{ color: theme.node.placeholder }}>
@@ -385,7 +387,7 @@ export function CanvasPublishNodePanel({ node, inputs, onChange, onClose }: Canv
                     </div>
                 </div>
 
-                <div className="order-1 min-w-0 space-y-2 md:order-2">
+                <div className={`order-1 min-w-0 space-y-2 ${compact ? "" : "md:order-2"}`}>
                     <div className="space-y-2 rounded-xl border p-2.5" style={sectionStyle}>
                         <div className="text-xs font-semibold">发布内容</div>
                 <Input size="small" value={draftTitle} maxLength={PUBLISH_TITLE_LIMIT} showCount disabled={locked} placeholder="发布标题（不超过 20 个字）" style={inputStyle} onChange={(event) => updateDraft({ title: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />

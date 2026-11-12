@@ -30,9 +30,10 @@ export function UserEditorModal({
     onOk: () => void;
     onAdjustCredits: () => void;
 }) {
+    // Form 必须常驻挂载：Modal 关闭时内容不渲染，若 useForm 实例一直没有连接 Form，开发环境会报 "Instance created by useForm is not connected to any Form element"。
     return (
-            <Modal forceRender title={editingUser?.id ? "编辑用户" : "新增用户"} open={Boolean(editingUser)} width={680} onCancel={onCancel} onOk={onOk} okText="保存" cancelText="取消">
-                <Form form={form} layout="vertical" requiredMark={false}>
+            <Form form={form} component={false} layout="vertical" requiredMark={false}>
+                <Modal forceRender title={editingUser?.id ? "编辑用户" : "新增用户"} open={Boolean(editingUser)} width={680} onCancel={onCancel} onOk={onOk} okText="保存" cancelText="取消">
                     <Typography.Text strong>基础信息</Typography.Text>
                     <Row gutter={14}>
                         <Col xs={24} sm={12}>
@@ -84,8 +85,8 @@ export function UserEditorModal({
                             </Row>
                         </>
                     ) : null}
-                </Form>
-            </Modal>
+                </Modal>
+            </Form>
     );
 }
 

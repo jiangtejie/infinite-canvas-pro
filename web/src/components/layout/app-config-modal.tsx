@@ -477,6 +477,24 @@ export function AppConfigModal() {
                             <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">配置与项目保存在本机浏览器；登录后可切换云端渠道（按算力点计费）、云同步项目与素材。</p>
                         </div>
                     ) : null}
+                    {isLoggedIn && publicSettings && !canUseRemoteChannel ? (
+                        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                            <div className="font-medium">当前账号未开放云端渠道</div>
+                            <div className="mt-0.5 opacity-90">只能使用本地直连。请联系管理员开启「允许普通用户使用云端渠道」并保存设置。</div>
+                        </div>
+                    ) : null}
+                    {isLoggedIn && publicSettings && canUseRemoteChannel && Number(user?.credits || 0) <= 0 ? (
+                        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                            <div className="font-medium">当前算力点为 0</div>
+                            <div className="mt-0.5 opacity-90">云端渠道按算力点计费，生成前请先充值或联系管理员调整算力点。</div>
+                        </div>
+                    ) : null}
+                    {isLoggedIn && publicSettings && canUseRemoteChannel && allowCustomChannel && effectiveMode === "local" ? (
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/25 px-3 py-2.5 text-xs">
+                            <span className="text-muted-foreground">云端渠道已开放，当前仍在本地直连模式。</span>
+                            <Button size="small" onClick={() => updateConfig("channelMode", "remote")}>切换到云端渠道</Button>
+                        </div>
+                    ) : null}
                     <div className="sticky top-0 z-10 -mx-1 mb-4 flex flex-wrap gap-1 rounded-lg border border-border bg-background/95 p-1 backdrop-blur">
                         {CONFIG_SECTIONS.map((item) => (
                             <Button key={item.id} size="small" type="text" onClick={() => document.getElementById("config-section-" + item.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}>

@@ -5,15 +5,14 @@ import { Button, Col, Flex, Form, Input, InputNumber, Row, Select, Space, Table 
 
 import { videoResolutionOptions } from "@/components/video-settings-panel";
 import { isWorkflowProtocol } from "@/lib/model-channel";
-
-import { addModelResolutionCost, emptySettings, modelCostCredits, removeModelCost, setModelCost } from "../settings-utils";
+import { addModelResolutionCost, emptySettings, isPermissionChange, modelCostCredits, removeModelCost, setModelCost } from "../settings-utils";
 import type { AdminSettingsController } from "../use-admin-settings";
 import { AdminSettingsSection, AdminSettingsSwitchRow } from "./settings-section";
 
 export function AdminSettingsPublicConfig({ settings }: { settings: AdminSettingsController }) {
     const { form, channelModels, publicModelLabel, channelWorkflows, publicModels, modelCosts, setModelCosts, orderedPublicModels, publicVideoModels, publicWorkflows, channels } = settings;
     return (
-        <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false}>
+        <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false} onValuesChange={(changedValues) => { if (isPermissionChange(changedValues)) settings.autoSavePermissions(); }}>
             <Flex vertical gap={12}>
                 <AdminSettingsSection title="可用模型与工作流" description="先决定平台开放哪些模型和工作流，再设置默认项；公开配置会暴露给前端读取。">
                     <Row gutter={[16, 4]}>
@@ -152,3 +151,4 @@ export function AdminSettingsPublicConfig({ settings }: { settings: AdminSetting
         </Form>
     );
 }
+

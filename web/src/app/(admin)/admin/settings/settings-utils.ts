@@ -80,6 +80,27 @@ export function normalizePublicSetting(setting: Partial<AdminSettings["public"]>
     };
 }
 
+type PermissionChangeValues = {
+    public?: {
+        modelChannel?: {
+            allowCustomChannel?: boolean;
+            allowUserRemoteChannel?: boolean;
+        };
+        auth?: {
+            allowRegister?: boolean;
+        };
+    };
+};
+
+/** 只关心三个权限开关的变化，避免其他字段编辑触发自动保存。 */
+export function isPermissionChange(changedValues: PermissionChangeValues) {
+    return (
+        changedValues.public?.modelChannel?.allowCustomChannel !== undefined ||
+        changedValues.public?.modelChannel?.allowUserRemoteChannel !== undefined ||
+        changedValues.public?.auth?.allowRegister !== undefined
+    );
+}
+
 export function normalizeModelCosts(items: Partial<AdminSettings["public"]["modelChannel"]["modelCosts"][number]>[]) {
     return items.filter((item) => item.model).map((item) => ({ model: item.model || "", resolution: item.resolution || "", credits: Math.max(0, Number(item.credits) || 0) }));
 }

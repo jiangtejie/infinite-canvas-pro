@@ -63,9 +63,12 @@ export function CanvasPublishNodeCard({ node, imageCount, images = [], onOpen }:
         return (
             <div className="flex h-full w-full flex-col gap-2.5 p-4 text-left" style={{ color: theme.node.text }}>
                 <div className="flex min-h-0 flex-1 gap-3">
-                    <div className="h-full w-[180px] shrink-0 overflow-hidden rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke }}>
+                    <div className="relative h-full w-[180px] shrink-0 overflow-hidden rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke }}>
                         {firstImage ? (
-                            <img src={firstImage.image.dataUrl} alt={firstImage.title} draggable={false} className="size-full object-cover" />
+                            <>
+                                <img src={firstImage.image.dataUrl} alt="" aria-hidden draggable={false} className="pointer-events-none absolute inset-0 size-full scale-110 object-cover opacity-25 blur-xl" />
+                                <img src={firstImage.image.dataUrl} alt={firstImage.title} draggable={false} className="relative size-full object-contain" />
+                            </>
                         ) : (
                             <div className="flex size-full flex-col items-center justify-center gap-1.5 px-3 text-center">
                                 <ImageIcon className="size-6" style={{ color: theme.node.muted }} />

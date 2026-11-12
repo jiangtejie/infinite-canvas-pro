@@ -15,6 +15,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const [previewIndex, setPreviewIndex] = useState(0);
+    const [previewFailed, setPreviewFailed] = useState(false);
     const status = node.metadata?.sourceStatus || "idle";
     const parsing = node.metadata?.sourceParsing === true;
     const images = (node.metadata?.sourceImages || []).filter((image) => Boolean(image.url));
@@ -33,6 +34,10 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
     useEffect(() => {
         setPreviewIndex(0);
     }, [node.id, previewKey]);
+
+    useEffect(() => {
+        setPreviewFailed(false);
+    }, [node.id, previewKey, safePreviewIndex]);
 
     if (parsing && !hasData) {
         return (
@@ -102,12 +107,33 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
 
             {previewUrls.length ? (
                 <div
-                    className="relative min-h-0 flex-1 overflow-hidden rounded-lg"
-                    style={{ background: theme.toolbar.activeBg }}
+                    className="relative min-h-0 flex-1 overflow-hidden rounded-lg outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{ background: theme.toolbar.activeBg, outlineColor: theme.node.activeStroke }}
                     role="group"
+                    tabIndex={0}
                     aria-label={`素材图片轮播，第 ${safePreviewIndex + 1} 张，共 ${previewUrls.length} 张`}
+                    onKeyDown={(event) => {
+                        if (previewUrls.length < 2) return;
+                        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setPreviewIndex((current) => {
+                            const safe = Math.min(current, previewUrls.length - 1);
+                            return event.key === "ArrowLeft" ? (safe - 1 + previewUrls.length) % previewUrls.length : (safe + 1) % previewUrls.length;
+                        });
+                    }}
                 >
-                    <img src={previewUrl} alt={title || "素材图片"} draggable={false} className="size-full object-contain" />
+                    {!previewFailed ? (
+                        <img src={previewUrl} alt="" aria-hidden draggable={false} className="pointer-events-none absolute inset-0 size-full scale-110 object-cover opacity-25 blur-xl" />
+                    ) : null}
+                    {previewFailed ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center">
+                            <CircleAlert className="size-5" style={{ color: token.colorError }} />
+                            <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>图片加载失败，打开面板重新解析</span>
+                        </div>
+                    ) : (
+                        <img src={previewUrl} alt={title || "素材图片"} draggable={false} className="relative size-full object-contain" onError={() => setPreviewFailed(true)} />
+                    )}
                     {previewUrls.length > 1 ? (
                         <>
                             <button
@@ -141,6 +167,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                             <span
                                 className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px] tabular-nums"
                                 style={{ background: theme.toolbar.panel, color: theme.node.text }}
+                                aria-live="polite"
                             >
                                 {safePreviewIndex + 1} / {previewUrls.length}
                             </span>

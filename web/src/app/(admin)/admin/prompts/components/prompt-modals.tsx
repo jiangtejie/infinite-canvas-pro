@@ -20,9 +20,10 @@ export function PromptEditorModal({
     onCancel: () => void;
     onOk: () => void;
 }) {
+    // Form 必须常驻挂载：Modal 关闭时内容不渲染，若 useForm 实例一直没有连接 Form，开发环境会报 "Instance created by useForm is not connected to any Form element"。
     return (
-            <Modal forceRender title={editingPrompt?.id ? "编辑提示词" : "新增提示词"} open={Boolean(editingPrompt)} width={720} onCancel={onCancel} onOk={onOk} okText="保存" cancelText="取消">
-                <Form form={form} layout="vertical" requiredMark={false}>
+            <Form form={form} component={false} layout="vertical" requiredMark={false}>
+                <Modal forceRender title={editingPrompt?.id ? "编辑提示词" : "新增提示词"} open={Boolean(editingPrompt)} width={720} onCancel={onCancel} onOk={onOk} okText="保存" cancelText="取消">
                     <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
                         <Input />
                     </Form.Item>
@@ -38,8 +39,8 @@ export function PromptEditorModal({
                     <Form.Item name="prompt" label="提示词" rules={[{ required: true, message: "请输入提示词" }]}>
                         <Input.TextArea rows={6} />
                     </Form.Item>
-                </Form>
-            </Modal>
+                </Modal>
+            </Form>
     );
 }
 

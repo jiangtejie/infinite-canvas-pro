@@ -324,6 +324,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         key={panelNode.id}
                                         node={panelNode}
                                         inputs={publishInputsById.get(panelNode.id) || { text: "", textNodeIds: [], images: [] }}
+                                        compact={viewport.k < 0.62}
                                         onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
                                         onClose={() => closeOverlay()}
                                     />

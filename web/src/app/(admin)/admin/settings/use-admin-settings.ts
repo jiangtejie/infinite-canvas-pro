@@ -1,7 +1,7 @@
 "use client";
 
 import { App, Form } from "antd";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAutoDLWorkflowNames } from "@/hooks/use-autodl-workflow";
 import { isWorkflowProtocol, modelChannelApiKeyUrls } from "@/lib/model-channel";
@@ -37,6 +37,9 @@ export function useAdminSettings() {
     const token = useUserStore((state) => state.token);
     const { message } = App.useApp();
     const [form] = Form.useForm<AdminSettings>();
+    const settingsRef = useRef<AdminSettings | null>(null);
+    const savingRef = useRef(false);
+    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [activeTab, setActiveTab] = useState<SettingsTabKey>("public");
     const [editorMode, setEditorMode] = useState<Record<SettingsTabKey, EditorMode>>({ public: "visual", private: "visual" });
     const [jsonText, setJsonText] = useState<Record<SettingsTabKey, string>>({ public: "", private: "" });
@@ -88,6 +91,7 @@ export function useAdminSettings() {
         setIsLoading(true);
         try {
             const data = normalizeSettings(await fetchAdminSettings(token));
+            settingsRef.current = data;
             form.setFieldsValue(data);
             setChannels(data.private.channels);
             setModelCosts(data.public.modelChannel.modelCosts);
@@ -106,6 +110,10 @@ export function useAdminSettings() {
     useEffect(() => {
         void loadSettings();
     }, [loadSettings]);
+
+    useEffect(() => () => {
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    }, []);
 
     useEffect(() => {
         if (!token) return;
@@ -145,17 +153,21 @@ export function useAdminSettings() {
     };
 
     const saveSettings = async () => {
-        if (!token) return;
-        const values = await collectSettings(form, editorMode, jsonText, message);
-        if (!values) {
-            return;
+        if (!token || savingRef.current) return;
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+            autoSaveTimerRef.current = null;
         }
+        savingRef.current = true;
         setIsSaving(true);
         try {
+            const values = await collectSettings(form, editorMode, jsonText, message);
+            if (!values) return;
             const saved = normalizeSettings(await saveAdminSettings(token, values));
             clearImageStorageConfigCache();
             clearMediaStorageConfigCache();
             const merged = mergeChannelApiKeys(values.private.channels, saved);
+            settingsRef.current = merged;
             form.setFieldsValue(merged);
             setChannels(merged.private.channels);
             setModelCosts(merged.public.modelChannel.modelCosts);
@@ -168,9 +180,65 @@ export function useAdminSettings() {
         } catch (error) {
             message.error(error instanceof Error ? error.message : "保存失败");
         } finally {
+            savingRef.current = false;
             setIsSaving(false);
         }
     };
+
+    /** 权限开关自动保存：300ms 防抖；保存中再次触发会排队，避免与手动保存并发。 */
+    const autoSavePermissions = () => {
+        if (!token) return;
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => {
+            autoSaveTimerRef.current = null;
+            if (savingRef.current) {
+                autoSavePermissions();
+                return;
+            }
+            void runAutoSavePermissions();
+        }, 300);
+    };
+
+    async function runAutoSavePermissions() {
+        if (!token || savingRef.current) return;
+        savingRef.current = true;
+        try {
+            const snapshot = settingsRef.current;
+            let values: AdminSettings;
+            if (snapshot) {
+                // 权限开关只自动保存当前公开配置。私有配置使用最近一次已加载/保存的快照，
+                // 避免私有页未挂载时默认值覆盖渠道、密钥等真实配置。
+                const current = normalizeSettings(form.getFieldsValue(true) as AdminSettings);
+                current.private = snapshot.private;
+                current.public.modelChannel.availableModels = filterModels(current.public.modelChannel.availableModels, collectChannelModels(current.private.channels));
+                current.public.modelChannel.availableWorkflows = filterModels(current.public.modelChannel.availableWorkflows, collectChannelWorkflows(current.private.channels).map((item) => item.value));
+                current.public.modelChannel.systemPrompt = current.public.modelChannel.systemPrompts.image || current.public.modelChannel.systemPrompts.text || "";
+                values = normalizeSettings(current);
+            } else {
+                const collected = await collectSettings(form, editorMode, jsonText, message);
+                if (!collected) return;
+                values = collected;
+            }
+            const saved = normalizeSettings(await saveAdminSettings(token, values));
+            clearImageStorageConfigCache();
+            clearMediaStorageConfigCache();
+            const merged = mergeChannelApiKeys(values.private.channels, saved);
+            settingsRef.current = merged;
+            form.setFieldsValue({ public: merged.public });
+            setChannels(merged.private.channels);
+            setModelCosts(merged.public.modelChannel.modelCosts);
+            rememberKnownModels(merged);
+            setJsonText((current) => ({
+                ...current,
+                public: JSON.stringify(merged.public, null, 2),
+            }));
+            message.success("权限已自动保存");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "权限自动保存失败");
+        } finally {
+            savingRef.current = false;
+        }
+    }
 
     const toggleMode = (tab: SettingsTabKey, nextMode: EditorMode) => {
         if (nextMode === "json") {
@@ -385,6 +453,7 @@ export function useAdminSettings() {
         isLoading,
         isSaving,
         saveSettings,
+        autoSavePermissions,
         channels,
         setChannels,
         channelForm,

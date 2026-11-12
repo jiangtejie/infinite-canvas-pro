@@ -152,9 +152,11 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
                         <div className="text-[11px] leading-5" style={{ color: token.colorWarning }}>{node.metadata.sourceWarnings.join("；")}</div>
                     ) : null}
                     {previewUrls.length ? (
-                        <div className="grid grid-cols-4 gap-1.5">
+                        <div className="grid grid-cols-3 gap-1.5">
                             {previewUrls.map((url, index) => (
-                                <img key={`${url}-${index}`} src={url} alt="" draggable={false} className="h-16 w-full rounded-md object-cover" />
+                                <div key={`${url}-${index}`} className="overflow-hidden rounded-md" style={{ background: theme.toolbar.activeBg }}>
+                                    <img src={url} alt="" draggable={false} className="h-24 w-full object-contain" />
+                                </div>
                             ))}
                         </div>
                     ) : null}

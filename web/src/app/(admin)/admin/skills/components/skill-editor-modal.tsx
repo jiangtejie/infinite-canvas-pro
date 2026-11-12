@@ -209,9 +209,10 @@ export function SkillEditorModal({ editingSkill, onClose }: { editingSkill: Part
         onClose();
     };
 
+    // Form 必须常驻挂载：Modal 关闭时内容不渲染，若 useForm 实例一直没有连接 Form，开发环境会报 "Instance created by useForm is not connected to any Form element"。
     return (
-            <Modal forceRender title={editingSkill?.id ? "编辑 Skill" : "新增 Skill"} open={Boolean(editingSkill)} width={1120} footer={null} onCancel={onClose}>
-                <Form form={form} layout="vertical" requiredMark={false}>
+            <Form form={form} component={false} layout="vertical" requiredMark={false}>
+                <Modal forceRender title={editingSkill?.id ? "编辑 Skill" : "新增 Skill"} open={Boolean(editingSkill)} width={1120} footer={null} onCancel={onClose}>
                     <Form.Item name="coverUrl" hidden><Input /></Form.Item>
                     <Form.Item name="coverStorageKey" hidden><Input /></Form.Item>
                     <Form.Item name="content" hidden><Input /></Form.Item>
@@ -352,7 +353,7 @@ export function SkillEditorModal({ editingSkill, onClose }: { editingSkill: Part
                             <Input.TextArea value={selectedContent} count={{ max: AGENT_SKILL_CONTENT_MAX_LENGTH, strategy: (value) => Array.from(value).length, show: ({ count, maxLength }) => `${count} / ${maxLength}`, exceedFormatter: (value, { max }) => Array.from(value).slice(0, max).join("") }} classNames={{ root: "min-h-0 flex-1" }} styles={{ root: { height: "100%" }, textarea: { height: "100%", resize: "none" } }} onChange={(event) => setSelectedContent(event.target.value)} />
                         </div>
                     </div>
-                </Form>
-            </Modal>
+                </Modal>
+            </Form>
     );
 }
