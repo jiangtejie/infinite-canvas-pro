@@ -36,7 +36,7 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
     };
 
     return (
-        <Drawer title="导航" placement="left" size={280} open={open} onClose={onClose} className="md:hidden" styles={{ body: { paddingTop: 8 } }}>
+        <Drawer title="导航" placement="left" size={280} open={open} onClose={onClose} styles={{ body: { paddingTop: 8 } }}>
             <div className="space-y-1.5">
                 {navigationSections.map((section) => {
                     const tools: readonly NavigationTool[] = "children" in section ? section.children : [section];

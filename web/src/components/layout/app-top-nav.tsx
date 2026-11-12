@@ -67,11 +67,36 @@ export function AppTopNav() {
         }, 140);
     }, [cancelCloseTimer]);
 
+    const moveSectionFocus = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+        const links = Array.from(sectionRef.current?.querySelectorAll<HTMLElement>("a") || []);
+        if (!links.length) return;
+        event.preventDefault();
+        const current = links.indexOf(document.activeElement as HTMLElement);
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        const next = event.key === "Home" ? 0
+            : event.key === "End" ? links.length - 1
+            : current === -1 ? (step === 1 ? 0 : links.length - 1)
+            : (current + step + links.length) % links.length;
+        links[next].focus();
+    }, []);
+
     useEffect(() => {
         closeSection();
     }, [pathname, closeSection]);
 
     useEffect(() => cancelCloseTimer, [cancelCloseTimer]);
+
+    // 抽屉只在 md 以下可用，而 antd 的遮罩和 body 滚动锁挂在 open 上，不受面板样式影响；
+    // 跨到桌面宽度必须主动关闭，否则整页会被一层看不见点的遮罩盖住且无法滚动。
+    useEffect(() => {
+        const media = window.matchMedia("(min-width: 48rem)");
+        const closeOnDesktop = () => {
+            if (media.matches) setMobileNavOpen(false);
+        };
+        closeOnDesktop();
+        media.addEventListener("change", closeOnDesktop);
+        return () => media.removeEventListener("change", closeOnDesktop);
+    }, []);
 
     // 下拉展开时点击导航外部或按 Esc 收起，Esc 回到触发按钮。
     // 外部判定挂在常驻的 nav 上：点击另一个板块的触发按钮属于导航内部，交给它自己的 onClick 切换，
@@ -127,11 +152,12 @@ export function AppTopNav() {
                             </button>
 
                             <nav ref={navRef} className="hidden h-full min-w-0 items-center gap-3 md:flex" aria-label="主站导航">
-                                {navigationSections.map((section) => {
+                                {navigationSections.map((section, index) => {
                                     if ("children" in section) {
                                         const Icon = section.icon;
                                         const sectionActive = section.children.some((child) => child.slug === activeToolSlug);
                                         const isOpen = openSectionKey === section.label;
+                                        const panelId = `nav-section-panel-${index}`;
                                         return (
                                             <div
                                                 key={section.label}
@@ -146,12 +172,22 @@ export function AppTopNav() {
                                                 onBlur={(event) => {
                                                     if (isOpen && !event.currentTarget.contains(event.relatedTarget as Node | null)) closeSection();
                                                 }}
+                                                onKeyDown={(event) => {
+                                                    if (!isOpen) {
+                                                        if (event.key !== "ArrowDown") return;
+                                                        event.preventDefault();
+                                                        openSection(section.label, true);
+                                                        return;
+                                                    }
+                                                    if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Home" || event.key === "End") moveSectionFocus(event);
+                                                }}
                                             >
                                                 <button
                                                     ref={isOpen ? sectionTriggerRef : undefined}
                                                     type="button"
                                                     aria-haspopup="true"
                                                     aria-expanded={isOpen}
+                                                    aria-controls={isOpen ? panelId : undefined}
                                                     onClick={(event) => {
                                                         if (isOpen) closeSection();
                                                         else openSection(section.label, event.detail === 0);
@@ -168,7 +204,7 @@ export function AppTopNav() {
                                                     <ChevronDown className={cn("size-3 shrink-0 transition-transform duration-200", isOpen && "rotate-180")} />
                                                 </button>
                                                 {isOpen ? (
-                                                    <div className="absolute left-0 top-full z-40 w-56 rounded-xl border border-border/80 bg-background/95 p-1.5 shadow-[0_28px_60px_-30px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
+                                                    <div id={panelId} className="absolute left-0 top-full z-40 w-56 rounded-xl border border-border/80 bg-background/95 p-1.5 shadow-[0_28px_60px_-30px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
                                                         {section.children.map((child) => {
                                                             const ChildIcon = child.icon;
                                                             const active = child.slug === activeToolSlug;

@@ -32,13 +32,15 @@ export function AnnouncementBanner() {
         };
     }, [visible]);
 
+    // 依赖 slide.index：手动点选后重新计时，否则刚选中的那条会被马上到点的自动轮播顶掉。
     useEffect(() => {
         if (!visible || paused || ANNOUNCEMENTS.length < 2) return;
         const timer = window.setInterval(() => {
+            if (document.visibilityState !== "visible") return;
             setSlide((current) => ({ index: (current.index + 1) % ANNOUNCEMENTS.length, direction: "right" }));
         }, 5000);
         return () => window.clearInterval(timer);
-    }, [paused, visible]);
+    }, [paused, visible, slide.index]);
 
     if (!visible || !ANNOUNCEMENTS.length) return null;
 

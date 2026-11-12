@@ -19,11 +19,13 @@ export function FilterTagGroup({ label, options, isSelected, onSelect, className
     collapsedCount?: number;
 }) {
     const [expanded, setExpanded] = useState(false);
-    const visibleOptions = collapsible && !expanded ? options.slice(0, collapsedCount) : options;
+    const optionValue = (option: FilterTagOption) => (typeof option === "string" ? option : option.value);
+    // 折叠时额外保留选中项：否则生效中的筛选会随标签一起被藏起来，界面上看不出还在过滤。
+    const visibleOptions = collapsible && !expanded ? options.filter((option, index) => index < collapsedCount || isSelected(optionValue(option))) : options;
     const hiddenCount = options.length - visibleOptions.length;
 
     const tags = visibleOptions.map((option) => {
-        const value = typeof option === "string" ? option : option.value;
+        const value = optionValue(option);
         const text = typeof option === "string" ? option : option.label;
         return (
             <span

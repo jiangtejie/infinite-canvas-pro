@@ -3,6 +3,23 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 导航与全局 UI 缺陷第二轮（抽屉遮罩 / 公告计时 / 折叠标签 / 选择器列数 / 下拉键盘）
+
+- 移动端导航抽屉：`app-top-nav.tsx` 增加 `matchMedia("(min-width: 48rem)")` 监听，跨到桌面宽度时关闭抽屉；移除 `mobile-nav-drawer.tsx` 上的 `className="md:hidden"`。该 class 落在 `.ant-drawer-section`，被 antd cssinjs 的 `display:flex` 覆盖（同特异性、注入更晚）从未生效，且没有断点变化时关闭抽屉的逻辑：窄屏打开抽屉后拉宽到桌面，全屏遮罩仍 `pointer-events:auto` 盖住整页，`body`/`html` 的 `overflow:hidden` 滚动锁也不释放。
+- 公告条：轮播 interval 依赖加入 `slide.index`，手动点选指示器后重新计时，不再被马上到点的自动轮播顶掉；回调内跳过 `document.visibilityState !== "visible"`，标签页隐藏时不切换。
+- 折叠标签组：`filter-tag-group.tsx` 折叠态除前 `collapsedCount` 个外额外保留选中项，`hiddenCount` 相应减少；此前选中第 15 个之后的标签再收起，筛选仍生效但界面上看不到任何选中项。
+- 素材选择器：`asset-picker-modal.tsx` 两处卡片网格由固定 `grid-cols-4` 改为 `grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`，窄屏不再把卡片压到约 65px。
+- 导航下拉键盘：面板加稳定 `id` 与触发按钮 `aria-controls`（仅展开时挂载）；收起时 ArrowDown 展开并聚焦首项，展开时 ArrowDown/ArrowUp/Home/End 在子项间移动并循环。未加 `role="menu"`，保留链接可 Tab 的现有语义。
+- 验证：`bun run typecheck`、`bun run lint`（0 warning）、`bun test`（65 文件 368 条）通过。用隐藏 iframe 探针实测（内置浏览器面板未开、主页面 `innerWidth` 为 0，iframe 有独立视口）：900px 下 `.ant-drawer-section` 已不带 `md:hidden`；下拉键盘全链路通过——ArrowDown 展开且 `aria-controls` 指向存在的面板（4 个子项）、ArrowDown 移到第二项、End 到末项、末项再 ArrowDown 回到首项、Esc 收起并回焦触发按钮。首页在 320/375/768/1024/1440 五档宽度下 `scrollWidth` 均等于视口宽，无横向溢出。
+- 未实测：断点关闭抽屉依赖 `matchMedia` 的 `change` 事件，Chrome 把它挂在渲染更新上，隐藏帧里 `matches` 随视口翻转但 `change` 不派发，该路径只按代码与 antd/rc-drawer 源码核实；公告计时、折叠标签、选择器列数同受隐藏帧限制，未做运行时断言。
+
+需验证：
+- 抽屉：窄屏（<768px）打开导航抽屉后拉宽窗口到桌面，抽屉应自动收起、遮罩消失、页面恢复滚动与点击；再拉回窄屏可重新打开。
+- 公告条：在第 4~5 秒点选指示器，选中条目应稳定停留约 5 秒再轮播；切到别的标签页再回来不应已经跳过多条；悬停与键盘聚焦仍暂停轮播；关闭后刷新不再出现。
+- 折叠标签：素材库标签超过 14 个时，选中靠后的标签再点「收起」，该标签仍可见且保持选中，「展开更多 +N」计数相应减少。
+- 素材选择器：手机宽度两列、平板三列、桌面四列，标题与类型标签不挤压。
+- 导航下拉键盘：Tab 到板块触发按钮，ArrowDown 展开并聚焦首项，方向键/Home/End 移动，Esc 收起回焦；鼠标 hover 与键盘操作混用不冲突。
+
 ## 素材模块收敛与导航下拉切换修复
 
 - 画布素材逻辑收敛：新增 `canvas/lib/canvas-asset-query.ts`，统一插入载荷映射、我的素材筛选分页与素材库查询；`asset-picker-modal.tsx` 418 → 195 行、`canvas-side-panel.tsx` 574 → 532 行，卡片 UI、拖拽与主题未动。弹窗新增表单改用共享 `AssetFormModal`，素材库补失败重试态，删除永不渲染的 inserting spinner。

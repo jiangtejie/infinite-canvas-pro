@@ -104,7 +104,7 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
             ) : query.isError ? (
                 <ErrorState className="py-12" description={errorMessage(query.error, "获取素材库失败，请稍后重试。")} onRetry={() => void query.refetch()} />
             ) : items.length ? (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {items.map((asset) => (
                         <PickerCard key={asset.id} title={asset.title} kind={asset.type} cover={asset.coverUrl} onClick={() => onInsert(libraryInsertPayload(asset))} />
                     ))}
@@ -169,7 +169,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
             <AssetFilters categories={categories} tags={availableTags} category={category} selectedTags={tags} onCategoryChange={setCategory} onTagsChange={setTags} />
 
             {items.length ? (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {items.map((asset) => (
                         <PickerCard
                             key={asset.id}
