@@ -4,7 +4,7 @@ import { ChevronDown, Menu } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { navigationSections, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { AnnouncementBanner } from "@/components/layout/announcement-banner";
@@ -22,6 +22,7 @@ export function AppTopNav() {
     const pathname = usePathname();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [openSectionKey, setOpenSectionKey] = useState<string | null>(null);
+    const navRef = useRef<HTMLElement>(null);
     const sectionRef = useRef<HTMLDivElement>(null);
     const sectionTriggerRef = useRef<HTMLButtonElement>(null);
     const closeTimerRef = useRef<number | null>(null);
@@ -39,19 +40,50 @@ export function AppTopNav() {
         ? (slug as NavigationToolSlug)
         : undefined;
 
-    useEffect(() => {
-        setOpenSectionKey(null);
-    }, [pathname]);
+    const cancelCloseTimer = useCallback(() => {
+        if (closeTimerRef.current === null) return;
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+    }, []);
 
-    // 下拉展开时点击外部或按 Esc 收起，Esc 回到触发按钮。
+    const closeSection = useCallback(() => {
+        cancelCloseTimer();
+        setOpenSectionKey(null);
+    }, [cancelCloseTimer]);
+
+    const openSection = useCallback((key: string, focusFirst = false) => {
+        cancelCloseTimer();
+        setOpenSectionKey(key);
+        if (focusFirst) window.requestAnimationFrame(() => sectionRef.current?.querySelector<HTMLElement>("a")?.focus());
+    }, [cancelCloseTimer]);
+
+    // 选中子项后面板卸载，浏览器会补发一次 pointerleave；延时关闭必须只作用于触发它的板块，
+    // 否则这个迟到的关闭会把随后打开的另一个板块一起关掉，表现为菜单切不过去。
+    const scheduleCloseSection = useCallback((key: string) => {
+        cancelCloseTimer();
+        closeTimerRef.current = window.setTimeout(() => {
+            closeTimerRef.current = null;
+            setOpenSectionKey((current) => (current === key ? null : current));
+        }, 140);
+    }, [cancelCloseTimer]);
+
+    useEffect(() => {
+        closeSection();
+    }, [pathname, closeSection]);
+
+    useEffect(() => cancelCloseTimer, [cancelCloseTimer]);
+
+    // 下拉展开时点击导航外部或按 Esc 收起，Esc 回到触发按钮。
+    // 外部判定挂在常驻的 nav 上：点击另一个板块的触发按钮属于导航内部，交给它自己的 onClick 切换，
+    // 不依赖 pointerdown 先关闭再 click 打开的事件顺序。
     useEffect(() => {
         if (!openSectionKey) return;
         const onPointerDown = (event: PointerEvent) => {
-            if (!sectionRef.current?.contains(event.target as Node)) setOpenSectionKey(null);
+            if (!navRef.current?.contains(event.target as Node)) closeSection();
         };
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key !== "Escape") return;
-            setOpenSectionKey(null);
+            closeSection();
             sectionTriggerRef.current?.focus();
         };
         document.addEventListener("pointerdown", onPointerDown);
@@ -60,18 +92,7 @@ export function AppTopNav() {
             document.removeEventListener("pointerdown", onPointerDown);
             document.removeEventListener("keydown", onKeyDown);
         };
-    }, [openSectionKey]);
-
-    const openSection = (key: string, focusFirst = false) => {
-        if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-        setOpenSectionKey(key);
-        if (focusFirst) window.requestAnimationFrame(() => sectionRef.current?.querySelector<HTMLElement>("a")?.focus());
-    };
-
-    const scheduleCloseSection = () => {
-        if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
-        closeTimerRef.current = window.setTimeout(() => setOpenSectionKey(null), 140);
-    };
+    }, [openSectionKey, closeSection]);
 
     return (
         <>
@@ -105,7 +126,7 @@ export function AppTopNav() {
                                 <Menu className="size-5" />
                             </button>
 
-                            <nav className="hidden h-full min-w-0 items-center gap-3 md:flex" aria-label="主站导航">
+                            <nav ref={navRef} className="hidden h-full min-w-0 items-center gap-3 md:flex" aria-label="主站导航">
                                 {navigationSections.map((section) => {
                                     if ("children" in section) {
                                         const Icon = section.icon;
@@ -120,10 +141,10 @@ export function AppTopNav() {
                                                     if (event.pointerType === "mouse") openSection(section.label);
                                                 }}
                                                 onPointerLeave={(event) => {
-                                                    if (event.pointerType === "mouse") scheduleCloseSection();
+                                                    if (event.pointerType === "mouse") scheduleCloseSection(section.label);
                                                 }}
                                                 onBlur={(event) => {
-                                                    if (isOpen && !event.currentTarget.contains(event.relatedTarget as Node | null)) setOpenSectionKey(null);
+                                                    if (isOpen && !event.currentTarget.contains(event.relatedTarget as Node | null)) closeSection();
                                                 }}
                                             >
                                                 <button
@@ -132,7 +153,7 @@ export function AppTopNav() {
                                                     aria-haspopup="true"
                                                     aria-expanded={isOpen}
                                                     onClick={(event) => {
-                                                        if (isOpen) setOpenSectionKey(null);
+                                                        if (isOpen) closeSection();
                                                         else openSection(section.label, event.detail === 0);
                                                     }}
                                                     className={cn(
@@ -156,7 +177,7 @@ export function AppTopNav() {
                                                                     key={child.slug}
                                                                     href={`/${child.slug}`}
                                                                     aria-current={active ? "page" : undefined}
-                                                                    onClick={() => setOpenSectionKey(null)}
+                                                                    onClick={closeSection}
                                                                     className={cn(
                                                                         "flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
                                                                         active
@@ -183,6 +204,7 @@ export function AppTopNav() {
                                             key={section.slug}
                                             href={`/${section.slug}`}
                                             aria-current={active ? "page" : undefined}
+                                            onClick={closeSection}
                                             className={cn(
                                                 navItemClass,
                                                 active
