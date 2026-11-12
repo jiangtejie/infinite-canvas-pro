@@ -115,13 +115,14 @@ export default function AssetLibraryPage() {
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
                 <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
                     <PageHeader
-                        eyebrow="团队素材库"
+                        eyebrow="公共素材库"
                         title="素材库"
-                        description="挑选团队沉淀的文本、图片与视频，加入我的素材后即可在画布继续编辑。"
+                        description="管理员维护的只读公共素材，覆盖文本、图片、视频与音频。收进「我的素材」后才能编辑、上传和跨设备同步。"
                         meta={
                             <>
                                 <span className="chip chip-acid">{total} 条素材</span>
                                 <span className="chip">{categories.length} 个分类</span>
+                                <span className="chip">只读 · 管理员维护</span>
                             </>
                         }
                         actions={<Button className="max-sm:!h-10" href="/assets">返回我的素材</Button>}
@@ -223,8 +224,9 @@ export default function AssetLibraryPage() {
             <AssetDetailDrawer
                 detail={selectedAsset ? toAssetDetail(selectedAsset) : null}
                 onClose={() => setSelectedAsset(null)}
+                extraActionsPrimary
                 extraActions={selectedAsset ? (
-                    <Button icon={<FolderPlus className="size-4" />} onClick={() => void saveToMyAssets(selectedAsset)}>
+                    <Button type="primary" icon={<FolderPlus className="size-4" />} onClick={() => void saveToMyAssets(selectedAsset)}>
                         加入我的素材
                     </Button>
                 ) : null}

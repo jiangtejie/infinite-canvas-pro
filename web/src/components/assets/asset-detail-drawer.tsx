@@ -31,7 +31,7 @@ export type AssetDetailModel = {
 };
 
 /** 我的素材 / 素材库共用详情抽屉：两页只负责把数据映射成 AssetDetailModel 并补「加入我的素材」动作。 */
-export function AssetDetailDrawer({ detail, onClose, extraActions }: { detail: AssetDetailModel | null; onClose: () => void; extraActions?: ReactNode }) {
+export function AssetDetailDrawer({ detail, onClose, extraActions, extraActionsPrimary = false }: { detail: AssetDetailModel | null; onClose: () => void; extraActions?: ReactNode; extraActionsPrimary?: boolean }) {
     const copyText = useCopyText();
     const copySuccessText = detail?.textContent ? "文本已复制" : "链接已复制";
     const copy = detail?.copyValue ? () => copyText(detail.copyValue!, copySuccessText) : undefined;
@@ -106,16 +106,17 @@ export function AssetDetailDrawer({ detail, onClose, extraActions }: { detail: A
                     {detail.description ? <p className="text-xs leading-6 text-muted-foreground">{detail.description}</p> : null}
 
                     <div className="flex flex-wrap gap-2 pt-1">
+                        {extraActionsPrimary ? extraActions : null}
                         {detail.downloadUrl ? (
-                            <Button type="primary" icon={<Download className="size-4" />} onClick={() => saveAs(detail.downloadUrl!, detail.downloadFileName || "asset")}>
+                            <Button type={extraActionsPrimary ? "default" : "primary"} icon={<Download className="size-4" />} onClick={() => saveAs(detail.downloadUrl!, detail.downloadFileName || "asset")}>
                                 {detail.actionLabel || "下载"}
                             </Button>
                         ) : copy ? (
-                            <Button type="primary" icon={<Copy className="size-4" />} onClick={copy}>
+                            <Button type={extraActionsPrimary ? "default" : "primary"} icon={<Copy className="size-4" />} onClick={copy}>
                                 {detail.actionLabel || "复制"}
                             </Button>
                         ) : null}
-                        {extraActions}
+                        {extraActionsPrimary ? null : extraActions}
                     </div>
                 </div>
             ) : null}
