@@ -3,6 +3,25 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 高收益缺陷修复（调度 / 发布转码 / 登录态 / legacy 字段）
+
+本轮修掉 5 处已确认缺陷，均为局部改动，不含重构：
+
+- 后台调度：`main.go` 补 `StartStorageCapacityScheduler()` 与 `StartAILogCleanupScheduler()`。此前两者只在保存设置时通过 `Refresh*` 生效，服务重启后若不保存设置，容量探测与 AI 日志清理都不会运行。
+- 发布图片转码：`canvas/[id]/lib/canvas-publish.ts` 的 `canvasImageBlob()` 读到 Blob 后，非 JPG/PNG（WebP、GIF 等）在浏览器内用 canvas 转码为 JPG（质量 0.92，先铺白底避免透明区域变黑），解析或转码失败给出明确文案；`publishImageFileName()` 只产出 jpg/png。后端 `service/publish_media.go` 文件名正则收紧为 `jpg|png`，删除 `publishImageMimeType` 的 webp/gif/bmp 死分支与 `image/gif` 解码导入。
+- 影视角色部位：`film-character-workspace.tsx` 进度文字由写死 `/6` 改为 `info.total`（实际 5 项），空态文案改为按 `CHARACTER_PART_DEFINITIONS` 拼接，不再出现不存在的「中段」。
+- legacy 系统提示词字段：删除 `model/setting.go` 的 `PublicModelChannelSetting.SystemPrompt` 与 `service/settings.go` 两处 `firstNonEmpty` 回填（image/text 直接取默认提示词）；同步删除 `services/api/admin.ts` 类型字段、后台 `settings-utils.ts` 默认值，以及 `use-config-store.ts` 里 `systemPrompt: modelChannel.systemPrompt` 的公共配置覆盖。行为变化：后台旧单字段不再在每次加载公共配置时把用户本地填写的系统提示词覆盖为空。
+- 登录态持久化：`use-user-store.ts` 的 persist `partialize` 增加 `user`。冷启动 `/auth/me` 网络失败时保留已持久化用户，`/account`、`/asset-library` 不再误跳登录；401/403 仍清登录态。
+
+需验证：
+- 后端重启且不保存任何设置：开启存储容量探测与 AI 日志清理后按配置 cron 到点执行，容量超限 provider 自动停用，日志按保留期清理。
+- 发布：WebP/GIF 图片节点连到发布节点后能转存成功、预检通过、`publicBaseUrl` 回源可访问；透明背景图转码后为白底不变黑；JPG/PNG 原图不被二次编码；转码失败有明确提示。
+- 影视：角色部位补齐后进度显示 5/5 且环满；未选角色时空态文案为「面部 → 发型 → 上身 → 下身 → 四肢」。
+- 后台设置：公开配置保存与读取正常，系统提示词四个分区与 workflowAgent 的生效路径不变；旧库遗留的 `systemPrompt` 值不再影响前台。
+- 前台配置：在配置弹窗填写本地「系统提示词」后刷新页面、切换渠道模式，填写内容不再被清空；生图/视频/Agent 仍按本地提示词调用。
+- 登录态：登录后断网刷新 `/account`、`/asset-library` 能进入并显示已有用户信息；token 过期（401/403）仍跳登录；退出登录后本地不残留 user。
+- 验证：`go build ./...`、`bun run typecheck`、`bun run lint`（max-warnings=0）、`bun test`（65 文件 368 条）全部通过；后端改动需重启后端，上述交互项仍需人工验收。
+
 ## 前端 UI review 第二轮：收尾清理（第四批）
 
 本轮以「等价重构 + 打通数据」为主，只有少数交互是有意变化：
@@ -22,7 +41,7 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 后台：token 过期或非管理员访问后台接口会自动清登录并跳登录；四个列表页筛选/分页/刷新/增删改查正常；设置页手动保存、三个权限开关自动保存、渠道增删改后回填正常。
 - 画布：5 类菜单的开合、↑↓/Home/End、Esc 回焦、点外关闭；右键菜单 Esc 仍会同时触发画布清理；双击/连线创建菜单点外关闭；助手 Codex 菜单点外关闭；缩放菜单点百分比后收起；浅/深色下工具条与菜单阴影、底部浮层位置与改前一致。
 - 影视：互动分支新增/编辑/删除、分支总览与预演试走正常；含旧 `branch` 字段的备份导入后该分支不再生效（符合预期）。
-- 登录态：断网刷新不会被踢成未登录（但冷启动网络失败时受保护页仍会跳登录，属已知限制）；登录后账号配置同步失败顶部出现一次 warning，重复失败不叠加。
+- 登录态：断网刷新不会被踢成未登录（冷启动网络失败时受保护页跳登录的限制已在最新一批修复）；登录后账号配置同步失败顶部出现一次 warning，重复失败不叠加。
 
 ## 前端 UI review 第二轮：结构收敛（第三批）
 

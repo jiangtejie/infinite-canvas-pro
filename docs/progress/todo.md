@@ -40,11 +40,10 @@ description: 当前项目后续值得处理的事项
 
 剩余（低收益或有前置依赖）：
 
-- 【后端】设置页 legacy `SystemPrompt` 字段（`service/settings.go:105,234-241`）仍在，前端已不写；清空系统提示词时后端可能回填旧值，建议下次删 Go 字段。
+- 【配置】后台公开配置「系统提示词」的 image / video / text / workflow 四项前端未消费：生成链路读的是本地配置 `config.systemPrompts.*`（回退 `config.systemPrompt`），只有 `workflowAgent` 在后端 `service/workflow_agent.go` 生效。需先定产品意图（管理员统一推送 vs 用户本地自填），再决定是否把公共提示词接入 `resolveEffectiveConfig`；legacy 单字段已删除，不再覆盖用户本地提示词。
 - 【影视】`characterMasterImages` 的「无档案回退主图」不是纯旧数据兼容，而是「生成角色卡时自动先生成全身图」流程依赖（含 cardSignature 视觉标记），需配套重构后再删。
 - 【画布】素材选择器与侧栏素材 Tab 两套实现；z-index 档位未合并（合并会改遮挡，需专门回归）；`canvas/page.tsx` 与侧栏的派生 state useEffect。
 - 【生图/视频】Kling 面板 TEXT 字典/Section/OptionGrid/参考图条与共享实现视觉/文案不同，统一需先定设计；生成失败/删除流程仍有三套，可抽页面私有 hook。
-- 【账户】冷启动 `/auth/me` 网络失败时 token 会保留但 user 未持久化，受保护页仍跳登录（需持久化 user 或调整 layout 判定）。
 - 【通用】localforage 写失败静默降级 localStorage 的读写不对称仍保留（风险高，单独评估）；导演台工具栏收纳需产品确认。
 
 ## 当前排期

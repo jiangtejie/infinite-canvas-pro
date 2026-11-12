@@ -81,7 +81,8 @@ export const useUserStore = create<UserStore>()(
         }),
         {
             name: AUTH_TOKEN_KEY,
-            partialize: (state) => ({ token: state.token }),
+            // user 一并持久化：/auth/me 网络失败时，受保护页仍能用已有登录态渲染而不是跳登录。
+            partialize: (state) => ({ token: state.token, user: state.user }),
             onRehydrateStorage: () => (state) => {
                 if (state) state.isReady = false;
             },

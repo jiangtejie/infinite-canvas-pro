@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"image"
-	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"net/http"
@@ -26,7 +25,7 @@ const (
 )
 
 var (
-	publishMediaNamePattern  = regexp.MustCompile("^[a-f0-9]{32}\\.(?:jpg|jpeg|png|webp|gif|bmp)$")
+	publishMediaNamePattern  = regexp.MustCompile("^[a-f0-9]{32}\\.(?:jpg|png)$")
 	publishMediaCleanupState = struct {
 		sync.Mutex
 		lastRun time.Time
@@ -136,16 +135,10 @@ func publishImageExtension(contentType string) string {
 
 func publishImageMimeType(extension string) string {
 	switch strings.ToLower(extension) {
-	case ".jpg", ".jpeg":
+	case ".jpg":
 		return "image/jpeg"
 	case ".png":
 		return "image/png"
-	case ".webp":
-		return "image/webp"
-	case ".gif":
-		return "image/gif"
-	case ".bmp":
-		return "image/bmp"
 	default:
 		return "application/octet-stream"
 	}

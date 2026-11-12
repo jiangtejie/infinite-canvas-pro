@@ -270,7 +270,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                                 <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border)" strokeWidth="3" />
                                                 <circle cx="18" cy="18" r="15" fill="none" stroke="var(--acid)" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${Math.max(0, Math.min(1, ratio)) * 94} 94`} />
                                             </svg>
-                                            <span className="font-mono text-[8px] text-muted-foreground/80">{info.done}/6</span>
+                                            <span className="font-mono text-[8px] text-muted-foreground/80">{info.done}/{info.total}</span>
                                         </span>
                                     </button>
                                 );
@@ -311,7 +311,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                             className="flex-1 py-10"
                             icon={<UserRound className="size-5" />}
                             title="还没有角色"
-                            description="新建角色后按「面部 → 发型 → 上身 → 中段 → 下身 → 四肢」逐块补齐参考。"
+                            description={`新建角色后按「${CHARACTER_PART_DEFINITIONS.map((part) => part.label).join(" → ")}」逐块补齐参考。`}
                             action={<Button size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createCharacter}>新建第一个角色</Button>}
                         />
                     ) : (

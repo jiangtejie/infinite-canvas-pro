@@ -172,13 +172,13 @@ export function publishQrExpired(record?: CanvasPublishRecord, now = Date.now())
     return Number.isFinite(time) ? time <= now : false;
 }
 
-/** 把画布图片节点内容读成 Blob，供发布媒体转存上传使用。 */
+/** 把画布图片节点内容读成 Blob，并统一为抖音发布支持的 JPG/PNG。 */
 export async function canvasImageBlob(image: { url?: string; storageKey?: string }): Promise<Blob> {
     const storageKey = image.storageKey || "";
     const { getImageBlob, getProxyUrl, resolveImageUrl } = await import("@/services/image-storage");
     if (storageKey.startsWith("image:")) {
         const blob = await getImageBlob(storageKey).catch(() => null);
-        if (blob) return blob;
+        if (blob) return publishImageBlob(blob);
     }
     const resolved = await resolveImageUrl(storageKey, image.url || "");
     const target = resolved || image.url || "";
@@ -187,11 +187,32 @@ export async function canvasImageBlob(image: { url?: string; storageKey?: string
         throw new Error("图片读取失败，请检查网络后重试");
     });
     if (!response.ok) throw new Error(`图片读取失败：${response.status}`);
-    return response.blob();
+    return publishImageBlob(await response.blob());
+}
+
+/** 后端发布转存只接受 JPG/PNG，WebP、GIF 等格式在浏览器内转码，避免上传被拒。 */
+async function publishImageBlob(blob: Blob): Promise<Blob> {
+    if (blob.type === "image/jpeg" || blob.type === "image/png") return blob;
+    const bitmap = await createImageBitmap(blob).catch(() => {
+        throw new Error("图片格式无法解析，请改用 JPG/PNG 后重试");
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("图片转码失败，请改用 JPG/PNG 后重试");
+    // JPEG 没有透明通道，先铺白底，避免透明区域转码后变黑。
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const converted = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+    if (!converted) throw new Error("图片转码失败，请改用 JPG/PNG 后重试");
+    return converted;
 }
 
 export function publishImageFileName(title: string, mimeType: string, index: number) {
-    const ext = mimeType.includes("jpeg") ? "jpg" : mimeType.includes("webp") ? "webp" : mimeType.includes("gif") ? "gif" : mimeType.includes("bmp") ? "bmp" : "png";
+    const ext = mimeType.includes("png") ? "png" : "jpg";
     const base = (title || "image").replace(/[\\/:*?"<>|\s]+/g, "-").slice(0, 24) || "image";
     return `${base}-${index + 1}.${ext}`;
 }

@@ -17,7 +17,6 @@ export const emptySettings: AdminSettings = {
             defaultImageModel: "",
             defaultVideoModel: "",
             defaultTextModel: "",
-            systemPrompt: "",
             systemPrompts: { image: "", video: "", text: "", workflow: "", workflowAgent: "" },
             allowCustomChannel: true,
             allowUserRemoteChannel: false,
