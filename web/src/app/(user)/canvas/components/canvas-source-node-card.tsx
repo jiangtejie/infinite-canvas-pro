@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleAlert, FileText, Link2, LoaderCircle } from "lucide-react";
-import { theme as antdTheme } from "antd";
+import { theme as antdTheme, Tooltip } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -19,7 +19,6 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
     const coverUrl = node.metadata?.sourceCoverUrl || "";
     const title = node.metadata?.sourceTitle || "";
     const text = node.metadata?.sourceText || "";
-    const tags = (node.metadata?.sourceTags || []).filter((tag) => Boolean(tag?.trim()));
     const author = node.metadata?.sourceAuthor || "";
     const stats = node.metadata?.sourceStats;
     const hasData = Boolean(title.trim() || text.trim() || images.length || coverUrl.trim());
@@ -64,7 +63,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
     }
 
     return (
-        <div className="flex h-full w-full flex-col gap-1.5 p-4 text-left" style={{ color: theme.node.text }}>
+        <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden p-4 text-left" style={{ color: theme.node.text }}>
             <div className="flex min-w-0 items-start gap-2">
                 <Link2 className="mt-0.5 size-4 shrink-0" style={{ color: theme.node.muted }} />
                 <div className="min-w-0 flex-1">
@@ -77,26 +76,33 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                         </div>
                     ) : null}
                 </div>
-                {parsing ? <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin" style={{ color: theme.node.activeStroke }} /> : null}
+                <div className="flex shrink-0 items-center gap-1.5">
+                    {node.metadata?.sourceError ? (
+                        <Tooltip title={node.metadata.sourceError}>
+                            <CircleAlert className="size-4" style={{ color: token.colorError }} />
+                        </Tooltip>
+                    ) : null}
+                    {node.metadata?.sourceWarnings?.length ? (
+                        <Tooltip title={node.metadata.sourceWarnings.join("；")}>
+                            <CircleAlert className="size-4" style={{ color: token.colorWarning }} />
+                        </Tooltip>
+                    ) : null}
+                    {parsing ? <LoaderCircle className="size-4 animate-spin" style={{ color: theme.node.activeStroke }} /> : null}
+                </div>
             </div>
 
             {previewUrls.length ? (
-                <div className={`grid h-[150px] shrink-0 gap-1.5 ${previewUrls.length === 1 ? "grid-cols-1" : previewUrls.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                <div className={`grid min-h-0 flex-1 gap-1.5 ${previewUrls.length === 1 ? "grid-cols-1" : previewUrls.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
                     {previewUrls.slice(0, 3).map((url, index) => (
-                        <img key={`${url}-${index}`} src={url} alt="" draggable={false} className="size-full rounded-lg object-cover" />
+                        <img key={`${url}-${index}`} src={url} alt="" draggable={false} className="size-full min-h-0 rounded-lg object-cover" />
                     ))}
                 </div>
             ) : (
-                <div className="flex h-[112px] shrink-0 flex-col items-center justify-center gap-1.5 rounded-lg border" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-lg border" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
                     <FileText className="size-5" style={{ color: theme.node.muted }} />
                     <span className="text-[11px]" style={{ color: theme.node.placeholder }}>文字素材，无图片</span>
                 </div>
             )}
-
-            {node.metadata?.sourceError ? <div className="line-clamp-1 text-[11px] leading-4" style={{ color: token.colorError }}>{node.metadata.sourceError}</div> : null}
-            {text ? <p className="m-0 line-clamp-2 whitespace-pre-wrap break-words text-xs leading-5" style={{ color: theme.node.muted }}>{text}</p> : null}
-            {tags.length ? <div className="line-clamp-1 text-[11px]" style={{ color: token.colorLink }}>{tags.slice(0, 6).map((tag) => `#${tag.replace(/^#+/, "")}`).join(" ")}</div> : null}
-            {node.metadata?.sourceWarnings?.length ? <div className="line-clamp-1 text-[11px] leading-4" style={{ color: token.colorWarning }}>{node.metadata.sourceWarnings.join("；")}</div> : null}
 
             <div className="mt-auto flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-[11px]" style={{ color: theme.node.muted }}>
