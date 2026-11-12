@@ -41,6 +41,7 @@ description: 当前项目后续值得处理的事项
 剩余（低收益或有前置依赖）：
 
 - 【配置】后台公开配置「系统提示词」的 image / video / text / workflow 四项前端未消费：生成链路读的是本地配置 `config.systemPrompts.*`（回退 `config.systemPrompt`），只有 `workflowAgent` 在后端 `service/workflow_agent.go` 生效。需先定产品意图（管理员统一推送 vs 用户本地自填），再决定是否把公共提示词接入 `resolveEffectiveConfig`；legacy 单字段已删除，不再覆盖用户本地提示词。
+- 【后端测试】`go test ./handler/` 的 `TestModelProtocolChannelFlow` 与 `TestParameterTranslationChannelFlow` 共 22 个子测试失败，属既有测试基建缺陷：契约测试用 `blockProtocolNetwork` 把 `http.DefaultTransport` 换成函数型 RoundTripper，但 AI 代理客户端走 `service/settings.go:489` 的 `outboundHTTPTransport()`，其中 `http.DefaultTransport.(*http.Transport)` 断言失败后会新建真实 transport，mock 被绕过；真实 transport 的 `resolveOutboundProxy` 在环境变量为空时回落 Windows 注册表系统代理，请求真的发往 `upstream.invalid` 并 EOF（清空 `HTTP(S)_PROXY`、设 `NO_PROXY=*` 均无效；无系统代理的机器则变成 DNS 失败）。修法：`outboundHTTPTransport` 在 DefaultTransport 不是 `*http.Transport` 时直接复用该 RoundTripper，或给契约测试提供 client/transport 注入点；改动涉及生产出网路径，需回归真实渠道调用与代理行为。
 - 【影视】`characterMasterImages` 的「无档案回退主图」不是纯旧数据兼容，而是「生成角色卡时自动先生成全身图」流程依赖（含 cardSignature 视觉标记），需配套重构后再删。
 - 【画布】素材选择器与侧栏素材 Tab 两套实现；z-index 档位未合并（合并会改遮挡，需专门回归）；`canvas/page.tsx` 与侧栏的派生 state useEffect。
 - 【生图/视频】Kling 面板 TEXT 字典/Section/OptionGrid/参考图条与共享实现视觉/文案不同，统一需先定设计；生成失败/删除流程仍有三套，可抽页面私有 hook。
