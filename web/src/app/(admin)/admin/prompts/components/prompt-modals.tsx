@@ -1,7 +1,7 @@
 "use client";
 
 import { CopyOutlined } from "@ant-design/icons";
-import { Button, Flex, Form, Image, Input, Modal, Select, Space, Table, Tag, Typography, type FormInstance } from "antd";
+import { Button, Drawer, Flex, Form, Image, Input, Modal, Select, Space, Table, Tag, Typography, type FormInstance } from "antd";
 
 import { useCopyText } from "@/hooks/use-copy-text";
 import type { AdminPromptCategory } from "@/services/api/admin";
@@ -44,7 +44,7 @@ export function PromptEditorModal({
     );
 }
 
-export function PromptDetailModal({
+export function PromptDetailDrawer({
     detailPrompt,
     categories,
     onClose,
@@ -56,37 +56,48 @@ export function PromptDetailModal({
     const copyText = useCopyText();
     const categoryName = (category: string) => categories.find((item) => item.category === category)?.name || category;
     return (
-            <Modal title="提示词详情" open={Boolean(detailPrompt)} width={760} onCancel={onClose} footer={<Button onClick={() => onClose()}>关闭</Button>}>
-                {detailPrompt ? (
-                    <Flex vertical gap={14}>
-                        <Flex gap={14} align="start">
-                            <Image src={detailPrompt.coverUrl || "/logo.svg"} alt={detailPrompt.title} width={116} height={84} style={{ objectFit: "cover", borderRadius: 8 }} preview={{ mask: "放大" }} fallback="/logo.svg" />
-                            <Flex vertical gap={8} style={{ minWidth: 0 }}>
-                                <Typography.Title level={5} style={{ margin: 0 }}>
-                                    {detailPrompt.title}
-                                </Typography.Title>
-                                <Space wrap>
-                                    <Tag>{categoryName(detailPrompt.category)}</Tag>
-                                    {(detailPrompt.tags || []).map((tag) => (
-                                        <Tag key={tag}>{tag}</Tag>
-                                    ))}
-                                </Space>
-                            </Flex>
+        <Drawer
+            title="提示词详情"
+            open={Boolean(detailPrompt)}
+            size="min(760px, 96vw)"
+            onClose={onClose}
+            destroyOnHidden
+            footer={
+                <div className="flex justify-end">
+                    <Button onClick={onClose}>关闭</Button>
+                </div>
+            }
+        >
+            {detailPrompt ? (
+                <Flex vertical gap={14}>
+                    <Flex gap={14} align="start">
+                        <Image src={detailPrompt.coverUrl || "/logo.svg"} alt={detailPrompt.title} width={116} height={84} style={{ objectFit: "cover", borderRadius: 8 }} preview={{ mask: "放大" }} fallback="/logo.svg" />
+                        <Flex vertical gap={8} style={{ minWidth: 0 }}>
+                            <Typography.Title level={5} style={{ margin: 0 }}>
+                                {detailPrompt.title}
+                            </Typography.Title>
+                            <Space wrap>
+                                <Tag>{categoryName(detailPrompt.category)}</Tag>
+                                {(detailPrompt.tags || []).map((tag) => (
+                                    <Tag key={tag}>{tag}</Tag>
+                                ))}
+                            </Space>
                         </Flex>
-                        {detailPrompt.preview ? (
-                            <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-                                {detailPrompt.preview}
-                            </Typography.Paragraph>
-                        ) : null}
-                        <Input.TextArea value={detailPrompt.prompt} rows={8} readOnly />
-                        <Space>
-                            <Button icon={<CopyOutlined />} onClick={() => copyText(detailPrompt.prompt)}>
-                                复制提示词
-                            </Button>
-                        </Space>
                     </Flex>
-                ) : null}
-            </Modal>
+                    {detailPrompt.preview ? (
+                        <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+                            {detailPrompt.preview}
+                        </Typography.Paragraph>
+                    ) : null}
+                    <Input.TextArea value={detailPrompt.prompt} rows={10} readOnly />
+                    <Space>
+                        <Button icon={<CopyOutlined />} onClick={() => copyText(detailPrompt.prompt)}>
+                            复制提示词
+                        </Button>
+                    </Space>
+                </Flex>
+            ) : null}
+        </Drawer>
     );
 }
 

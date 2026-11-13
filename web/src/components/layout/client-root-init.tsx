@@ -18,6 +18,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
+    const isReady = useUserStore((state) => state.isReady);
     const hydrateUser = useUserStore((state) => state.hydrateUser);
     const loadPublicSettings = useConfigStore((state) => state.loadPublicSettings);
     const publicSettings = useConfigStore((state) => state.publicSettings);
@@ -27,7 +28,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const isLoginPage = pathname === "/login";
     const isTokenDanceCallback = pathname === "/tokendance/callback";
     const adminRemoteTokenRef = useRef("");
-    const accountOwnerRef = useRef(user?.id || "guest");
+    const accountOwnerRef = useRef<string | null>(null);
 
     useSessionBootstrap();
 
@@ -112,18 +113,24 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
 
 	// 账号切换（登录 / 退出 / 会话失效 / 跨标签页同步）统一整页重载：本地业务数据按账号分区，
 	// 模块级 store 与 localforage 实例都要按新分区重新初始化，只重置内存状态会留下上一个账号的缓存。
+	// 首次 hydration 完成前不建立基线，否则「未登录 → 已登录」会被误判成账号切换，每次重载都再触发一次。
 	useLayoutEffect(() => {
+		if (!isReady) return;
 		const owner = user?.id || "guest";
 		const previous = accountOwnerRef.current;
-		accountOwnerRef.current = owner;
+		if (previous === null) {
+			accountOwnerRef.current = owner;
+			return;
+		}
 		if (owner === previous) {
 			updateConfig("workflowSyncTouched", false);
 			return;
 		}
+		accountOwnerRef.current = owner;
 		// 登录页自己整页跳到 redirect，这里不抢它的导航。
 		if (pathname === "/login") return;
 		window.location.reload();
-	}, [pathname, updateConfig, user?.id]);
+	}, [isReady, pathname, updateConfig, user?.id]);
 
     useEffect(() => {
         if (handledConfigParams.current) return;

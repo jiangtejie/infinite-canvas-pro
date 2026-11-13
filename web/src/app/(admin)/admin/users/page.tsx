@@ -2,14 +2,15 @@
 
 import { PlusOutlined } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
-import { App, Button, Flex, Form, Space, Tag, Typography } from "antd";
+import { App, Button, Form, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import type { AdminUser } from "@/services/api/admin";
 
+import { AdminPageHeader } from "../components/admin-page-header";
 import { buildAdminPagination, buildAdminTableProps } from "../components/admin-table-props";
 import { UserFilterBar } from "./components/user-filter-bar";
-import { UserDeleteModal, UserEditorModal } from "./components/user-modals";
+import { UserDeleteModal, UserEditorDrawer } from "./components/user-modals";
 import { buildUserColumns } from "./components/user-table-columns";
 import { useAdminUsers } from "./use-admin-users";
 
@@ -53,31 +54,31 @@ export default function AdminUsersPage() {
     const columns = buildUserColumns({ onEdit: setEditingUser, onDelete: setDeletingUser });
 
     return (
-        <main className="p-3 md:p-6">
-            <Flex vertical gap={16}>
-                <UserFilterBar keyword={keyword} onSearch={searchUsers} onReset={resetFilters} />
-                <ProTable<AdminUser>
-                    {...buildAdminTableProps({ onReload: () => void refreshUsers() })}
-                    rowKey="id"
-                    columns={columns}
-                    dataSource={users}
-                    loading={isLoading}
-                    headerTitle={
-                        <Space>
-                            <Typography.Text strong>用户列表</Typography.Text>
-                            <Tag>{total} 人</Tag>
-                        </Space>
-                    }
-                    toolBarRender={() => [
-                        <Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingUser({ role: "user", status: "active" })}>
-                            新增
-                        </Button>,
-                    ]}
-                    pagination={buildAdminPagination({ page, pageSize, total, unit: "人", changePage, changePageSize })}
-                />
-            </Flex>
+        <main className="flex flex-col gap-5">
+            <AdminPageHeader
+                actions={
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditingUser({ role: "user", status: "active" })}>
+                        新增用户
+                    </Button>
+                }
+            />
+            <UserFilterBar keyword={keyword} onSearch={searchUsers} onReset={resetFilters} />
+            <ProTable<AdminUser>
+                {...buildAdminTableProps({ onReload: () => void refreshUsers() })}
+                rowKey="id"
+                columns={columns}
+                dataSource={users}
+                loading={isLoading}
+                headerTitle={
+                    <Space>
+                        <Typography.Text strong>用户列表</Typography.Text>
+                        <Tag>{total} 人</Tag>
+                    </Space>
+                }
+                pagination={buildAdminPagination({ page, pageSize, total, unit: "人", changePage, changePageSize })}
+            />
 
-            <UserEditorModal editingUser={editingUser} form={form} onCancel={() => setEditingUser(null)} onOk={() => void saveUser()} onAdjustCredits={() => void saveCredits()} />
+            <UserEditorDrawer editingUser={editingUser} form={form} onCancel={() => setEditingUser(null)} onOk={() => void saveUser()} onAdjustCredits={() => void saveCredits()} />
             <UserDeleteModal deletingUser={deletingUser} onCancel={() => setDeletingUser(null)} onOk={() => void deleteSelectedUser()} />
         </main>
     );

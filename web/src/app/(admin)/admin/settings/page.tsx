@@ -1,10 +1,11 @@
 "use client";
 
 import { CheckCircleOutlined, FormatPainterOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
-import { Button, Flex, Segmented, Space, Tag, Typography } from "antd";
+import { Button, Segmented, Space, Tag, Typography } from "antd";
 
 import { cn } from "@/lib/utils";
 
+import { AdminPageHeader } from "../components/admin-page-header";
 import { AdminSettingsChannelDrawer } from "./components/settings-channel-drawer";
 import { AdminSettingsJsonEditor } from "./components/settings-json-editor";
 import { AdminSettingsPrivateConfig } from "./components/settings-private-config";
@@ -18,9 +19,10 @@ export default function AdminSettingsPage() {
     const { activeTab, activeMode, jsonError, changeTab, formatJson, toggleMode, loadSettings, isLoading, saveSettings, isSaving } = settings;
 
     return (
-        <main className="p-3 md:p-6">
-            <Flex vertical gap={12}>
-                <div className="sticky top-0 z-10 -mx-3 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-background/90 px-3 py-2.5 backdrop-blur-xl md:-mx-6 md:px-6">
+        <main className="flex flex-col gap-5">
+            <AdminPageHeader />
+            <div className="flex flex-col gap-3">
+                <div className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-background/90 px-4 py-2.5 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-1">
                             {([{ key: "public", label: "公开配置" }, { key: "private", label: "私有配置" }] as const).map((item) => (
@@ -73,7 +75,7 @@ export default function AdminSettingsPage() {
                     </Space>
                 </div>
 
-                <div className="pt-1">
+                <div>
                     {activeTab === "public" ? (
                         activeMode === "visual" ? (
                             <AdminSettingsPublicConfig settings={settings} />
@@ -86,9 +88,9 @@ export default function AdminSettingsPage() {
                         <AdminSettingsJsonEditor value={settings.jsonText.private} onChange={(value) => settings.updateJson("private", value)} />
                     )}
                 </div>
-                <AdminSettingsChannelDrawer settings={settings} />
-                <AdminSettingsTestModelsModal settings={settings} />
-            </Flex>
+            </div>
+            <AdminSettingsChannelDrawer settings={settings} />
+            <AdminSettingsTestModelsModal settings={settings} />
         </main>
     );
 }

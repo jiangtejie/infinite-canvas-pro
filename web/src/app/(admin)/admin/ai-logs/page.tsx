@@ -1,17 +1,19 @@
 "use client";
 
+import { MoreOutlined } from "@ant-design/icons";
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useQuery } from "@tanstack/react-query";
-import { App, Button, Flex, InputNumber, Space, Tag, Typography } from "antd";
+import { App, Button, InputNumber, Popover, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import { deleteAdminAICallLogs, fetchAdminAICallLogs, fetchAdminSettings, saveAdminSettings, type AdminAICallLog } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
 
+import { AdminPageHeader } from "../components/admin-page-header";
 import { buildAdminTableProps } from "../components/admin-table-props";
-import { AiLogDetailModal } from "./components/ai-log-detail-modal";
+import { AiLogDetailDrawer } from "./components/ai-log-detail-drawer";
 import { AiLogFilterBar } from "./components/ai-log-filter-bar";
-import { buildAiLogColumns, type AiLogDetail } from "./components/ai-log-table-columns";
+import { buildAiLogColumns } from "./components/ai-log-table-columns";
 import { errorMessage } from "@/lib/utils";
 
 export default function AdminAICallLogsPage() {
@@ -22,7 +24,8 @@ export default function AdminAICallLogsPage() {
     const [pageSize, setPageSize] = useState(20);
     const [clearDays, setClearDays] = useState(7);
     const [clearing, setClearing] = useState(false);
-    const [detail, setDetail] = useState<AiLogDetail | null>(null);
+    const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+    const [detail, setDetail] = useState<AdminAICallLog | null>(null);
     const [localDirectReportEnabled, setLocalDirectReportEnabled] = useState(false);
     const [savingLocalDirectReport, setSavingLocalDirectReport] = useState(false);
 
@@ -60,6 +63,7 @@ export default function AdminAICallLogsPage() {
         try {
             const result = await deleteAdminAICallLogs(token, clearDays);
             message.success(`已清理 ${result.removedFiles} 个日志文件`);
+            setMaintenanceOpen(false);
             if (page === 1) await logsQuery.refetch();
             else setPage(1);
         } catch (error) {
@@ -98,49 +102,66 @@ export default function AdminAICallLogsPage() {
     const columns = buildAiLogColumns({ onDetail: setDetail });
 
     return (
-        <main className="p-3 md:p-6">
-            <Flex vertical gap={16} className="w-full">
-                <AiLogFilterBar
-                    keyword={keyword}
-                    onSearch={searchLogs}
-                    onReset={() => searchLogs("")}
-                    localDirectReportEnabled={localDirectReportEnabled}
-                    savingLocalDirectReport={savingLocalDirectReport}
-                    onToggleLocalDirectReport={(checked) => void updateLocalDirectReport(checked)}
-                />
-                <ProTable<AdminAICallLog>
-                    {...buildAdminTableProps({ scrollX: 1420, onReload: () => void logsQuery.refetch() })}
-                    rowKey="id"
-                    columns={columns as ProColumns<AdminAICallLog>[]}
-                    dataSource={logsQuery.data?.items || []}
-                    loading={logsQuery.isFetching}
-                    headerTitle={
-                        <Space>
-                            <Typography.Text strong>AI 调用日志</Typography.Text>
-                            <Tag>{logsQuery.data?.total || 0} 条</Tag>
-                        </Space>
-                    }
-                    toolBarRender={() => [
-                        <Space key="clear" wrap>
-                            <span className="text-xs text-muted-foreground">清理超过</span>
-                            <InputNumber min={1} value={clearDays} className="!w-20" onChange={(value) => setClearDays(Number(value) || 7)} />
-                            <span className="text-xs text-muted-foreground">天前的日志</span>
-                            <Button danger loading={clearing} onClick={() => void clearLogs()}>清理旧日志</Button>
-                        </Space>,
-                    ]}
-                    pagination={{
-                        current: page,
-                        pageSize,
-                        total: logsQuery.data?.total || 0,
-                        showSizeChanger: true,
-                        onChange: (nextPage, nextPageSize) => {
-                            setPage(nextPage);
-                            setPageSize(nextPageSize);
-                        },
-                    }}
-                />
-            </Flex>
-            <AiLogDetailModal detail={detail} onClose={() => setDetail(null)} />
+        <main className="flex flex-col gap-5">
+            <AdminPageHeader
+                actions={
+                    <Popover
+                        trigger="click"
+                        placement="bottomRight"
+                        open={maintenanceOpen}
+                        onOpenChange={setMaintenanceOpen}
+                        content={
+                            <div className="w-64 space-y-3">
+                                <div>
+                                    <p className="text-xs font-medium text-foreground">清理旧日志</p>
+                                    <p className="mt-1 text-[11px] leading-5 text-muted-foreground">删除超过指定天数的 AI 调用日志文件，删除后不可恢复。</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <InputNumber min={1} value={clearDays} className="!w-20" onChange={(value) => setClearDays(Number(value) || 7)} />
+                                    <span className="text-xs text-muted-foreground">天前</span>
+                                    <Button danger size="small" loading={clearing} className="ml-auto" onClick={() => void clearLogs()}>
+                                        清理
+                                    </Button>
+                                </div>
+                            </div>
+                        }
+                    >
+                        <Button icon={<MoreOutlined />}>维护</Button>
+                    </Popover>
+                }
+            />
+            <AiLogFilterBar
+                keyword={keyword}
+                onSearch={searchLogs}
+                onReset={() => searchLogs("")}
+                localDirectReportEnabled={localDirectReportEnabled}
+                savingLocalDirectReport={savingLocalDirectReport}
+                onToggleLocalDirectReport={(checked) => void updateLocalDirectReport(checked)}
+            />
+            <ProTable<AdminAICallLog>
+                {...buildAdminTableProps({ onReload: () => void logsQuery.refetch() })}
+                rowKey="id"
+                columns={columns as ProColumns<AdminAICallLog>[]}
+                dataSource={logsQuery.data?.items || []}
+                loading={logsQuery.isFetching}
+                headerTitle={
+                    <Space>
+                        <Typography.Text strong>AI 调用日志</Typography.Text>
+                        <Tag>{logsQuery.data?.total || 0} 条</Tag>
+                    </Space>
+                }
+                pagination={{
+                    current: page,
+                    pageSize,
+                    total: logsQuery.data?.total || 0,
+                    showSizeChanger: true,
+                    onChange: (nextPage, nextPageSize) => {
+                        setPage(nextPage);
+                        setPageSize(nextPageSize);
+                    },
+                }}
+            />
+            <AiLogDetailDrawer log={detail} onClose={() => setDetail(null)} />
         </main>
     );
 }

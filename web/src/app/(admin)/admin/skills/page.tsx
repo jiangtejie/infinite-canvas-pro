@@ -4,7 +4,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutli
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { App, Button, Col, Flex, Form, Input, Space, Tag, theme, Tooltip, Typography } from "antd";
+import { App, Button, Col, Form, Input, Space, Tag, theme, Tooltip, Typography } from "antd";
 import { useMemo, useState } from "react";
 
 import { AgentSkillCover } from "@/components/agent-skill-cover";
@@ -16,6 +16,7 @@ import { invalidateAgentSkillCache } from "@/stores/use-agent-skill-store";
 import { useUserStore } from "@/stores/use-user-store";
 
 import { AdminFilterBar, adminFilterKeywordCol } from "../components/admin-filter-bar";
+import { AdminPageHeader } from "../components/admin-page-header";
 import { buildAdminTableProps } from "../components/admin-table-props";
 import { SkillEditorModal } from "./components/skill-editor-modal";
 import { errorMessage } from "@/lib/utils";
@@ -80,24 +81,23 @@ export default function AdminSkillsPage() {
     ];
 
     return (
-        <main className="p-3 md:p-6">
-            <Flex vertical gap={16}>
-                <AdminFilterBar onReset={() => setKeyword("")} extraActions={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>刷新</Button>}>
-                    <Col {...adminFilterKeywordCol}>
-                        <Form.Item label="关键词"><Input.Search value={keyword} allowClear enterButton={<SearchOutlined />} placeholder="搜索名称、描述或内容" onChange={(event) => setKeyword(event.target.value)} /></Form.Item>
-                    </Col>
-                </AdminFilterBar>
-                <ProTable<AgentSkill>
-                    {...buildAdminTableProps({ onReload: () => void query.refetch() })}
-                    rowKey="id"
-                    columns={columns}
-                    dataSource={skills}
-                    loading={query.isFetching || deleteMutation.isPending}
-                    headerTitle={<Space><Typography.Text strong>系统预设 Skill</Typography.Text><Tag>{skills.length} 条</Tag></Space>}
-                    pagination={{ defaultPageSize: 10, showSizeChanger: true }}
-                    toolBarRender={() => [<Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingSkill({ enabled: true, sort: 0 })}>新增</Button>]}
-                />
-            </Flex>
+        <main className="flex flex-col gap-5">
+            <AdminPageHeader />
+            <AdminFilterBar onReset={() => setKeyword("")} extraActions={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>刷新</Button>}>
+                <Col {...adminFilterKeywordCol}>
+                    <Form.Item label="关键词"><Input.Search value={keyword} allowClear enterButton={<SearchOutlined />} placeholder="搜索名称、描述或内容" onChange={(event) => setKeyword(event.target.value)} /></Form.Item>
+                </Col>
+            </AdminFilterBar>
+            <ProTable<AgentSkill>
+                {...buildAdminTableProps({ onReload: () => void query.refetch() })}
+                rowKey="id"
+                columns={columns}
+                dataSource={skills}
+                loading={query.isFetching || deleteMutation.isPending}
+                headerTitle={<Space><Typography.Text strong>系统预设 Skill</Typography.Text><Tag>{skills.length} 条</Tag></Space>}
+                pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+                toolBarRender={() => [<Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingSkill({ enabled: true, sort: 0 })}>新增</Button>]}
+            />
 
             <SkillEditorModal editingSkill={editingSkill} onClose={() => setEditingSkill(null)} />
 

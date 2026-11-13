@@ -4,7 +4,7 @@ import type { TablePaginationConfig } from "antd";
 type AdminTableShell = Pick<ProTableProps<Record<string, unknown>, Record<string, never>>, "search" | "defaultSize" | "tableLayout" | "scroll" | "cardProps" | "options">;
 
 /** 后台列表统一的 ProTable 外观与操作配置：关闭查询表单、固定布局、卡片样式与刷新按钮 */
-export function buildAdminTableProps({ scrollX = 1000, onReload }: { scrollX?: number; onReload: () => void }): AdminTableShell {
+export function buildAdminTableProps({ scrollX = 880, onReload }: { scrollX?: number; onReload: () => void }): AdminTableShell {
     return {
         search: false,
         defaultSize: "middle",

@@ -12,7 +12,7 @@ const actionCol = { xs: 24, sm: 12, md: 6, lg: 5 } as const;
 
 export function AdminFilterBar({ children, onSearch, onReset, extraActions }: { children: ReactNode; onSearch?: () => void; onReset: () => void; extraActions?: ReactNode }) {
     return (
-        <Card variant="borderless">
+        <Card variant="borderless" className="admin-filter-card">
             <Form layout="vertical">
                 <Row gutter={16} align="bottom">
                     {children}

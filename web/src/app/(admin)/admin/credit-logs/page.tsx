@@ -2,11 +2,12 @@
 
 import { PlusOutlined } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
-import { Button, Flex, Form, Space, Tag, Typography } from "antd";
+import { Button, Form, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import type { AdminCreditLog } from "@/services/api/admin";
 
+import { AdminPageHeader } from "../components/admin-page-header";
 import { buildAdminPagination, buildAdminTableProps } from "../components/admin-table-props";
 import { CreditLogFilterBar } from "./components/credit-log-filter-bar";
 import { CreditLogDeleteModal, CreditLogEditorModal } from "./components/credit-log-modals";
@@ -40,29 +41,29 @@ export default function AdminCreditLogsPage() {
     const columns = buildCreditLogColumns({ onEdit: setEditingLog, onDelete: setDeletingLog });
 
     return (
-        <main className="p-3 md:p-6">
-            <Flex vertical gap={16}>
-                <CreditLogFilterBar keyword={keyword} date={date} onSearch={searchLogs} onReset={resetFilters} />
-                <ProTable<AdminCreditLog>
-                    {...buildAdminTableProps({ onReload: () => void refreshLogs() })}
-                    rowKey="id"
-                    columns={columns}
-                    dataSource={logs}
-                    loading={isLoading}
-                    headerTitle={
-                        <Space>
-                            <Typography.Text strong>算力点日志</Typography.Text>
-                            <Tag>{total} 条</Tag>
-                        </Space>
-                    }
-                    toolBarRender={() => [
-                        <Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingLog({ type: "admin_adjust", amount: 0, balance: 0 })}>
-                            新增
-                        </Button>,
-                    ]}
-                    pagination={buildAdminPagination({ page, pageSize, total, changePage, changePageSize })}
-                />
-            </Flex>
+        <main className="flex flex-col gap-5">
+            <AdminPageHeader
+                actions={
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditingLog({ type: "admin_adjust", amount: 0, balance: 0 })}>
+                        新增记录
+                    </Button>
+                }
+            />
+            <CreditLogFilterBar keyword={keyword} date={date} onSearch={searchLogs} onReset={resetFilters} />
+            <ProTable<AdminCreditLog>
+                {...buildAdminTableProps({ scrollX: 1000, onReload: () => void refreshLogs() })}
+                rowKey="id"
+                columns={columns}
+                dataSource={logs}
+                loading={isLoading}
+                headerTitle={
+                    <Space>
+                        <Typography.Text strong>算力点日志</Typography.Text>
+                        <Tag>{total} 条</Tag>
+                    </Space>
+                }
+                pagination={buildAdminPagination({ page, pageSize, total, changePage, changePageSize })}
+            />
 
             <CreditLogEditorModal editingLog={editingLog} form={form} onCancel={() => setEditingLog(null)} onOk={() => void saveLog()} />
             <CreditLogDeleteModal deletingLog={deletingLog} onCancel={() => setDeletingLog(null)} onOk={() => void deleteSelectedLog()} />

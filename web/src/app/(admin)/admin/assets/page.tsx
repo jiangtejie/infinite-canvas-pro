@@ -2,11 +2,12 @@
 
 import { PlusOutlined } from "@ant-design/icons";
 import { ProTable } from "@ant-design/pro-components";
-import { Button, Flex, Form, Space, Tag, Typography } from "antd";
+import { Button, Form, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import type { AdminAsset } from "@/services/api/admin";
 
+import { AdminPageHeader } from "../components/admin-page-header";
 import { buildAdminPagination, buildAdminTableProps } from "../components/admin-table-props";
 import type { AssetFormValues } from "./asset-utils";
 import { AssetFilterBar } from "./components/asset-filter-bar";
@@ -65,38 +66,37 @@ export default function AdminAssetsPage() {
     });
 
     return (
-        <main className="p-3 md:p-6">
-            <Flex vertical gap={16}>
-                <AssetFilterBar
-                    keyword={keyword}
-                    kind={kind}
-                    tag={tag}
-                    tags={tags}
-                    onSearch={searchAssets}
-                    changeKind={changeKind}
-                    changeTag={changeTag}
-                    onReset={resetFilters}
-                />
-                <ProTable<AdminAsset>
-                    {...buildAdminTableProps({ onReload: () => void refreshAssets() })}
-                    rowKey="id"
-                    columns={columns}
-                    dataSource={assets}
-                    loading={isLoading}
-                    headerTitle={
-                        <Space>
-                            <Typography.Text strong>素材列表</Typography.Text>
-                            <Tag>{total} 条</Tag>
-                        </Space>
-                    }
-                    toolBarRender={() => [
-                        <Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingAsset({ type: "text", tags: [] })}>
-                            新增
-                        </Button>,
-                    ]}
-                    pagination={buildAdminPagination({ page, pageSize, total, changePage, changePageSize })}
-                />
-            </Flex>
+        <main className="flex flex-col gap-5">
+            <AdminPageHeader />
+            <AssetFilterBar
+                keyword={keyword}
+                kind={kind}
+                tag={tag}
+                tags={tags}
+                onSearch={searchAssets}
+                changeKind={changeKind}
+                changeTag={changeTag}
+                onReset={resetFilters}
+            />
+            <ProTable<AdminAsset>
+                {...buildAdminTableProps({ onReload: () => void refreshAssets() })}
+                rowKey="id"
+                columns={columns}
+                dataSource={assets}
+                loading={isLoading}
+                headerTitle={
+                    <Space>
+                        <Typography.Text strong>素材列表</Typography.Text>
+                        <Tag>{total} 条</Tag>
+                    </Space>
+                }
+                toolBarRender={() => [
+                    <Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingAsset({ type: "text", tags: [] })}>
+                        新增
+                    </Button>,
+                ]}
+                pagination={buildAdminPagination({ page, pageSize, total, changePage, changePageSize })}
+            />
 
             <AssetEditorModal editingAsset={editingAsset} form={form} onCancel={() => setEditingAsset(null)} onOk={() => void saveAsset()} />
             <AssetDetailModal detailAsset={detailAsset} onClose={() => setDetailAsset(null)} />

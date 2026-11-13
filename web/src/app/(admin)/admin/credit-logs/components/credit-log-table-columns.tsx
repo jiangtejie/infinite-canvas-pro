@@ -13,6 +13,12 @@ const creditLogTypeLabels: Record<string, string> = {
     ai_refund: "失败返还",
 };
 
+const creditLogTypeColors: Record<string, string | undefined> = {
+    admin_adjust: "gold",
+    ai_consume: undefined,
+    ai_refund: "success",
+};
+
 export function buildCreditLogColumns({
     onEdit,
     onDelete,
@@ -31,6 +37,7 @@ export function buildCreditLogColumns({
             title: "用户 ID",
             dataIndex: "userId",
             width: 220,
+            responsive: ["md"],
             render: (_, item) => <Typography.Text copyable>{item.userId}</Typography.Text>,
         },
         {
@@ -38,25 +45,31 @@ export function buildCreditLogColumns({
             dataIndex: "type",
             width: 140,
             align: "center",
-            render: (_, item) => <Tag>{creditLogTypeLabels[item.type] || item.type || "-"}</Tag>,
+            render: (_, item) => <Tag color={creditLogTypeColors[item.type]}>{creditLogTypeLabels[item.type] || item.type || "-"}</Tag>,
         },
         {
             title: "变动",
             dataIndex: "amount",
             width: 100,
             align: "right",
-            render: (_, item) => <Typography.Text type={item.amount >= 0 ? "success" : "danger"}>{item.amount}</Typography.Text>,
+            render: (_, item) => (
+                <Typography.Text type={item.amount >= 0 ? "success" : "danger"} style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {item.amount > 0 ? `+${item.amount}` : item.amount}
+                </Typography.Text>
+            ),
         },
         {
             title: "余额",
             dataIndex: "balance",
             width: 100,
             align: "right",
+            render: (_, item) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{item.balance}</span>,
         },
         {
             title: "备注",
             dataIndex: "remark",
             ellipsis: true,
+            responsive: ["lg"],
             render: (_, item) => <Typography.Text type="secondary">{item.remark || "-"}</Typography.Text>,
         },
         {
