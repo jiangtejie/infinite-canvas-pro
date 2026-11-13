@@ -11,38 +11,33 @@ export type NavigationTool = {
 
 type NavigationSection = NavigationTool | { label: string; icon: LucideIcon; children: NavigationTool[] };
 
-// 一级导航：画布、影剧与素材直接进页面，通用创作工具收进“AI 自媒体”，影视与剧本收进“AI 影剧”，个人与团队素材收进“素材”。
+// 一级导航按单一轴分：主舞台（画布）/ 创作（产出内容的工具）/ 资产（可复用资源）。
+// 三个一级而非五个：768px 下再增加直达项会超出头部宽度被裁掉。
 export const navigationSections: NavigationSection[] = [
     { slug: "canvas", label: "我的画布", icon: Maximize2 },
     {
-        label: "AI 自媒体",
+        label: "创作工作台",
         icon: Sparkles,
         children: [
             { slug: "image", label: "生图工作台", icon: ImagePlus },
-            { slug: "video", label: "视频创作台", icon: Video },
+            { slug: "video", label: "视频工作台", icon: Video },
+            { slug: "film", label: "影视项目", icon: Clapperboard },
+            { slug: "script", label: "剧本创作", icon: PenLine },
             { slug: "workflows", label: "工作流", icon: GitBranch },
-            { slug: "prompts", label: "提示词库", icon: FileText },
         ],
     },
     {
-        label: "AI 影剧",
-        icon: Clapperboard,
-        children: [
-            { slug: "film", label: "AI 影视", icon: Clapperboard },
-            { slug: "script", label: "AI 剧本创作", icon: PenLine },
-        ],
-    },
-    {
-        label: "素材",
+        label: "素材与提示词",
         icon: Images,
         children: [
             { slug: "assets", label: "我的素材", icon: Images },
-            { slug: "asset-library", label: "素材库", icon: Library },
+            { slug: "asset-library", label: "公共素材库", icon: Library },
+            { slug: "prompts", label: "提示词库", icon: FileText },
         ],
     },
 ];
 
-// 首页等需要平铺入口的地方直接用这份列表；素材库是团队内容入口，不计入首页的创作入口宫格。
+// 首页等需要平铺入口的地方直接用这份列表；公共素材库是团队内容入口，不计入首页的创作入口宫格。
 export const navigationTools: NavigationTool[] = navigationSections
     .flatMap((section) => ("children" in section ? section.children : [section]))
     .filter((tool) => tool.slug !== "asset-library");

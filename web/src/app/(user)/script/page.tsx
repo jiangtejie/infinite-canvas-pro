@@ -138,8 +138,8 @@ export default function ScriptListPage() {
                         <FilmAmbient className="-inset-x-6 -top-10 h-[340px] opacity-80 sm:-inset-x-10" />
                         <div className="relative">
                     <PageHeader
-                        eyebrow="SCRIPT / 剧本"
-                        title="AI 剧本创作"
+                        eyebrow="创作工作台"
+                        title="剧本创作"
                         description="先写故事，再写剧本：用故事圣经、人物引擎、结构板和场景卡，把想法推进成可拍摄的舞台；数据仅保存在本机浏览器。"
                         meta={
                             <>

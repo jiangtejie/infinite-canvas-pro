@@ -115,8 +115,8 @@ export default function AssetLibraryPage() {
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
                 <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
                     <PageHeader
-                        eyebrow="公共素材库"
-                        title="素材库"
+                        eyebrow="素材与提示词"
+                        title="公共素材库"
                         description="管理员维护的只读公共素材，覆盖文本、图片、视频与音频。收进「我的素材」后才能编辑、上传和跨设备同步。"
                         meta={
                             <>

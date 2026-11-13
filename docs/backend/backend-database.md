@@ -195,7 +195,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `channel_id` | string | 模型渠道 ID |
 | `channel_name` | string | 模型渠道名称 |
 | `source` | string | 任务来源：`video-workbench`、`canvas`、`workflow` |
-| `source_id` | string | 来源内 ID，画布任务记录画布节点 ID，视频创作台为空 |
+| `source_id` | string | 来源内 ID，画布任务记录画布节点 ID，视频工作台为空 |
 | `upstream_task_id` | string | 上游任务 ID |
 | `workflow_ref` | text | 仅新工作流任务使用的渠道/条目精确引用；旧视频任务为空 |
 | `upstream_video_id` | string | 上游视频 ID，例如 Agnes 的 `video_...` |
@@ -221,7 +221,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 ### video_generation_logs
 
-视频创作台成果历史表。该表保存用户视频生成成果卡片的完整 JSON，并用独立字段做多设备去重、软删除和查询；它不是运行态轮询表，运行态仍由 `video_tasks` 负责。
+视频工作台成果历史表。该表保存用户视频生成成果卡片的完整 JSON，并用独立字段做多设备去重、软删除和查询；它不是运行态轮询表，运行态仍由 `video_tasks` 负责。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |

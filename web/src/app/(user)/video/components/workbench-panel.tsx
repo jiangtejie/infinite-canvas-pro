@@ -207,7 +207,7 @@ export function VideoWorkbenchPanel({
 
     return (
         <WorkbenchSidePanel
-            title="视频创作台"
+            title="视频工作台"
             currentLayout={currentLayout}
             onLayoutChange={onLayoutChange}
             canGenerate={canGenerate}

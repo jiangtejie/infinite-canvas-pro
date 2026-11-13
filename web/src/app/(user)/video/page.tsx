@@ -49,7 +49,7 @@ const KlingV26WorkbenchPanel = dynamic(
     { ssr: false, loading: () => <LoadingState className="min-h-[420px] rounded-lg border border-border bg-card" label="正在加载 Kling 工作台..." /> },
 );
 export default function VideoPage() {
-    useScreenLoadTiming("视频创作台");
+    useScreenLoadTiming("视频工作台");
     const { message } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const elementFileInputRef = useRef<HTMLInputElement>(null);
@@ -732,7 +732,7 @@ export default function VideoPage() {
             title: "生成视频",
             coverUrl: "",
             tags: [],
-            source: "视频创作台",
+            source: "视频工作台",
             data: { url: video.url, storageKey: video.storageKey, width: video.width, height: video.height, bytes: video.bytes, mimeType: video.mimeType },
             metadata: { source: "video-page", prompt },
         });

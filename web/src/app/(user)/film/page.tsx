@@ -129,8 +129,8 @@ export default function FilmListPage() {
                         <FilmAmbient className="-inset-x-6 -top-10 h-[380px] opacity-90 sm:-inset-x-10" />
                         <div className="relative">
                             <PageHeader
-                                eyebrow="FILM / 影视"
-                                title="我的影视项目"
+                                eyebrow="创作工作台"
+                                title="影视项目"
                                 description="剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台；数据仅保存在本机浏览器。"
                                 meta={
                                     <>

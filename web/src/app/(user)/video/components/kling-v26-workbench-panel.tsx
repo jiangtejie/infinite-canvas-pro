@@ -47,7 +47,7 @@ const TEXT = {
     start: "开始生成",
     runningPrefix: "生成中（",
     runningSuffix: "）",
-    title: "视频创作台",
+    title: "视频工作台",
     side: "侧边",
     bottom: "底部",
     image: "图",

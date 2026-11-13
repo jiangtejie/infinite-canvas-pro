@@ -73,7 +73,7 @@ export default function FilmLibraryPage() {
                         <FilmAmbient className="-inset-x-6 -top-10 h-[320px] opacity-80 sm:-inset-x-10" />
                         <div className="relative">
                     <PageHeader
-                        eyebrow="FILM / LIBRARY"
+                        eyebrow="创作工作台"
                         title="角色与场景库"
                         description="在影视项目里生成的角色设定和场景概念，存入这里后可以跨项目复用；导入项目后会生成一份独立副本。"
                         meta={

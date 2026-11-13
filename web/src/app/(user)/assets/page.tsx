@@ -147,7 +147,7 @@ export default function AssetsPage() {
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
                 <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
                     <PageHeader
-                        eyebrow="AI 素材库"
+                        eyebrow="素材与提示词"
                         title="我的素材"
                         description="收藏和管理常用素材，按类型、标题、分类与标签快速定位。"
                         meta={

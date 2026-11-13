@@ -93,7 +93,7 @@ export default function FilmProjectPage() {
                         <ArrowLeft className="size-4" />
                     </Link>
                     <div className="min-w-0">
-                        <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">FILM / PROJECT</p>
+                        <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">创作工作台</p>
                         <h1 className="truncate text-[15px] font-semibold tracking-tight text-foreground">{project.title}</h1>
                     </div>
                     <nav className="ml-3 hidden h-16 items-center gap-1 sm:flex" aria-label="影视阶段">

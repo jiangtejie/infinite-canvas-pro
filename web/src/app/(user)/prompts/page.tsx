@@ -59,7 +59,7 @@ export default function PromptsPage() {
             <main className="min-h-0 flex-1 overflow-y-auto bg-transparent" onScroll={handleListScroll}>
                 <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
                     <PageHeader
-                        eyebrow="AI 灵感库"
+                        eyebrow="素材与提示词"
                         title="提示词库"
                         description="按标题、分类与标签快速检索，把好用的提示词收进素材库随时复用。"
                         meta={

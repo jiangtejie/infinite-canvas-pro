@@ -75,7 +75,7 @@ export default function ScriptProjectPage() {
             status: "locked",
             lockedDraftId: draft.id,
         });
-        message.success(locked ? "已更新锁定稿；已转分镜的项目可在影视工作台里「按最新剧本重新解析」" : "已锁定当前稿，可以转 AI 影视分镜");
+        message.success(locked ? "已更新锁定稿；已转分镜的项目可在影视项目里「按最新剧本重新解析」" : "已锁定当前稿，可以转影视分镜");
     };
 
     const handoffToFilm = () => {
@@ -103,7 +103,7 @@ export default function ScriptProjectPage() {
             lockedDraftId: lockedDraft ? project.lockedDraftId : draft.id,
             status: "locked",
         });
-        message.success(`已生成 AI 影视分镜：${episodes.length} 集 / ${shotCount} 个分镜`);
+        message.success(`已生成影视分镜：${episodes.length} 集 / ${shotCount} 个分镜`);
         router.push(`/film/${filmProjectId}`);
     };
 
@@ -141,11 +141,11 @@ export default function ScriptProjectPage() {
             <header className="relative shrink-0 overflow-hidden border-b border-border/70 bg-background/40">
                 <FilmAmbient className="-top-24 h-44 opacity-60" />
                 <div className="relative z-10 mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-4 sm:gap-3 sm:px-6">
-                    <Link href="/script" aria-label="返回剧本列表" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
+                    <Link href="/script" aria-label="返回剧本创作" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
                         <ArrowLeft className="size-4" />
                     </Link>
                     <div className="min-w-0">
-                        <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">SCRIPT / PROJECT</p>
+                        <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">创作工作台</p>
                         <div className="flex items-center gap-1">
                             <h1 className="max-w-48 truncate text-[15px] font-semibold tracking-tight text-foreground">{project.title}</h1>
                             <button type="button" aria-label="重命名剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-foreground/5 hover:text-foreground" onClick={() => { setTitleDraft(project.title); setRenameOpen(true); }}>
@@ -182,7 +182,7 @@ export default function ScriptProjectPage() {
                             <>
                                 <Button size="small" type="text" className="hidden sm:inline-flex" onClick={lockDraft}>更新锁定稿</Button>
                                 <Button size="small" type="primary" icon={<Clapperboard className="size-3.5" />} onClick={handoffToFilm}>
-                                    {project.filmProjectId ? "打开 AI 影视分镜" : "转 AI 影视分镜"}
+                                    {project.filmProjectId ? "打开影视分镜" : "转影视分镜"}
                                 </Button>
                             </>
                         ) : (
