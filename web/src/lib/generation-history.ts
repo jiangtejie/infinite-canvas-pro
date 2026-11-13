@@ -10,9 +10,9 @@ export type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[
 
 export type WorkflowPollContext = { token: string; signal: AbortSignal };
 
-/** 历史记录存储的最小接口（localforage 实例即可传入）。 */
+/** 历史记录存储的最小接口（localforage 实例即可传入）；遍历完没有提前返回时 resolve undefined。 */
 export type LocalLogStore = {
-    iterate<T, U>(callback: (value: T) => U): Promise<U>;
+    iterate<T, U>(callback: (value: T) => U): Promise<U | undefined>;
 };
 
 /** 统一的错误文案提取（实现与默认兜底见 lib/utils）。 */

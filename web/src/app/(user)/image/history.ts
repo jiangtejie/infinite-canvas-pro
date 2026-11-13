@@ -1,6 +1,6 @@
 "use client";
 
-import localforage from "localforage";
+import { accountScopedStore } from "@/lib/account-storage";
 import { formatTaskTime } from "@/components/workbench/task-result";
 import type { CanvasImageTask, SeedableImageConfig } from "@/services/api/image";
 import { resolveImageUrl } from "@/services/image-storage";
@@ -87,8 +87,8 @@ export type RequestSnapshot = { text: string; requestConfig: SeedableImageConfig
 export type GenerationCategory = { id: string; name: string; createdAt: number };
 export type ResultViewMode = "all" | "category";
 export const CATEGORY_STORE_KEY = "infinite-canvas:image_generation_categories";
-export const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-export const categoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
+export const logStore = accountScopedStore("image_generation_logs");
+export const categoryStore = accountScopedStore("image_generation_categories");
 
 export function createPendingResult(id: string, snapshot: RequestSnapshot): GenerationResult {
     return {

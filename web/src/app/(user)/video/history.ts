@@ -1,6 +1,6 @@
 "use client";
 
-import localforage from "localforage";
+import { accountScopedStore } from "@/lib/account-storage";
 import axios from "axios";
 import { SEEDANCE_REFERENCE_LIMITS, boolConfig, isSeedanceVideoConfig, normalizeSeedanceRatio } from "@/lib/seedance-video";
 import { isAutoDLConfig } from "@/lib/autodl";
@@ -95,7 +95,7 @@ export type GenerationLogConfig = Pick<AiConfig, "channelMode" | "activeChannelI
 
 export type AssetPickerTarget = "general" | "image" | "video" | "audio" | "firstFrame" | "lastFrame" | "element";
 
-export const logStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
+export const logStore = accountScopedStore("video_generation_logs");
 
 export function createResultFromLog(log: GenerationLog, status: GenerationResult["status"]): GenerationResult {
     return {

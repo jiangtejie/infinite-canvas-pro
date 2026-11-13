@@ -2,7 +2,7 @@
 
 import { App, Button, Checkbox, Image, Input, Modal, Pagination, Select, Space, Switch, Tag, Typography } from "antd";
 import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edit3, FilePlus2, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
-import localforage from "localforage";
+import { accountScopedStore } from "@/lib/account-storage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -203,9 +203,9 @@ type GenerationCategory = { id: string; name: string; createdAt: number };
 const WORKFLOW_STORE_KEY = "infinite-canvas:creative-workflows";
 const SERIES_DRAFT_STORE_PREFIX = "infinite-canvas:series-drafts:";
 const CATEGORY_STORE_KEY = "infinite-canvas:image_generation_categories";
-const workflowStore = localforage.createInstance({ name: "infinite-canvas", storeName: "creative_workflows" });
-const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-const categoryStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_categories" });
+const workflowStore = accountScopedStore("creative_workflows");
+const imageLogStore = accountScopedStore("image_generation_logs");
+const categoryStore = accountScopedStore("image_generation_categories");
 
 const WORKFLOW_TASK_POLL_INTERVAL_MS = 10000;
 
@@ -1452,7 +1452,7 @@ export function CreativeWorkflowWorkspace({
                     </section>
                 ) : (
                     <PageHeader
-                        eyebrow="创作工作流"
+                        eyebrow="创作工作台"
                         title="工作流"
                         description="把固定提示词与参数沉淀成模板，每次只填变量，就能批量复用同一套创作方法。"
                         meta={

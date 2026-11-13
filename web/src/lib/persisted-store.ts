@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { PersistStorage, StorageValue } from "zustand/middleware";
 
+import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -22,21 +23,21 @@ export const useSaveStatusStore = create<SaveStatusState>((set) => ({
  */
 export function createDebouncedJSONStorage<S>(delay = 400): PersistStorage<S> {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    let pending: { name: string; value: StorageValue<S> } | null = null;
+    let pending: { key: string; value: StorageValue<S> } | null = null;
 
     const flush = () => {
         timer = null;
         const next = pending;
         pending = null;
         if (!next) return;
-        void Promise.resolve(localForageStorage.setItem(next.name, JSON.stringify(next.value)))
+        void Promise.resolve(localForageStorage.setItem(next.key, JSON.stringify(next.value)))
             .then(() => useSaveStatusStore.getState().setStatus("saved"))
             .catch(() => useSaveStatusStore.getState().setStatus("error"));
     };
 
     return {
         getItem: async (name) => {
-            const raw = await localForageStorage.getItem(name);
+            const { value: raw } = await readAccountStorage(name);
             if (!raw) return null;
             try {
                 return JSON.parse(raw) as StorageValue<S>;
@@ -45,7 +46,8 @@ export function createDebouncedJSONStorage<S>(delay = 400): PersistStorage<S> {
             }
         },
         setItem: (name, value) => {
-            pending = { name, value };
+            // 落盘键在入队时定好：防抖期间切换账号也要写回原账号分区。
+            pending = { key: accountStorageKey(name), value };
             useSaveStatusStore.getState().setStatus("saving");
             if (timer) clearTimeout(timer);
             timer = setTimeout(flush, delay);
@@ -54,7 +56,7 @@ export function createDebouncedJSONStorage<S>(delay = 400): PersistStorage<S> {
             pending = null;
             if (timer) clearTimeout(timer);
             useSaveStatusStore.getState().setStatus("idle");
-            return localForageStorage.removeItem(name);
+            return localForageStorage.removeItem(accountStorageKey(name));
         },
     };
 }

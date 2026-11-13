@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
+import { accountLocalStorage } from "@/lib/account-storage";
 import { directAIProviderForProtocol, isWorkflowProtocol, type DirectAIProvider, type ModelChannelProtocol } from "@/lib/model-channel";
 import type { WorkflowRef, WorkflowSummary } from "@/lib/workflow-channel";
 import { apiGet } from "@/services/api/request";
@@ -424,6 +425,7 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
+            storage: createJSONStorage(() => accountLocalStorage),
             partialize: (state) => ({ config: state.config }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;

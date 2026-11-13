@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
 import { nanoid } from "nanoid";
+import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { deleteImagePreviews } from "@/services/image-storage";
 import { listCanvasProjects, saveCanvasProject, syncCanvasProjects } from "@/services/api/canvas-tasks";
@@ -55,7 +56,7 @@ type CanvasStore = {
 };
 
 const initialViewport: ViewportTransform = { x: 0, y: 0, k: 1 };
-const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
+export const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
 type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let saveSequence = 0;
@@ -72,22 +73,6 @@ let localSaveStatus: CanvasSaveStatus = "idle";
 function applySaveStatus() {
     const next: CanvasSaveStatus = cloudSaveFailures.size || syncFailed ? "error" : localSaveStatus === "error" ? "error" : cloudSaveInFlight > 0 ? "saving" : localSaveStatus;
     if (useCanvasStore.getState().saveStatus !== next) useCanvasStore.setState({ saveStatus: next });
-}
-
-function waitForUserStoreHydration() {
-    if (useUserStore.persist.hasHydrated()) return Promise.resolve();
-
-    return new Promise<void>((resolve) => {
-        let unsubscribe = () => { };
-        unsubscribe = useUserStore.persist.onFinishHydration(() => {
-            unsubscribe();
-            resolve();
-        });
-        if (useUserStore.persist.hasHydrated()) {
-            unsubscribe();
-            resolve();
-        }
-    });
 }
 
 async function flushProjectSave(id: string) {
@@ -188,8 +173,7 @@ async function reconcileCanvasProjects(
 
 const canvasStorage: PersistStorage<CanvasStore> = {
     getItem: async (name) => {
-        await waitForUserStoreHydration();
-        const localValue = await localForageStorage.getItem(name);
+        const { key, value: localValue } = await readAccountStorage(name);
         const token = useUserStore.getState().token;
         const localParsed = localValue
             ? (JSON.parse(localValue) as StorageValue<CanvasStore>)
@@ -222,7 +206,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
                     } as StorageValue<CanvasStore>;
                     queuedPersistState = nextState;
                     await localForageStorage.setItem(
-                        name,
+                        key,
                         JSON.stringify(parsed),
                     );
                     return parsed;
@@ -239,7 +223,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
                     } as StorageValue<CanvasStore>;
                     queuedPersistState = nextState;
                     await localForageStorage.setItem(
-                        name,
+                        key,
                         JSON.stringify(parsed),
                     );
                     return parsed;
@@ -270,9 +254,11 @@ const canvasStorage: PersistStorage<CanvasStore> = {
         if (saveTimer) clearTimeout(saveTimer);
         localSaveStatus = "saving";
         applySaveStatus();
+        // 落盘键在入队时定好：防抖期间切换账号也要写回原账号分区，不能串到新账号。
+        const key = accountStorageKey(name);
         saveTimer = setTimeout(() => {
             saveTimer = null;
-            void Promise.resolve(localForageStorage.setItem(name, JSON.stringify(value)))
+            void Promise.resolve(localForageStorage.setItem(key, JSON.stringify(value)))
                 .then(() => {
                     if (sequence !== saveSequence) return;
                     localSaveStatus = "saved";
@@ -285,7 +271,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
                 });
         }, 400);
     },
-    removeItem: (name) => localForageStorage.removeItem(name),
+    removeItem: (name) => localForageStorage.removeItem(accountStorageKey(name)),
 };
 
 export const useCanvasStore = create<CanvasStore>()(
@@ -427,7 +413,7 @@ export const useCanvasStore = create<CanvasStore>()(
                 set(nextState);
                 try {
                     await localForageStorage.setItem(
-                        CANVAS_STORE_KEY,
+                        accountStorageKey(CANVAS_STORE_KEY),
                         JSON.stringify({ state: nextState, version: 0 }),
                     );
                     localSaveStatus = "saved";
@@ -449,7 +435,7 @@ export const useCanvasStore = create<CanvasStore>()(
                 queuedPersistState = state;
                 localSaveStatus = "saving";
                 applySaveStatus();
-                void Promise.resolve(localForageStorage.setItem(CANVAS_STORE_KEY, JSON.stringify({ state, version: 0 })))
+                void Promise.resolve(localForageStorage.setItem(accountStorageKey(CANVAS_STORE_KEY), JSON.stringify({ state, version: 0 })))
                     .then(() => {
                         if (sequence !== saveSequence) return;
                         localSaveStatus = "saved";

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
 import { nanoid } from "nanoid";
+import { accountStorageKey, readAccountStorage, readOtherAccountStates } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
@@ -66,15 +67,21 @@ async function resolveStoredAsset(asset: Asset): Promise<Asset> {
 
 const assetStorage: PersistStorage<AssetStore> = {
     getItem: async (name) => {
-        const value = await localForageStorage.getItem(name);
+        const { value } = await readAccountStorage(name);
         if (!value) return null;
         const parsed = JSON.parse(value) as StorageValue<AssetStore>;
         parsed.state.assets = await Promise.all(parsed.state.assets.map(resolveStoredAsset));
         return parsed;
     },
-    setItem: (name, value) => localForageStorage.setItem(name, JSON.stringify(value)),
-    removeItem: (name) => localForageStorage.removeItem(name),
+    setItem: (name, value) => localForageStorage.setItem(accountStorageKey(name), JSON.stringify(value)),
+    removeItem: (name) => localForageStorage.removeItem(accountStorageKey(name)),
 };
+
+/** blob 池跨账号共用，清理前要把其他账号分区的画布与素材引用一并算进来，否则会误删别人的图。 */
+async function otherAccountReferences() {
+    const { CANVAS_STORE_KEY } = await import("@/app/(user)/canvas/stores/use-canvas-store");
+    return [...(await readOtherAccountStates(CANVAS_STORE_KEY)), ...(await readOtherAccountStates(ASSET_STORE_KEY))];
+}
 
 export const useAssetStore = create<AssetStore>()(
     persist(
@@ -113,6 +120,9 @@ export const useAssetStore = create<AssetStore>()(
                             const { collectMediaStorageKeys } = await import("@/services/file-storage");
                             collectImageStorageKeys(projects, usedKeys);
                             collectMediaStorageKeys(projects, usedKeys);
+                            const otherRefs = await otherAccountReferences();
+                            collectImageStorageKeys(otherRefs, usedKeys);
+                            collectMediaStorageKeys(otherRefs, usedKeys);
 
                             // 收集本地/云端生图历史与视频历史中的 storageKey，避免生成结果卡片失效
                             try {
@@ -185,7 +195,12 @@ export const useAssetStore = create<AssetStore>()(
                         ),
                     );
                     if (syncEnabled) {
-                        set({ assets: remoteAssets });
+                        const localAssets = get().assets;
+                        const remoteIds = new Set(remoteAssets.map((asset) => asset.id));
+                        const assets = mergeAssets(remoteAssets, localAssets);
+                        set({ assets });
+                        // 本地独有的素材（含游客期创作、接管过来的游客分区）要补传，否则会被远端列表直接覆盖掉。
+                        if (localAssets.some((asset) => !remoteIds.has(asset.id))) await syncUserAssetData(token, { assets });
                     } else {
                         const localHasAssets = get().assets.length > 0;
                         if (!localHasAssets && remoteAssets.length) {
@@ -209,6 +224,7 @@ export const useAssetStore = create<AssetStore>()(
                 window.setTimeout(async () => {
                     const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
                     const { loadLocalAgentSkills, useAgentSkillStore } = await import("@/stores/use-agent-skill-store");
+                    const otherAccounts = await otherAccountReferences();
                     const logKeys: string[] = [];
                     try {
                         const localforage = (await import("localforage")).default;
@@ -248,11 +264,11 @@ export const useAssetStore = create<AssetStore>()(
                         await useAgentSkillStore.getState().loadSkills();
                         const skillStore = useAgentSkillStore.getState();
                         const localSkills = useUserStore.getState().token ? await loadLocalAgentSkills() : [];
-                        await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, skills: [...skillStore.systemSkills, ...skillStore.userSkills, ...localSkills], extra, logKeys }, storageKeys, ownerToken);
+                        await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, skills: [...skillStore.systemSkills, ...skillStore.userSkills, ...localSkills], extra, logKeys, otherAccounts }, storageKeys, ownerToken);
                     } catch (error) {
                         console.error("Error gathering Skill keys in cleanupImages", error);
                     }
-                    await cleanupUnusedMedia({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, logKeys });
+                    await cleanupUnusedMedia({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, logKeys, otherAccounts });
                 }, 0);
             },
         }),
