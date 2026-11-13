@@ -14,7 +14,7 @@ import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-p
 import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card";
 import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
-import { CanvasSourceNodePanel, type CanvasSourceRemixFlow } from "../../components/canvas-source-node-panel";
+import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
 import { type NodeGenerationInput } from "../../components/canvas-node-generation";
 import { InfiniteCanvas } from "../../components/infinite-canvas";
 import { CanvasNode } from "../../components/canvas-node";
@@ -115,9 +115,8 @@ export type CanvasStageModel = {
     handleParseSource: (nodeId: string, input: string) => Promise<void>;
     handleCancelSourceParse: (nodeId: string) => void;
     handleExpandSource: (nodeId: string) => void;
-    handleRunSourceRemix: (nodeId: string) => void;
+    handleRemixWithAgent: (nodeId: string) => void;
     handleResetSource: (nodeId: string) => void;
-    sourceRemixFlowsById: Map<string, CanvasSourceRemixFlow>;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -213,9 +212,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         handleParseSource,
         handleCancelSourceParse,
         handleExpandSource,
-        handleRunSourceRemix,
+        handleRemixWithAgent,
         handleResetSource,
-        sourceRemixFlowsById,
         assetInsertPositionRef,
         setAssetPickerTab,
         setAssetPickerOpen,
@@ -337,9 +335,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         onParse={(input) => void handleParseSource(panelNode.id, input)}
                                         onCancel={() => handleCancelSourceParse(panelNode.id)}
                                         onExpand={() => handleExpandSource(panelNode.id)}
-                                        onRunRemix={() => handleRunSourceRemix(panelNode.id)}
+                                        onRemixWithAgent={() => handleRemixWithAgent(panelNode.id)}
                                         onReset={() => handleResetSource(panelNode.id)}
-                                        remixFlow={sourceRemixFlowsById.get(panelNode.id)}
                                         onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
                                         onClose={() => closeOverlay()}
                                     />

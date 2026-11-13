@@ -41,6 +41,7 @@ export const CORE_SKILL = String.raw`
 - 视频重绘、局部修改、替换或动作改写：视频编辑规则。
 - 角色音色、独立对白、旁白和最终朗读：声音 Skill。
 - 场景组、角色/产品参考集、章节和语义整理：分组整理 Skill。
+- 素材源复刻、整组图文原创重制：素材源复刻 Skill。
 
 当前 Skill 负责创作规则与工具策略；真正执行只允许调用系统提供的白名单工具。
 
@@ -125,6 +126,12 @@ sourceNodeIds 同时承担两件事：
 - create_group：把至少两个未分组的普通节点放入真实 group 节点。
 - arrange_nodes：使用项目现有算法整理指定节点或顶层画布。
 
+素材源工具：
+
+- expand_source：把已解析的素材源展开成真实素材文案与素材图节点。
+- plan_source_remix：素材源复刻的必经组级策划，一次读入新文案与全部原图。
+- generate_remix_images：按已完成的策划整组提交复刻配图，并创建或复用发布节点。
+
 媒体工具：
 
 - generate_image：无现有图片视觉来源的全新图片生成，也可带文本和图片来源。
@@ -132,7 +139,7 @@ sourceNodeIds 同时承担两件事：
 - generate_video：文生视频、图生视频以及当前模型真实支持的视频/音频参考能力。
 - generate_audio：创建独立 audio 节点；prompt 是实际朗读文字，instructions 是音色与演绎说明。
 
-当前真实节点类型只有 image、panorama、text、config、video、audio、director、group。节点创建和修改严格使用当前工具字段，不发明节点类型或任意 metadata patch。
+当前真实节点类型只有 image、panorama、text、config、video、audio、director、group、source、publish。节点创建和修改严格使用当前工具字段，不发明节点类型或任意 metadata patch。source 与 publish 节点由素材源面板和素材源工具维护，不用 create_text_node 伪造。
 
 ## 7. 工具调用协议
 

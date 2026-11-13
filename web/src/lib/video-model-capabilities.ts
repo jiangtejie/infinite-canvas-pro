@@ -6,6 +6,17 @@ export function isCogVideoX3Model(modelName: string) {
     return modelKey(modelName) === "cogvideox-3";
 }
 
+/** Kling 3 系型号判定（含 turbo）；时长档位与原生音频支持共用这一份字符串口径。 */
+export function isKlingV3Model(modelName: string) {
+    const model = modelKey(modelName);
+    return model.includes("kling-v3") || model.includes("kling-3-0");
+}
+
+export function isKlingV26Model(modelName: string) {
+    const model = modelKey(modelName);
+    return model.includes("kling-v2-6") || model.includes("kling-2-6");
+}
+
 export function isAgnesVideoV25Model(modelName: string) {
     return modelKey(modelName).startsWith("agnes-video-2-5");
 }
@@ -97,9 +108,9 @@ export function supportsVideoAudioGeneration(modelName: string) {
         (model.includes("veo") && model.includes("official")) ||
         model === "wan2-6" ||
         model === "wan2-6-i2v-flash" ||
-        model.includes("kling-v2-6") ||
-        model.includes("kling-2-6") ||
-        ((model.includes("kling-v3") || model.includes("kling-3-0")) && !model.includes("turbo")) ||
+        isKlingV26Model(model) ||
+        // turbo 档不支持原生音频，但时长档位仍按 Kling 3 系算；排除只发生在音频这一问。
+        (isKlingV3Model(model) && !model.includes("turbo")) ||
         model.includes("pixverse-v6") ||
         model.includes("viduq3-pro") ||
         model.includes("vidu-q3-pro") ||

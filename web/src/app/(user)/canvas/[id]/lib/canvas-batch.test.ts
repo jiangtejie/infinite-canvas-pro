@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
-import { collectBatchTargetNodeIds, collectPublishableRemixImages, collectRemixImageNodeIds, countSourceRemixImages, findSourceRemixTextNode, getSourceRemixTextStatus, hasSourceRemixText, isBatchTargetImageNode } from "./canvas-batch";
+import { collectBatchGenerationTargets, collectBatchTargetNodeIds, isBatchTargetImageNode } from "./canvas-batch";
 
 const node = (id: string, type: CanvasNodeType, patch: Partial<CanvasNodeData> = {}): CanvasNodeData => ({
     id,
@@ -51,47 +51,32 @@ test("batch target predicate excludes group roots and non-image nodes", () => {
     assert.equal(isBatchTargetImageNode(text), false);
 });
 
-const source = node("source-1", CanvasNodeType.Source);
-const remixOne = node("source-1-remix-image-0", CanvasNodeType.Image, { metadata: { content: "https://example.com/r1.png", remixIndex: 1 } });
-const remixTwo = node("source-1-remix-image-1", CanvasNodeType.Image, { metadata: { content: "https://example.com/r2.png", remixIndex: 2 } });
-const materialImage = node("source-1-material-image-0", CanvasNodeType.Image, { metadata: { content: "https://example.com/m.png" } });
+const prompted = node("img-prompted", CanvasNodeType.Image, { metadata: { prompt: "海边" } });
+const blankPrompt = node("img-blank", CanvasNodeType.Image, { metadata: { prompt: "   " } });
+const noPrompt = node("img-empty", CanvasNodeType.Image);
+const promptedPanorama = node("pano-prompted", CanvasNodeType.Panorama, { metadata: { prompt: "全景" } });
 
-test("source remix images are collected by id prefix and sorted by remixIndex", () => {
-    const nodes = [source, remixTwo, materialImage, remixOne, imageA];
-    assert.deepEqual(collectRemixImageNodeIds(nodes, "source-1"), ["source-1-remix-image-0", "source-1-remix-image-1"]);
-    assert.equal(countSourceRemixImages(nodes, "source-1"), 2);
-    assert.deepEqual(collectRemixImageNodeIds(nodes, "source-2"), []);
+test("generation targets keep prompt-carrying images in input order and dedupe", () => {
+    const nodes = [prompted, promptedPanorama, blankPrompt, noPrompt];
+    assert.deepEqual(collectBatchGenerationTargets(nodes, ["img-prompted", "pano-prompted", "img-prompted"]), { targetNodeIds: ["img-prompted", "pano-prompted"], skippedCount: 0 });
 });
 
-test("remix images fall back to source metadata when ids changed", () => {
-    const copied = node("image-copied", CanvasNodeType.Image, { metadata: { content: "https://example.com/copy.png", remixIndex: 3, remixSourceId: "source-missing" } });
-    const otherSource = node("image-other-source", CanvasNodeType.Image, { metadata: { content: "https://example.com/other.png", remixIndex: 1, remixSourceId: "source-other" } });
-    const noRemix = node("image-plain", CanvasNodeType.Image, { metadata: { content: "https://example.com/plain.png" } });
-    assert.deepEqual(collectRemixImageNodeIds([copied, otherSource, noRemix], "source-missing"), ["image-copied"]);
-    assert.deepEqual(collectRemixImageNodeIds([copied, otherSource, noRemix], "source-other"), ["image-other-source"]);
+test("images without a usable prompt are skipped and counted, never submitted", () => {
+    const nodes = [prompted, blankPrompt, noPrompt];
+    assert.deepEqual(collectBatchGenerationTargets(nodes, ["img-blank", "img-empty", "img-prompted"]), { targetNodeIds: ["img-prompted"], skippedCount: 2 });
+    assert.deepEqual(collectBatchGenerationTargets(nodes, ["img-blank", "img-empty"]), { targetNodeIds: [], skippedCount: 2 });
 });
 
-const remixText = node("source-1-remix-text", CanvasNodeType.Text, { metadata: { content: "复刻后的文案" } });
-
-test("source remix text node is found by id and exposes readiness", () => {
-    assert.equal(findSourceRemixTextNode([source, remixText], "source-1")?.id, "source-1-remix-text");
-    assert.equal(findSourceRemixTextNode([source], "source-1"), undefined);
-    assert.equal(hasSourceRemixText(remixText), true);
-    assert.equal(hasSourceRemixText(undefined), false);
+test("non-candidates are dropped without counting as skipped prompts", () => {
+    const nodes = [prompted, batchRoot, text, video];
+    assert.deepEqual(collectBatchGenerationTargets(nodes, ["img-root", "text", "video", "missing", "img-prompted"]), { targetNodeIds: ["img-prompted"], skippedCount: 0 });
+    assert.deepEqual(collectBatchGenerationTargets(nodes, []), { targetNodeIds: [], skippedCount: 0 });
 });
 
-test("remix text status covers missing, idle, generating, success and error", () => {
-    assert.equal(getSourceRemixTextStatus(undefined), "missing");
-    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "idle" } })), "idle");
-    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "loading" } })), "generating");
-    assert.equal(getSourceRemixTextStatus(remixText), "success");
-    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "error" } })), "error");
-    assert.equal(getSourceRemixTextStatus(node("source-1-remix-text", CanvasNodeType.Text, { metadata: { status: "error", content: "上一次的结果" } })), "success");
-});
-
-test("publishable remix images only keep generated content in remix order", () => {
-    const emptyRemix = node("source-1-remix-image-2", CanvasNodeType.Image, { metadata: { remixIndex: 3 } });
-    const nodes = [remixTwo, emptyRemix, remixOne, materialImage];
-    assert.deepEqual(collectPublishableRemixImages(nodes, "source-1").map((item) => item.id), ["source-1-remix-image-0", "source-1-remix-image-1"]);
-    assert.deepEqual(collectPublishableRemixImages([emptyRemix], "source-1"), []);
+test("remix images with plan-written prompts are all accepted", () => {
+    const nodes = [
+        node("source-1-remix-image-0", CanvasNodeType.Image, { metadata: { prompt: "整组设定\n\n第1张", remixIndex: 1 } }),
+        node("source-1-remix-image-1", CanvasNodeType.Image, { metadata: { prompt: "整组设定\n\n第2张", remixIndex: 2 } }),
+    ];
+    assert.deepEqual(collectBatchGenerationTargets(nodes, ["source-1-remix-image-0", "source-1-remix-image-1"]), { targetNodeIds: ["source-1-remix-image-0", "source-1-remix-image-1"], skippedCount: 0 });
 });

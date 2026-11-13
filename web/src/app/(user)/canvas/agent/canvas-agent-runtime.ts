@@ -105,7 +105,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
     let expectedAction = false;
     let protocolMessages: CanvasAgentProtocolMessage[] = [
         ...input.protocolMessages,
-        { role: "user" as const, content: buildUserContent(input.userText, input.references, input.config.textModel || input.config.model) },
+        { role: "user" as const, content: buildUserContent(input.userText, input.references, input.config.textModel || input.config.model, input.getContext(input.initialState).remixImages) },
     ];
     let contextCheckpoint = input.contextCheckpoint;
     const activeSkillContents = input.activeSkillContents?.map((skill, index) => `【完整 Skill ${index + 1}：${skill.name}（${skill.source === "system" ? `系统 Skill ID：${skill.id}` : "用户 Skill"}）】\n${skill.content}`).join("\n\n");
@@ -370,14 +370,20 @@ export async function executeActions(
     return { items, state };
 }
 
-function buildUserContent(text: string, references: CanvasAssistantReference[], modelName: string): CanvasAgentContent {
+function buildUserContent(text: string, references: CanvasAssistantReference[], modelName: string, remixImages: CanvasAgentContext["remixImages"]): CanvasAgentContent {
     const referenceText = references.length
         ? "\n\n本次输入中的节点占位与真实节点一一对应，请按占位分别理解和操作：" + references.map((item) => `${item.label || item.title} → 节点 ${item.id}（${item.title}）`).join("；")
         : "";
-    const imageReferences = references.filter((item) => item.dataUrl && (/^data:image\//.test(item.dataUrl) || /^https?:\/\//.test(item.dataUrl)));
-    const imageOrderText = imageReferences.length ? "\n随消息附带的图片顺序：" + imageReferences.map((item, index) => `第 ${index + 1} 张 = ${item.label || item.title}`).join("；") : "";
+    const isImageUrl = (url: string) => /^data:image\//.test(url) || /^https?:\/\//.test(url);
+    // 用户引用的图在前，素材源整组原图按原图顺序在后；策划产出的 images[] 必须按这个顺序对齐。
+    // 会话记录不存图，所以每轮都要重新附带，跨轮才不会丢掉整组视野。
+    const attached = [
+        ...references.filter((item) => item.dataUrl && isImageUrl(item.dataUrl)).map((item) => ({ label: item.label || item.title, url: item.dataUrl as string })),
+        ...remixImages.filter((item) => isImageUrl(item.url)).map((item) => ({ label: `${item.title}（节点 ${item.nodeId}）`, url: item.url })),
+    ];
+    const imageOrderText = attached.length ? "\n随消息附带的图片顺序：" + attached.map((item, index) => `第 ${index + 1} 张 = ${item.label}`).join("；") : "";
     const images = supportsCanvasAgentImageInput(modelName)
-        ? imageReferences.map((item) => ({ type: "image_url" as const, image_url: { url: item.dataUrl as string } }))
+        ? attached.map((item) => ({ type: "image_url" as const, image_url: { url: item.url } }))
         : [];
     if (!images.length) return text + referenceText;
     return [{ type: "text", text: text + referenceText + imageOrderText }, ...images];

@@ -1,6 +1,7 @@
 import type { VideoResponse } from "@/services/api/video";
 
-import type { CanvasNodeMetadata } from "../../types";
+import { CanvasNodeType, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
+import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 
 /**
  * 画布任务状态与元数据解析：全部为纯函数，供画布主组件和单元测试共用。
@@ -34,6 +35,14 @@ export function parseCanvasVideoTaskSize(value: unknown, fallback: { width: numb
 
 export function canvasVideoTaskId(metadata?: CanvasNodeMetadata) {
     return metadata?.videoTaskVideoId || metadata?.videoTaskId || "";
+}
+
+/** 节点可用于恢复/轮询的任务 ID 唯一口径：视频优先 videoId 回退 taskId。摘要、上下文与刷新恢复共用。 */
+export function canvasRecoverableTaskId(node: CanvasNodeData) {
+    if (node.type === CanvasNodeType.Video) return canvasVideoTaskId(node.metadata);
+    if (isCanvasImageNodeType(node.type)) return node.metadata?.imageTaskId || "";
+    if (node.type === CanvasNodeType.Audio) return node.metadata?.audioTaskId || "";
+    return "";
 }
 
 export function canvasVideoTaskCompleted(task: { video_url?: string; url?: string; status?: string }) {

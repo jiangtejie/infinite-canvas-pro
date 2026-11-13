@@ -39,6 +39,19 @@ test("query clamps page size and ignores media content for keyword search", () =
     assert.equal(queryAgentCanvasNodes({ nodes, page: 0, pageSize: 0 }).page, 1);
 });
 
+test("source keyword search uses the shared source text including title and normalized tags", () => {
+    const source = node({ id: "src", type: CanvasNodeType.Source, title: "素材源", metadata: { sourceTitle: "租房党的幸福感家居好物", sourceText: "正文", sourceTags: ["#租房", "好物", ""] } });
+    assert.deepEqual(queryAgentCanvasNodes({ nodes: [source], keyword: "租房党" }).items.map((item) => item.id), ["src"]);
+    assert.deepEqual(queryAgentCanvasNodes({ nodes: [source], keyword: "#租房" }).items.map((item) => item.id), ["src"]);
+    assert.deepEqual(queryAgentCanvasNodes({ nodes: [source], keyword: "好物" }).items.map((item) => item.id), ["src"]);
+});
+
+test("publish keyword search uses the shared draft text including tags", () => {
+    const publish = node({ id: "pub", type: CanvasNodeType.Publish, title: "发布", metadata: { publishDraft: { title: "租房好物", body: "正文", tags: ["#租房"], imageNodeIds: [] } } });
+    assert.deepEqual(queryAgentCanvasNodes({ nodes: [publish], keyword: "#租房" }).items.map((item) => item.id), ["pub"]);
+    assert.deepEqual(queryAgentCanvasNodes({ nodes: [publish], keyword: "租房好物" }).items.map((item) => item.id), ["pub"]);
+});
+
 test("neighbors only returns directly connected nodes", () => {
     const nodes = [node({ id: "a" }), node({ id: "b" }), node({ id: "c" })];
     const connections: CanvasConnection[] = [

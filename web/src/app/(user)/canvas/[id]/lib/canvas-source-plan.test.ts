@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
-import { buildSourceMaterialPlan, pruneSourceDerivedNodes, SOURCE_REMIX_PLAN_PROMPT, SOURCE_REMIX_TEXT_PROMPT } from "./canvas-source-plan";
+import { buildSourceMaterialPlan, pruneSourceDerivedNodes } from "./canvas-source-plan";
+import { sourceNodeText } from "./canvas-node-meta";
 
 const sourceNode = (patch: Partial<CanvasNodeData> = {}): CanvasNodeData => ({
     id: "source-1",
@@ -50,6 +51,14 @@ test("material text joins title, body and hashtags", () => {
     assert.equal(textNode?.metadata?.fontSize, 14);
 });
 
+test("material text is exactly the shared source text with normalized tags", () => {
+    const source = sourceNode({ metadata: { sourceTitle: "标题", sourceText: "正文", sourceTags: ["#话题1", "话题2", "", "#"] } });
+    const plan = buildSourceMaterialPlan(source);
+    const textNode = plan.nodes.find((node) => node.id === "source-1-material-text");
+    assert.equal(textNode?.metadata?.content, sourceNodeText(source));
+    assert.equal(textNode?.metadata?.content, "标题\n\n正文\n\n#话题1 #话题2");
+});
+
 test("material images keep aspect ratio, fall back to 4:3 and avoid overlap", () => {
     const plan = buildSourceMaterialPlan(sourceNode());
     const images = plan.nodes.filter((node) => node.type === CanvasNodeType.Image && node.id.includes("material-image"));
@@ -83,74 +92,12 @@ test("material connections only wire source to material nodes", () => {
     assert.deepEqual(plan.nodes.map((node) => node.type), [CanvasNodeType.Text, CanvasNodeType.Image, CanvasNodeType.Image]);
 });
 
-test("remix image generation size follows the reference aspect ratio", () => {
-    const plan = buildSourceMaterialPlan(sourceNode({ metadata: { sourceImages: [{ url: "/api/files/portrait/content", width: 1080, height: 1350 }] } }), { includeRemix: true });
-    const image = plan.nodes.find((node) => node.id === "source-1-remix-image-0");
-    assert.ok(image);
-    assert.equal(image.metadata?.size, "1024x1280");
-    assert.equal(image.width, 320);
-    assert.equal(image.height, 400);
-});
-
-test("remix plan fans out one image node per source image", () => {
-    const plan = buildSourceMaterialPlan(sourceNode(), { includeRemix: true });
-    assert.equal(plan.nodes.length, 7);
-    assert.equal(plan.connections.length, 9);
-
-    const remixText = plan.nodes.find((node) => node.id === "source-1-remix-text");
-    const remixPlan = plan.nodes.find((node) => node.id === "source-1-remix-plan");
-    const remixImages = plan.nodes.filter((node) => node.id.startsWith("source-1-remix-image-"));
-    assert.equal(remixText?.metadata?.prompt, SOURCE_REMIX_TEXT_PROMPT);
-    assert.equal(remixText?.metadata?.status, "idle");
-    assert.equal(remixPlan?.type, CanvasNodeType.Text);
-    assert.equal(remixPlan?.title, "复刻策划");
-    assert.equal(remixPlan?.metadata?.prompt, SOURCE_REMIX_PLAN_PROMPT);
-    assert.equal(remixPlan?.metadata?.status, "idle");
-    assert.equal(remixImages.length, 2);
-    assert.deepEqual(remixImages.map((node) => node.title), ["复刻配图 1", "复刻配图 2"]);
-    assert.deepEqual(remixImages.map((node) => node.metadata?.remixIndex), [1, 2]);
-    assert.deepEqual(remixImages.map((node) => node.metadata?.remixSourceId), ["source-1", "source-1"]);
-    assert.deepEqual(remixImages.map((node) => [node.width, node.height]), [[300, 400], [320, 160]]);
-    assert.deepEqual(remixImages.map((node) => node.metadata?.size), ["768x1024", "1920x1080"]);
-    assert.deepEqual(remixImages.map((node) => node.metadata?.naturalWidth), [1080, 400]);
-    // 配图提示词由策划按整组图写入，铺开时必须为空，不留单图模板绕过策划。
-    assert.deepEqual(remixImages.map((node) => node.metadata?.prompt), ["", ""]);
-    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-material-text" && item.toNodeId === "source-1-remix-text"));
-    assert.equal(plan.connections.some((item) => item.toNodeId === "source-1-remix-text" && item.fromNodeId !== "source-1-material-text"), false);
-    assert.equal(plan.connections.some((item) => item.fromNodeId === "source-1-remix-text" && item.toNodeId.startsWith("source-1-remix-image-")), false);
-    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-0" && item.toNodeId === "source-1-remix-image-0"));
-    assert.ok(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-1" && item.toNodeId === "source-1-remix-image-1"));
-    assert.equal(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-0" && item.toNodeId === "source-1-remix-image-1"), false);
-    assert.equal(plan.connections.some((item) => item.fromNodeId === "source-1-material-image-1" && item.toNodeId === "source-1-remix-image-0"), false);
-    // 策划读新文案与全部原图，顺序即原图顺序；它不连配图，提示词是解析后逐张写入的。
-    assert.deepEqual(
-        plan.connections.filter((item) => item.toNodeId === "source-1-remix-plan").map((item) => item.fromNodeId),
-        ["source-1-remix-text", "source-1-material-image-0", "source-1-material-image-1"],
-    );
-    assert.equal(plan.connections.some((item) => item.fromNodeId === "source-1-remix-plan"), false);
-});
-
-test("remix plan falls back to the cover image and tolerates missing text", () => {
-    const plan = buildSourceMaterialPlan(sourceNode({ metadata: { sourceKind: "video", sourceCoverUrl: "/api/files/cover/content", sourceImages: [] } }), { includeRemix: true });
-    assert.deepEqual(plan.nodes.map((node) => node.id), ["source-1-material-image-0", "source-1-remix-text", "source-1-remix-plan", "source-1-remix-image-0"]);
-    assert.equal(plan.nodes[0]?.metadata?.content, "/api/files/cover/content");
-    assert.equal(plan.connections.length, 4);
-});
-
-test("text-only source still gets one text-to-image remix node", () => {
-    const plan = buildSourceMaterialPlan(sourceNode({ metadata: { sourceTitle: "标题", sourceText: "正文", sourceImages: [] } }), { includeRemix: true });
-    assert.deepEqual(plan.nodes.map((node) => node.id), ["source-1-material-text", "source-1-remix-text", "source-1-remix-plan", "source-1-remix-image-0"]);
-    assert.equal(plan.nodes.filter((node) => node.id.startsWith("source-1-remix-image-")).length, 1);
-    assert.equal(plan.connections.length, 3);
-});
-
 test("empty source returns an empty plan", () => {
-    const plan = buildSourceMaterialPlan(sourceNode({ metadata: { sourceStatus: "success" } }), { includeRemix: true });
+    const plan = buildSourceMaterialPlan(sourceNode({ metadata: { sourceStatus: "success" } }));
     assert.deepEqual(plan.nodes, []);
     assert.deepEqual(plan.connections, []);
     assert.deepEqual(plan.sourcePatch, { sourceExpanded: true });
 });
-
 
 test("prune derived nodes removes stale materials without external links", () => {
     const source = sourceNode();

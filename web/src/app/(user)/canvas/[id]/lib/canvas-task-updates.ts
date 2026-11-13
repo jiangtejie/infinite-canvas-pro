@@ -8,9 +8,8 @@ import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
 import { fitNodeSize, nodeSizeFromRatio } from "../../utils/canvas-node-size";
 import { PANORAMA_NODE_SIZE, isCanvasImageNodeType, isPanoramaNodeType } from "../../utils/canvas-panorama";
-import { canvasRecoverableTaskId } from "./canvas-agent-summary";
 import { NODE_STATUS_ERROR, NODE_STATUS_LOADING, NODE_STATUS_SUCCESS, VIDEO_NODE_MAX_HEIGHT, VIDEO_NODE_MAX_WIDTH } from "./canvas-node-constants";
-import { canvasImageTaskChildIds, canvasImageTaskURLs, canvasTaskCompleted, canvasTaskFailed, canvasVideoTaskCompleted, canvasVideoTaskFailed, parseCanvasTaskTime, parseCanvasVideoTaskSize, parseCanvasVideoTaskTime } from "./canvas-task-helpers";
+import { canvasImageTaskChildIds, canvasImageTaskURLs, canvasRecoverableTaskId, canvasTaskCompleted, canvasTaskFailed, canvasVideoTaskCompleted, canvasVideoTaskFailed, parseCanvasTaskTime, parseCanvasVideoTaskSize, parseCanvasVideoTaskTime } from "./canvas-task-helpers";
 
 export type CanvasTaskMediaSize = { mediaSize?: { content: string; width: number; height: number } };
 

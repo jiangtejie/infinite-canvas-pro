@@ -19,7 +19,7 @@ import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "
 import type { Asset } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 
-import { canvasNodeDisplayStatus } from "../[id]/lib/canvas-node-meta";
+import { canvasNodeDisplayStatus, publishDraftText, sourceNodeText } from "../[id]/lib/canvas-node-meta";
 import { assetInsertPayload, libraryInsertPayload, useLibraryAssetBrowser, useMyAssetBrowser } from "../lib/canvas-asset-query";
 import { CanvasNodeType, type CanvasNodeData } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
@@ -201,7 +201,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
         const query = keyword.trim().toLowerCase();
         return nodes.filter((node) => {
             if (typeFilter !== "all" && node.type !== typeFilter) return false;
-            return !query || [node.title, NODE_TYPE_LABEL[node.type], node.metadata?.content, node.metadata?.prompt, node.metadata?.sourceText, (node.metadata?.sourceTags || []).join(" "), node.metadata?.publishDraft?.title, node.metadata?.publishDraft?.body].filter(Boolean).join(" ").toLowerCase().includes(query);
+            return !query || [node.title, NODE_TYPE_LABEL[node.type], node.metadata?.content, node.metadata?.prompt, sourceNodeText(node), publishDraftText(node)].filter(Boolean).join(" ").toLowerCase().includes(query);
         });
     }, [keyword, nodes, typeFilter]);
     const treeRows = useMemo(() => {

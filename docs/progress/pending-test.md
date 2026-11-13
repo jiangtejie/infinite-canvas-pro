@@ -3,6 +3,70 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 任务 ID 与 Kling 模型判定口径收敛
+
+解决的问题：节点「可恢复任务 ID」有两份实现且互相分歧——摘要与刷新恢复走 `canvasVideoTaskId`（视频优先取 `videoTaskVideoId`），Agent 默认上下文的私有 `mediaTaskId` 只读 `videoTaskId`，导致只有 `videoTaskVideoId` 的视频任务在上下文里漏报为可恢复任务。Kling 判定也有两份字符串匹配：摘要私有的 `isCanvasAgentKlingV3/V26` 与 lib 音频支持判定里的内联匹配。
+
+- 唯一口径落到 `canvas/[id]/lib/canvas-task-helpers.ts` 的 `canvasRecoverableTaskId`：视频优先 `videoTaskVideoId` 回退 `videoTaskId`，图片取 `imageTaskId`，音频取 `audioTaskId`。摘要、Agent 默认上下文（删除私有 `mediaTaskId`）、刷新恢复（`canvas-task-updates`）三个消费方全部改用。
+- Kling 判定收敛到 `lib/video-model-capabilities.ts` 的 `isKlingV3Model` / `isKlingV26Model`，摘要的时长档位/秒数校验与音频支持判定共用。澄清：turbo 排除只发生在「是否支持原生音频」这一问（turbo 档不支持原生音频），时长档位一直把 turbo 算进 Kling 3 系——两处原本回答的是不同问题，不存在行为分歧，本轮是纯字符串匹配收敛。
+- 行为变化：Agent 上下文现在能恢复只有 `videoTaskVideoId` 的视频任务（此前漏报）；其余行为不变。
+- 验证：`bun run typecheck`、`bun run lint`（0 warning）、`bun test`（68 文件 400 条）通过。新增 2 条测试：Kling turbo 时长按 3 系校验且音频支持返回 false；上下文可恢复只有 `videoTaskVideoId` 的视频任务。
+- 未实测：均为纯函数已测；真机上视频任务中断后刷新，Agent 能否看到可恢复任务需顺带看一眼。
+
+## 素材源 / 发布草稿正文口径收敛为单一实现
+
+解决的问题：同一条素材的「正文」此前有三份各自拼装的实现且互相分歧——Agent 摘要用 `\n` 连接且话题不剥原有 #；素材展开节点用 `\n\n` 且剥 #；`query_canvas_nodes` 关键词搜索干脆丢掉标题、话题不带 #。发布草稿同样三份：摘要与默认上下文是逐字相同的两份（`\n`、不剥 #），搜索是空格无 # 的第三份；侧栏节点搜索还是第四份半成品（源丢标题、发布丢话题）。
+
+- 唯一口径落到中性的 `canvas/[id]/lib/canvas-node-meta.ts`：`sourceNodeText` 与 `publishDraftText`，均为标题 + 正文 + 规范化 #话题（剥掉原有 # 再补、丢弃空话题），段间空行。选 `\n\n` 是为了保持用户可见的素材文案节点排版不变。
+- 消费方全部改用：`canvasAgentNodeSummary`（get_node / get_canvas_summary）、`buildCanvasAgentContext` 默认上下文（删除私有 `publishDraftText`）、`buildSourceMaterialPlan` 素材文案节点（删除私有 `buildMaterialText`）、`queryAgentCanvasNodes` 关键词匹配、侧栏节点搜索。
+- 行为变化（均为收敛到更完整口径）：Agent 看到的素材/发布正文段间改为空行、话题不再出现 `##`（发布话题可被用户手填带 #，此前会拼成 `##`）；Agent 关键词搜索与侧栏搜索现在能命中标题与带 # 的话题。素材文案节点内容保持不变。
+- 验证：`bun run typecheck`、`bun run lint`（0 warning）、`bun test`（68 文件 398 条）通过。新增 4 条测试：素材文案节点内容恒等于 `sourceNodeText` 且空/纯 # 话题被丢弃；发布摘要恒等于 `publishDraftText` 且 `#旅行` 不变成 `##旅行`；Agent 搜索可命中素材标题/`#租房` 与发布标题/`#租房`。原有上下文测试期望同步改为空行分隔。
+- 未实测：搜索与 Agent 上下文为纯函数已测；真机上素材源解析后展开、Agent 读正文、侧栏搜发布节点的观感需顺带看一眼。
+
+## 素材源复刻搬进创作 Agent（撤掉一键复刻向导）
+
+解决的问题：复刻向导把「文案 → 策划 → 配图 → 发布」拆成四个按钮，用户要自己按顺序点，而 Agent 看不到整组原图、也没有复刻工具，无法在对话里统揽全局。本轮把复刻整体交给创作 Agent，素材源面板只保留解析、展开素材与重置。
+
+- 素材源面板：删除四步向导与 `CanvasSourceRemixFlow`，「一键复刻」改为「交给 Agent 复刻」——先展开素材，再挂载助手、打开面板并预置复刻指令。卡片与面板的说明文案同步改成新流程。
+- 素材源面板去掉重复的九宫格图片预览：节点卡片本身已有单图轮播（左右切换、页码、共 N 张），面板再铺一遍同一组图是冗余。面板只保留标题/作者/数据/正文/话题/警告与操作按钮；空态文案改为「图片在节点卡片上轮播预览」。
+- 新增三个画布 Agent 工具：`expand_source`（write，复用页面唯一的 `handleExpandSource`）、`plan_source_remix`（costly）、`generate_remix_images`（costly）。三者都进了工具白名单、参数归一化、风险注册表与执行中label。
+- **组级策划仍是必经步骤，且改由代码门禁保证**：`plan_source_remix` 建好复刻文案/策划/配图节点后调用既有文本生成链路产出 `{shared, images[]}`，解析合格才逐张写回提示词；`generate_remix_images` 先过 `sourceRemixImagesReady`（策划有正文 + 每张配图都有提示词），不合格返回 `remix_plan_required`，不能用 `generate_image` 逐张绕过。
+- 复刻文案由 Agent 直接写进 `copy`，不再单独调一次模型：删除 `SOURCE_REMIX_TEXT_PROMPT`，文案要求（同结构同传播逻辑、标题 ≤20 字、口语化短句、话题 3–5 个不带 #、不照抄原句）搬进新的 `skills/source-remix.ts`。
+- 补齐 Agent 的读图视野：`canvasAgentNodeSummary` 给素材源输出按解析顺序编号的 `sourceImages`；`buildCanvasAgentContext` 新增 `remixImages`，把焦点素材源的整组原图按原图顺序收集；`buildUserContent` 把「用户引用图 + 整组原图」一起作为 `image_url` 附带，并写明第 N 张对应哪个节点。会话记录不存图，所以每轮重新附带。素材源正文口径抽成 `sourceNodeText`，摘要与默认上下文共用一份。
+- 语义收敛到单一模块 `canvas/[id]/lib/canvas-source-remix.ts`：ID 约定、定位、策划提示词、解析、建图与比例选尺寸、门禁全在这里，单向依赖 `canvas-batch` 与 `canvas-source-plan`。删除 `canvas-source-remix-plan.ts` 及其测试；`canvas-source-plan.ts` 只留素材展开与派生节点清理；`canvas-batch.ts` 只留批量目标判定。
+- `buildSourceRemixScaffold` 改为 `planSourceRemix`，直接返回并入画布后的 nodes/connections：同 ID 复用、保留已生成配图内容与用户改过的生成尺寸，但清空策划正文与全部配图提示词；原图张数变少时按既有 `pruneSourceDerivedNodes` 清掉多余配图（已连到外部节点的保留）。骨架右边界改按**素材组**实际右缘计算，不再按整张画布最右节点，避免复刻组飞到画布另一头。
+- 确认卡：`plan_source_remix` 显示原图张数，且不受 `autoGenerateMedia` 影响（策划本身要调文本模型），可被 `confirmMediaGeneration` 关闭；`generate_remix_images` 不再叠一层卡片，复用批量队列自带的张数/模型/算力点确认。
+- `autoGenerateMedia=false` 时 `generate_remix_images` 返回 `submitted:false`，只写齐提示词不提交；批量取消/忙碌/未配置返回 `remix_batch_not_started`，停止或部分失败返回 `remix_batch_incomplete` 并带 `failedNodeIds`，至少一张成功才创建或复用发布节点。
+- 删除随之失效的死代码：`retryFailed`（向导专用，单张重做走配图节点自身的重新生成）、`getSourceRemixTextStatus` 与 `SourceRemixTextStatus`、页面里 6 个向导回调与 `sourceRemixFlowsById`。CORE Skill 补上 source/publish 节点类型与三个素材源工具，`userLikelyRequestedCanvasAction` 补「复刻 / 展开素材」。
+- 验证：`bun run typecheck`、`bun run lint`（0 warning）、`bun test`（68 文件 389 条）通过。新增/迁移测试覆盖：骨架扇出与连线顺序、比例与生成尺寸、骨架按素材组右缘排布、重新策划复用节点并保留已生成内容、原图减少时清理多余配图、封面/纯文本退化路径、门禁三态、提示词自包含、策划 JSON 解析与四种不合格输出、定位与可发布图收集；上下文覆盖素材源正文/张数/整组原图顺序与非焦点源不给视野；运行时覆盖用户引用图在前原图在后、非读图模型不附图也不写图片顺序、空 URL 不附带；确认卡覆盖策划张数与开关、展开与批量不叠卡片。
+- 批量生图边界修复（检查复刻链路时发现，五项）：
+  - **重跑复刻配图不再产出孤儿节点**：`startBatch` 新增 `overwrite` 选项，`generate_remix_images` 传 true。此前默认偏好是「生成到新节点」（`nodeRegenerateBehavior: "new-node"`），第二次跑时配图已有内容 → 另建 nanoid 兄弟节点、原节点保留旧图并被当成 edit 参考图，而新节点没有 `remixIndex/remixSourceId` 收不进复刻组，发布节点仍发旧图，Agent 却报「成功 N 张」。手动工具栏批量不传该选项，仍尊重用户全局偏好。
+  - **空提示词不再入队**：新增 `collectBatchGenerationTargets`（放在已owns批量目标判定的 `canvas-batch.ts`），在批量候选里再剔除 prompt 为空/纯空白的图片节点，与单节点面板 `canSubmit` 同口径；全部不合格与部分跳过分别给不同提示。此前新建图片节点（spec 只有 `content:""`、无 prompt）被选中就能批量提交，`handleGenerateNode` 的空提示词拦截只覆盖 text/audio，账号渠道会照扣算力点。
+  - **删掉死状态 `batchState.failedNodeIds`**：`retryFailed` 删除后全仓再无消费方（进度条只显示计数），失败明细只保留在 `startBatch` 返回值里给 Agent 用。
+  - **等待只认本次生成新建的下游**：`waitForGeneration` 原本取目标的全部直接下游，任一 loading 就认为本张还在跑；用户独立起了下游改图/视频时会替它白等最多 10 分钟，并把它的失败记到本张头上。改为用快照 ids 差集算 `newDownstreamIds`，`downstreamActive`、`sawActivity` 与 `failedNewNode` 三处统一只看本次新建的下游。已核实 `setNodes` 与 `setConnections` 是相邻同步调用、同一批 flush，新节点与连线不会分帧出现；「生成到新节点」模式下新根节点仍由 `fromNodeId: nodeId` 连入，照旧被等待。
+  - **复刻组归属与批量目标判定解耦**：`collectRemixImageNodeIds` 改用 `isCanvasImageNodeType` 而非 `isBatchTargetImageNode`，不再排除 `isBatchRoot`。此前全局偏好为「原地覆盖」且 count>1 时，手动生成会把配图节点本身变成 batchRoot，该槽位就从复刻组消失——门禁少校验一张、发布节点少一张图且看不出原因。现在归属只看 ID/`remixIndex`，能否入批量队列仍由 `canvas-batch` 判定；`canvas-source-remix` 因此不再依赖 `canvas-batch`。
+  - **整组重跑遇到已展开槽位显式拒绝**：`generate_remix_images` 新增 `remix_slot_expanded`，指明是哪几张被展开成多结果批量组，不静默少生成一张后报成功；Skill 同步要求如实转达、不得改用 `generate_image` 绕过。
+- 验证：`bun run typecheck`、`bun run lint`（0 warning）、`bun test`（68 文件 394 条）通过。新增 5 条纯函数测试：批量目标筛选覆盖保序去重、空白/缺失提示词跳过并计数、非候选（batchRoot/文本/视频/不存在 ID）不计入跳过数、策划写回提示词的复刻配图全部 accepted；复刻组覆盖被手动展开成 batchRoot 的槽位仍算组内成员、仍可发布、门禁仍校验它，而批量队列仍不收它。
+- 未实测：整条链路需要真实抖音链接、能读图的文本模型与真实生图渠道，隐藏帧无法验收；Agent 多轮对话中的策划质量、批量确认与发布节点补连都必须真机跑。批量 hook 本身没有测试设施（全仓无 renderHook / @testing-library），`overwrite` 透传、跳过提示与下游归属判定只按代码核实，未跑真实批量。
+
+需验证：
+- 打开素材源面板：不再出现九宫格图片，只有文字摘要与操作按钮；图片仍能在节点卡片上轮播查看，面板高度明显变矮、不再需要为看图滚动。
+- 点「交给 Agent 复刻」：素材先展开，助手打开并自动开始复刻；Agent 是否真的按 expand → 写文案 → plan_source_remix → generate_remix_images 走，而不是用 create_text_node + generate_image 逐张拼。
+- 直接在对话里说「复刻这个素材源」（不点按钮）：Agent 能否自己调用 `expand_source` 打通全流程。
+- 用一组「同一界面连续截图」的抖音图文（如微信聊天三连截图攻略）：策划是否识别出连续截图关系、新配图是否保持同一界面与同一主体外观、图内对话是否接得上、步骤编号是否连续、每张是否承担不同职责。换「步骤递进」「前后对比」各一组，确认不是套同一种描述。
+- 读图视野：支持读图的模型下，Agent 是否按原图顺序理解整组；换成不支持读图的文本模型时，是否如实说明本轮没看到图，而不是编造画面。
+- 门禁：策划未完成时让 Agent 生成配图，应被 `remix_plan_required` 拒绝并回到策划；策划输出不合格（非 JSON、张数不符）时报错清晰，重新策划可恢复，不会拿空提示词去生成。
+- 重新策划（传 instruction，如「换成夜景」）：已生成的配图内容是否保留、提示词是否清空并等新策划写回、节点是否没有重复创建。
+- **重跑配图（默认「生成到新节点」偏好下）**：再次 `generate_remix_images` 后，画布上不应多出组外兄弟节点，原配图节点应原地换成新图，发布节点取到的是新图而不是上一版；新图应是按新策划提示词重新生成，而不是拿旧复刻图当参考做 edit。
+- **空提示词批量**：新建几个空图片节点并选中，点批量生成应提示「都没有提示词」且不发起任何请求、不扣点；混选有提示词与空节点时应提示「已跳过 N 个」并只生成有提示词的那些。
+- **下游归属**：给某张图连一个下游改图/视频并手动起它，再对该图跑批量——本张应按自己的终态立即计数，不被下游拖住，也不继承下游的失败；反过来「生成到新节点」模式下批量仍应等到新建的那张真出图才计数。
+- **已展开槽位**：把某张复刻配图用 count=4 原地生成后，它应仍属于复刻组、发布节点仍包含它（取主图）、整组门禁仍校验全部张数；此时让 Agent 整组重跑应收到 `remix_slot_expanded` 并指明是哪几张，而不是少生成一张后报成功。
+- 批量边界：取消确认、已有批量在跑、图片模型未配置、中途停止、部分失败，是否都不误建发布节点，且 Agent 如实报告成功/失败张数。
+- `autoGenerateMedia=false`：是否只写齐提示词并提示手动批量生成，不反复调用催促。
+- 纯文本源（无原图）与只有封面的视频源：仍产出 1 张配图并能正常生成。
+- 原图张数变少后重新策划：多余配图是否被清理，已连到画布其他节点的是否保留。
+- 验收通过后更新 `docs/overview/features.md` 第 141–142 行：现在仍写着「逐图提示词标注第 N/M 张」与「复刻流程分三步」，已过期。
+
 ## 提示词分类筛选优化
 
 - 提示词页分类从单行横向滚动（隐藏滚动条，1440 宽时 12 个分类实际约 2005px，后 4 个不可见）改为响应式布局：`xl` 及以上多行胶囊标签，长分类名单行截断并通过 `title` 显示完整名称；`xl` 以下收成带「分类」标签的下拉选择，所有分类完整可选项。
@@ -196,32 +260,6 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 从图片节点或文本节点拉线到空白处，菜单出现「发布」，选中后创建发布节点并自动连好线，随后打开发布面板。
 - 从视频、音频、配置、导演台、素材源、发布节点拉线时选「发布」，应提示「这两个节点不能这样连接」且不产生脏节点。
 - 拉线菜单变长后在画布底部边缘仍能完整显示（菜单有溢出上移逻辑），键盘上下键与 Esc 正常。
-
-## 素材源一键复刻：新增组级策划步骤
-
-解决的问题：此前每张复刻配图的提示词是固定模板加一句「本张参考第 N/M 张原图」，配图节点唯一上游是自己那张原图，模型看不到整组图的关系。一组「同一微信聊天界面的三次截图」复刻后会变成三张互不相关的聊天图，丢掉叙事层次与图内文字的连贯性。
-
-- 新增「复刻策划」文本节点（`${sourceId}-remix-plan`），上游接**复刻文案（新文案）+ 全部素材原图**，一次多模态调用读懂整组图。走的是既有文本生成读图路径（`buildNodeChatMessages` 把上游图片作为 `image_url` 发出），生成层与批量队列未改。
-- 策划指令要求模型先判断整组关系（连续截图 / 步骤递进 / 前后对比 / 并列清单 / 总分），再提取跨图必须一致的视觉锚点（界面类型、同一主体外观、配色字体、版式网格、文字区位置、色调），再**逐张提取并重写图内文字**（标题、对话气泡、步骤编号、标注），并要求跨图连贯：同一段对话的多次截图要接得上、步骤编号要连续。输出 JSON `{shared, images[]}`。
-- 新增 `canvas/[id]/lib/canvas-source-remix-plan.ts`：`parseSourceRemixPlan`（`jsonrepair` 解析，校验 shared 非空、条数等于原图张数、每条非空，不合格直接抛错）、`remixImagePromptFromPlan`（共同设定 + 本张差异，自包含）、`applySourceRemixPlan`（按 `collectRemixImageNodeIds` 的顺序逐张写入）。
-- **策划是必经步骤，不留跳过与降级分支**：删除 `SOURCE_REMIX_IMAGE_PROMPT` 与 `remixImagePrompt()`，配图节点铺开时 `prompt` 为空，只能由策划写入；配图批量生成的门禁从「文案已生成」改为「文案与策划都已生成」。策划输出不合格时报错并要求重新生成，不退回单图模板。
-- 策划不连配图节点：连线会让每张配图拼进全部 N 张提示词，正是原代码注释警告的「多图混参考」。共同设定是写进每张 prompt 的，用户可在各配图节点上单独改。
-- 复刻流程由三步改四步：文案 → 策划 → 配图 → 发布。策划步骤复用现有状态标签与配色，成功后提示「已按整组图写入 N 张配图提示词」。
-- 重新展开素材时策划节点内容保留（`appendSourcePlan` 对非 material 前缀节点原样返回），不会被覆盖。
-- `CanvasGenerateNodeOptions` 新增 `onText` 回调，文本生成结束时直接回传结果。原因：`nodesRef` 在 `useLayoutEffect` 里才同步，调用方 `await handleGenerateNode(...)` 后立刻读 `nodesRef.current` 会拿到生成前的旧内容，策划会必然解析失败。不改 `handleGenerateNode` 的返回类型，因为三处 prop 声明都是 `Promise<void>`。回调在文本分支最终 `setNodes` 之后触发，写入配图提示词用的是函数式更新，不会被生成流程的状态回写覆盖。
-- 验证：`bun run typecheck`、`bun run lint`（0 warning）、`bun test`（66 文件 375 条，新增 7 条）通过。纯函数覆盖 JSON 解析、markdown 代码块与尾逗号容错、张数不符、shared 为空、单条为空、非计划对象、提示词自包含、按给定顺序写入且不影响其他节点；铺开计划覆盖策划节点类型/标题/提示词、上游连线顺序（文案 → 原图 0 → 原图 1）、策划不向配图连线、配图 prompt 为空，以及封面回退与纯文本源两种退化路径的节点与连线数。
-- 未实测：策划的多模态调用需要能读图的文本模型与真实原图，隐藏帧无法验收；整组连贯性的实际效果必须真机跑一组真实抖音链接确认。
-
-需验证：
-- 用一组「同一界面连续截图」的抖音图文（如微信聊天三连截图攻略）跑完整流程：策划是否识别出连续截图关系、三张新配图是否保持同一界面与同一主体外观、图内对话是否接得上、步骤编号是否连续、每张是否承担不同职责。
-- 换一组「步骤递进」或「前后对比」的图文，确认策划能区分关系类型而不是套同一种描述。
-- 策划读的是新文案：配图内容应服务复刻后的文案，而不是照抄原文案与原图文字。
-- 门禁：文案未生成时策划按钮禁用；策划未生成时配图与重试按钮禁用；直接点配图给出「请先生成复刻策划」提示。
-- 策划输出不合格（模型不返回 JSON、张数不符）时报错清晰，重新生成策划可恢复；此时配图提示词仍为空，不会拿空提示词去生成。
-- 重新生成策划会覆盖各配图已写入的提示词（含用户手改的部分），确认这是预期行为。
-- 纯文本源（无原图）与只有封面的视频源：策划仍能产出 1 条提示词，配图可正常生成。
-- 文本模型不支持读图时的表现：策划会失败或产出空洞设定，需要确认是否要在配置侧提示用户换用支持读图的模型。
-- 验收通过后更新 `docs/overview/features.md` 第 141–142 行：现在仍写着「逐图提示词标注第 N/M 张」与「复刻流程分三步」，已过期。
 
 ## 导航与全局 UI 缺陷第二轮（抽屉遮罩 / 公告计时 / 折叠标签 / 选择器列数 / 下拉键盘）
 

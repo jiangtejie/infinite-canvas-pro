@@ -4,13 +4,16 @@ import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { type AiConfig } from "@/stores/use-config-store";
 import { CanvasNodeType, type CanvasAgentState, type CanvasConnection, type CanvasNodeData } from "../types";
-import { canvasNodeDisplayStatus } from "../[id]/lib/canvas-node-meta";
+import { canvasNodeDisplayStatus, publishDraftText, sourceNodeText } from "../[id]/lib/canvas-node-meta";
+import { canvasRecoverableTaskId } from "../[id]/lib/canvas-task-helpers";
+import { collectSourceMaterialNodes } from "../[id]/lib/canvas-source-remix";
 
 export type CanvasAgentContextNode = {
     id: string;
     type: CanvasNodeType;
     title: string;
     text?: string;
+    sourceImageCount?: number;
     mediaUrl?: string;
     hasMedia?: boolean;
     status?: string;
@@ -35,6 +38,8 @@ export type CanvasAgentContext = {
     selectedNodeIds: string[];
     nodes: CanvasAgentContextNode[];
     connections: CanvasConnection[];
+    /** 焦点素材源的整组原图，按原图顺序随消息附带，供 Agent 读懂组内关系后再策划。 */
+    remixImages: Array<{ nodeId: string; title: string; url: string }>;
     generation: {
         autoGenerateMedia: boolean;
         textModel: string;
@@ -100,6 +105,12 @@ export function buildCanvasAgentContext(input: BuildCanvasAgentContextInput): Ca
         ...input.nodes.filter((node) => !prioritizedIds.has(node.id)),
     ].slice(0, MAX_CONTEXT_NODES);
     const includedIds = new Set(orderedNodes.map((node) => node.id));
+    // 焦点素材源的整组原图：Agent 要判断组内关系必须真的看到全部原图，只给 URL 列表读不出层次。
+    const remixImages = orderedNodes
+        .filter((node) => node.type === CanvasNodeType.Source && prioritizedIds.has(node.id))
+        .flatMap((source) => collectSourceMaterialNodes(input.nodes, source.id).materialImages
+            .map((node) => ({ nodeId: node.id, title: node.title, url: node.metadata?.content || "" }))
+            .filter((image) => Boolean(image.url)));
     const videoModel = input.config.videoModel || input.config.model;
     const audioModel = input.config.audioModel;
     const audioConfig = { ...input.config, model: audioModel, activeChannelId: input.config.audioChannelId || input.config.activeChannelId };
@@ -116,6 +127,7 @@ export function buildCanvasAgentContext(input: BuildCanvasAgentContextInput): Ca
         selectedNodeIds,
         nodes: orderedNodes.map((node) => summarizeNode(node, prioritizedIds.has(node.id))),
         connections: input.connections.filter((connection) => includedIds.has(connection.fromNodeId) && includedIds.has(connection.toNodeId)),
+        remixImages,
         generation: {
             autoGenerateMedia: input.autoGenerateMedia,
             textModel: input.config.textModel || input.config.model,
@@ -136,7 +148,7 @@ export function buildCanvasAgentContext(input: BuildCanvasAgentContextInput): Ca
             audioSpeed: isGlmTtsModel(audioModel) ? input.config.glmTtsSpeed : grokTts ? input.config.grokTtsSpeed : input.config.audioSpeed,
         },
         tasks: orderedNodes.flatMap((node) => {
-            const taskId = mediaTaskId(node);
+            const taskId = canvasRecoverableTaskId(node);
             if (!taskId) return [];
             return [
                 {
@@ -163,8 +175,9 @@ export function serializeCanvasAgentContext(context: CanvasAgentContext) {
 function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentContextNode {
     const content = node.metadata?.content || "";
     const isText = node.type === CanvasNodeType.Text;
+    const isSource = node.type === CanvasNodeType.Source;
     const isPublish = node.type === CanvasNodeType.Publish;
-    const mediaUrl = !isText && !isPublish && content && !content.startsWith("data:") ? content : undefined;
+    const mediaUrl = !isText && !isSource && !isPublish && content && !content.startsWith("data:") ? content : undefined;
     const base: CanvasAgentContextNode = {
         id: node.id,
         type: node.type,
@@ -176,29 +189,15 @@ function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentConte
     if (!detailed) return base;
     return {
         ...base,
-        text: isText && content ? content.slice(0, MAX_TEXT_LENGTH) : isPublish ? publishDraftText(node).slice(0, MAX_TEXT_LENGTH) : undefined,
+        text: isText && content ? content.slice(0, MAX_TEXT_LENGTH) : isSource ? sourceNodeText(node).slice(0, MAX_TEXT_LENGTH) : isPublish ? publishDraftText(node).slice(0, MAX_TEXT_LENGTH) : undefined,
+        sourceImageCount: isSource ? (node.metadata?.sourceImages || []).filter((image) => image.url).length : undefined,
         mediaUrl,
         prompt: node.metadata?.prompt?.slice(0, MAX_TEXT_LENGTH),
         model: node.metadata?.model,
         size: node.metadata?.size,
         seconds: node.metadata?.seconds,
         generateAudio: node.metadata?.generateAudio,
-        taskId: mediaTaskId(node) || undefined,
+        taskId: canvasRecoverableTaskId(node) || undefined,
         error: isPublish ? node.metadata?.publishError : node.metadata?.errorDetails,
     };
-}
-
-function publishDraftText(node: CanvasNodeData) {
-    const draft = node.metadata?.publishDraft;
-    return [draft?.title, draft?.body, (draft?.tags || []).map((tag) => "#" + tag).join(" ")]
-        .map((part) => part?.trim())
-        .filter(Boolean)
-        .join("\n");
-}
-
-function mediaTaskId(node: CanvasNodeData) {
-    if (node.type === CanvasNodeType.Video) return node.metadata?.videoTaskId || "";
-    if (node.type === CanvasNodeType.Audio) return node.metadata?.audioTaskId || "";
-    if (node.type === CanvasNodeType.Image || node.type === CanvasNodeType.Panorama) return node.metadata?.imageTaskId || "";
-    return "";
 }

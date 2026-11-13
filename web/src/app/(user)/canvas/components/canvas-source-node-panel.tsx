@@ -1,31 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { LoaderCircle, X } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, X } from "lucide-react";
 import { Button, Input, Popconfirm, Tag, Typography, theme as antdTheme } from "antd";
 
-import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasNodeData, CanvasNodeMetadata } from "../types";
-
-export type CanvasSourceRemixTextStatus = "missing" | "idle" | "generating" | "success" | "error";
-
-export type CanvasSourceRemixFlow = {
-    textStatus: CanvasSourceRemixTextStatus;
-    planStatus: CanvasSourceRemixTextStatus;
-    imageCount: number;
-    readyImageCount: number;
-    failedCount: number;
-    publishNodeId?: string;
-    busy: boolean;
-    onGenerateText: () => void;
-    onGeneratePlan: () => void;
-    onGenerateImages: () => void;
-    onRetryFailedImages: () => void;
-    onCreatePublishNode: () => void;
-    onOpenPublishNode: () => void;
-};
 
 export type CanvasSourceNodePanelProps = {
     node: CanvasNodeData;
@@ -34,17 +15,17 @@ export type CanvasSourceNodePanelProps = {
     onParse: (input: string) => void;
     onCancel: () => void;
     onExpand: () => void;
-    onRunRemix: () => void;
+    onRemixWithAgent: () => void;
     onReset: () => void;
-    remixFlow?: CanvasSourceRemixFlow;
     onChange: (patch: Partial<CanvasNodeMetadata>) => void;
     onClose: () => void;
 };
 
 /**
- * 素材源面板：粘贴解析、结果预览、展开素材与一键复刻。
+ * 素材源面板：粘贴解析、文字摘要、展开素材。图片只在节点卡片上轮播预览，面板不重复铺图。
+ * 复刻交给创作 Agent 对话完成，面板不再承载复刻流程步骤。
  */
-export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, onCancel, onExpand, onRunRemix, onReset, remixFlow, onChange, onClose }: CanvasSourceNodePanelProps) {
+export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, onCancel, onExpand, onRemixWithAgent, onReset, onChange, onClose }: CanvasSourceNodePanelProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const [input, setInput] = useState(node.metadata?.sourceInput || "");
@@ -57,7 +38,6 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
     const stats = node.metadata?.sourceStats;
     const author = node.metadata?.sourceAuthor || "";
     const title = node.metadata?.sourceTitle || "";
-    const previewUrls = images.length ? images.map((image) => image.url) : coverUrl ? [coverUrl] : [];
     const hasMaterial = Boolean(title.trim() || text.trim() || images.length || coverUrl.trim());
     const errorText = node.metadata?.sourceError || "";
     const showErrorBlock = Boolean(errorText) || status === "error" || !parseEnabled;
@@ -153,21 +133,12 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
                     {node.metadata?.sourceWarnings?.length ? (
                         <div className="text-[11px] leading-5" style={{ color: token.colorWarning }}>{node.metadata.sourceWarnings.join("；")}</div>
                     ) : null}
-                    {previewUrls.length ? (
-                        <div className="grid grid-cols-3 gap-1.5">
-                            {previewUrls.map((url, index) => (
-                                <div key={`${url}-${index}`} className="overflow-hidden rounded-md" style={{ background: theme.toolbar.activeBg }}>
-                                    <img src={url} alt="" draggable={false} className="h-24 w-full object-contain" />
-                                </div>
-                            ))}
-                        </div>
-                    ) : null}
                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
                         <Button size="small" disabled={parsing} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={onExpand}>
                             展开素材
                         </Button>
-                        <Button type="primary" size="small" disabled={parsing} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={onRunRemix}>
-                            一键复刻
+                        <Button type="primary" size="small" icon={<Sparkles className="size-3.5" />} disabled={parsing} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={onRemixWithAgent}>
+                            交给 Agent 复刻
                         </Button>
                         {node.metadata?.sourceExpanded ? (
                             <>
@@ -187,93 +158,15 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
                         ) : null}
                     </div>
 
-                    {remixFlow ? (
-                        <div className="space-y-1.5 border-t pt-2" style={{ borderColor: theme.node.stroke }}>
-                            <div className="text-xs font-semibold">复刻流程</div>
-                            {remixStep(theme, "1", "文案", (
-                                <>
-                                    <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: remixTextStatusColor(remixFlow.textStatus, theme.node.placeholder) }}>
-                                        {remixFlow.textStatus === "generating" ? <LoaderCircle className="size-3 animate-spin" /> : null}
-                                        {remixTextStatusLabel(remixFlow.textStatus)}
-                                    </span>
-                                    <Button size="small" type={remixFlow.textStatus === "success" || remixFlow.textStatus === "error" ? "default" : "primary"} loading={remixFlow.textStatus === "generating"} disabled={remixFlow.textStatus === "missing" || remixFlow.textStatus === "generating" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGenerateText}>
-                                        {remixFlow.textStatus === "success" || remixFlow.textStatus === "error" ? "重新生成文案" : "生成复刻文案"}
-                                    </Button>
-                                    {remixFlow.textStatus === "missing" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>先点「一键复刻」生成文案节点</span> : null}
-                                </>
-                            ))}
-                            {remixStep(theme, "2", "策划", (
-                                <>
-                                    <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: remixTextStatusColor(remixFlow.planStatus, theme.node.placeholder) }}>
-                                        {remixFlow.planStatus === "generating" ? <LoaderCircle className="size-3 animate-spin" /> : null}
-                                        {remixTextStatusLabel(remixFlow.planStatus)}
-                                    </span>
-                                    <Button size="small" type={remixFlow.planStatus === "success" || remixFlow.planStatus === "error" ? "default" : "primary"} loading={remixFlow.planStatus === "generating"} disabled={remixFlow.textStatus !== "success" || remixFlow.planStatus === "generating" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGeneratePlan}>
-                                        {remixFlow.planStatus === "success" || remixFlow.planStatus === "error" ? "重新生成策划" : "生成复刻策划"}
-                                    </Button>
-                                    {remixFlow.textStatus !== "success" ? (
-                                        <span className="text-[11px]" style={{ color: theme.node.placeholder }}>需先生成复刻文案</span>
-                                    ) : remixFlow.planStatus === "success" ? (
-                                        <span className="text-[11px]" style={{ color: theme.node.placeholder }}>已按整组图写入 {remixFlow.imageCount} 张配图提示词</span>
-                                    ) : null}
-                                </>
-                            ))}
-                            {remixStep(theme, "3", "配图", (
-                                <>
-                                    <Button size="small" type="primary" loading={remixFlow.busy && remixFlow.planStatus === "success"} disabled={remixFlow.planStatus !== "success" || remixFlow.busy || remixFlow.imageCount === 0} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onGenerateImages}>
-                                        生成全部复刻配图（{remixFlow.imageCount} 张）
-                                    </Button>
-                                    {remixFlow.failedCount > 0 ? (
-                                        <Button size="small" danger disabled={remixFlow.planStatus !== "success" || remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onRetryFailedImages}>
-                                            重试失败配图（{remixFlow.failedCount} 张）
-                                        </Button>
-                                    ) : null}
-                                    {remixFlow.planStatus !== "success" ? <span className="text-[11px]" style={{ color: theme.node.placeholder }}>需先生成复刻策划</span> : null}
-                                </>
-                            ))}
-                            {remixStep(theme, "4", "发布", remixFlow.publishNodeId ? (
-                                <Button size="small" disabled={remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onOpenPublishNode}>
-                                    打开发布节点
-                                </Button>
-                            ) : remixFlow.readyImageCount > 0 ? (
-                                <Button size="small" disabled={remixFlow.busy} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={remixFlow.onCreatePublishNode}>
-                                    创建发布节点
-                                </Button>
-                            ) : (
-                                <span className="text-[11px]" style={{ color: theme.node.placeholder }}>生成配图后可创建发布节点</span>
-                            ))}
-                        </div>
-                    ) : null}
+                    <div className="text-[11px] leading-5" style={{ color: theme.node.placeholder }}>
+                        复刻在创作 Agent 里对话完成：Agent 会读懂整组原图的关系，先做组级策划再整组生成配图；要换风格或改叙事时让 Agent 重新策划整组。
+                    </div>
                 </div>
             ) : null}
 
             {!hasMaterial && !showErrorBlock ? (
-                <div className="mt-3 text-[11px]" style={{ color: theme.node.placeholder }}>{parsing ? "正在解析抖音素材，请稍候…" : "解析结果会显示标题、正文、话题、作者与图片预览"}</div>
+                <div className="mt-3 text-[11px]" style={{ color: theme.node.placeholder }}>{parsing ? "正在解析抖音素材，请稍候…" : "解析结果会显示标题、正文、话题与作者；图片在节点卡片上轮播预览"}</div>
             ) : null}
         </div>
     );
-}
-
-function remixStep(theme: (typeof canvasThemes)[keyof typeof canvasThemes], index: string, title: string, children: ReactNode) {
-    return (
-        <div className="flex flex-wrap items-center gap-2">
-            <span className="grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-semibold" style={{ background: theme.toolbar.activeBg, color: theme.node.text }}>{index}</span>
-            <span className="w-7 shrink-0 text-[11px] font-medium" style={{ color: theme.node.muted }}>{title}</span>
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">{children}</div>
-        </div>
-    );
-}
-
-function remixTextStatusLabel(status: CanvasSourceRemixTextStatus) {
-    if (status === "generating") return "生成中";
-    if (status === "success") return "已生成";
-    if (status === "error") return "失败";
-    return "未生成";
-}
-
-function remixTextStatusColor(status: CanvasSourceRemixTextStatus, fallback: string) {
-    if (status === "success") return canvasStatusColors.success;
-    if (status === "generating") return canvasStatusColors.loading;
-    if (status === "error") return canvasStatusColors.error;
-    return fallback;
 }

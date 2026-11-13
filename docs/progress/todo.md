@@ -17,7 +17,7 @@ description: 当前项目后续值得处理的事项
 - 【配置】全局配置弹窗为分区导航（非 tab），首次引导仍需用户自行填写 Base URL 与 Key；如需进一步降低门槛，需产品决策是否默认开放远程渠道或提供演示额度。
 - 【视觉】筛选项共享组件 FilterTagGroup 可考虑增加 density/variant（当前用 .prompt-filter-tag 全局覆盖）；画布选中环仍为硬编码蓝色，后续统一为主题 token。
 - 【无障碍】画布节点已可通过 Tab 聚焦并用 Enter/Space 选中，连接点已有键盘模式；仍需真机/读屏验证，节点目前采用自然 Tab 序列而非单锚点 roving。
-- 【画布】素材源节点（抖音图文）M1 已落地：解析/展开素材/一键复刻铺开（复刻配图已按原图数量一一对应，不再多图混参考）；后台解析开关、取消解析、失败保留旧结果、旧素材清理/重置、图片转存重试、个人存储转存和解析日志/单测已补。剩余：第三方解析源/provider 抽象、解析结果缓存去重、画布 Agent 创建素材源的工具、真实抖音链接回归和真机交互验收；发布节点与抖音 H5 扫码已实现，待真实扫码发布验证（见待测试）。一键复刻已改为必经「复刻策划」组级步骤（见待测试），后续画布 Agent 创建素材源的工具也要走策划产出整组设定，不能直接写单图提示词。
+- 【画布】素材源节点（抖音图文）M1 已落地：解析/展开素材/重置，后台解析开关、取消解析、失败保留旧结果、旧素材清理、图片转存重试、个人存储转存和解析日志/单测已补。复刻已整体搬进创作 Agent（`expand_source` / `plan_source_remix` / `generate_remix_images`，组级策划由代码门禁保证必经，见待测试），素材源面板不再承载复刻步骤。剩余：第三方解析源/provider 抽象、解析结果缓存去重、画布 Agent **创建**素材源节点的工具（当前只能用户在画布上建节点再解析）、真实抖音链接回归和真机交互验收；发布节点与抖音 H5 扫码已实现，待真实扫码发布验证（见待测试）。后续新增任何复刻入口都必须走组级策划产出整组设定，不能直接写单图提示词。
 - 【登录】本地数据已按账号分区（见待测试），跨账号串号与登录 UI 收尾两项已完成。剩余：真实双账号 + 真实后端的端到端回归，尤其是游客创作→登录接管→云同步补传，以及退出后另一账号登录不再看到前一个账号的画布/素材/生成记录。
 - 【存储】blob 清理的引用收集不完整（既有缺陷，非本轮引入）：`cleanupUnusedImages` / `cleanupUnusedMedia` 只收集画布项目、我的素材、Skill、生成历史，**不收集影视项目、角色/场景库、剧本**里引用的 storageKey。只被影视/剧本引用的本地图片有可能被判为无引用而物理删除。账号分区这轮已把「其他账号分区的画布与素材」补进收集范围，影视/剧本三类仍需一并补上（当前账号与其他账号分区都要算）。
 - 【存储】`web/src/services/storage-migration.ts` 全仓无调用方，且写的是分区前的全局 store 名，已彻底过期，可删。
@@ -116,4 +116,13 @@ description: 当前项目后续值得处理的事项
 
 ### 5. 其它待收敛
 
-- 暂无；新的长尾问题先进入上方 P0 / P1 排期，再按验收结果关闭。
+冗余审计剩余项。A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收敛，见 pending-test；以下未动：
+
+- 【A5 视频参数】归一化跨层双写且语义相反：`user/video/history.ts` 保留 `"-1"`，`api/video/payload/shared.ts` 把它算成 6；size 的 `"auto"` 一处返回 `"auto"` 一处返回 `null`。
+- 【A6 日志脱敏】`api/image/client.ts` 的 `redactLogImages` 只挡 `data:image/`，`api/video/client.ts` 的 `redactLogMedia` 还挡 video/audio；同一份上报逻辑两份，脱敏口径不一致（涉及隐私，优先）。
+- 【A7 publicHttpUrl】`api/image/payload.ts` 与 `api/video/payload/shared.ts` 逐字相同两份；`api/direct-ai.ts` 的 `publicReferenceURL` 是分歧变体（正则、不处理相对地址）。
+- 【B8 上传/删除双写】`services/image-storage.ts` 与 `services/file-storage.ts` 整条服务端上传/删除链路逐行同构，分歧只在失败 return null 还是 throw；牵涉存储链路，需单独一轮加回归。
+- 【B9 storageConfig 双缓存】两个存储文件各缓存同一个 GET、各导出 `clearStorageConfigCache`，调用方被迫同时清两个，漏清一个就是脏配置。
+- 【B10 小双写】`readAxiosError` 三份（image/video/audio client）兜底已分歧；两个 TTS 音色选择器近整份复制；storageKey→URL 的 effect 四份；六个后台筛选条重复同一套搜索+重置。
+- 【C 组小重复】`connection()` 在 canvas-source-remix 与 canvas-source-plan 逐字相同；「有素材」判定三份（hook/卡片/面板）；作者/统计行 UI 卡片与面板重复拼装；`formatBytes` 至少三份且精度单位表不同；节点摘要两套字段抽取（`canvasAgentNodeSummary` 与 `summarizeNode`）。
+- 【已知未动】seedance `sd2` 别名在 lib 音频/参考图判定里有、摘要时长档位里没有，属 A 组同类分歧但本轮未要求，留待下一轮。

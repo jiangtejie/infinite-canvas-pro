@@ -9,6 +9,7 @@ import { useConfigStore, type AiConfig } from "@/stores/use-config-store";
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
 import type { CanvasConnection, CanvasNodeData } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
+import { collectBatchGenerationTargets } from "../lib/canvas-batch";
 import type { CanvasGenerateNodeOptions } from "./use-canvas-generation";
 
 export type CanvasBatchGenerationState = {
@@ -18,7 +19,6 @@ export type CanvasBatchGenerationState = {
     failed: number;
     currentTitle: string;
     currentIndex: number;
-    failedNodeIds: string[];
 };
 
 export type CanvasBatchRunStatus = "success" | "partial" | "stopped" | "timeout" | "cancelled" | "busy" | "unavailable";
@@ -51,7 +51,7 @@ type UseCanvasBatchGenerationOptions = {
 
 export type CanvasBatchResult = "success" | "failure" | "stopped" | "timeout";
 
-const INITIAL_STATE: CanvasBatchGenerationState = { running: false, total: 0, completed: 0, failed: 0, currentTitle: "", currentIndex: 0, failedNodeIds: [] };
+const INITIAL_STATE: CanvasBatchGenerationState = { running: false, total: 0, completed: 0, failed: 0, currentTitle: "", currentIndex: 0 };
 const NODE_TIMEOUT_MS = 10 * 60 * 1000;
 const POLL_INTERVAL_MS = 700;
 const ACTIVITY_GRACE_MS = 5000;
@@ -94,16 +94,17 @@ export function useCanvasBatchGeneration({
             const connections = connectionsRef.current;
             const target = nodes.find((node) => node.id === targetNodeId);
             if (!target) return "failure";
-            const downstreamIds = new Set(connections.filter((connection) => connection.fromNodeId === targetNodeId).map((connection) => connection.toNodeId));
+            // 只认本次生成新建的下游节点：目标已有的下游可能被用户独立起了任务，
+            // 把它们的 loading/失败算进本张会白等十分钟并污染成功失败计数。
+            const newDownstreamIds = new Set(connections.filter((connection) => connection.fromNodeId === targetNodeId && !snapshot.ids.has(connection.toNodeId)).map((connection) => connection.toNodeId));
             const activeNodes = nodes.filter((node) => ACTIVE_STATUS.has(node.metadata?.status || ""));
-            const downstreamActive = activeNodes.filter((node) => downstreamIds.has(node.id));
+            const downstreamActive = activeNodes.filter((node) => newDownstreamIds.has(node.id));
             const targetActive = ACTIVE_STATUS.has(target.metadata?.status || "");
             const activeNode = targetActive ? target : downstreamActive[0];
             activeNodeIdRef.current = activeNode?.id || targetNodeId;
             if (!sawActivity) {
                 sawActivity = targetActive
-                    || downstreamActive.length > 0
-                    || nodes.some((node) => !snapshot.ids.has(node.id))
+                    || newDownstreamIds.size > 0
                     || target.metadata?.startedAt !== snapshot.startedAt
                     || target.metadata?.clientTaskId !== snapshot.clientTaskId
                     || (snapshot.status === "idle" && target.metadata?.status === "success");
@@ -118,7 +119,7 @@ export function useCanvasBatchGeneration({
                 }
                 if (stopRequestedRef.current) return "stopped";
                 if (target.metadata?.status === "error" || target.metadata?.status === "stopped") return "failure";
-                const failedNewNode = nodes.some((node) => !snapshot.ids.has(node.id) && (node.metadata?.status === "error" || node.metadata?.status === "stopped"));
+                const failedNewNode = nodes.some((node) => newDownstreamIds.has(node.id) && (node.metadata?.status === "error" || node.metadata?.status === "stopped"));
                 return failedNewNode ? "failure" : "success";
             }
             if (stopRequestedRef.current && !activeNode) return "stopped";
@@ -127,17 +128,14 @@ export function useCanvasBatchGeneration({
         return "timeout";
     }, [connectionsRef, nodesRef]);
 
-    const startBatch = useCallback(async (nodeIds: Iterable<string>, options?: { label?: string }): Promise<CanvasBatchRunResult> => {
+    const startBatch = useCallback(async (nodeIds: Iterable<string>, options?: { label?: string; overwrite?: boolean }): Promise<CanvasBatchRunResult> => {
         if (runningRef.current) return createBatchRunResult("busy");
-        const uniqueIds = Array.from(new Set(nodeIds));
-        const targets = uniqueIds.filter((nodeId) => {
-            const node = nodesRef.current.find((item) => item.id === nodeId);
-            return Boolean(node && isCanvasImageNodeType(node.type) && !node.metadata?.isBatchRoot);
-        });
+        const { targetNodeIds: targets, skippedCount } = collectBatchGenerationTargets(nodesRef.current, nodeIds);
         if (!targets.length) {
-            message.warning("请选择要批量生成的图片节点");
+            message.warning(skippedCount ? "选中的图片节点都没有提示词，请先填写提示词" : "请选择要批量生成的图片节点");
             return createBatchRunResult("unavailable");
         }
+        if (skippedCount) message.warning(`已跳过 ${skippedCount} 个没有提示词的图片节点`);
         const imageModel = effectiveConfig.imageModel || effectiveConfig.model;
         if (!isAiConfigReady(effectiveConfig, imageModel)) {
             openConfigDialog(true);
@@ -167,7 +165,7 @@ export function useCanvasBatchGeneration({
         runTokenRef.current += 1;
         const runToken = runTokenRef.current;
         selectMany(targets);
-        setBatchState({ running: true, total: targets.length, completed: 0, failed: 0, currentTitle: "", currentIndex: 0, failedNodeIds: [] });
+        setBatchState({ running: true, total: targets.length, completed: 0, failed: 0, currentTitle: "", currentIndex: 0 });
         let completed = 0;
         let failed = 0;
         let interrupted = false;
@@ -183,7 +181,7 @@ export function useCanvasBatchGeneration({
                 if (!node || !isCanvasImageNodeType(node.type)) {
                     failed += 1;
                     failedNodeIds.push(nodeId);
-                    setBatchState((prev) => ({ ...prev, completed, failed, failedNodeIds: [...failedNodeIds] }));
+                    setBatchState((prev) => ({ ...prev, completed, failed }));
                     continue;
                 }
                 setBatchState((prev) => ({ ...prev, currentIndex: index + 1, currentTitle: node.title || `图片 ${index + 1}` }));
@@ -195,7 +193,7 @@ export function useCanvasBatchGeneration({
                 };
                 activeNodeIdRef.current = nodeId;
                 try {
-                    await handleGenerateNode(nodeId, "image", node.metadata?.prompt || "", { background: true, countOverride: "1" });
+                    await handleGenerateNode(nodeId, "image", node.metadata?.prompt || "", { background: true, countOverride: "1", overwrite: options?.overwrite });
                     const result = await waitForGeneration(nodeId, runToken, snapshot);
                     if (result === "stopped") {
                         interrupted = true;
@@ -214,14 +212,14 @@ export function useCanvasBatchGeneration({
                 if (runTokenRef.current !== runToken) {
                     return createBatchRunResult("stopped", targets.length, completed, failed, [...failedNodeIds]);
                 }
-                setBatchState((prev) => ({ ...prev, completed, failed, failedNodeIds: [...failedNodeIds] }));
+                setBatchState((prev) => ({ ...prev, completed, failed }));
             }
         } finally {
             if (runTokenRef.current === runToken) {
                 runningRef.current = false;
                 stopRequestedRef.current = false;
                 activeNodeIdRef.current = "";
-                setBatchState((prev) => ({ ...prev, running: false, currentTitle: "", currentIndex: 0, failedNodeIds: [...failedNodeIds] }));
+                setBatchState((prev) => ({ ...prev, running: false, currentTitle: "", currentIndex: 0 }));
                 const prefix = options?.label ? `${options.label}：` : "";
                 if (interrupted) message.warning(`${prefix}已停止，成功 ${completed} 张，失败 ${failed} 张`);
                 else if (failed) message.warning(`${prefix}完成，成功 ${completed} 张，失败 ${failed} 张`);
@@ -230,17 +228,6 @@ export function useCanvasBatchGeneration({
         }
         return createBatchRunResult(interrupted ? "stopped" : failed === 0 ? "success" : completed === 0 && timedOut ? "timeout" : "partial", targets.length, completed, failed, [...failedNodeIds]);
     }, [confirm, effectiveConfig, handleGenerateNode, isAiConfigReady, message, modelCosts, nodesRef, openConfigDialog, selectMany, waitForGeneration]);
-
-    /** 只重试本批失败的图片；可传 nodeIds 限定到某个素材源。没有失败项时返回 unavailable。 */
-    const retryFailed = useCallback((options?: { label?: string; nodeIds?: Iterable<string> }): Promise<CanvasBatchRunResult> => {
-        const allowed = options?.nodeIds ? new Set(options.nodeIds) : null;
-        const failedIds = batchState.failedNodeIds.filter((nodeId) => !allowed || allowed.has(nodeId));
-        if (!failedIds.length) {
-            message.warning("没有需要重试的失败图片");
-            return Promise.resolve(createBatchRunResult("unavailable"));
-        }
-        return startBatch(failedIds, { label: options?.label?.trim() || "重试失败配图" });
-    }, [batchState.failedNodeIds, message, startBatch]);
 
     const stopBatch = useCallback(async () => {
         if (!runningRef.current) return;
@@ -253,7 +240,7 @@ export function useCanvasBatchGeneration({
         await handleStopNode(activeNodeId).catch(() => undefined);
     }, [handleStopNode, nodesRef]);
 
-    return { batchState, startBatch, retryFailed, stopBatch };
+    return { batchState, startBatch, stopBatch };
 }
 
 function sleep(ms: number) {

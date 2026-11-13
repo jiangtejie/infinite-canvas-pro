@@ -51,7 +51,7 @@ export type CanvasGenerateNodeOptions = {
     background?: boolean;
     /** 覆盖本次生成的图片数量，批量队列固定按 1 张执行，避免全局 count 导致一张节点出多图。 */
     countOverride?: string;
-    /** 强制原地覆盖已有内容，供复刻文案「重新生成」等内部流程使用。 */
+    /** 强制原地覆盖已有内容，不走全局「生成到新节点」偏好；供复刻策划与复刻配图整组重跑使用。 */
     overwrite?: boolean;
     /** 文本生成结果直接回传：nodesRef 在 useLayoutEffect 才同步，调用方 await 后立刻读会拿到旧值。 */
     onText?: (text: string) => void;

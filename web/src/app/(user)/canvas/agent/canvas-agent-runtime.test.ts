@@ -5,6 +5,7 @@ import { createCanvasAgentState, executeActions, runCanvasAgent, shouldRollbackC
 import type { AiConfig } from "@/stores/use-config-store";
 
 import type { CanvasAgentState } from "../types";
+import { CanvasNodeType, type CanvasAssistantReference } from "../types";
 import type { CanvasAgentContext } from "./canvas-agent-context";
 import type { CanvasAgentAction } from "./canvas-agent-tools";
 
@@ -57,6 +58,7 @@ const fakeContext = (state: CanvasAgentState): CanvasAgentContext => ({
     selectedNodeIds: [],
     nodes: [],
     connections: [],
+    remixImages: [],
     generation: { autoGenerateMedia: false, textModel: "gpt-test", imageModel: "img", videoModel: "vid", audioModel: "aud", imageQuality: "high", imageSize: "1024x1024", videoQuality: "720p", videoSize: "16:9", imageCount: "1", videoSeconds: "5", videoGenerateAudio: "false", videoSupportsAudio: false, audioVoice: "", audioLanguage: "", audioFormat: "", audioSpeed: "" },
     tasks: [],
 });
@@ -215,4 +217,46 @@ test("the agent stops after the safety step limit", async () => {
     });
     assert.equal(batches.length, 12);
     assert.match(result.reply, /安全操作步数上限/);
+});
+
+const visionContext = (remixImages: CanvasAgentContext["remixImages"]): CanvasAgentContext => ({ ...fakeContext(createCanvasAgentState()), remixImages });
+const groupImages = [
+    { nodeId: "source-1-material-image-0", title: "素材图 1", url: "https://example.com/a.png" },
+    { nodeId: "source-1-material-image-1", title: "素材图 2", url: "https://example.com/b.png" },
+];
+const runVision = async (textModel: string, remixImages: CanvasAgentContext["remixImages"], references: CanvasAssistantReference[] = []) => {
+    const contents: unknown[] = [];
+    await runCanvasAgent({
+        config: { ...fakeConfig(), textModel },
+        initialState: createCanvasAgentState(),
+        protocolMessages: [],
+        userText: "复刻这组图文",
+        references,
+        getContext: () => visionContext(remixImages),
+        executeAction: async () => ({ ok: true }),
+        requestTurn: async (request) => { contents.push(request.messages[0]!.content); return turn([], "完成"); },
+    });
+    return contents[0];
+};
+
+test("source group images are attached after user references in material order", async () => {
+    const reference: CanvasAssistantReference = { id: "r1", type: CanvasNodeType.Image, title: "用户参考", dataUrl: "https://example.com/ref.png" };
+    const content = await runVision("gpt-5", groupImages, [reference]);
+    assert.ok(Array.isArray(content));
+    const [text, ...images] = content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    assert.equal(text.type, "text");
+    assert.match(text.text!, /第 1 张 = 用户参考；第 2 张 = 素材图 1（节点 source-1-material-image-0）；第 3 张 = 素材图 2（节点 source-1-material-image-1）/);
+    assert.deepEqual(images.map((image) => image.image_url?.url), ["https://example.com/ref.png", "https://example.com/a.png", "https://example.com/b.png"]);
+});
+
+test("non-vision models get no image parts and no misleading image order text", async () => {
+    const content = await runVision("gpt-test", groupImages);
+    assert.equal(typeof content, "string");
+    assert.doesNotMatch(content as string, /随消息附带的图片顺序/);
+});
+
+test("non-image material urls are not attached", async () => {
+    const content = await runVision("gpt-5", [{ nodeId: "m0", title: "素材图 1", url: "" }, groupImages[1]!]);
+    assert.ok(Array.isArray(content));
+    assert.equal((content as unknown[]).length, 2);
 });

@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
-import { canvasAgentNodeSummary, canvasAgentTaskSummary, canvasAgentVideoDurationHint, canvasRecoverableTaskId, validateCanvasAgentVideoSeconds } from "./canvas-agent-summary";
+import { canvasAgentNodeSummary, canvasAgentTaskSummary, canvasAgentVideoDurationHint, validateCanvasAgentVideoSeconds } from "./canvas-agent-summary";
+import { publishDraftText } from "./canvas-node-meta";
+import { canvasRecoverableTaskId } from "./canvas-task-helpers";
+import { supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 
 const node = (patch: Partial<CanvasNodeData> = {}): CanvasNodeData => ({
     id: "n1",
@@ -24,6 +27,12 @@ test("agent node summary truncates text and hides data urls", () => {
     assert.equal(image.hasMedia, true);
     const remote = canvasAgentNodeSummary(node({ metadata: { content: "https://example.com/i.png" } }));
     assert.equal(remote.mediaUrl, "https://example.com/i.png");
+});
+
+test("publish draft text uses the shared口径 with normalized tags and blank-line separators", () => {
+    const publish = node({ type: CanvasNodeType.Publish, metadata: { publishDraft: { title: "标题", body: "正文", tags: ["#旅行", "家居", ""], imageNodeIds: [] } } });
+    assert.equal(canvasAgentNodeSummary(publish).text, publishDraftText(publish));
+    assert.equal(canvasAgentNodeSummary(publish).text, "标题\n\n正文\n\n#旅行 #家居");
 });
 
 test("agent task summary exposes status, task id, progress and error", () => {
@@ -66,4 +75,13 @@ test("video duration hints match the model family", () => {
     assert.match(canvasAgentVideoDurationHint("seedance-1-0").range, /4-15/);
     assert.match(canvasAgentVideoDurationHint("kling-v3").range, /3-15/);
     assert.match(canvasAgentVideoDurationHint("kling-v2-6").range, /5 或 10/);
+});
+
+test("kling turbo keeps the v3 duration bucket but has no native audio", () => {
+    assert.deepEqual(canvasAgentVideoDurationHint("kling-3-0-turbo").values, [3, 15]);
+    assert.equal(validateCanvasAgentVideoSeconds("kling-3-0-turbo", 15), "");
+    assert.match(validateCanvasAgentVideoSeconds("kling-3-0-turbo", 2), /3-15/);
+    assert.equal(supportsVideoAudioGeneration("kling-3-0-turbo"), false);
+    assert.equal(supportsVideoAudioGeneration("kling-3-0"), true);
+    assert.equal(supportsVideoAudioGeneration("kling-v2-6"), true);
 });

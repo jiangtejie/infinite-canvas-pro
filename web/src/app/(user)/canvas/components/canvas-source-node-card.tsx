@@ -68,7 +68,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                     <Link2 className="size-6" />
                 </div>
                 <p className="m-0 text-base font-medium" style={{ color: theme.node.text }}>粘贴抖音链接解析图文素材</p>
-                <p className="m-0 max-w-[320px] text-xs leading-5" style={{ color: theme.node.placeholder }}>点击节点打开面板，解析后可展开素材 / 一键复刻</p>
+                <p className="m-0 max-w-[320px] text-xs leading-5" style={{ color: theme.node.placeholder }}>点击节点打开面板，解析后可展开素材 / 交给 Agent 复刻</p>
                 <button type="button" className="rounded-lg border px-3 py-1.5 text-xs transition" style={actionStyle} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
                     打开解析面板
                 </button>
@@ -183,7 +183,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
 
             <div className="mt-auto flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate text-[11px]" style={{ color: theme.node.muted }}>
-                    {previewUrls.length ? `共 ${previewUrls.length} 张` : text ? "纯文字素材" : "解析后可展开素材 / 一键复刻"}
+                    {previewUrls.length ? `共 ${previewUrls.length} 张` : text ? "纯文字素材" : "解析后可展开素材 / 交给 Agent 复刻"}
                 </span>
                 <button type="button" className="shrink-0 rounded-lg border px-3 py-1.5 text-xs transition" style={actionStyle} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
                     打开素材面板

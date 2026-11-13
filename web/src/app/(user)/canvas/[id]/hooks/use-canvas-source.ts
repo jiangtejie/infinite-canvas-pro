@@ -38,7 +38,8 @@ function fallbackSuccessStatus(status: CanvasNodeMetadata["sourceStatus"]) {
 }
 
 /**
- * 画布素材源：解析抖音链接、展开真实素材节点、铺开复刻文案/配图节点。
+ * 画布素材源：解析抖音链接、展开真实素材节点、重置派生节点。
+ * 复刻由创作 Agent 的 plan_source_remix / generate_remix_images 完成，不在这里建复刻骨架。
  */
 export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnections }: UseCanvasSourceOptions) {
     const parseRequestRef = useRef(0);
@@ -146,14 +147,14 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
         return { ok: true };
     }, [setNodes]);
 
-    const appendSourcePlan = useCallback((nodeId: string, includeRemix: boolean): CanvasSourceActionResult => {
+    const handleExpandSource = useCallback((nodeId: string): CanvasSourceActionResult => {
         const source = nodesRef.current.find((item) => item.id === nodeId);
         if (!source) return { ok: false, reason: "素材源节点已不存在" };
         if (!hasSourceMaterial(source.metadata)) {
             return { ok: false, reason: "还没有可展开的素材，请先解析或手动填入文字" };
         }
 
-        const plan = buildSourceMaterialPlan(source, { includeRemix });
+        const plan = buildSourceMaterialPlan(source);
         const planNodeIds = new Set(plan.nodes.map((node) => node.id));
         const materialPrefix = `${nodeId}-material-`;
         const prune = pruneSourceDerivedNodes(source, nodesRef.current, connectionsRef.current,
@@ -163,37 +164,17 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
         const nextNodes = prune.nodes
             .map((node) => {
                 const planned = planNodeById.get(node.id);
-                if (!planned) return node;
-                if (includeRemix && node.id.startsWith(`${nodeId}-remix-image-`)) {
-                    return {
-                        ...node,
-                        width: planned.width,
-                        height: planned.height,
-                        metadata: {
-                            ...node.metadata,
-                            ...(node.metadata?.size ? {} : { size: planned.metadata?.size }),
-                            naturalWidth: planned.metadata?.naturalWidth,
-                            naturalHeight: planned.metadata?.naturalHeight,
-                            remixIndex: planned.metadata?.remixIndex,
-                            remixSourceId: planned.metadata?.remixSourceId,
-                        },
-                    };
-                }
-                if (!node.id.startsWith(materialPrefix)) return node;
+                if (!planned || !node.id.startsWith(materialPrefix)) return node;
                 return { ...node, width: planned.width, height: planned.height, metadata: { ...node.metadata, ...planned.metadata } };
             })
             .concat(plan.nodes.filter((node) => !existingIds.has(node.id)))
             .map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...plan.sourcePatch } } : node);
-        const retainedConnections = prune.connections;
-        const existingPairs = new Set(retainedConnections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
-        const nextConnections = retainedConnections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));
+        const existingPairs = new Set(prune.connections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
+        const nextConnections = prune.connections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));
         setNodes(nextNodes);
         setConnections(nextConnections);
         return { ok: true, removed: prune.removedNodeIds.length };
     }, [connectionsRef, nodesRef, setConnections, setNodes]);
-
-    const handleExpandSource = useCallback((nodeId: string) => appendSourcePlan(nodeId, false), [appendSourcePlan]);
-    const handleRunSourceRemix = useCallback((nodeId: string) => appendSourcePlan(nodeId, true), [appendSourcePlan]);
 
     /** 重置素材：删除当前素材源派生出来的素材/复刻节点；已连接到画布其他节点的保留。 */
     const handleResetSource = useCallback((nodeId: string): CanvasSourceActionResult => {
@@ -206,7 +187,7 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
         return { ok: true, removed: plan.removedNodeIds.length, blocked: plan.blockedNodeIds.length };
     }, [connectionsRef, nodesRef, setConnections, setNodes]);
 
-    return { handleParseSource, handleCancelSourceParse, handleExpandSource, handleRunSourceRemix, handleResetSource };
+    return { handleParseSource, handleCancelSourceParse, handleExpandSource, handleResetSource };
 }
 
 function patchSourceMetadata(nodes: CanvasNodeData[], nodeId: string, patch: Partial<CanvasNodeMetadata>) {

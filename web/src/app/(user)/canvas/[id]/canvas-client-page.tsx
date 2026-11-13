@@ -39,17 +39,15 @@ import { useCanvasClipboard } from "./hooks/use-canvas-clipboard";
 import { useCanvasPointer } from "./hooks/use-canvas-pointer";
 import { useCanvasGeneration } from "./hooks/use-canvas-generation";
 import { useCanvasBatchGeneration } from "./hooks/use-canvas-batch-generation";
-import { collectBatchTargetNodeIds, collectPublishableRemixImages, collectRemixImageNodeIds, findSourceRemixPlanNode, findSourceRemixTextNode, getSourceRemixTextStatus, hasSourceRemixText } from "./lib/canvas-batch";
-import { findSourcePublishNode, planSourcePublishNode } from "./lib/canvas-publish";
-import { SOURCE_REMIX_PLAN_PROMPT, SOURCE_REMIX_TEXT_PROMPT } from "./lib/canvas-source-plan";
-import { applySourceRemixPlan, parseSourceRemixPlan } from "./lib/canvas-source-remix-plan";
+import { collectBatchTargetNodeIds } from "./lib/canvas-batch";
+import { planSourcePublishNode } from "./lib/canvas-publish";
+import { collectPublishableRemixImages, findSourceRemixTextNode, hasSourceRemixText } from "./lib/canvas-source-remix";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
 import { useCanvasSource } from "./hooks/use-canvas-source";
 import { CanvasWorkspace, type CanvasWorkspaceModel } from "./components/canvas-workspace";
 import { buildNodeGenerationInputs, type NodeGenerationInput } from "../components/canvas-node-generation";
-import type { CanvasSourceRemixFlow } from "../components/canvas-source-node-panel";
 import { type CanvasVideoFrameOption } from "../components/canvas-node-prompt-panel";
 import type { CanvasVideoResourceOption } from "../components/canvas-video-settings-popover";
 import { type CanvasAlignKind } from "../components/canvas-toolbar";
@@ -1264,7 +1262,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             }));
         }
     }, []);
-    const { handleParseSource, handleCancelSourceParse, handleExpandSource, handleRunSourceRemix, handleResetSource } = useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnections });
+    const { handleParseSource, handleCancelSourceParse, handleExpandSource, handleResetSource } = useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnections });
 
     const handleDirectorProjectChange = useCallback(
         (project: unknown) => {
@@ -1611,7 +1609,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         cancelPendingHistoryCommit,
     });
 
-    const { batchState, startBatch, retryFailed, stopBatch } = useCanvasBatchGeneration({
+    const { batchState, startBatch, stopBatch } = useCanvasBatchGeneration({
         nodesRef,
         connectionsRef,
         effectiveConfig,
@@ -1655,79 +1653,22 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         return publishNode.id;
     }, [connectionsRef, message, nodesRef, openOverlay, selectOnly, setConnections, setNodes, setSelectedConnectionId]);
 
-    const handleGenerateSourceRemixText = useCallback((sourceId: string) => {
-        const textNode = findSourceRemixTextNode(nodesRef.current, sourceId);
-        if (!textNode) {
-            message.warning("请先点击「一键复刻」生成复刻文案节点");
+    // 复刻交给创作 Agent：先确保素材已展开成真实节点，再打开助手并预置复刻指令。
+    // 组级策划与整组生成由 plan_source_remix / generate_remix_images 完成，页面不再承载复刻步骤。
+    const handleRemixWithAgent = useCallback((sourceId: string) => {
+        const result = handleExpandSource(sourceId);
+        if (!result.ok && result.reason) {
+            message.warning(result.reason);
             return;
         }
-        void handleGenerateNode(textNode.id, "text", textNode.metadata?.prompt || SOURCE_REMIX_TEXT_PROMPT, { background: true, overwrite: true });
-    }, [handleGenerateNode, message, nodesRef]);
-
-    // 策划读新文案 + 全部原图，一次调用产出整组共同设定与逐张提示词，再写进各配图节点。
-    // 配图生成必须等策划完成：单图参考只能复刻版式，复刻不出整组图的叙事层次与图内文字连贯性。
-    const handleGenerateSourceRemixPlan = useCallback(async (sourceId: string) => {
-        const planNode = findSourceRemixPlanNode(nodesRef.current, sourceId);
-        if (!planNode) {
-            message.warning("请先点击「一键复刻」生成复刻策划节点");
-            return;
-        }
-        if (!hasSourceRemixText(findSourceRemixTextNode(nodesRef.current, sourceId))) {
-            message.warning("请先生成复刻文案，策划要按新文案规划配图");
-            return;
-        }
-        const imageIds = collectRemixImageNodeIds(nodesRef.current, sourceId);
-        let planText = "";
-        await handleGenerateNode(planNode.id, "text", planNode.metadata?.prompt || SOURCE_REMIX_PLAN_PROMPT, { background: true, overwrite: true, onText: (text) => { planText = text; } });
-        try {
-            const plan = await parseSourceRemixPlan(planText, imageIds.length);
-            setNodes((prev) => applySourceRemixPlan(prev, imageIds, plan));
-            message.success(`已按整组策划写入 ${imageIds.length} 张配图提示词`);
-        } catch (error) {
-            message.error(toErrorMessage(error, "策划输出不完整，请重新生成策划"));
-        }
-    }, [handleGenerateNode, message, nodesRef, setNodes]);
-
-    const handleGenerateAllSourceRemix = useCallback(async (sourceId: string) => {
-        const textNode = findSourceRemixTextNode(nodesRef.current, sourceId);
-        if (!hasSourceRemixText(textNode)) {
-            message.warning("请先生成复刻文案，再生成复刻配图");
-            return;
-        }
-        if (!hasSourceRemixText(findSourceRemixPlanNode(nodesRef.current, sourceId))) {
-            message.warning("请先生成复刻策划，配图提示词由策划按整组图写入");
-            return;
-        }
-        const imageIds = collectRemixImageNodeIds(nodesRef.current, sourceId);
-        if (!imageIds.length) {
-            message.warning("请先点击「一键复刻」生成复刻配图节点");
-            return;
-        }
-        const result = await startBatch(imageIds, { label: "生成全部复刻配图" });
-        if (result.completed <= 0) return;
-        createSourcePublishNode(sourceId);
-    }, [createSourcePublishNode, message, nodesRef, startBatch]);
-
-    const handleRetryFailedSourceRemix = useCallback(async (sourceId: string) => {
-        const remixImageIds = collectRemixImageNodeIds(nodesRef.current, sourceId);
-        const result = await retryFailed({ label: "重试失败配图", nodeIds: remixImageIds });
-        if (result.completed > 0) createSourcePublishNode(sourceId);
-    }, [createSourcePublishNode, nodesRef, retryFailed]);
-
-    const handleCreateSourcePublishNode = useCallback((sourceId: string) => {
-        createSourcePublishNode(sourceId);
-    }, [createSourcePublishNode]);
-
-    const handleOpenSourcePublishNode = useCallback((sourceId: string) => {
-        const publishNode = findSourcePublishNode(nodesRef.current, sourceId);
-        if (!publishNode) {
-            createSourcePublishNode(sourceId);
-            return;
-        }
-        selectOnly(publishNode.id);
-        setSelectedConnectionId(null);
-        openOverlay({ kind: "prompt", nodeId: publishNode.id });
-    }, [createSourcePublishNode, nodesRef, openOverlay, selectOnly, setSelectedConnectionId]);
+        setAssistantMounted(true);
+        setAgentPanel((current) => ({ ...current, open: true }));
+        setInitialAgentRequest({
+            prompt: `复刻素材源节点 ${sourceId}，素材已展开。先按原素材的结构与传播逻辑原创重写文案，再用 plan_source_remix 做整组策划，最后用 generate_remix_images 整组生成配图。`,
+            references: [],
+            skills: [],
+        });
+    }, [handleExpandSource, message]);
 
     const batchTargetCount = useMemo(() => collectBatchTargetNodeIds(nodes, selectedNodeIds).length, [nodes, selectedNodeIds]);
 
@@ -1735,31 +1676,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         const ids = collectBatchTargetNodeIds(nodesRef.current, selectedNodeIdsRef.current);
         void startBatch(ids);
     }, [selectedNodeIdsRef, startBatch]);
-
-    const sourceRemixFlowsById = useMemo(() => {
-        const map = new Map<string, CanvasSourceRemixFlow>();
-        nodes.forEach((node) => {
-            if (node.type !== CanvasNodeType.Source) return;
-            const remixImageIds = collectRemixImageNodeIds(nodes, node.id);
-            const remixImageIdSet = new Set(remixImageIds);
-            map.set(node.id, {
-                textStatus: getSourceRemixTextStatus(findSourceRemixTextNode(nodes, node.id)),
-                planStatus: getSourceRemixTextStatus(findSourceRemixPlanNode(nodes, node.id)),
-                imageCount: remixImageIds.length,
-                readyImageCount: collectPublishableRemixImages(nodes, node.id).length,
-                failedCount: batchState.failedNodeIds.filter((nodeId) => remixImageIdSet.has(nodeId)).length,
-                publishNodeId: findSourcePublishNode(nodes, node.id)?.id,
-                busy: batchState.running,
-                onGenerateText: () => handleGenerateSourceRemixText(node.id),
-                onGeneratePlan: () => { void handleGenerateSourceRemixPlan(node.id); },
-                onGenerateImages: () => { void handleGenerateAllSourceRemix(node.id); },
-                onRetryFailedImages: () => { void handleRetryFailedSourceRemix(node.id); },
-                onCreatePublishNode: () => { handleCreateSourcePublishNode(node.id); },
-                onOpenPublishNode: () => { handleOpenSourcePublishNode(node.id); },
-            });
-        });
-        return map;
-    }, [batchState.failedNodeIds, batchState.running, handleCreateSourcePublishNode, handleGenerateAllSourceRemix, handleGenerateSourceRemixPlan, handleGenerateSourceRemixText, handleOpenSourcePublishNode, handleRetryFailedSourceRemix, nodes]);
 
     const handleStopBatch = useCallback(() => {
         void stopBatch();
@@ -1865,6 +1781,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         isAiConfigReady,
         getCanvasCenter,
         handleGenerateNode,
+        startBatch,
+        createSourcePublishNode,
+        handleExpandSource,
         selectMany,
         setSelectedConnectionId,
         deleteNodes,
@@ -2005,10 +1924,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 const result = handleExpandSource(nodeId);
                 if (!result.ok && result.reason) message.warning(result.reason);
             },
-            handleRunSourceRemix: (nodeId) => {
-                const result = handleRunSourceRemix(nodeId);
-                if (!result.ok && result.reason) message.warning(result.reason);
-            },
+            handleRemixWithAgent,
             handleResetSource: (nodeId) => {
                 const result = handleResetSource(nodeId);
                 if (!result.ok && result.reason) {
@@ -2018,7 +1934,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
                 else message.success(`已清理 ${result.removed || 0} 个素材节点`);
             },
-            sourceRemixFlowsById,
             projectLoaded, exitNodeReferenceSelection,
         },
         overlays: {

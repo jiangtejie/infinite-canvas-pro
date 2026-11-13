@@ -61,3 +61,47 @@ test("connections are dropped when an endpoint exceeds the node window", () => {
     assert.equal(context.nodes.length, 120);
     assert.deepEqual(context.connections.map((item) => item.id), ["e1"]);
 });
+
+const sourceWithMaterial = () => [
+    node({
+        id: "source-1",
+        type: CanvasNodeType.Source,
+        title: "素材源",
+        metadata: { sourceTitle: "原标题", sourceText: "原正文", sourceTags: ["话题1"], sourceImages: [{ url: "https://example.com/a.png" }, { url: "https://example.com/b.png" }] },
+    }),
+    node({ id: "source-1-material-image-1", type: CanvasNodeType.Image, title: "素材图 2", metadata: { content: "https://example.com/b.png", status: "success" } }),
+    node({ id: "source-1-material-image-0", type: CanvasNodeType.Image, title: "素材图 1", metadata: { content: "https://example.com/a.png", status: "success" } }),
+];
+
+test("focused source exposes its text, image count and the whole material group in order", () => {
+    const context = build(sourceWithMaterial(), [], state(), ["source-1"]);
+    const source = findNode(context, "source-1");
+    assert.equal(source.text, "原标题\n\n原正文\n\n#话题1");
+    assert.equal(source.sourceImageCount, 2);
+    assert.equal(source.mediaUrl, undefined);
+    assert.deepEqual(context.remixImages, [
+        { nodeId: "source-1-material-image-0", title: "素材图 1", url: "https://example.com/a.png" },
+        { nodeId: "source-1-material-image-1", title: "素材图 2", url: "https://example.com/b.png" },
+    ]);
+});
+
+test("unfocused source keeps no group vision and no detail", () => {
+    const context = build(sourceWithMaterial());
+    assert.deepEqual(context.remixImages, []);
+    const source = findNode(context, "source-1");
+    assert.equal(source.text, undefined);
+    assert.equal(source.sourceImageCount, undefined);
+});
+
+test("material images without content are not attached", () => {
+    const nodes = sourceWithMaterial().map((item) => item.id === "source-1-material-image-1" ? { ...item, metadata: { status: "idle" as const } } : item);
+    const context = build(nodes, [], state(), ["source-1"]);
+    assert.deepEqual(context.remixImages.map((image) => image.nodeId), ["source-1-material-image-0"]);
+});
+
+test("context tasks recover video tasks that only carry a video id", () => {
+    const video = node({ id: "v", type: CanvasNodeType.Video, metadata: { status: "loading", videoTaskVideoId: "vid-1" } });
+    const context = build([video]);
+    assert.deepEqual(context.tasks.map((task) => task.taskId), ["vid-1"]);
+    assert.equal(findNode(context, "v").taskId, "vid-1");
+});

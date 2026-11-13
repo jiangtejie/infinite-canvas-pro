@@ -23,12 +23,15 @@ export const CANVAS_AGENT_ACTION_RISK: Record<CanvasAgentActionName, CanvasAgent
     create_connection: "write",
     create_group: "write",
     arrange_nodes: "write",
+    expand_source: "write",
     delete_node: "destructive",
     delete_connection: "destructive",
     generate_image: "costly",
     edit_image: "costly",
     generate_video: "costly",
     generate_audio: "costly",
+    plan_source_remix: "costly",
+    generate_remix_images: "costly",
 };
 
 export function canvasAgentActionRisk(name: string): CanvasAgentActionRisk {

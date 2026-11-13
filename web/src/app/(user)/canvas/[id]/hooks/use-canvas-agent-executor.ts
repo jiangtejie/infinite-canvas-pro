@@ -27,6 +27,9 @@ import { applyNodeConfigPatch } from "../lib/canvas-node-builders";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { buildAgentMediaPlan } from "../lib/canvas-agent-media";
 import { AGENT_PRIMARY_SCRIPT_NODE_SIZE, planArrangeNodes, planCreateConnection, planCreateTextNode, planUpdateNodeTitle, planUpdateTextNode } from "../lib/canvas-agent-write-tools";
+import { applySourceRemixPlan, collectRemixImageNodeIds, collectSourceMaterialNodes, parseSourceRemixPlan, planSourceRemix, sourceRemixImagesReady } from "../lib/canvas-source-remix";
+import type { CanvasBatchRunResult } from "./use-canvas-batch-generation";
+import type { CanvasGenerateNodeOptions } from "./use-canvas-generation";
 import { errorMessage } from "@/lib/utils";
 
 type CanvasStoreState = ReturnType<typeof useCanvasStore.getState>;
@@ -43,7 +46,10 @@ type UseCanvasAgentExecutorOptions = {
     autoGenerateMedia: boolean;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     getCanvasCenter: () => Position;
-    handleGenerateNode: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => Promise<void>;
+    handleGenerateNode: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string, options?: CanvasGenerateNodeOptions) => Promise<void>;
+    startBatch: (nodeIds: Iterable<string>, options?: { label?: string; overwrite?: boolean }) => Promise<CanvasBatchRunResult>;
+    createSourcePublishNode: (sourceId: string) => string | null;
+    handleExpandSource: (sourceId: string) => { ok: boolean; reason?: string; removed?: number };
     selectMany: (ids: Iterable<string>) => void;
     setSelectedConnectionId: (id: string | null) => void;
     deleteNodes: (ids: Set<string>) => void;
@@ -69,6 +75,9 @@ export function useCanvasAgentExecutor({
     isAiConfigReady,
     getCanvasCenter,
     handleGenerateNode,
+    startBatch,
+    createSourcePublishNode,
+    handleExpandSource,
     selectMany,
     setSelectedConnectionId,
     deleteNodes,
@@ -411,12 +420,94 @@ export function useCanvasAgentExecutor({
                     };
                 }
 
+                if (action.name === "expand_source") {
+                    const sourceId = stringValue("sourceNodeId");
+                    const source = getNode(sourceId);
+                    if (!source) return missingNodeResult(sourceId);
+                    if (source.type !== CanvasNodeType.Source) return { ok: false, code: "not_source_node", message: "节点 " + sourceId + " 不是素材源" };
+                    const result = handleExpandSource(sourceId);
+                    if (!result.ok) return { ok: false, code: "source_not_expandable", message: result.reason };
+                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+                    const material = collectSourceMaterialNodes(nodesRef.current, sourceId);
+                    return { ok: true, sourceNodeId: sourceId, materialTextNodeId: material.materialText?.id, materialImageNodeIds: material.materialImages.map((node) => node.id), removedNodeCount: result.removed || 0 };
+                }
+
+                if (action.name === "plan_source_remix") {
+                    const sourceId = stringValue("sourceNodeId");
+                    const source = getNode(sourceId);
+                    if (!source) return missingNodeResult(sourceId);
+                    if (source.type !== CanvasNodeType.Source) return { ok: false, code: "not_source_node", message: "节点 " + sourceId + " 不是素材源" };
+                    if (!collectSourceMaterialNodes(nodesRef.current, sourceId).materialImages.length) {
+                        return { ok: false, code: "material_not_expanded", message: "素材源还没有展开出原图节点，请先调用 expand_source" };
+                    }
+                    const scaffold = planSourceRemix({ source, nodes: nodesRef.current, connections: connectionsRef.current, copy: stringValue("copy"), instruction: stringValue("instruction") });
+                    commitNodes(scaffold.nodes);
+                    commitConnections(scaffold.connections);
+                    selectOnly(scaffold.planNodeId);
+                    const createdNodeIds = [scaffold.copyNodeId, scaffold.planNodeId, ...scaffold.imageNodeIds];
+                    const scaffoldResult = { nodeId: scaffold.planNodeId, createdNodeIds, copyNodeId: scaffold.copyNodeId, planNodeId: scaffold.planNodeId, imageNodeIds: scaffold.imageNodeIds };
+
+                    let planText = "";
+                    await handleGenerateNode(scaffold.planNodeId, "text", scaffold.planPrompt, { overwrite: true, onText: (text) => { planText = text; } });
+                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+                    if (!planText.trim()) {
+                        return { ok: false, code: "remix_plan_empty", message: "策划没有产出内容，请检查文本模型配置后重新策划", ...scaffoldResult };
+                    }
+                    const plan = await parseSourceRemixPlan(planText, scaffold.imageNodeIds.length).catch(() => null);
+                    if (!plan) {
+                        return { ok: false, code: "remix_plan_invalid", message: "策划输出不是完整的整组 JSON，请重新调用 plan_source_remix", ...scaffoldResult };
+                    }
+                    // 文本生成会把节点标题改写成提示词前缀，策划节点要保留可读标题。
+                    commitNodes(applySourceRemixPlan(nodesRef.current, scaffold.imageNodeIds, plan).map((node) => (node.id === scaffold.planNodeId ? { ...node, title: "复刻策划" } : node)));
+                    return { ok: true, ...scaffoldResult, shared: plan.shared, images: plan.images };
+                }
+
+                if (action.name === "generate_remix_images") {
+                    const sourceId = stringValue("sourceNodeId");
+                    if (!getNode(sourceId)) return missingNodeResult(sourceId);
+                    const imageNodeIds = collectRemixImageNodeIds(nodesRef.current, sourceId);
+                    if (!imageNodeIds.length) return { ok: false, code: "remix_not_planned", message: "还没有复刻配图节点，请先用 plan_source_remix 做整组策划" };
+                    if (!sourceRemixImagesReady(nodesRef.current, sourceId)) {
+                        return { ok: false, code: "remix_plan_required", message: "整组策划未完成或配图提示词未写齐，必须先用 plan_source_remix 完成策划", imageNodeIds };
+                    }
+                    if (!autoGenerateMedia) {
+                        return { ok: true, submitted: false, message: "复刻配图提示词已写齐；未开启自动生成，请让用户手动批量生成", imageNodeIds };
+                    }
+                    // 批量组根节点代表一组结果，不能当单张槽位重跑；整组拒绝并指明是哪几张，
+                    // 不静默少生成一张后报成功。
+                    const expandedSlotIds = imageNodeIds.filter((id) => getNode(id)?.metadata?.isBatchRoot);
+                    if (expandedSlotIds.length) {
+                        return { ok: false, code: "remix_slot_expanded", message: `复刻配图 ${expandedSlotIds.join("、")} 已被手动展开成多结果批量组，无法整组重跑；请让用户先在这些节点上决定保留哪一张`, imageNodeIds, expandedSlotIds };
+                    }
+                    // 复刻配图是组内固定槽位，必须原地覆盖：全局「生成到新节点」会让旧图留在原节点、
+                    // 新图落到组外的兄弟节点上，发布节点仍会取到旧图。
+                    const batch = await startBatch(imageNodeIds, { label: "复刻配图", overwrite: true });
+                    if (batch.status === "cancelled" || batch.status === "busy" || batch.status === "unavailable") {
+                        return {
+                            ok: false,
+                            code: "remix_batch_not_started",
+                            message: batch.status === "cancelled" ? "用户取消了复刻配图生成" : batch.status === "busy" ? "已有批量生成在进行中，请等它结束后重试" : "图片模型未配置或没有可生成的复刻配图",
+                            imageNodeIds,
+                        };
+                    }
+                    const publishNodeId = batch.completed > 0 ? createSourcePublishNode(sourceId) : null;
+                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+                    return {
+                        ok: batch.status === "success",
+                        ...(batch.status === "success" ? {} : { code: "remix_batch_incomplete", message: `复刻配图${batch.status === "stopped" ? "已停止" : "未全部成功"}：成功 ${batch.completed} 张，失败 ${batch.failed} 张` }),
+                        submitted: true,
+                        imageNodeIds,
+                        publishNodeId: publishNodeId || undefined,
+                        ...batch,
+                    };
+                }
+
                 return { ok: false, code: "unsupported_tool", message: "未实现工具 " + action.name };
             } catch (error) {
                 return { ok: false, code: "tool_error", message: errorMessage(error, "画布工具执行失败") };
             }
         },
-        [agentEffectiveConfig, createGroupFromSelection, projectTitle, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, autoGenerateMedia, updateProject, selectMany, selectedNodeIdsRef, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
+        [agentEffectiveConfig, createGroupFromSelection, createSourcePublishNode, handleExpandSource, projectTitle, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, autoGenerateMedia, startBatch, updateProject, selectMany, selectedNodeIdsRef, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
     );
 
     return { getCanvasAgentContext, executeCanvasAgentAction, beginCanvasAgentBatch, endCanvasAgentBatch };

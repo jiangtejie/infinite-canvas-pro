@@ -29,6 +29,9 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "generate_video",
     "generate_audio",
     "get_media_task_status",
+    "expand_source",
+    "plan_source_remix",
+    "generate_remix_images",
 ] as const;
 
 export type CanvasAgentActionName = (typeof CANVAS_AGENT_ACTION_NAMES)[number];
@@ -178,6 +181,24 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
         ["prompt", "sourceNodeIds"],
     ),
     defineTool("get_media_task_status", "读取图片、视频或音频节点的生成状态。", { nodeId: STRING }, ["nodeId"]),
+    defineTool(
+        "expand_source",
+        "把已解析的素材源展开成真实的素材文案与素材图节点，是复刻的第一步。已展开时重复调用只会按最新解析结果刷新素材，不会重建复刻节点。",
+        { sourceNodeId: STRING },
+        ["sourceNodeId"],
+    ),
+    defineTool(
+        "plan_source_remix",
+        "素材源复刻的必经组级策划：一次读入新文案与该素材源的全部原图，产出整组共同设定与逐张配图提示词，并建好复刻文案/策划/配图节点与连线。copy 由你按原素材的结构与传播逻辑原创重写，不要照抄原句。必须先用 expand_source 得到真实素材图节点；修改整组时传 instruction 重新策划，不要逐张单独写提示词。",
+        { sourceNodeId: STRING, copy: STRING, instruction: STRING },
+        ["sourceNodeId", "copy"],
+    ),
+    defineTool(
+        "generate_remix_images",
+        "按已完成的组级策划整组提交复刻配图生成，并在成功后创建或复用发布节点。策划未完成或配图提示词未写齐时会被拒绝；不要用 generate_image 逐张绕过策划。",
+        { sourceNodeId: STRING },
+        ["sourceNodeId"],
+    ),
 ];
 
 export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = nanoid()): CanvasAgentAction {
@@ -319,6 +340,19 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
             };
             break;
         }
+        case "expand_source":
+            normalized = { sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId") };
+            break;
+        case "plan_source_remix":
+            normalized = {
+                sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId"),
+                copy: requiredString(input.copy, "copy"),
+                ...(optionalString(input.instruction) ? { instruction: optionalString(input.instruction) } : {}),
+            };
+            break;
+        case "generate_remix_images":
+            normalized = { sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId") };
+            break;
     }
 
     return { id, name: actionName, arguments: normalized };
@@ -405,6 +439,9 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         generate_video: "正在创建视频节点",
         generate_audio: "正在创建音频节点",
         get_media_task_status: "正在读取媒体任务",
+        expand_source: "正在展开素材",
+        plan_source_remix: "正在做整组复刻策划",
+        generate_remix_images: "正在提交复刻配图",
     };
     return labels[action.name];
 }
@@ -414,7 +451,7 @@ export function isCanvasAgentMediaAction(action: CanvasAgentAction) {
 }
 
 export function userLikelyRequestedCanvasAction(text: string) {
-    return /(?:创建|新增|插入|修改|更新|删除|连接|连线|分组|整理|生成|生图|执行|拆成|拆分|放到画布|开始做|(?:做|制作|添加|补充|移除|去掉).{0,8}(?:视频|音频|配音|旁白))/i.test(text);
+    return /(?:创建|新增|插入|修改|更新|删除|连接|连线|分组|整理|生成|生图|执行|拆成|拆分|复刻|展开素材|放到画布|开始做|(?:做|制作|添加|补充|移除|去掉).{0,8}(?:视频|音频|配音|旁白))/i.test(text);
 }
 
 function extractJsonObject(content: string) {

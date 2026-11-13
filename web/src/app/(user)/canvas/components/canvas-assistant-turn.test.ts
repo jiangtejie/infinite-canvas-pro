@@ -37,7 +37,7 @@ const input = (overrides: Record<string, unknown> = {}) => {
             requestConfig: config(),
             jsonToolFallbackKey: "chat||gpt-test",
             createRunner: () => async () => ({ reply: "已完成", state, protocolMessages: [], contextCheckpoint: undefined, jsonFallbackMode: undefined }),
-            getAgentContext: () => ({ project: { id: "p", title: "t", nodeCount: 0, connectionCount: 0 }, agentState: state, selectedNodeIds: [], nodes: [], connections: [], generation: { autoGenerateMedia: false, textModel: "", imageModel: "", videoModel: "", audioModel: "", imageQuality: "", imageSize: "", videoQuality: "", videoSize: "", imageCount: "1", videoSeconds: "5", videoGenerateAudio: "false", videoSupportsAudio: false, audioVoice: "", audioLanguage: "", audioFormat: "", audioSpeed: "" }, tasks: [] }),
+            getAgentContext: () => ({ project: { id: "p", title: "t", nodeCount: 0, connectionCount: 0 }, agentState: state, selectedNodeIds: [], nodes: [], connections: [], remixImages: [], generation: { autoGenerateMedia: false, textModel: "", imageModel: "", videoModel: "", audioModel: "", imageQuality: "", imageSize: "", videoQuality: "", videoSize: "", imageCount: "1", videoSeconds: "5", videoGenerateAudio: "false", videoSupportsAudio: false, audioVoice: "", audioLanguage: "", audioFormat: "", audioSpeed: "" }, tasks: [] }),
             executeAction: async () => ({ ok: true }),
             updateSession: (_id: string, updater: (value: CanvasAssistantSession) => CanvasAssistantSession) => sessionWrites.push(updater(session())),
             updateMessage: (_id: string, _messageId: string, patch: Partial<CanvasAssistantMessage>) => messagePatches.push(patch),
