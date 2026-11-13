@@ -1,10 +1,10 @@
 "use client";
 
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { App, Button, Col, Form, Input, Space, Tag, theme, Tooltip, Typography } from "antd";
+import { App, Button, Empty, Space, Tag, theme, Tooltip, Typography } from "antd";
 import { useMemo, useState } from "react";
 
 import { AgentSkillCover } from "@/components/agent-skill-cover";
@@ -15,10 +15,13 @@ import { deleteStoredImages } from "@/services/image-storage";
 import { invalidateAgentSkillCache } from "@/stores/use-agent-skill-store";
 import { useUserStore } from "@/stores/use-user-store";
 
-import { AdminFilterBar, adminFilterKeywordCol } from "../components/admin-filter-bar";
+import { AdminGallerySkeleton } from "../components/admin-gallery-skeleton";
 import { AdminPageHeader } from "../components/admin-page-header";
 import { buildAdminTableProps } from "../components/admin-table-props";
+import { AdminViewToggle, type AdminViewMode } from "../components/admin-view-toggle";
 import { SkillEditorModal } from "./components/skill-editor-modal";
+import { SkillFilterBar } from "./components/skill-filter-bar";
+import { SkillGalleryCard } from "./components/skill-gallery-card";
 import { errorMessage } from "@/lib/utils";
 
 export default function AdminSkillsPage() {
@@ -27,6 +30,8 @@ export default function AdminSkillsPage() {
     const queryClient = useQueryClient();
     const token = useUserStore((state) => state.token);
     const [keyword, setKeyword] = useState("");
+    const [status, setStatus] = useState("");
+    const [view, setView] = useState<AdminViewMode>("grid");
     const [editingSkill, setEditingSkill] = useState<Partial<AgentSkill> | null>(null);
     const [deletingSkill, setDeletingSkill] = useState<AgentSkill | null>(null);
     const query = useQuery({ queryKey: ["admin", "agent-skills", token], queryFn: () => fetchAdminAgentSkills(token), enabled: Boolean(token), retry: false });
@@ -41,9 +46,13 @@ export default function AdminSkillsPage() {
     });
     const skills = useMemo(() => {
         const queryText = keyword.trim().toLowerCase();
-        if (!queryText) return query.data || [];
-        return (query.data || []).filter((skill) => `${skill.name} ${skill.description} ${skill.content}`.toLowerCase().includes(queryText));
-    }, [keyword, query.data]);
+        return (query.data || []).filter((skill) => {
+            if (status === "enabled" && !skill.enabled) return false;
+            if (status === "disabled" && skill.enabled) return false;
+            if (!queryText) return true;
+            return `${skill.name} ${skill.description} ${skill.content}`.toLowerCase().includes(queryText);
+        });
+    }, [keyword, status, query.data]);
 
     const columns: ProColumns<AgentSkill>[] = [
         {
@@ -82,22 +91,64 @@ export default function AdminSkillsPage() {
 
     return (
         <main className="flex flex-col gap-5">
-            <AdminPageHeader />
-            <AdminFilterBar onReset={() => setKeyword("")} extraActions={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>刷新</Button>}>
-                <Col {...adminFilterKeywordCol}>
-                    <Form.Item label="关键词"><Input.Search value={keyword} allowClear enterButton={<SearchOutlined />} placeholder="搜索名称、描述或内容" onChange={(event) => setKeyword(event.target.value)} /></Form.Item>
-                </Col>
-            </AdminFilterBar>
-            <ProTable<AgentSkill>
-                {...buildAdminTableProps({ onReload: () => void query.refetch() })}
-                rowKey="id"
-                columns={columns}
-                dataSource={skills}
-                loading={query.isFetching || deleteMutation.isPending}
-                headerTitle={<Space><Typography.Text strong>系统预设 Skill</Typography.Text><Tag>{skills.length} 条</Tag></Space>}
-                pagination={{ defaultPageSize: 10, showSizeChanger: true }}
-                toolBarRender={() => [<Button key="add" type="primary" icon={<PlusOutlined />} onClick={() => setEditingSkill({ enabled: true, sort: 0 })}>新增</Button>]}
+            <AdminPageHeader
+                actions={
+                    <>
+                        <AdminViewToggle value={view} onChange={setView} />
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditingSkill({ enabled: true, sort: 0 })}>
+                            新增 Skill
+                        </Button>
+                    </>
+                }
             />
+            <SkillFilterBar
+                keyword={keyword}
+                status={status}
+                onSearch={setKeyword}
+                changeStatus={setStatus}
+                onReset={() => {
+                    setKeyword("");
+                    setStatus("");
+                }}
+            />
+
+            {view === "grid" ? (
+                <div className="flex flex-col gap-4">
+                    <p className="text-[13px] text-muted-foreground">共 {skills.length} 个 Skill</p>
+                    {query.isFetching && !skills.length ? (
+                        <AdminGallerySkeleton count={6} className="xl:grid-cols-3" />
+                    ) : skills.length ? (
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            {skills.map((skill) => (
+                                <SkillGalleryCard key={skill.id} skill={skill} onEdit={setEditingSkill} onDelete={setDeletingSkill} />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid min-h-[320px] place-items-center rounded-xl border border-dashed border-[var(--admin-line)] bg-card/40">
+                            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无 Skill">
+                                <Button type="primary" icon={<PlusOutlined />} onClick={() => setEditingSkill({ enabled: true, sort: 0 })}>
+                                    新增 Skill
+                                </Button>
+                            </Empty>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <ProTable<AgentSkill>
+                    {...buildAdminTableProps({ onReload: () => void query.refetch() })}
+                    rowKey="id"
+                    columns={columns}
+                    dataSource={skills}
+                    loading={query.isFetching || deleteMutation.isPending}
+                    headerTitle={
+                        <Space>
+                            <Typography.Text strong>系统预设 Skill</Typography.Text>
+                            <Tag>{skills.length} 条</Tag>
+                        </Space>
+                    }
+                    pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+                />
+            )}
 
             <SkillEditorModal editingSkill={editingSkill} onClose={() => setEditingSkill(null)} />
 

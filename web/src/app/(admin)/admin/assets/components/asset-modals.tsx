@@ -1,13 +1,15 @@
 "use client";
 
 import { CopyOutlined } from "@ant-design/icons";
-import { Button, Flex, Form, Image, Input, Modal, Select, Space, Tag, Typography, type FormInstance } from "antd";
+import { Button, Drawer, Form, Input, Modal, Select, Tag, type FormInstance } from "antd";
+import dayjs from "dayjs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { useCopyText } from "@/hooks/use-copy-text";
 import type { AdminAsset } from "@/services/api/admin";
 
 import { assetEditTypeOptions, assetTypeLabel, type AssetFormValues } from "../asset-utils";
+import { AssetPreview } from "./asset-preview";
 
 export function AssetEditorModal({
     editingAsset,
@@ -57,41 +59,55 @@ export function AssetEditorModal({
     );
 }
 
-export function AssetDetailModal({ detailAsset, onClose }: { detailAsset: AdminAsset | null; onClose: () => void }) {
+export function AssetDetailDrawer({ detailAsset, onClose }: { detailAsset: AdminAsset | null; onClose: () => void }) {
     const copyText = useCopyText();
+    const copyValue = detailAsset ? (detailAsset.type === "text" ? detailAsset.content : detailAsset.url || detailAsset.coverUrl) : "";
     return (
-            <Modal title="素材详情" open={Boolean(detailAsset)} width={760} onCancel={onClose} footer={<Button onClick={() => onClose()}>关闭</Button>}>
-                {detailAsset ? (
-                    <Flex vertical gap={14}>
-                        <Flex gap={14} align="start">
-                            <Image src={detailAsset.coverUrl || detailAsset.url || "/logo.svg"} alt={detailAsset.title} width={116} height={84} style={{ objectFit: "cover", borderRadius: 8 }} preview={{ mask: "放大" }} fallback="/logo.svg" />
-                            <Flex vertical gap={8} style={{ minWidth: 0 }}>
-                                <Typography.Title level={5} style={{ margin: 0 }}>
-                                    {detailAsset.title}
-                                </Typography.Title>
-                                <Space wrap>
+        <Drawer
+            title="素材详情"
+            open={Boolean(detailAsset)}
+            size="min(860px, 96vw)"
+            onClose={onClose}
+            destroyOnHidden
+            footer={
+                <div className="flex justify-end">
+                    <Button onClick={onClose}>关闭</Button>
+                </div>
+            }
+        >
+            {detailAsset ? (
+                <div className="flex flex-col gap-5">
+                    <div className="grid gap-5 sm:grid-cols-[240px_1fr]">
+                        <div className="min-w-0">
+                            <AssetPreview asset={detailAsset} mode="detail" />
+                        </div>
+                        <div className="flex min-w-0 flex-col gap-3">
+                            <div>
+                                <h2 className="text-lg font-semibold text-foreground">{detailAsset.title}</h2>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
                                     <Tag>{assetTypeLabel(detailAsset.type)}</Tag>
                                     {detailAsset.category ? <Tag>{detailAsset.category}</Tag> : null}
                                     {(detailAsset.tags || []).map((tag) => (
                                         <Tag key={tag}>{tag}</Tag>
                                     ))}
-                                </Space>
-                            </Flex>
-                        </Flex>
-                        {detailAsset.description ? (
-                            <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-                                {detailAsset.description}
-                            </Typography.Paragraph>
-                        ) : null}
-                        <Input.TextArea value={detailAsset.type === "text" ? detailAsset.content : detailAsset.url || detailAsset.coverUrl} rows={7} readOnly />
-                        <Flex gap={8} wrap>
-                            <Button icon={<CopyOutlined />} onClick={() => copyText(detailAsset.type === "text" ? detailAsset.content : detailAsset.url || detailAsset.coverUrl)}>
+                                </div>
+                            </div>
+                            {detailAsset.description ? <p className="text-sm leading-6 text-muted-foreground">{detailAsset.description}</p> : null}
+                            {detailAsset.updatedAt ? <p className="text-xs text-muted-foreground">更新于 {dayjs(detailAsset.updatedAt).format("YYYY-MM-DD HH:mm")}</p> : null}
+                            <Button className="self-start" icon={<CopyOutlined />} onClick={() => copyText(copyValue)}>
                                 复制内容
                             </Button>
-                        </Flex>
-                    </Flex>
-                ) : null}
-            </Modal>
+                        </div>
+                    </div>
+                    {detailAsset.type !== "text" ? (
+                        <section>
+                            <h3 className="mb-2 text-sm font-semibold text-foreground">资源地址</h3>
+                            <pre className="max-h-[260px] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted p-3 text-xs leading-5 text-foreground">{copyValue || "-"}</pre>
+                        </section>
+                    ) : null}
+                </div>
+            ) : null}
+        </Drawer>
     );
 }
 
