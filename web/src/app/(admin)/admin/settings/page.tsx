@@ -2,6 +2,7 @@
 
 import { CheckCircleOutlined, FormatPainterOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
 import { Button, Segmented, Select, Tag } from "antd";
+import { Globe, Lock } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -81,6 +82,7 @@ export default function AdminSettingsPage() {
 
     const goToSection = (tab: SettingsTabKey, id: string) => {
         if (tab !== activeTab) changeTab(tab);
+        if (settings.editorMode[tab] === "json") toggleMode(tab, "visual");
         setActiveSection(id);
         setPendingSection(id);
     };
@@ -124,55 +126,48 @@ export default function AdminSettingsPage() {
             <p className="text-[13px] leading-6 text-muted-foreground">公开配置会暴露给前端读取，私有配置只在服务端生效。</p>
 
             {activeMode === "visual" ? (
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+                <div className="flex flex-col gap-4">
                     <div className="lg:hidden" data-admin-section-select>
+                        <ScopeSwitch
+                            activeTab={activeTab}
+                            dirtyTabs={dirtyTabs}
+                            onSelect={(tab) => goToSection(tab, SETTINGS_SECTIONS[tab][0].id)}
+                            className="grid-cols-2"
+                        />
                         <Select
                             aria-label="设置分区"
-                            className="w-full"
+                            className="mt-3 w-full"
                             value={activeSection}
-                            onChange={(id) => {
-                                const tab: SettingsTabKey = SETTINGS_SECTIONS.public.some((item) => item.id === id) ? "public" : "private";
-                                goToSection(tab, id);
-                            }}
-                            options={(["public", "private"] as const).map((tab) => ({
-                                label: TAB_LABELS[tab],
-                                options: SETTINGS_SECTIONS[tab].map((item) => ({ label: item.label, value: item.id })),
-                            }))}
+                            onChange={(id) => goToSection(activeTab, id)}
+                            options={SETTINGS_SECTIONS[activeTab].map((item) => ({ label: item.label, value: item.id }))}
                         />
                     </div>
-                    <aside className="sticky top-0 hidden w-[220px] shrink-0 self-start lg:block">
-                        <nav className="flex flex-col gap-5" aria-label="设置分区">
-                            {(["public", "private"] as const).map((tab) => (
-                                <div key={tab}>
-                                    <p className="mb-2 flex items-center gap-2 px-2 text-[11px] font-medium text-muted-foreground">
-                                        {TAB_LABELS[tab]}
-                                        {dirtyTabs[tab] ? <span role="img" aria-label="有未保存的修改" title="有未保存的修改" className="size-1.5 rounded-full bg-acid" /> : null}
-                                    </p>
-                                    <div className="space-y-0.5">
-                                        {SETTINGS_SECTIONS[tab].map((item) => {
-                                            const active = activeTab === tab && activeSection === item.id;
-                                            return (
-                                                <button
-                                                    key={item.id}
-                                                    type="button"
-                                                    onClick={() => goToSection(tab, item.id)}
-                                                    aria-current={active ? "location" : undefined}
-                                                    className={cn(
-                                                        "flex h-9 w-full items-center rounded-lg px-2.5 text-left text-[13px] transition-colors",
-                                                        active ? "bg-acid/10 font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-                                                    )}
-                                                >
-                                                    {item.label}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            ))}
-                        </nav>
-                    </aside>
-                    <div className="flex min-w-0 flex-1 flex-col gap-3 lg:max-w-[960px]">
-                        {activeTab === "public" ? <AdminSettingsPublicConfig settings={settings} /> : <AdminSettingsPrivateConfig settings={settings} />}
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+                        <aside className="sticky top-0 hidden w-[220px] shrink-0 self-start lg:block">
+                            <ScopeSwitch activeTab={activeTab} dirtyTabs={dirtyTabs} onSelect={(tab) => goToSection(tab, SETTINGS_SECTIONS[tab][0].id)} />
+                            <nav className="mt-4 flex flex-col gap-0.5" aria-label={`${TAB_LABELS[activeTab]}分区`}>
+                                {SETTINGS_SECTIONS[activeTab].map((item) => {
+                                    const active = activeSection === item.id;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => goToSection(activeTab, item.id)}
+                                            aria-current={active ? "location" : undefined}
+                                            className={cn(
+                                                "flex h-9 w-full items-center rounded-lg px-2.5 text-left text-[13px] transition-colors",
+                                                active ? "bg-acid/10 font-medium text-foreground" : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                                            )}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </nav>
+                        </aside>
+                        <div className="flex min-w-0 flex-1 flex-col gap-3 lg:max-w-[960px]">
+                            {activeTab === "public" ? <AdminSettingsPublicConfig settings={settings} /> : <AdminSettingsPrivateConfig settings={settings} />}
+                        </div>
                     </div>
                 </div>
             ) : (
@@ -194,5 +189,55 @@ export default function AdminSettingsPage() {
             <AdminSettingsChannelDrawer settings={settings} />
             <AdminSettingsTestModelsModal settings={settings} />
         </main>
+    );
+}
+
+function ScopeSwitch({
+    activeTab,
+    dirtyTabs,
+    onSelect,
+    className,
+}: {
+    activeTab: SettingsTabKey;
+    dirtyTabs: Record<SettingsTabKey, boolean>;
+    onSelect: (tab: SettingsTabKey) => void;
+    className?: string;
+}) {
+    return (
+        <div role="group" aria-label="配置范围" className={cn("grid gap-2", className)}>
+            {(["public", "private"] as const).map((tab) => {
+                const active = tab === activeTab;
+                const Icon = tab === "public" ? Globe : Lock;
+                return (
+                    <button
+                        key={tab}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => onSelect(tab)}
+                        className={cn(
+                            "flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left transition-colors",
+                            active ? "border-acid/30 bg-acid/10" : "border-[var(--admin-line)] bg-card/40 hover:bg-foreground/5",
+                        )}
+                    >
+                        <span
+                            className={cn(
+                                "grid size-8 shrink-0 place-items-center rounded-lg border",
+                                active ? "border-acid/30 bg-acid/10 text-foreground" : "border-border/60 bg-muted/40 text-muted-foreground",
+                            )}
+                        >
+                            <Icon className="size-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className={cn("block truncate text-[12px]", active ? "font-semibold text-foreground" : "font-medium text-muted-foreground")}>{TAB_LABELS[tab]}</span>
+                            <span className="mt-0.5 block text-[9px] tracking-[0.16em] text-muted-foreground/70">{tab === "public" ? "PUBLIC" : "PRIVATE"}</span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1.5">
+                            <span className="text-[10px] tabular-nums text-muted-foreground">{SETTINGS_SECTIONS[tab].length}</span>
+                            {dirtyTabs[tab] ? <span role="img" aria-label="有未保存的修改" title="有未保存的修改" className="size-1.5 rounded-full bg-acid" /> : null}
+                        </span>
+                    </button>
+                );
+            })}
+        </div>
     );
 }
