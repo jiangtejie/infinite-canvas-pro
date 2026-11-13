@@ -430,3 +430,47 @@ export const fetchAdminRechargePackages = (token: string) => apiGet<AdminRecharg
 export const saveAdminRechargePackage = (payload: Partial<AdminRechargePackage>, token: string) => apiPost<AdminRechargePackage>("/api/admin/recharge-packages", payload, token);
 
 export const deleteAdminRechargePackage = (id: string, token: string) => apiDelete<boolean>(`/api/admin/recharge-packages/${id}`, token);
+
+export type AdminOverviewAITrend = {
+    date: string;
+    calls: number;
+    credits: number;
+};
+
+export type AdminOverviewRecentAILog = {
+    id: string;
+    userId: string;
+    userDisplayName: string;
+    model: string;
+    status: number;
+    failed: boolean;
+    durationMs: number;
+    credits: number;
+    createdAt: string;
+};
+
+export type AdminOverviewRecentCreditLog = {
+    id: string;
+    userId: string;
+    userDisplayName: string;
+    type: string;
+    amount: number;
+    balance: number;
+    remark: string;
+    createdAt: string;
+};
+
+export type AdminOverview = {
+    users: { total: number; newToday: number; active7d: number };
+    ai: { total: number; todayCalls: number; todayFailed: number; successRate: number; avgDurationMs: number; trend: AdminOverviewAITrend[] };
+    credits: { todayConsumed: number; todayGranted: number; totalBalance: number };
+    content: { prompts: number; assets: number; skills: number; enabledPackages: number };
+    channels: { total: number; enabled: number };
+    storage: { configured: number; usedBytes: number; limitBytes: number; exceeded: number };
+    recentAiLogs: AdminOverviewRecentAILog[];
+    recentCreditLogs: AdminOverviewRecentCreditLog[];
+};
+
+export async function fetchAdminOverview(token: string) {
+    return apiGet<AdminOverview>("/api/admin/overview", undefined, token);
+}

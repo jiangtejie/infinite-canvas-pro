@@ -1,6 +1,7 @@
-import { Coins, FileText, Image as ImageIcon, ScrollText, Settings2, Users, Wallet, Wrench } from "lucide-react";
+import { Coins, FileText, Image as ImageIcon, LayoutDashboard, ScrollText, Settings2, Users, Wallet, Wrench } from "lucide-react";
 
 export const adminMenus = [
+    { key: "/admin", icon: LayoutDashboard, label: "概览", group: "运营" },
     { key: "/admin/users", icon: Users, label: "用户管理", group: "运营" },
     { key: "/admin/credit-logs", icon: Coins, label: "算力点日志", group: "运营" },
     { key: "/admin/ai-logs", icon: ScrollText, label: "AI 日志", group: "运营" },
@@ -14,6 +15,7 @@ export const adminMenus = [
 export const adminGroups = Array.from(new Set(adminMenus.map((item) => item.group)));
 
 const adminPageMeta: Record<string, { title: string; desc: string }> = {
+    "/admin": { title: "概览", desc: "平台运行状态、内容规模与最近动态。" },
     "/admin/users": { title: "用户管理", desc: "管理账号、角色与算力点余额。" },
     "/admin/credit-logs": { title: "算力点日志", desc: "查看每一次充值、消耗与调整记录。" },
     "/admin/ai-logs": { title: "AI 日志", desc: "追踪模型调用、耗时与生成结果。" },
@@ -25,8 +27,8 @@ const adminPageMeta: Record<string, { title: string; desc: string }> = {
 };
 
 export function getAdminPageMeta(pathname: string) {
-    const matched = adminMenus.find((item) => pathname === item.key || pathname.startsWith(`${item.key}/`));
-    const activeKey = pathname === "/admin" ? "/admin/users" : matched?.key ?? "";
+    const matched = adminMenus.find((item) => pathname === item.key || (item.key !== "/admin" && pathname.startsWith(`${item.key}/`)));
+    const activeKey = matched?.key ?? "";
     const menu = adminMenus.find((item) => item.key === activeKey);
     return {
         activeKey,
