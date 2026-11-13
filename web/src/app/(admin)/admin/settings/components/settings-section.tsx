@@ -7,9 +7,9 @@ import { Form, Switch } from "antd";
 import { cn } from "@/lib/utils";
 
 /** 后台设置统一分区：标题、说明、右侧操作与统一卡片容器。 */
-export function AdminSettingsSection({ title, description, extra, children, className }: { title: string; description?: string; extra?: ReactNode; children: ReactNode; className?: string }) {
+export function AdminSettingsSection({ id, title, description, extra, children, className }: { id?: string; title: string; description?: string; extra?: ReactNode; children: ReactNode; className?: string }) {
     return (
-        <section className={cn("rounded-xl border border-border/60 bg-card/35 p-4", className)}>
+        <section id={id} className={cn("scroll-mt-6 rounded-xl border border-[var(--admin-line)] bg-card p-4 sm:p-5", className)}>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h2 className="text-sm font-semibold text-foreground">{title}</h2>
@@ -25,7 +25,7 @@ export function AdminSettingsSection({ title, description, extra, children, clas
 /** 卡片内的子区块：用于存储渠道等嵌套配置，避免 Card 套 Card。 */
 export function AdminSettingsSubsection({ title, description, extra, children }: { title: string; description?: string; extra?: ReactNode; children: ReactNode }) {
     return (
-        <section className="rounded-lg border border-border/50 bg-background/35 p-3">
+        <section className="rounded-lg border border-border/60 bg-background/40 p-3.5">
             <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                     <h3 className="text-xs font-semibold text-foreground">{title}</h3>

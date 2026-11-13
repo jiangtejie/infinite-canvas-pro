@@ -42,6 +42,7 @@ export function useAdminSettings() {
     const savingRef = useRef(false);
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [activeTab, setActiveTab] = useState<SettingsTabKey>("public");
+    const [dirtyTabs, setDirtyTabs] = useState<Record<SettingsTabKey, boolean>>({ public: false, private: false });
     const [editorMode, setEditorMode] = useState<Record<SettingsTabKey, EditorMode>>({ public: "visual", private: "visual" });
     const [jsonText, setJsonText] = useState<Record<SettingsTabKey, string>>({ public: "", private: "" });
     const [channels, setChannels] = useState<AdminModelChannel[]>([]);
@@ -83,7 +84,20 @@ export function useAdminSettings() {
     const activeJsonText = jsonText[activeTab];
     const jsonError = activeMode === "json" ? getJsonError(activeJsonText) : "";
 
+    const markDirty = useCallback((tab: SettingsTabKey) => {
+        setDirtyTabs((current) => (current[tab] ? current : { ...current, [tab]: true }));
+    }, []);
+
+    const markClean = useCallback((tabs: SettingsTabKey[] = ["public", "private"]) => {
+        setDirtyTabs((current) => {
+            const next = { ...current };
+            for (const tab of tabs) next[tab] = false;
+            return next;
+        });
+    }, []);
+
     const updateJson = (tab: SettingsTabKey, value: string) => {
+        markDirty(tab);
         setJsonText((current) => ({ ...current, [tab]: value }));
     };
 
@@ -117,12 +131,13 @@ export function useAdminSettings() {
                 public: JSON.stringify(data.public, null, 2),
                 private: JSON.stringify(data.private, null, 2),
             });
+            markClean();
         } catch (error) {
             message.error(errorMessage(error, "读取设置失败"));
         } finally {
             setIsLoading(false);
         }
-    }, [form, message, token]);
+    }, [form, markClean, message, token]);
 
     useEffect(() => {
         void loadSettings();
@@ -187,6 +202,7 @@ export function useAdminSettings() {
                 public: JSON.stringify(merged.public, null, 2),
                 private: JSON.stringify(merged.private, null, 2),
             });
+            markClean();
             message.success("已保存");
         } catch (error) {
             message.error(errorMessage(error, "保存失败"));
@@ -236,6 +252,7 @@ export function useAdminSettings() {
                 ...current,
                 public: JSON.stringify(merged.public, null, 2),
             }));
+            markClean(["public"]);
             message.success("权限已自动保存");
         } catch (error) {
             message.error(errorMessage(error, "权限自动保存失败"));
@@ -258,10 +275,12 @@ export function useAdminSettings() {
             message.error("JSON 格式不正确");
             return;
         }
+        const wasDirty = dirtyTabs[tab];
         form.setFieldsValue({ [tab]: parsed } as Partial<AdminSettings>);
         if (tab === "private") setChannels((parsed as AdminSettings["private"]).channels);
         if (tab === "public") setModelCosts((parsed as AdminSettings["public"]).modelChannel.modelCosts);
         rememberKnownModels({ ...normalizeSettings(form.getFieldsValue(true)), [tab]: parsed });
+        if (wasDirty) markDirty(tab);
         setEditorMode((current) => ({ ...current, [tab]: nextMode }));
     };
 
@@ -414,6 +433,7 @@ export function useAdminSettings() {
             public: JSON.stringify(merged.public, null, 2),
             private: JSON.stringify(merged.private, null, 2),
         });
+        markClean();
         message.success("已保存");
     }
 
@@ -426,6 +446,7 @@ export function useAdminSettings() {
             const next = await fetchAdminSettings(token);
             form.setFieldsValue(next);
             setJsonText({ public: JSON.stringify(next.public, null, 2), private: JSON.stringify(next.private, null, 2) });
+            markClean();
             message.success(`容量统计完成：${formatStorageBytes(result.bytes)}${result.overLimit ? "，已达到上限并禁用" : ""}`);
         } catch (error) {
             message.error(errorMessage(error, "容量统计失败"));
@@ -449,6 +470,8 @@ export function useAdminSettings() {
         loadSettings,
         isLoading,
         isSaving,
+        dirtyTabs,
+        markDirty,
         saveSettings,
         autoSavePermissions,
         channels,

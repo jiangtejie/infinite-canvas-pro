@@ -6,7 +6,7 @@ import { AdminSettingsSection } from "./settings-section";
 
 export function AdminSettingsPrivateContentSection() {
     return (
-        <AdminSettingsSection title="内容解析" description="控制外部内容解析能力，关闭后不影响已解析素材。">
+        <AdminSettingsSection id="private-content" title="内容解析" description="控制外部内容解析能力，关闭后不影响已解析素材。">
             <Form.Item
                 name={["private", "content", "sourceParseEnabled"]}
                 label="允许抖音图文解析"

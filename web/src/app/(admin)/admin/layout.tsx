@@ -170,7 +170,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         </div>
                     </header>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto">
+                    <div className="min-h-0 flex-1 overflow-y-auto" data-admin-scroll>
                         <div className="mx-auto w-full max-w-[1480px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">{children}</div>
                     </div>
                 </div>

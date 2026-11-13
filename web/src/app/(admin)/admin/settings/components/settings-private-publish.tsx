@@ -40,7 +40,7 @@ export function AdminSettingsPrivatePublishSection() {
     };
 
     return (
-        <AdminSettingsSection title="抖音发布" description="发布能力依赖公网域名与抖音开放平台权限。">
+        <AdminSettingsSection id="private-publish" title="抖音发布" description="发布能力依赖公网域名与抖音开放平台权限。">
             <Alert
                 type="info"
                 showIcon

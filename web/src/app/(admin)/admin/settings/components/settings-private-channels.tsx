@@ -17,6 +17,7 @@ export function AdminSettingsPrivateChannels({ settings }: { settings: AdminSett
     const { channels, channelTableData, openChannelDrawer, openTestDialog, persistChannels } = settings;
     return (
         <AdminSettingsSection
+            id="private-channels"
             title="渠道配置"
             description="配置平台模型渠道、权重与超时；删除渠道会立即保存当前表单全部设置。"
             extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => openChannelDrawer(null)}>新增渠道</Button>}

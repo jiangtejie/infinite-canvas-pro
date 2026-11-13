@@ -14,8 +14,8 @@ import { AdminSettingsPrivateStorage } from "./settings-private-storage";
 
 export function AdminSettingsPrivateConfig({ settings }: { settings: AdminSettingsController }) {
     return (
-        <Form form={settings.form} layout="vertical" initialValues={emptySettings} requiredMark={false}>
-            <Flex vertical gap={12}>
+        <Form form={settings.form} layout="vertical" initialValues={emptySettings} requiredMark={false} onValuesChange={() => settings.markDirty("private")}>
+            <Flex vertical gap={16}>
                 <AdminSettingsPrivatePromptSections />
                 <AdminSettingsPrivateContentSection />
                 <AdminSettingsPrivatePublishSection />

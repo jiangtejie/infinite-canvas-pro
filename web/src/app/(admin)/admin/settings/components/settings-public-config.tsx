@@ -12,9 +12,9 @@ import { AdminSettingsSection, AdminSettingsSwitchRow } from "./settings-section
 export function AdminSettingsPublicConfig({ settings }: { settings: AdminSettingsController }) {
     const { form, channelModels, publicModelLabel, channelWorkflows, publicModels, modelCosts, setModelCosts, orderedPublicModels, publicVideoModels, publicWorkflows, channels } = settings;
     return (
-        <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false} onValuesChange={(changedValues) => { if (isPermissionChange(changedValues)) settings.autoSavePermissions(); }}>
-            <Flex vertical gap={12}>
-                <AdminSettingsSection title="可用模型与工作流" description="先决定平台开放哪些模型和工作流，再设置默认项；公开配置会暴露给前端读取。">
+        <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false} onValuesChange={(changedValues) => { settings.markDirty("public"); if (isPermissionChange(changedValues)) settings.autoSavePermissions(); }}>
+            <Flex vertical gap={16}>
+                <AdminSettingsSection id="public-models" title="可用模型与工作流" description="先决定平台开放哪些模型和工作流，再设置默认项；公开配置会暴露给前端读取。">
                     <Row gutter={[16, 4]}>
                         <Col span={24}>
                             <Form.Item name={["public", "modelChannel", "availableModels"]} label="系统可用模型" extra="可选项来自已启用渠道中选择的模型，最终开放哪些模型由这里勾选决定">
@@ -34,7 +34,7 @@ export function AdminSettingsPublicConfig({ settings }: { settings: AdminSetting
                     </Row>
                 </AdminSettingsSection>
 
-                <AdminSettingsSection title="系统提示词" description="会自动追加在对应类型请求前，不在用户输入框中展示。">
+                <AdminSettingsSection id="public-prompts" title="系统提示词" description="会自动追加在对应类型请求前，不在用户输入框中展示。">
                     <Row gutter={[16, 4]}>
                         {([
                             ["image", "生图系统提示词", "会自动追加在生图提示词前，不在输入框中展示", 4],
@@ -56,7 +56,7 @@ export function AdminSettingsPublicConfig({ settings }: { settings: AdminSetting
                     </Row>
                 </AdminSettingsSection>
 
-                <AdminSettingsSection title="权限开关" description="控制前端可见能力；关闭后后端也会拒绝对应请求。">
+                <AdminSettingsSection id="public-permissions" title="权限开关" description="控制前端可见能力；关闭后后端也会拒绝对应请求。">
                     <Flex vertical gap={8}>
                         <AdminSettingsSwitchRow name={["public", "modelChannel", "allowCustomChannel"]} label="允许用户自定义渠道" description="开启后，前端可提供用户自定义 baseUrl 直连模式。" />
                         <AdminSettingsSwitchRow name={["public", "modelChannel", "allowUserRemoteChannel"]} label="允许普通用户使用云端渠道" description="关闭后普通用户只能使用本地直连；管理员仍可使用云端渠道。" />
@@ -64,7 +64,7 @@ export function AdminSettingsPublicConfig({ settings }: { settings: AdminSetting
                     </Flex>
                 </AdminSettingsSection>
 
-                <AdminSettingsSection title="模型 / 工作流算力点" description="视频模型按秒计费，工作流按次计费；单价为 0 表示不扣点。">
+                <AdminSettingsSection id="public-costs" title="模型 / 工作流算力点" description="视频模型按秒计费，工作流按次计费；单价为 0 表示不扣点。">
                     <Table
                         rowKey="key"
                         pagination={false}

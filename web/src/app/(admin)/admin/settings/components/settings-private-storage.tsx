@@ -13,7 +13,7 @@ import type { AdminSettingsController } from "../use-admin-settings";
 export function AdminSettingsPrivateStorage({ settings }: { settings: AdminSettingsController }) {
     const { form, storageProviders, measuringProviderIndex, measureStorageProviderAt } = settings;
     return (
-                                <AdminSettingsSection title="数据存储" description="对象存储、用户自定义存储与容量统计策略。">
+                                <AdminSettingsSection id="private-storage" title="数据存储" description="对象存储、用户自定义存储与容量统计策略。">
                                     <Row gutter={16}>
                                         <Col xs={24} md={6}>
                                             <Form.Item label="存储模式" extra="根据对象存储配置和启用状态自动识别。">
