@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { Avatar, Tooltip } from "antd";
-import { ChevronDown, Keyboard, LogOut, Settings2, Shield, UserRound, Wallet } from "lucide-react";
+import { ChevronDown, Keyboard, LogOut, Settings2, Shield, TriangleAlert, UserRound, Wallet } from "lucide-react";
 import Link from "next/link";
 
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { CreditSymbol } from "@/constant/credits";
+import { useLogout } from "@/hooks/use-logout";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -27,7 +28,8 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const theme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
     const user = useUserStore((state) => state.user);
-    const logout = useUserStore((state) => state.clearSession);
+    const lastError = useUserStore((state) => state.lastError);
+    const logout = useLogout();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const canvasTheme = canvasThemes[theme];
     const userName = user?.displayName || user?.username || "";
@@ -102,6 +104,13 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     登录
                 </Link>
             ) : null}
+            {user && lastError ? (
+                <Tooltip title={`登录状态校验失败，已沿用本机登录态：${lastError}`} placement="bottom">
+                    <span className="grid size-7 shrink-0 place-items-center" style={{ color: "#f59e0b" }} role="img" aria-label="登录状态校验失败">
+                        <TriangleAlert className="size-4" />
+                    </span>
+                </Tooltip>
+            ) : null}
             {user ? (
                 <div ref={setContainerRef} className="relative">
                     <button
@@ -168,7 +177,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                                 </button>
                             ) : null}
                             <div className="my-1 h-px" style={{ background: "var(--border)" }} />
-                            <button type="button" role="menuitem" className={`${MENU_ROW} admin-user-menu-danger text-red-500 hover:bg-red-500/10`} onClick={() => { setMenuOpen(false); logout(); }}>
+                            <button type="button" role="menuitem" className={`${MENU_ROW} admin-user-menu-danger text-red-500 hover:bg-red-500/10`} onClick={() => { setMenuOpen(false); void logout(); }}>
                                 <LogOut className="size-4 shrink-0" />
                                 退出登录
                             </button>

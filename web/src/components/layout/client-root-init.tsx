@@ -6,8 +6,10 @@ import { usePathname } from "next/navigation";
 import { App } from "antd";
 
 import { CONFIG_SYNC_FAILED_EVENT, useSessionBootstrap } from "@/hooks/use-session-bootstrap";
+import { AUTH_TOKEN_KEY, type AuthUser } from "@/services/api/auth";
+import { SESSION_EXPIRED_EVENT } from "@/services/api/request";
 import { STORAGE_SYNC_FAILED_EVENT } from "@/services/image-storage";
-import { defaultConfig, useConfigStore } from "@/stores/use-config-store";
+import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
@@ -22,10 +24,10 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const channelMode = useConfigStore((state) => state.config.channelMode);
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const isLoginPage = pathname === "/login" || pathname === "/admin/login";
+    const isLoginPage = pathname === "/login";
     const isTokenDanceCallback = pathname === "/tokendance/callback";
     const adminRemoteTokenRef = useRef("");
-    const accountSessionRef = useRef({ token, userId: user?.id || "" });
+    const accountOwnerRef = useRef(user?.id || "guest");
 
     useSessionBootstrap();
 
@@ -46,6 +48,29 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         window.addEventListener(CONFIG_SYNC_FAILED_EVENT, onConfigSyncFailed);
         return () => window.removeEventListener(CONFIG_SYNC_FAILED_EVENT, onConfigSyncFailed);
     }, [message]);
+
+    // 会话失效统一在这里收口：清登录态后受保护页由各自布局守卫跳登录，非受保护页退回游客模式。
+    useEffect(() => {
+        const onSessionExpired = () => {
+            if (!useUserStore.getState().token) return;
+            useUserStore.getState().clearSession();
+            message.warning({ key: SESSION_EXPIRED_EVENT, content: "登录已过期，请重新登录" });
+        };
+        window.addEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+        return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
+    }, [message]);
+
+    // 跨标签页同步登录态：zustand persist 不跟随 storage 事件。
+    // 不用 persist.rehydrate()：它的 onRehydrateStorage 会把 isReady 置 false，而校验只在挂载时跑一次，受保护页会卡在校验中。
+    useEffect(() => {
+        const onStorage = (event: StorageEvent) => {
+            if (event.key !== AUTH_TOKEN_KEY) return;
+            const persisted = event.newValue ? (JSON.parse(event.newValue) as { state?: { token?: string; user?: AuthUser | null } }).state : undefined;
+            useUserStore.setState({ token: persisted?.token || "", user: persisted?.user || null, isReady: true, lastError: "" });
+        };
+        window.addEventListener("storage", onStorage);
+        return () => window.removeEventListener("storage", onStorage);
+    }, []);
 
     useEffect(() => {
         void loadPublicSettings();
@@ -85,16 +110,20 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
 		if (channelMode !== "remote") updateConfig("channelMode", "remote");
 	}, [channelMode, isTokenDanceCallback, token, updateConfig, user?.role]);
 
+	// 账号切换（登录 / 退出 / 会话失效 / 跨标签页同步）统一整页重载：本地业务数据按账号分区，
+	// 模块级 store 与 localforage 实例都要按新分区重新初始化，只重置内存状态会留下上一个账号的缓存。
 	useLayoutEffect(() => {
-		const previous = accountSessionRef.current;
-		const userId = user?.id || "";
-		if ((previous.token && !token) || (previous.userId && userId && previous.userId !== userId)) {
-			useConfigStore.setState({ config: defaultConfig });
-		} else {
+		const owner = user?.id || "guest";
+		const previous = accountOwnerRef.current;
+		accountOwnerRef.current = owner;
+		if (owner === previous) {
 			updateConfig("workflowSyncTouched", false);
+			return;
 		}
-		accountSessionRef.current = { token, userId };
-	}, [token, updateConfig, user?.id]);
+		// 登录页自己整页跳到 redirect，这里不抢它的导航。
+		if (pathname === "/login") return;
+		window.location.reload();
+	}, [pathname, updateConfig, user?.id]);
 
     useEffect(() => {
         if (handledConfigParams.current) return;

@@ -42,6 +42,8 @@ function LoginContent() {
     const login = useUserStore((state) => state.login);
     const register = useUserStore((state) => state.register);
     const isLoading = useUserStore((state) => state.isLoading);
+    const token = useUserStore((state) => state.token);
+    const isReady = useUserStore((state) => state.isReady);
     const allowRegister = useConfigStore((state) => state.publicSettings?.auth?.allowRegister !== false);
     const [mode, setMode] = useState<"login" | "register">("login");
     const redirect = safeRedirect(searchParams.get("redirect"));
@@ -49,6 +51,11 @@ function LoginContent() {
     useEffect(() => {
         if (!allowRegister && mode === "register") setMode("login");
     }, [allowRegister, mode]);
+
+    // 已登录还停在登录页没有意义，直接送回目标页。
+    useEffect(() => {
+        if (isReady && token) router.replace(redirect);
+    }, [isReady, redirect, router, token]);
 
     const submit = async (values: LoginFormValues) => {
         try {
@@ -62,9 +69,8 @@ function LoginContent() {
             }
             const action = mode === "register" ? register : login;
             await action({ username: values.username, password: values.password });
-            message.success(mode === "register" ? "注册成功" : "登录成功");
-            router.replace(redirect);
-            router.refresh();
+            // 整页跳转：本地业务数据按账号分区，登录后所有 store 与 localforage 实例都要按新分区重新初始化。
+            window.location.replace(redirect);
         } catch (error) {
             message.error(errorMessage(error, "登录失败"));
         }
@@ -131,14 +137,14 @@ function LoginContent() {
                             <Input prefix={<UserOutlined />} autoComplete="username" placeholder="请输入用户名" />
                         </Form.Item>
                         <Form.Item name="password" label={<span className="text-xs font-medium tracking-wide text-muted-foreground">密码</span>} rules={[{ required: true, message: "请输入密码" }]}>
-                            <Input.Password prefix={<LockOutlined />} autoComplete="current-password" placeholder="请输入密码" />
+                            <Input.Password prefix={<LockOutlined />} autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder="请输入密码" />
                         </Form.Item>
                         {mode === "register" ? (
                             <Form.Item name="confirmPassword" label={<span className="text-xs font-medium tracking-wide text-muted-foreground">确认密码</span>} rules={[{ required: true, message: "请再次输入密码" }]}>
                                 <Input.Password prefix={<LockOutlined />} autoComplete="new-password" placeholder="请再次输入密码" />
                             </Form.Item>
                         ) : null}
-                        <Button block type="primary" htmlType="submit" loading={isLoading} className="!mt-2 !border-[#d4ff00] !bg-[#d4ff00] !text-[#0b0b09] hover:!border-[#c4ef00] hover:!bg-[#c4ef00] hover:!text-[#0b0b09]">
+                        <Button block type="primary" htmlType="submit" loading={isLoading} className="!mt-2">
                             {mode === "register" ? "注册并进入" : "登录"}
                         </Button>
                     </Form>

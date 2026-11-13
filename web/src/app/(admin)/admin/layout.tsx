@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
+import { useLogout } from "@/hooks/use-logout";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -43,7 +44,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
-    const logout = useUserStore((state) => state.clearSession);
+    const logout = useLogout();
     const dark = useThemeStore((state) => state.theme === "dark");
     const activeKey = pathname === "/admin" ? "/admin/users" : adminMenus.find((item) => pathname === item.key || pathname.startsWith(`${item.key}/`))?.key ?? "";
     const meta = PAGE_META[activeKey] ?? { title: "管理后台", desc: "运维与内容管理。" };
@@ -109,7 +110,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         <Button block className="admin-action-btn" icon={<Home className="size-4" />} href="/canvas" target="_blank" rel="noreferrer">
                             前往画布
                         </Button>
-                        <Button block className="admin-action-btn admin-action-btn-danger" icon={<LogOut className="size-4" />} onClick={logout}>
+                        <Button block className="admin-action-btn admin-action-btn-danger" icon={<LogOut className="size-4" />} onClick={() => void logout()}>
                             退出登录
                         </Button>
                     </div>

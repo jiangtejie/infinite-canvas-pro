@@ -3,6 +3,78 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 本地数据按账号分区（修跨账号串号）+ 登录 UI 收尾
+
+诊断：浏览器本地业务数据没有归属概念。画布用全局 key `infinite-canvas:canvas_store` 持久化全部项目，素材、影视、剧本、角色库、生成历史、模型配置（含 API Key）、S3/WebDAV 凭据同样是全局 key。`clearSession` 只清 token/user。而画布 hydration 与 `syncWithRemote` 会把「本地有、远端没有」的项目 `syncCanvasProjects` 上传到当前 token 账号——所以 A 登录创作 → 退出 → B 在同一浏览器登录，A 的本地画布会被合并进 B 的账号并上传，素材同理。原账号切换分支只重置 config，管不到这些数据。
+
+- 新增 `web/src/lib/account-storage.ts`：`accountStorageKey(baseKey)` 按 `userId`（未登录为 `guest`）拼分区键，id 走 `encodeURIComponent`；`readAccountStorage` 读账号分区，**账号分区为空时接管游客分区**（先写账号分区再清游客分区，同一份游客数据不会被两个账号重复接管），保住「游客先本地创作、登录后同步」的核心流程。
+- 接入分区的业务数据：画布项目、我的素材、影视项目、角色/场景库、剧本（后三者经 `createDebouncedJSONStorage` 一处改动覆盖）、模型配置与 API Key（`accountLocalStorage`）、S3/WebDAV 用户存储凭据、生图历史与分类、视频历史、创作工作流模板、本地 Agent Skill、图片预览缓存。
+- `accountScopedStore(storeName)` 是 localforage 的**键前缀代理**而非独立 store：读写/keys/clear/iterate 只看当前账号，底层仍是同一个 store。这样跨账号共用的 blob 清理照常能扫到全部账号的生成历史引用。主题与画布 UI 偏好仍是全局 key（属 UI 偏好，不是业务数据）。
+- blob 池（`image_files` / `media_files`）保持跨账号共用的内容寻址存储，不按账号切分——否则游客接管过来的素材会找不到图。代价是清理必须跨分区收集引用：`readOtherAccountStates` 读出其他账号分区的画布与素材 state，`cleanupImages` 与 `removeAsset` 的清理把它们一并算进「仍被引用」，避免删掉只被别的账号引用的 blob。
+- 素材同步语义修正：`hydrateAccountAssets` 在云同步开启时原来是 `set({ assets: remoteAssets })` 直接覆盖，本地独有素材（含刚接管的游客素材）会被丢掉。改为用既有但一直没人调用的 `mergeAssets` 合并，并在存在本地独有素材时补传一次 `syncUserAssetData`。
+- 账号切换改为**整页重载**，收口在 `ClientRootInit` 的一个 `useLayoutEffect`：归属（`userId || "guest"`）变化即 `window.location.reload()`。登录、退出、会话失效、跨标签页同步四条路径都经这里，模块级 store、localforage 实例、blob/objectURL 缓存、同步 token 全部按新分区重新初始化——只重置内存状态会留下上一个账号的缓存。登录页自己 `window.location.replace(redirect)`，effect 跳过 `/login` 不抢导航。原先「只重置 config」的分支删除。
+- 落盘键在防抖入队时就定好（画布 `setItem`、`createDebouncedJSONStorage`），防抖期间切换账号也写回原账号分区，不会串到新账号。
+- 登录 UI 收尾：注册模式密码框 `autoComplete` 改 `new-password`（登录模式仍 `current-password`）；登录按钮删掉硬编码 `#d4ff00/#c4ef00/#0b0b09` 覆盖，直接用 antd `colorPrimary`（`app-theme.ts` 里已是 acid，且 `colorTextLightSolid` 按主题给深色墨色，浅深两套都对）；已登录访问 `/login` 直接 `router.replace(redirect)`；删掉 `client-root-init.tsx` 里的死路由 `/admin/login`（`(admin)` 下只有 `admin`）。
+- 退出登录加确认：新增全局 hook `web/src/hooks/use-logout.ts`，走既有 `useConfirm`，说明「退出后回到游客模式，本机只显示游客数据；当前账号的画布/素材/生成记录仍按账号保存在本机，重新登录即可恢复」。前台用户菜单与后台侧栏两处退出按钮统一接这个 hook。
+- 验证：typecheck、lint（0 warning）、bun test（68 文件 383 条，新增 4 条）通过。新增 `account-storage.test.ts` 覆盖分区键：未登录落 guest；A/B 两个账号键不同且退出后回到 guest；id 含 `:` `/` 被转义不会拼出别的分区键；同账号重复取键稳定。`LocalLogStore.iterate` 返回类型放宽为 `Promise<U | undefined>`（localforage 遍历完没有提前返回时就是 resolve undefined，账号分区代理与原生实例都符合）。
+- **未实测**：整轮没有在浏览器里跑。分区隔离、游客接管、素材补传、整页重载都需要真实后端 + 两个真实账号才能端到端验收；不在探针里造登录态或测试画布，避免往用户本地数据写测试记录。键前缀代理的 iterate 跳过语义、`readOtherAccountStates` 的跨分区收集只按代码与 localforage 语义核实。
+- **旧本地数据不再被读取（需先确认再测）**：分区键改了，原来落在裸 key（如 `infinite-canvas:canvas_store`）下的数据不会被迁移，按项目约定不写旧数据兼容。后果是本机原有的画布、素材、生成历史、影视/剧本、模型配置与 API Key 在界面上会「消失」（数据仍在 IndexedDB 里，只是没人读）。更要紧的是：当前账号分区为空时，第一次 blob 清理会把「只被旧裸 key 数据引用」的本地图片判为无引用并物理删除。**测试前请先确认要保留的内容已云同步，或先备份浏览器 IndexedDB。**
+
+需验证：
+- 游客态建画布 + 加素材 + 生图，然后登录：画布与素材应被接管进账号分区并补传到云端，游客分区清空；再生图/刷新，内容仍在。
+- A 登录创作（含未同步的本地画布）→ 退出 → B 登录：B 不应看到 A 的任何画布、素材、生成历史、影视/剧本项目，B 的云端也不应多出 A 的项目；A 重新登录后自己的内容应完整回来。
+- 退出登录：先弹确认并说明数据去向，确认后整页重载回到游客模式，只显示游客数据；停在画布详情页时应落到 `/canvas` 列表而不是报错。
+- 登录/注册成功后整页跳转到 `?redirect=` 目标页；已登录再访问 `/login` 直接跳走；注册模式密码框应触发密码管理器的「生成强密码」。
+- 登录按钮在浅色与深色主题下都是 acid 底 + 深色字，hover 正常。
+- 两个标签页：A 退出，B 应整页重载为未登录；A 登录，B 应重载为已登录并拉取账号配置。
+- 会话失效（token 过期）后整页重载，受保护页跳登录并带 redirect，非受保护页退回游客模式且游客数据可继续编辑。
+- 双账号各自有图后，在其中一个账号里删素材/删节点/丢弃撤销历史，另一个账号的图片不应被清理掉。
+- 修改密码后强制重新登录的跳转仍可用（该路径先 `clearSession` 再 `router.replace`，可能被整页重载抢先，最终落到 `/login` 但 redirect 参数可能丢失——确认这个降级可接受）。
+
+## 登录会话链路补全（全局 401 / lastError 提示 / 跨标签页同步）
+
+此前只有 `hydrateUser`（页面加载时）和 `use-admin-list`（后台列表）会清登录态，请求层没有全局 401 处理：token 中途过期后前台每个请求都失败，但头像仍在、不跳登录。`lastError` 在 store 里写了 6 处却全仓零读取，注释写着「供 UI 提示」实际没接。也没有任何 storage 事件监听，A 标签退出 B 标签仍登录。
+
+- 请求层：`request.ts` 新增 `isSessionExpired(status, url, authorized)` 与 `SESSION_EXPIRED_EVENT`。带 Authorization 的非登录接口收到 401 时派发事件；判定放在响应体校验之前，因为 401 也可能来自网关且不带 JSON 体。
+- 排除 `/api/auth/login` 与 `/api/auth/register`：那里的 401 是账号密码错误，据此清登录态会把「登录失败」误判成「掉线」，还会清掉已有会话。只认 401 不认 403——403 是「这个资源没权限」，不是会话失效。
+- `ClientRootInit` 监听事件：已有 token 才处理（多个请求同时 401 时只生效一次），`clearSession()` 后按 key 去重提示「登录已过期，请重新登录」。不在这里做跳转：受保护页（/account、/asset-library、/admin）由各自布局守卫在 token 清空后自动跳登录，非受保护页退回游客模式，符合本地优先的产品语义。
+- `lastError` 接上 UI：`UserStatusActions` 在已登录且 lastError 非空时，头像左侧显示琥珀色告警图标（`#f59e0b`，与 confirm-dialog 的 warning 同色）与 Tooltip「登录状态校验失败，已沿用本机登录态：…」。校验成功或退出后自动消失。
+- 跨标签页同步：`ClientRootInit` 监听 `storage` 事件的 `AUTH_TOKEN_KEY`，直接 `setState` 同步 token/user/isReady/lastError。**不用 `persist.rehydrate()`**：它的 `onRehydrateStorage` 会把 `isReady` 置 false，而 `hydrateUser` 只在挂载时跑一次，受保护页会永久卡在「正在校验登录状态」。同步后 `useSessionBootstrap` 与账号切换分支会自动跟随。
+- 验证：typecheck、lint（0 warning）、bun test（67 文件 379 条，新增 4 条）通过。新增 `request.test.ts` 覆盖判定条件：业务接口带凭据 401 成立；login/register 的 401 不成立；无凭据不成立；0/200/400/403/404/429/500 均不成立。
+- 未实测：三条链路都需要真实后端与登录态才能端到端验收，本轮没有在浏览器里造登录态（避免往用户本地数据写测试会话）。事件监听与 storage 同步沿用同文件里两个已在跑的监听器写法。
+
+需验证：
+- 登录后让 token 失效（后台改密钥或等过期），在 /image 或画布里发起一次生成：应弹一次「登录已过期，请重新登录」，头像变回登录按钮；在 /account 或 /admin 应自动跳登录并带 redirect。
+- 登录时故意输错密码：不应清掉已有登录态、不应弹「登录已过期」，只提示登录失败。
+- 断网刷新受保护页：仍能用本机登录态进入，头像左侧出现告警图标且 Tooltip 显示失败原因；恢复网络刷新后图标消失。
+- 开两个标签页，A 退出登录，B 应立即变为未登录（受保护页跳登录）；A 登录，B 应同步为已登录并拉取账号配置。
+- 非受保护页会话失效后退回游客模式，本地画布与素材仍可继续编辑。
+
+## 一级导航 IA 重构与命名统一
+
+诊断：三个一级用了三套分类轴（AI 自媒体按渠道、AI 影剧按内容形态、素材按资源类型），用户无法预测功能位置；AI 影剧 → AI 影视 父子近同名；`assets` 的 eyebrow 叫「AI 素材库」但真正的素材库是 `asset-library`，属指向错误概念的命名冲突；eyebrow 中英混用；film/script 缺 metadata title。
+
+- 一级导航重划为三组，单一轴（主舞台 / 创作 / 资产）：我的画布（直达）、创作工作台（生图工作台 / 视频工作台 / 影视项目 / 剧本创作 / 工作流）、素材与提示词（我的素材 / 公共素材库 / 提示词库）。路由与 slug 一个未动。
+- 选三组而非五组的依据是实测宽度：768px 下原 4 项 nav 宽 442px 已接近临界，再加直达项会溢出被裁；改后 nav 宽 403px，反而窄了 39px。
+- 命名规范：去掉所有 AI 前缀；同类同后缀（视频创作台 → 视频工作台，与生图工作台对齐）；项目制页面用「XX项目」；资产页「我的X / 公共X」成对；导航 label = 页面 title = metadata title；eyebrow 统一中文且只表示所属域。
+- 提示词库从创作组挪到资产组（其页面描述本来就写着「收进素材库随时复用」）；工作流归创作组。
+- eyebrow 对齐：assets「AI 素材库」、prompts「AI 灵感库」、asset-library「公共素材库」→「素材与提示词」；film「FILM / 影视」、script「SCRIPT / 剧本」、film/library「FILM / LIBRARY」、film/[id]「FILM / PROJECT」、script/[id]「SCRIPT / PROJECT」、creative-workflow-workspace「创作工作流」→「创作工作台」。
+- title 对齐：film「我的影视项目」→「影视项目」、script「AI 剧本创作」→「剧本创作」、asset-library「素材库」→「公共素材库」。
+- 补齐 `film/layout.tsx` 与 `script/layout.tsx` 的 metadata title（此前缺失，浏览器标签落到根模板）；asset-library 与 video 的 metadata 同步改名。
+- 视频创作台 → 视频工作台覆盖全部 7 处：video 的 layout / loading / error / workbench-panel / kling-v26-workbench-panel，以及 page.tsx 的 `useScreenLoadTiming` 埋点名与 `source` 字段。**按决策两处都改**：本地已有视频历史记录仍显示旧来源名，首屏耗时埋点序列会断开。
+- script/[id] 动作标签去前缀：「转/打开 AI 影视分镜」→「转/打开影视分镜」，提示文案「影视工作台」→「影视项目」，返回按钮 aria-label「返回剧本列表」→「返回剧本创作」。
+- 未做（批 3，可选）：画布视觉权重提升、下拉内「图像视频 / 影视剧本」小标题、film/library 进导航。film/library 保持在影视域内。
+- 文档：features.md 信息架构整段重写、章节标题与正文旧名同步；backend-database.md 两处改名。历史轮次的 pending-test 记录未改；`ai-film-plan.md` 是早期设计稿，其 IA 段已过期，需要时另行更新。
+- 验证：typecheck、lint（0 warning）、bun test（66 文件 375 条）通过。iframe 探针实测：768/1024/1440 三档 `scrollWidth` 均等于视口宽，nav 宽 403px，右侧用户区未被挤压；创作工作台下拉 5 项顺序正确、面板 right=506 / bottom=296 在 768×900 内不超界；375px 抽屉两个分组标题与 9 个链接顺序正确；首页宫格仍 8 项、标题「一条链路，8 种创作入口」、公共素材库正确排除。grep 断言 `src` 下旧词零残留（`app/layout.tsx` 站点 description 里「面向 AI 自媒体」是受众描述，保留）。
+
+需验证：
+- 桌面端三个一级的悬停/点击展开、键盘方向键与 Esc、板块间快速切换；移动端抽屉分组与跳转。
+- 各页浏览器标签标题：影视项目、剧本创作、视频工作台、公共素材库是否正确显示（此前 film/script 落根模板）。
+- 视频工作台历史记录的来源标签：新记录「视频工作台」、旧记录仍「视频创作台」，确认这种新旧混排可接受。
+- 首屏耗时埋点改名后是否影响你在看的数据。
+- 首页宫格顺序变化（影视/剧本提前到工作流之前，提示词库移到末尾）是否符合预期。
+- 剧本「转影视分镜」「打开影视分镜」按钮与提示文案读起来是否顺。
+
 ## 拉线创建菜单补发布节点
 
 - `ConnectionCreateMenu`（从节点拉线出的「引用该节点生成」）此前只有 7 项，缺发布节点；`NodeCreateMenu`（空白处「添加节点」）与顶部工具栏添加菜单都有。发布节点只接受文本/图片上游，拉线正是最自然的入口，此前只能先建节点再回头连线。
