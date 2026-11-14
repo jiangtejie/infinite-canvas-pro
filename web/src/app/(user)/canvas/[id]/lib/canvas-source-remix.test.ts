@@ -87,6 +87,7 @@ test("approval requires current source, unchanged text, prompt, references and a
     const current = assertRemixRunStructure(applied.nodes, applied.connections, state.run.id);
     const approval = remixApprovalKey(current);
     assert.ok(approval);
+    assert.equal(remixApprovalKey({ ...current, approvedKey: approval }), approval);
     assert.deepEqual(collectPublishableRemixImages(applied.nodes, state.run.id), []);
     assert.throws(() => assertRemixRunStructure(applied.nodes.map((item) => item.id === "source-1" ? { ...item, metadata: { ...item.metadata, sourceText: "新的素材" } } : item), applied.connections, state.run.id), /原素材/);
     assert.throws(() => assertRemixRunStructure(applied.nodes.map((item) => item.metadata?.remixRole === "copy" ? { ...item, metadata: { ...item.metadata, content: "被手改的文案" } } : item), applied.connections, state.run.id), /重新策划/);

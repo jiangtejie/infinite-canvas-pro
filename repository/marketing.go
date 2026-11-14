@@ -23,11 +23,11 @@ func ListMarketingWorkspaces(userID string, q model.Query) (model.MarketingWorks
 	if q.Keyword != "" {
 		query = query.Where("name LIKE ? OR industry LIKE ?", "%"+q.Keyword+"%", "%"+q.Keyword+"%")
 	}
-	result := model.MarketingWorkspaceList{Items: make([]model.MarketingWorkspace, 0)}
+	result := model.MarketingWorkspaceList{Items: make([]model.MarketingWorkspaceSummary, 0)}
 	if err := query.Count(&result.Total).Error; err != nil {
 		return result, err
 	}
-	err = query.Order("updated_at desc, id asc").Offset(q.Offset()).Limit(q.PageSize).Find(&result.Items).Error
+	err = query.Select("id", "owner_user_id", "name", "industry", "revision", "created_at", "updated_at").Order("updated_at desc, id asc").Offset(q.Offset()).Limit(q.PageSize).Find(&result.Items).Error
 	return result, err
 }
 

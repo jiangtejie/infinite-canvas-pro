@@ -15,6 +15,7 @@ import { REMIX_CORE_VERSION } from "../../remix-policy";
 import type { RemixInput, RemixRun, RemixSkillSelection } from "../../remix-types";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { applySourceRemixPlan, assertRemixRunStructure, collectSourceMaterialNodes, findRemixRunNode, planSourceRemix, remixApprovalKey } from "../lib/canvas-source-remix";
+import { canReuseRemixFreshness } from "../lib/remix-freshness";
 import { sourceExpansionNeedsSync, sourceMaterialSignature } from "../lib/canvas-source-plan";
 import { sourceNodeText } from "../lib/canvas-node-meta";
 import type { CanvasSourceActionResult } from "./use-canvas-source";
@@ -40,6 +41,7 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
     const planningRef = useRef<AbortController | null>(null);
     const mountedRef = useRef(true);
     const reviewRef = useRef(false);
+    const freshCacheRef = useRef(new Map<string, string>());
     const commit = useCallback((next: CanvasNodeData[], edges = connectionsRef.current) => {
         nodesRef.current = next;
         connectionsRef.current = edges;
@@ -48,7 +50,8 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
     }, [connectionsRef, nodesRef, setConnections, setNodes]);
     useEffect(() => {
         mountedRef.current = true;
-        return () => { mountedRef.current = false; planningRef.current?.abort(); setupRef.current?.resolve(null); setupRef.current = null; };
+        const freshCache = freshCacheRef.current;
+        return () => { mountedRef.current = false; planningRef.current?.abort(); setupRef.current?.resolve(null); setupRef.current = null; freshCache.clear(); };
     }, []);
     const settle = useCallback((result: RemixSetupResult | null) => {
         const pending = setupRef.current;
@@ -115,12 +118,14 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
         } finally { signal?.removeEventListener("abort", abort); planningRef.current = null; }
     }, [agentConfig, commit, connectionsRef, effectiveConfig, handleExpandSource, nodesRef, openPlan, planner, selectMany, settle]);
 
-    const freshRun = useCallback(async (id: string) => {
+    const freshRun = useCallback(async (id: string, cached = false) => {
         const run = assertRemixRunStructure(nodesRef.current, connectionsRef.current, id);
         const key = remixApprovalKey(run);
+        if (cached && canReuseRemixFreshness(freshCacheRef.current, id, key)) return run;
         await assertRemixInputFresh(run.input);
         const current = assertRemixRunStructure(nodesRef.current, connectionsRef.current, id);
         if (key !== remixApprovalKey(current)) throw new Error("策划在校验期间已变化，请重新审阅");
+        freshCacheRef.current.set(id, key);
         return current;
     }, [connectionsRef, nodesRef]);
 
@@ -128,7 +133,7 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
         if (reviewRef.current) throw new Error("已有复刻生成正在等待确认");
         reviewRef.current = true;
         try {
-            const runs = await Promise.all([...new Set(ids)].map(freshRun));
+            const runs = await Promise.all([...new Set(ids)].map((id) => freshRun(id)));
             const keys = runs.map(remixApprovalKey);
             const model = effectiveConfig.imageModel || effectiveConfig.model;
             const credits = cost ?? requestCreditCost({ channelMode: effectiveConfig.channelMode, modelCosts: useConfigStore.getState().publicSettings?.modelChannel.modelCosts, model, count });
@@ -146,10 +151,11 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
         const node = nodesRef.current.find((item) => item.id === nodeId);
         if (!node?.metadata?.remixRunId) return true;
         if (node.metadata.remixRole !== "image" || mode !== "image") throw new Error("复刻文案、策划与参考图由运行记录管理，请通过“另做一版”修改");
-        const run = await freshRun(node.metadata.remixRunId);
+        const runId = node.metadata.remixRunId;
         const live = nodesRef.current.find((item) => item.id === nodeId);
         if (!live || live.metadata?.prompt !== prompt) throw new Error("复刻提示词已变化，请重新策划");
-        if (!background) return reviewRuns([run.id], 1);
+        if (!background) return reviewRuns([runId], 1);
+        const run = await freshRun(runId, true);
         if (run.approvedKey !== remixApprovalKey(run)) throw new Error("尚未确认整组策划，请先审阅后生成");
         return true;
     }, [freshRun, nodesRef, reviewRuns]);

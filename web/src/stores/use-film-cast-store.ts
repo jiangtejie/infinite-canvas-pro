@@ -3,9 +3,8 @@ import { create } from "zustand";
 import { persist, type StorageValue } from "zustand/middleware";
 
 import { createDebouncedJSONStorage } from "@/lib/persisted-store";
+import { FILM_CAST_STORE_KEY } from "@/lib/storage-keys";
 import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
-
-export const FILM_CAST_STORE_KEY = "infinite-canvas:film_cast_store";
 
 type FilmCastStore = {
     hydrated: boolean;

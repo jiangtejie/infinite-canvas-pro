@@ -1,6 +1,5 @@
 import { readOtherAccountStates } from "@/lib/account-storage";
-import { collectMediaStorageKeys } from "@/services/file-storage";
-import { collectImageStorageKeys } from "@/services/image-storage";
+import { ASSET_STORE_KEY, CANVAS_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
 
 type GenerationLog = {
     images?: Array<{ storageKey?: string } | null>;
@@ -29,12 +28,22 @@ async function waitForHydration(store: HydratableStore) {
     });
 }
 
+export type StorageReferenceSources = {
+    assets?: unknown;
+    projects?: unknown;
+    filmProjects?: unknown;
+    filmCast?: unknown;
+    skills?: unknown;
+    extra?: unknown;
+    logKeys: string[];
+    otherAccounts: unknown[];
+};
+
 /** 收集所有本地业务数据中引用到的媒体存储键；画布、影视、素材、Skills、生成历史和其他账号分区都算。 */
-export async function collectStorageReferences({ assets, skills, extra }: { assets?: unknown; skills?: unknown; extra?: unknown } = {}) {
-    const { useCanvasStore, CANVAS_STORE_KEY } = await import("@/app/(user)/canvas/stores/use-canvas-store");
-    const { useFilmStore, FILM_STORE_KEY } = await import("@/stores/use-film-store");
-    const { useFilmCastStore, FILM_CAST_STORE_KEY } = await import("@/stores/use-film-cast-store");
-    const { ASSET_STORE_KEY } = await import("@/stores/use-asset-store");
+export async function collectStorageReferences({ assets, skills, extra }: { assets?: unknown; skills?: unknown; extra?: unknown } = {}): Promise<StorageReferenceSources> {
+    const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
+    const { useFilmStore } = await import("@/stores/use-film-store");
+    const { useFilmCastStore } = await import("@/stores/use-film-cast-store");
     await Promise.all([waitForHydration(useCanvasStore), waitForHydration(useFilmStore), waitForHydration(useFilmCastStore)]);
     const cast = useFilmCastStore.getState();
     return {
@@ -52,11 +61,6 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
             ...(await readOtherAccountStates(FILM_CAST_STORE_KEY)),
         ],
     };
-}
-
-/** 图片与媒体存储键共用一份收集口径，避免删除链路只认其中一种前缀。 */
-export function collectStorageReferenceKeys(data: unknown) {
-    return collectMediaStorageKeys(data, collectImageStorageKeys(data, new Set<string>()));
 }
 
 async function collectGenerationLogKeys() {

@@ -6,7 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { saveAs } from "file-saver";
 import { deleteCanvasProjects } from "@/services/api/canvas-tasks";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import { collectImageStorageKeys, deleteImagePreviews, deleteStoredImages, deleteUnusedImagePreviews, ensureImagePreview, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
+import { collectImageStorageKeys } from "@/lib/storage-reference-keys";
+import { deleteImagePreviews, deleteStoredImages, deleteUnusedImagePreviews, ensureImagePreview, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
@@ -1662,12 +1663,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
     const generateRemixRun = useCallback(async (runId: string) => {
         try {
-            await freshRun(runId);
             const ids = collectRemixImageNodeIds(nodesRef.current, runId);
             const result = await startBatch(ids, { label: "复刻配图", overwrite: true });
             if (result.completed > 0) createSourcePublishNode(runId);
         } catch (error) { message.error(toErrorMessage(error, "复刻配图生成失败")); }
-    }, [createSourcePublishNode, freshRun, message, nodesRef, startBatch]);
+    }, [createSourcePublishNode, message, nodesRef, startBatch]);
 
     const handleRemixWithAgent = useCallback((sourceId: string) => {
         closeOverlay();

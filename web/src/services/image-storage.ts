@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import { accountScopedStore, accountStorageKey } from "@/lib/account-storage";
 import { createImageThumbnail } from "@/lib/image-thumbnail";
 import { readImageMeta } from "@/lib/image-utils";
+import { collectImageStorageKeys } from "@/lib/storage-reference-keys";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
 import { comfyOutputStorageKey } from "@/services/api/workflow-generation";
@@ -626,27 +627,6 @@ export async function cleanupUnusedImages(usedData: unknown, storageKeys: Readon
         if (!usedKeys.has(key)) unused.push(key);
     });
     await deleteStoredImages(unused, ownerToken);
-}
-
-export function collectImageStorageKeys(value: unknown, keys = new Set<string>(), knownUrls?: ReadonlyMap<string, string>, capturedUrls?: Map<string, string>) {
-    if (typeof value === "string") {
-        if (value.startsWith("image:") || value.startsWith("server:")) keys.add(value);
-        const referencedKey = knownUrls?.get(value);
-        if (referencedKey) keys.add(referencedKey);
-        return keys;
-    }
-    if (!value || typeof value !== "object") return keys;
-    if ("storageKey" in value && typeof value.storageKey === "string" && (value.storageKey.startsWith("image:") || value.storageKey.startsWith("server:"))) {
-        keys.add(value.storageKey);
-        if (capturedUrls) {
-            for (const field of ["content", "url", "dataUrl"]) {
-                const url = (value as Record<string, unknown>)[field];
-                if (typeof url === "string" && url) capturedUrls.set(url, value.storageKey);
-            }
-        }
-    }
-    Object.values(value).forEach((item) => (Array.isArray(item) ? item.forEach((child) => collectImageStorageKeys(child, keys, knownUrls, capturedUrls)) : collectImageStorageKeys(item, keys, knownUrls, capturedUrls)));
-    return keys;
 }
 
 export function defaultUserStorageProvider(): UserS3StorageProvider {

@@ -88,7 +88,17 @@ type MarketingAssetReferenceRecord struct {
 	Role        string `json:"role"`
 }
 
+type MarketingWorkspaceSummary struct {
+	ID          string `json:"id" gorm:"primaryKey;size:48"`
+	OwnerUserID string `json:"ownerUserId" gorm:"index;size:191"`
+	Name        string `json:"name"`
+	Industry    string `json:"industry"`
+	Revision    int64  `json:"revision"`
+	CreatedAt   string `json:"createdAt"`
+	UpdatedAt   string `json:"updatedAt"`
+}
+
 type MarketingWorkspaceList struct {
-	Items []MarketingWorkspace `json:"items"`
-	Total int64                `json:"total"`
+	Items []MarketingWorkspaceSummary `json:"items"`
+	Total int64                       `json:"total"`
 }

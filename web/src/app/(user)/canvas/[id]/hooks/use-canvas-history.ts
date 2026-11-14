@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRe
 import type { CanvasAudioTask } from "@/services/api/audio";
 import type { CanvasImageTask } from "@/services/api/image";
 import type { VideoResponse } from "@/services/api/video";
-import { collectImageStorageKeys } from "@/services/image-storage";
+import { collectImageStorageKeys } from "@/lib/storage-reference-keys";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useEffectiveConfig } from "@/stores/use-config-store";
 import { useAssetStore } from "@/stores/use-asset-store";

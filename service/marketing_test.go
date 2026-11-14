@@ -61,6 +61,10 @@ func TestMarketingWorkspaceOwnerIsolationAndRevision(t *testing.T) {
 	if _, err := SaveMarketingWorkspace(marketingContext("owner-a"), first); err == nil {
 		t.Fatal("stale revision overwrote current workspace")
 	}
+	listed, err := ListMarketingWorkspaces(marketingContext("owner-a"), model.Query{})
+	if err != nil || len(listed.Items) != 1 || listed.Items[0].Name != "更新后" || listed.Items[0].Revision != 2 || listed.Items[0].Industry != "餐饮" {
+		t.Fatalf("summary list = %#v err=%v", listed, err)
+	}
 	result, err := ListMarketingWorkspaces(marketingContext("owner-b"), model.Query{})
 	if err != nil || len(result.Items) != 0 {
 		t.Fatalf("other owner's list leaked: %#v err=%v", result, err)

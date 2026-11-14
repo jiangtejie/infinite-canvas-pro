@@ -16,6 +16,7 @@ export function CanvasRemixSetup({ sourceTitle, initialSkills, instruction, onRe
     const loading = useMarketingStore((state) => state.loading);
     const load = useMarketingStore((state) => state.load);
     const details = useMarketingStore((state) => state.details);
+    const offline = useMarketingStore((state) => state.offline);
     const ensureDetail = useMarketingStore((state) => state.ensureDetail);
     const [memory] = useState(readRemixSetupMemory);
     const [settings, setSettings] = useState<RemixSettings>(() => ({ mode: "content", goal: "保留原作的结构与传播逻辑，原创重制", placement: "natural", instruction, skills: initialSkills.length ? initialSkills : memory.skills }));
@@ -26,8 +27,9 @@ export function CanvasRemixSetup({ sourceTitle, initialSkills, instruction, onRe
     const [detailLoading, setDetailLoading] = useState(false);
     const restoredRef = useRef(false);
     const workspace = workspaces.find((item) => item.id === workspaceId);
-    const location = workspace?.locations.find((item) => item.id === locationId);
-    const offerings = workspace ? availableMarketingOfferings(workspace, locationId) : [];
+    const detail = workspace ? details[workspace.id] : undefined;
+    const location = detail?.locations.find((item) => item.id === locationId);
+    const offerings = detail ? availableMarketingOfferings(detail, locationId) : [];
     useEffect(() => { void load(true).catch((err) => setError(errorMessage(err, "营销资料加载失败"))); }, [load]);
     const selectWorkspace = (id: string) => {
         setWorkspaceId(id);
@@ -58,7 +60,7 @@ export function CanvasRemixSetup({ sourceTitle, initialSkills, instruction, onRe
             const available = new Set(availableMarketingOfferings(workspace, selected.locationId).map((item) => item.id));
             setOfferingIds(selected.offeringIds.filter((id) => available.has(id)));
         };
-        if (details[target.id]) apply(target);
+        if (details[target.id]) apply(details[target.id]);
         else {
             setDetailLoading(true);
             void ensureDetail(target.id).then(apply).catch((err) => setError(errorMessage(err, "营销资料加载失败"))).finally(() => setDetailLoading(false));
@@ -66,7 +68,7 @@ export function CanvasRemixSetup({ sourceTitle, initialSkills, instruction, onRe
     }, [workspaces, workspaceId, memory, details, ensureDetail]);
     const submit = () => {
         if (!settings.goal.trim()) return void message.warning("请填写本次目标");
-        if (settings.mode === "marketing" && (!workspace || !location || !offeringIds.length)) return void message.warning("请明确选择资料空间、门店和商品 / 服务");
+        if (settings.mode === "marketing" && (!detail || !location || !offeringIds.length)) return void message.warning("请明确选择资料空间、门店和商品 / 服务");
         const locations = { ...memory.locations };
         if (settings.mode === "marketing" && workspaceId && locationId) locations[workspaceId] = { locationId, offeringIds };
         saveRemixSetupMemory({ workspaceId: settings.mode === "marketing" ? workspaceId || memory.workspaceId : memory.workspaceId, locations, skills: settings.skills });
@@ -83,9 +85,10 @@ export function CanvasRemixSetup({ sourceTitle, initialSkills, instruction, onRe
             <Segmented block value={settings.mode} options={[{ label: "内容复刻", value: "content" }, { label: "结合营销资料", value: "marketing" }]} onChange={(value) => { const mode = value as "content" | "marketing"; setSettings((current) => ({ ...current, mode, goal: mode === "content" ? "保留原作的结构与传播逻辑，原创重制" : "通过有用、可信的内容建立门店认知" })); }} />
             {settings.mode === "marketing" ? <Spin spinning={loading || detailLoading}><div className="space-y-4">
                 {error ? <Alert type="error" showIcon title={error} action={<Button size="small" onClick={() => { setError(""); void load(true).then(() => { if (workspaceId) selectWorkspace(workspaceId); }).catch((err) => setError(errorMessage(err, "加载失败"))); }}>重试</Button>} /> : null}
+                {offline ? <Alert type="info" showIcon title="当前使用本机缓存" description="网络不可用，展示上次加载的营销资料；恢复网络后请刷新。" /> : null}
                 <div className="flex items-center justify-between text-sm"><span>使用的经营资料</span><a href="/marketing" target="_blank" rel="noreferrer">管理营销资料</a></div>
                 <Select className="w-full" aria-label="复刻资料空间" placeholder="选择资料空间" value={workspaceId || undefined} options={workspaces.map((item) => ({ value: item.id, label: `${item.name} · ${item.industry || "未指定行业"}` }))} onChange={selectWorkspace} />
-                <Select className="w-full" showSearch optionFilterProp="label" aria-label="复刻门店" placeholder="明确选择本次门店 / 服务点" disabled={!workspace || detailLoading} value={locationId || undefined} options={workspace?.locations.map((item) => ({ value: item.id, label: `${workspace.brands.find((brand) => brand.id === item.brandId)?.name || ""} / ${item.name}${item.city ? ` · ${item.city}` : ""}` }))} onChange={(id) => { setLocationId(id); setOfferingIds([]); }} />
+                <Select className="w-full" showSearch optionFilterProp="label" aria-label="复刻门店" placeholder="明确选择本次门店 / 服务点" disabled={!detail || detailLoading} value={locationId || undefined} options={detail?.locations.map((item) => ({ value: item.id, label: `${detail.brands.find((brand) => brand.id === item.brandId)?.name || ""} / ${item.name}${item.city ? ` · ${item.city}` : ""}` }))} onChange={(id) => { setLocationId(id); setOfferingIds([]); }} />
                 <Select mode="multiple" maxCount={10} className="w-full" aria-label="复刻商品" placeholder="选择本店可用商品 / 服务，最多 10 项" disabled={!location || detailLoading} value={offeringIds} options={offerings.map((item) => ({ value: item.id, label: item.name }))} onChange={setOfferingIds} />
                 {location ? <div className="rounded-lg border border-border p-3 text-xs leading-6"><div>{location.name} · {[location.city, location.district].filter(Boolean).join(" / ") || "未设置城市"}</div><div className="text-muted-foreground">当地特点：{location.localContext || "未填写；不会凭城市名推测"}</div><div className="text-muted-foreground">{offeringIds.length} 项商品 / 服务。开始前将核对已确认事实、有效期和关联图片。</div></div> : null}
                 <label className="block space-y-2 text-sm"><span>植入方式</span><Select className="w-full" aria-label="营销植入方式" value={settings.placement} options={Object.entries(REMIX_PLACEMENTS).map(([value, label]) => ({ value, label }))} onChange={(placement) => setSettings((current) => ({ ...current, placement }))} /></label>

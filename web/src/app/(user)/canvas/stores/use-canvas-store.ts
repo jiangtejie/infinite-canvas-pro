@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { detachRemixNodes } from "../[id]/lib/canvas-source-remix";
 import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
+import { CANVAS_STORE_KEY } from "@/lib/storage-keys";
 import { deleteImagePreviews } from "@/services/image-storage";
 import { listCanvasProjects, saveCanvasProject, syncCanvasProjects } from "@/services/api/canvas-tasks";
 import { fetchUserConfig } from "@/services/api/user-config";
@@ -57,7 +58,6 @@ type CanvasStore = {
 };
 
 const initialViewport: ViewportTransform = { x: 0, y: 0, k: 1 };
-export const CANVAS_STORE_KEY = "infinite-canvas:canvas_store";
 type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let saveSequence = 0;

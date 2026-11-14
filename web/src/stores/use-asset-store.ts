@@ -6,9 +6,11 @@ import { persist, type PersistStorage, type StorageValue } from "zustand/middlew
 import { nanoid } from "nanoid";
 import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
+import { ASSET_STORE_KEY } from "@/lib/storage-keys";
+import { collectStorageReferenceKeys } from "@/lib/storage-reference-keys";
 import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
-import { collectStorageReferences, collectStorageReferenceKeys } from "@/services/storage-references";
+import { collectStorageReferences } from "@/services/storage-references";
 import { fetchUserAssetData, syncUserAssetData } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -44,7 +46,6 @@ type AssetStore = {
     cleanupImages: (extra?: unknown, storageKeys?: ReadonlyMap<string, string>, ownerToken?: string) => void;
 };
 
-export const ASSET_STORE_KEY = "infinite-canvas:asset_store";
 let activeAssetSyncToken = "";
 let accountAssetSyncEnabled = false;
 let isHydratingAccountAssets = false;

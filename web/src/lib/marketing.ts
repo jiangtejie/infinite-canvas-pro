@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid";
+
 export type MarketingFact = { id: string; label: string; value: string; source: string; approved: boolean; validUntil: string };
 export type MarketingAssetReference = { assetId: string; role: string; storageKey?: string };
 export type MarketingDetails = { description: string; audience: string; guidance: string; forbidden: string[]; facts: MarketingFact[]; assets: MarketingAssetReference[] };
@@ -6,6 +8,7 @@ export type MarketingLocation = MarketingDetails & { id: string; workspaceId: st
 export type MarketingOffering = MarketingDetails & { id: string; workspaceId: string; brandId: string; name: string; kind: "product" | "service"; category: string };
 export type MarketingListing = { workspaceId: string; locationId: string; offeringId: string; available: boolean; highlights: string; facts: MarketingFact[] };
 export type MarketingWorkspace = MarketingDetails & { id: string; ownerUserId: string; name: string; industry: string; revision: number; createdAt: string; updatedAt: string; brands: MarketingBrand[]; locations: MarketingLocation[]; offerings: MarketingOffering[]; listings: MarketingListing[] };
+export type MarketingWorkspaceSummary = Pick<MarketingWorkspace, "id" | "ownerUserId" | "name" | "industry" | "revision" | "createdAt" | "updatedAt">;
 export type MarketingSelection = { workspaceId: string; locationId: string; offeringIds: string[] };
 export type MarketingAssetSnapshot = { assetId: string; role: string; title: string; storageKey: string; width: number; height: number; mimeType: string };
 export type MarketingSnapshot = {
@@ -23,6 +26,22 @@ export type MarketingImageAsset = { id: string; kind: string; title: string; dat
 
 export function emptyMarketingDetails(): MarketingDetails {
     return { description: "", audience: "", guidance: "", forbidden: [], facts: [], assets: [] };
+}
+
+export function createMarketingWorkspace(patch: Partial<Pick<MarketingWorkspace, "name" | "industry">> = {}): MarketingWorkspace {
+    return { ...emptyMarketingDetails(), id: nanoid(), ownerUserId: "", name: "", industry: "", revision: 0, createdAt: "", updatedAt: "", brands: [], locations: [], offerings: [], listings: [], ...patch };
+}
+
+export function createMarketingBrand(workspaceId: string, patch: Partial<Pick<MarketingBrand, "name">> = {}): MarketingBrand {
+    return { ...emptyMarketingDetails(), id: nanoid(), workspaceId, name: "", ...patch };
+}
+
+export function createMarketingLocation(workspaceId: string, brandId: string, patch: Partial<Pick<MarketingLocation, "name" | "kind" | "city" | "district" | "address" | "localContext">> = {}): MarketingLocation {
+    return { ...emptyMarketingDetails(), id: nanoid(), workspaceId, brandId, name: "", kind: "store", city: "", district: "", address: "", localContext: "", ...patch };
+}
+
+export function createMarketingOffering(workspaceId: string, brandId: string, patch: Partial<Pick<MarketingOffering, "name" | "kind" | "category">> = {}): MarketingOffering {
+    return { ...emptyMarketingDetails(), id: nanoid(), workspaceId, brandId, name: "", kind: "product", category: "", ...patch };
 }
 
 export function marketingAssetIds(workspace: MarketingWorkspace) {

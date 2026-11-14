@@ -1,4 +1,4 @@
-import { accountStorageKey } from "@/lib/account-storage";
+import { accountLocalStorage } from "@/lib/account-storage";
 import type { RemixSkillSelection } from "./remix-types";
 
 export type RemixSetupMemory = {
@@ -13,7 +13,7 @@ const emptyMemory = (): RemixSetupMemory => ({ workspaceId: "", locations: {}, s
 export function readRemixSetupMemory(): RemixSetupMemory {
     if (typeof window === "undefined") return emptyMemory();
     try {
-        const parsed = JSON.parse(window.localStorage.getItem(accountStorageKey(MEMORY_KEY)) || "null") as Partial<RemixSetupMemory> | null;
+        const parsed = JSON.parse(accountLocalStorage.getItem(MEMORY_KEY) || "null") as Partial<RemixSetupMemory> | null;
         if (!parsed || typeof parsed !== "object") return emptyMemory();
         const locations: RemixSetupMemory["locations"] = {};
         for (const [key, value] of Object.entries(parsed.locations || {})) {
@@ -37,7 +37,7 @@ export function readRemixSetupMemory(): RemixSetupMemory {
 export function saveRemixSetupMemory(memory: RemixSetupMemory) {
     if (typeof window === "undefined") return;
     try {
-        window.localStorage.setItem(accountStorageKey(MEMORY_KEY), JSON.stringify(memory));
+        accountLocalStorage.setItem(MEMORY_KEY, JSON.stringify(memory));
     } catch {
         // 本机配置写入失败不影响本次复刻。
     }

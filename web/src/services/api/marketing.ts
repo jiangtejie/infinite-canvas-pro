@@ -1,13 +1,8 @@
 import { apiDelete, apiGet, apiPost } from "./request";
-import type { MarketingWorkspace } from "@/lib/marketing";
+import type { MarketingWorkspace, MarketingWorkspaceSummary } from "@/lib/marketing";
 
-function normalizeWorkspace(item: MarketingWorkspace): MarketingWorkspace {
-    return { ...item, brands: item.brands || [], locations: item.locations || [], offerings: item.offerings || [], listings: item.listings || [] };
-}
-
-export async function fetchMarketingWorkspaces(token: string, page = 1) {
-    const result = await apiGet<{ items: MarketingWorkspace[]; total: number }>("/api/v1/marketing/workspaces", { page, pageSize: 100 }, token);
-    return { ...result, items: result.items.map(normalizeWorkspace) };
+export function fetchMarketingWorkspaces(token: string, page = 1) {
+    return apiGet<{ items: MarketingWorkspaceSummary[]; total: number }>("/api/v1/marketing/workspaces", { page, pageSize: 100 }, token);
 }
 export function fetchMarketingWorkspace(token: string, id: string) {
     return apiGet<MarketingWorkspace>(`/api/v1/marketing/workspaces/${encodeURIComponent(id)}`, undefined, token);
