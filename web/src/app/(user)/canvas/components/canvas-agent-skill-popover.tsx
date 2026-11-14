@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { FileUp, Pencil, Search, Trash2, Wrench } from "lucide-react";
-import { App, Button, Empty, Form, Input, Modal, Spin } from "antd";
+import { App, Button, Empty, Form, Input, Modal, Spin, theme as antdTheme } from "antd";
 import { createPortal } from "react-dom";
 
 import { AgentSkillCover, AgentSkillCoverEditor } from "@/components/agent-skill-cover";
@@ -32,6 +32,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     const updateSkill = useAgentSkillStore((state) => state.updateSkill);
     const deleteSkill = useAgentSkillStore((state) => state.deleteSkill);
     const { message } = App.useApp();
+    const { token: antdToken } = antdTheme.useToken();
     const confirm = useConfirm();
     const [form] = Form.useForm<Pick<AgentSkill, "name" | "description" | "coverUrl" | "coverStorageKey" | "content">>();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -114,6 +115,8 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
     };
 
     const removeSkill = async (skill: AgentSkill) => {
+        // 面板层级高于 Modal；先收起，避免确认弹窗被面板盖住。
+        setOpen(false);
         const confirmed = await confirm({
             title: `删除「${skill.name}」？`,
             description: "删除后无法恢复，已发送的历史消息不会被删除。",
@@ -227,8 +230,8 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
                               data-canvas-skill-panel
                               role="dialog"
                               aria-label="选择 Skill"
-                              className="fixed z-[80] overflow-hidden rounded-2xl border p-3.5 shadow-2xl"
-                              style={{ left: panelBox.left, top: panelBox.top, width: panelBox.width, maxHeight: panelBox.maxHeight, background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke, backdropFilter: "blur(18px) saturate(1.15)", WebkitBackdropFilter: "blur(18px) saturate(1.15)" }}
+                              className="fixed overflow-hidden rounded-2xl border p-3.5 shadow-2xl"
+                              style={{ left: panelBox.left, top: panelBox.top, width: panelBox.width, maxHeight: panelBox.maxHeight, background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke, backdropFilter: "blur(18px) saturate(1.15)", WebkitBackdropFilter: "blur(18px) saturate(1.15)", zIndex: antdToken.zIndexPopupBase + 80 }}
                           >
                               <div className="thin-scrollbar h-full overflow-x-hidden overflow-y-auto overscroll-contain">
                                   {content}
