@@ -137,7 +137,23 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
             const keys = runs.map(remixApprovalKey);
             const model = effectiveConfig.imageModel || effectiveConfig.model;
             const credits = cost ?? requestCreditCost({ channelMode: effectiveConfig.channelMode, modelCosts: useConfigStore.getState().publicSettings?.modelChannel.modelCosts, model, count });
-            const accepted = await confirm({ title: `审阅策划并生成 ${count} 张配图`, description: <div className="max-h-[60dvh] space-y-5 overflow-y-auto"><p>模型：{model}{credits > 0 ? ` · 预计 ${credits.toLocaleString()} 算力点` : ""}。已完成的结果会保留。</p>{runs.map((run) => <RemixPlanSummary key={run.id} run={run} />)}</div>, confirmText: "确认策划并生成", cancelText: "暂不生成" });
+            const accepted = await confirm({
+                title: `审阅策划并生成 ${count} 张配图`,
+                width: "min(760px, calc(100vw - 48px))",
+                stacked: true,
+                description: (
+                    <div className="max-h-[min(64dvh,640px)] space-y-5 overflow-y-auto pr-1">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-xs">
+                            <span>模型：{model}</span>
+                            {credits > 0 ? <span>预计 {credits.toLocaleString()} 算力点</span> : null}
+                            <span className="text-muted-foreground sm:ml-auto">已完成的结果会保留</span>
+                        </div>
+                        {runs.map((run) => <RemixPlanSummary key={run.id} run={run} />)}
+                    </div>
+                ),
+                confirmText: "确认策划并生成",
+                cancelText: "暂不生成",
+            });
             if (!accepted || !mountedRef.current) return false;
             const current = await Promise.all(runs.map((run) => freshRun(run.id)));
             if (current.some((run, index) => remixApprovalKey(run) !== keys[index])) throw new Error("确认期间策划发生变化，请重新审阅");

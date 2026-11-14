@@ -22,6 +22,8 @@ export function ConnectionPath({
     onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    // 策划 → 文案/配图是编排结构边，和素材图 → 配图的数据输入边区分线型。
+    const structural = from.metadata?.remixRole === "plan";
     const startX = from.position.x + from.width;
     const startY = from.position.y + from.height / 2;
     const endX = to.position.x;
@@ -52,12 +54,14 @@ export function ConnectionPath({
             <path
                 d={pathD}
                 stroke={active ? theme.node.activeStroke : theme.node.muted}
-                strokeWidth={active ? 3 : 2}
-                strokeOpacity={active ? 1 : 0.82}
+                strokeWidth={structural ? (active ? 2.5 : 1.6) : active ? 3 : 2}
+                strokeOpacity={structural ? (active ? 0.8 : 0.55) : active ? 1 : 0.82}
+                strokeDasharray={structural ? "6 5" : undefined}
+                strokeLinecap={structural ? "round" : undefined}
                 fill="none"
                 style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
             />
-            {flowing ? (
+            {flowing && !structural ? (
                 <>
                     <path
                         d={pathD}

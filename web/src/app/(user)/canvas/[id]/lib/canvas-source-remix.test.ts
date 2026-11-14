@@ -29,6 +29,8 @@ test("a run gets unique nodes, preserves original order and stores a single plan
     assert.equal(scaffold.nodes.filter((item) => item.metadata?.remixRunId === state.run.id).length, 4);
     assert.equal(findSourceRemixTextNode(scaffold.nodes, state.run.id)?.metadata?.content, "");
     assert.equal(collectRemixImageNodeIds(scaffold.nodes, state.run.id).length, 2);
+    assert.ok(scaffold.connections.some((edge) => edge.fromNodeId === scaffold.planNodeId && edge.toNodeId === scaffold.copyNodeId));
+    assert.ok(scaffold.imageNodeIds.every((imageId) => scaffold.connections.some((edge) => edge.fromNodeId === scaffold.planNodeId && edge.toNodeId === imageId)));
     const secondRun = planSourceRemix({ source: state.original, nodes: scaffold.nodes, connections: scaffold.connections, run: { ...state.run, id: "run-2" } });
     assert.notEqual(secondRun.planNodeId, scaffold.planNodeId);
 });
@@ -42,7 +44,7 @@ test("one schema creates the final copy and per-image strategy after parsing", a
     const applied = applySourceRemixPlan(scaffold.nodes, scaffold.connections, state.run.id, parsed);
     assert.equal(findSourceRemixTextNode(applied.nodes, state.run.id)?.metadata?.content, "周末去哪逛\n\n先比较路线，再按位置选择适合的门店。\n\n#周末攻略");
     assert.equal(applied.nodes.find((item) => item.id === scaffold.imageNodeIds[0])?.metadata?.prompt, "浅色攻略卡片\n统一标题栏\n\n第 1 张清晰攻略卡片\n\n图片1仅参考原图的版式与结构，主体和文字以本策划为准。");
-    assert.deepEqual(applied.connections.filter((edge) => edge.toNodeId === scaffold.imageNodeIds[0]).map((edge) => edge.fromNodeId), ["source-1-material-image-0"]);
+    assert.deepEqual(applied.connections.filter((edge) => edge.toNodeId === scaffold.imageNodeIds[0]).map((edge) => edge.fromNodeId), [scaffold.planNodeId, "source-1-material-image-0"]);
     assert.equal(findRemixRunNode(applied.nodes, state.run.id)?.metadata?.remixRun?.plan?.copy.title, "周末去哪逛");
 });
 
@@ -71,7 +73,7 @@ test("marketing references wire reference nodes and number attached images", () 
     assert.equal(reference?.metadata?.storageKey, "server:product");
     const applied = applySourceRemixPlan(scaffold.nodes, scaffold.connections, state.run.id, withReference);
     assert.match(applied.nodes.find((node) => node.id === scaffold.imageNodeIds[0])?.metadata?.prompt || "", /图片2：招牌菜/);
-    assert.deepEqual(applied.connections.filter((edge) => edge.toNodeId === scaffold.imageNodeIds[0]).map((edge) => edge.fromNodeId), ["source-1-material-image-0", reference!.id]);
+    assert.deepEqual(applied.connections.filter((edge) => edge.toNodeId === scaffold.imageNodeIds[0]).map((edge) => edge.fromNodeId), [scaffold.planNodeId, "source-1-material-image-0", reference!.id]);
 
     const withoutSource = { ...marketing, sourceImages: [] };
     const emptyScaffold = planSourceRemix({ source: state.original, nodes: state.nodes, connections: state.connections, run: { ...state.run, input: withoutSource } });

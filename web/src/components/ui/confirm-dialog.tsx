@@ -13,6 +13,10 @@ export type ConfirmOptions = {
     cancelText?: string;
     tone?: ConfirmTone;
     icon?: ReactNode;
+    /** 弹窗宽度，默认 440；长内容审阅用更宽的值。 */
+    width?: number | string;
+    /** 正文放到标题下方占满整行，适合长内容；默认与标题同列。 */
+    stacked?: boolean;
 };
 
 const toneStyles: Record<ConfirmTone, { fallback: ReactNode; style: CSSProperties }> = {
@@ -42,17 +46,20 @@ const toneStyles: Record<ConfirmTone, { fallback: ReactNode; style: CSSPropertie
     },
 };
 
-function DialogHeader({ title, description, tone = "default", icon }: { title: string; description?: ReactNode; tone?: ConfirmTone; icon?: ReactNode }) {
+function DialogHeader({ title, description, tone = "default", icon, stacked = false }: { title: string; description?: ReactNode; tone?: ConfirmTone; icon?: ReactNode; stacked?: boolean }) {
     const tones = toneStyles[tone];
     return (
-        <div className="flex items-start gap-4 px-6 pb-5 pt-6">
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl" style={tones.style}>
-                {icon ?? tones.fallback}
-            </span>
-            <div className="min-w-0 flex-1 pt-0.5">
-                <h3 className="text-base font-semibold leading-6 tracking-[-0.01em] text-foreground">{title}</h3>
-                {description ? <div className="mt-2 text-[13px] leading-6 text-muted-foreground">{description}</div> : null}
+        <div>
+            <div className={`flex items-start gap-4 px-6 pt-6 ${stacked && description ? "pb-3" : "pb-5"}`}>
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl" style={tones.style}>
+                    {icon ?? tones.fallback}
+                </span>
+                <div className="min-w-0 flex-1 pt-0.5">
+                    <h3 className="text-base font-semibold leading-6 tracking-[-0.01em] text-foreground">{title}</h3>
+                    {!stacked && description ? <div className="mt-2 text-[13px] leading-6 text-muted-foreground">{description}</div> : null}
+                </div>
             </div>
+            {stacked && description ? <div className="px-6 pb-5 text-[13px] leading-6">{description}</div> : null}
         </div>
     );
 }
@@ -71,7 +78,7 @@ function DialogFooter({ children }: { children: ReactNode }) {
     );
 }
 
-function ConfirmDialogBody({ title, description, confirmText = "确认", cancelText = "取消", tone = "default", icon, loading = false, onConfirm, onCancel }: ConfirmOptions & { loading?: boolean; onConfirm: () => void | Promise<void>; onCancel: () => void }) {
+function ConfirmDialogBody({ title, description, confirmText = "确认", cancelText = "取消", tone = "default", icon, stacked, loading = false, onConfirm, onCancel }: ConfirmOptions & { loading?: boolean; onConfirm: () => void | Promise<void>; onCancel: () => void }) {
     const [pending, setPending] = useState(false);
     const handleConfirm = async () => {
         if (loading || pending) return;
@@ -87,7 +94,7 @@ function ConfirmDialogBody({ title, description, confirmText = "确认", cancelT
     };
     return (
         <div className="flex flex-col">
-            <DialogHeader title={title} description={description} tone={tone} icon={icon} />
+            <DialogHeader title={title} description={description} tone={tone} icon={icon} stacked={stacked} />
             <DialogFooter>
                 <Button size="large" className="!min-w-[88px]" onClick={onCancel} disabled={pending || loading}>
                     {cancelText}
@@ -113,7 +120,7 @@ const dialogStyles = {
 
 export function ConfirmDialog({ open, ...options }: ConfirmOptions & { open: boolean; loading?: boolean; onConfirm: () => void | Promise<void>; onCancel: () => void }) {
     return (
-        <Modal open={open} onCancel={options.onCancel} footer={null} closable={false} centered width={440} mask={{ closable: false }} destroyOnHidden styles={dialogStyles}>
+        <Modal open={open} onCancel={options.onCancel} footer={null} closable={false} centered width={options.width ?? 440} mask={{ closable: false }} destroyOnHidden styles={dialogStyles}>
             <ConfirmDialogBody {...options} />
         </Modal>
     );
@@ -150,6 +157,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 cancelText={request?.cancelText}
                 tone={request?.tone}
                 icon={request?.icon}
+                width={request?.width}
+                stacked={request?.stacked}
                 onConfirm={() => settle(true)}
                 onCancel={() => settle(false)}
             />

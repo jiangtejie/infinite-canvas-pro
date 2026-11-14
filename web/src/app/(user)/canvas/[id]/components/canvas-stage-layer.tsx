@@ -14,6 +14,7 @@ import { CanvasConfigNodePanel } from "../../components/canvas-config-node-panel
 import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-panel";
 import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card";
 import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
+import { CanvasRemixPlanNodeCard } from "../../components/canvas-remix-plan-node-card";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
 import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
 import { CanvasRemixPlanPanel } from "../../components/canvas-remix-plan-panel";
@@ -365,7 +366,15 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 )
                             }
                             renderNodeContent={(contentNode) =>
-                                contentNode.type === CanvasNodeType.Director ? (
+                                contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
+                                    <CanvasRemixPlanNodeCard
+                                        node={contentNode}
+                                        images={nodes.filter((node) => node.metadata?.remixRunId === contentNode.metadata?.remixRun?.id && node.metadata?.remixRole === "image")}
+                                        onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
+                                        onGenerate={() => void generateRemixRun(contentNode.metadata!.remixRun!.id)}
+                                        onReplan={() => handleRemixWithAgent(contentNode.metadata!.remixRun!.input.sourceNodeId)}
+                                    />
+                                ) : contentNode.type === CanvasNodeType.Director ? (
                                     <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
                                 ) : contentNode.type === CanvasNodeType.Source ? (
                                     <CanvasSourceNodeCard

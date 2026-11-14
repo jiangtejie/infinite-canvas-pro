@@ -526,7 +526,8 @@ export const CanvasNode = React.memo(function CanvasNode({
 
 function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Group) return null;
-    if ((props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director || props.node.type === CanvasNodeType.Source || props.node.type === CanvasNodeType.Publish) && props.renderNodeContent) return props.renderNodeContent(props.node);
+    const isPlanNode = props.node.metadata?.remixRole === "plan";
+    if ((isPlanNode || props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director || props.node.type === CanvasNodeType.Source || props.node.type === CanvasNodeType.Publish) && props.renderNodeContent) return props.renderNodeContent(props.node);
     if (props.isBatchRoot) return props.node.type === CanvasNodeType.Panorama ? <PanoramaNodeContent {...props} /> : <ImageNodeContent {...props} />;
     if (props.node.metadata?.status === "stopped") return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: props.theme.node.muted }}>

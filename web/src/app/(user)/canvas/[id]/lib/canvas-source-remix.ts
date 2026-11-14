@@ -70,7 +70,8 @@ export function planSourceRemix({ source, nodes, connections, run }: { source: C
         { id: copyNodeId, type: CanvasNodeType.Text, ...spec, title: "复刻文案", position: { x: materialRight + spec.width + 192, y: top }, metadata: { ...base, remixRole: "copy", content: "", status: "idle", fontSize: 14 } },
     ];
     const edge = (fromNodeId: string, toNodeId: string): CanvasConnection => ({ id: `${fromNodeId}->${toNodeId}`, fromNodeId, toNodeId });
-    const newConnections = [edge(source.id, planNodeId)];
+    // 运行主链：素材源 → 策划 → 文案 / 配图；配图的参考图数据边在 applySourceRemixPlan 里补齐。
+    const newConnections = [edge(source.id, planNodeId), edge(planNodeId, copyNodeId)];
     const imageNodeIds: string[] = [];
     for (let index = 0; index < Math.max(1, run.input.sourceImages.length); index++) {
         const original = run.input.sourceImages[index];
@@ -78,6 +79,7 @@ export function planSourceRemix({ source, nodes, connections, run }: { source: C
         const id = `${prefix}-image-${index}`;
         imageNodeIds.push(id);
         additions.push({ id, type: CanvasNodeType.Image, title: `复刻配图 ${index + 1}`, position: { x: materialRight + spec.width * 2 + 288 + index % 2 * 340, y: top + Math.floor(index / 2) * 440 }, width: size.width, height: size.height, metadata: { ...base, remixRole: "image", remixIndex: index + 1, prompt: "", size: size.size, count: 1, status: "idle" } });
+        newConnections.push(edge(planNodeId, id));
     }
     for (const [index, asset] of (run.input.marketing?.assets || []).entries()) {
         const serverObject = asset.storageKey.startsWith("server:") && !asset.storageKey.startsWith("server:webdav:");
@@ -90,13 +92,22 @@ export function applySourceRemixPlan(nodes: CanvasNodeData[], connections: Canva
     const planNode = findRemixRunNode(nodes, runId);
     const run = planNode?.metadata?.remixRun;
     if (!run) throw new Error("复刻运行记录已不存在");
+    const planNodeId = planNode!.id;
     const imageIds = collectRemixImageNodeIds(nodes, runId);
     const affectedIds = new Set(imageIds);
-    const nextConnections = connections.filter((edge) => !affectedIds.has(edge.toNodeId));
+    // 重建参考图数据边时保留策划 → 配图的结构边。
+    const nextConnections = connections.filter((edge) => !affectedIds.has(edge.toNodeId) || edge.fromNodeId === planNodeId);
     plan.visual.images.forEach((image, index) => {
         const referenceIds = [image.sourceImageId, ...image.referenceAssetIds.map((id) => nodes.find((node) => node.metadata?.remixRunId === runId && node.metadata.marketingAssetId === id && node.metadata.remixRole === "reference")?.id || "")].filter(Boolean);
         referenceIds.forEach((fromNodeId) => nextConnections.push({ id: `${fromNodeId}->${imageIds[index]}`, fromNodeId, toNodeId: imageIds[index] }));
+        if (!nextConnections.some((edge) => edge.fromNodeId === planNodeId && edge.toNodeId === imageIds[index])) {
+            nextConnections.push({ id: `${planNodeId}->${imageIds[index]}`, fromNodeId: planNodeId, toNodeId: imageIds[index] });
+        }
     });
+    const copyNode = findSourceRemixTextNode(nodes, runId);
+    if (copyNode && !nextConnections.some((edge) => edge.fromNodeId === planNodeId && edge.toNodeId === copyNode.id)) {
+        nextConnections.push({ id: `${planNodeId}->${copyNode.id}`, fromNodeId: planNodeId, toNodeId: copyNode.id });
+    }
     return {
         nodes: nodes.map((node): CanvasNodeData => {
             if (node.metadata?.remixRunId !== runId) return node;
@@ -179,7 +190,8 @@ export function assertRemixRunStructure(nodes: CanvasNodeData[], connections: Ca
             if (!reference || reference.metadata?.storageKey !== asset.storageKey) throw new Error("营销图片引用已变化，请重新策划");
             return reference.id;
         })].filter(Boolean);
-        const actual = connections.filter((edge) => edge.toNodeId === node.id).map((edge) => edge.fromNodeId);
+        // 策划 → 配图是结构边，不参与参考图校验；参考图数据边仍要求完全一致。
+        const actual = connections.filter((edge) => edge.toNodeId === node.id && edge.fromNodeId !== planNode?.id).map((edge) => edge.fromNodeId);
         if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("复刻参考图或连线已变化，请重新策划");
         const original = run.input.sourceImages[index];
         if (original) {

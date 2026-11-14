@@ -1944,6 +1944,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             isNodeDragging, nodeImageSettingsOpen, toolbarNode, keepNodeToolbar,
             hideNodeToolbar, handleFontSizeChange, generateImageFromTextNode, extractAudio,
             handleRemixWithAgent,
+            generateRemixRun,
             handleExpandSource: (nodeId) => {
                 const result = handleExpandSource(nodeId);
                 if (!result.ok) {

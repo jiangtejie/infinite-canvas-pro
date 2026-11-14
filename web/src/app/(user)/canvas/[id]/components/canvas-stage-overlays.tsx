@@ -62,6 +62,7 @@ export type CanvasStageOverlaysModel = {
     handleRemixWithAgent: (nodeId: string) => void;
     handleExpandSource: (nodeId: string) => void;
     handleResetSource: (nodeId: string) => void;
+    generateRemixRun: (runId: string) => Promise<void>;
     handleFontSizeChange: (nodeId: string, fontSize: number) => void;
     generateImageFromTextNode: (node: CanvasNodeData) => void;
     extractAudio: (node: CanvasNodeData, trim?: { start: number; end: number; }) => Promise<string | undefined>;
@@ -149,6 +150,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         handleRemixWithAgent,
         handleExpandSource,
         handleResetSource,
+        generateRemixRun,
         handleFontSizeChange,
         generateImageFromTextNode,
         extractAudio,
@@ -194,6 +196,12 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         onBatchGenerate,
         onStopBatch,
     } = model;
+
+    const remixRun = toolbarNode?.metadata?.remixRole === "plan" ? toolbarNode.metadata.remixRun : undefined;
+    const remixImages = remixRun ? nodes.filter((node) => node.metadata?.remixRunId === remixRun.id && node.metadata?.remixRole === "image") : [];
+    const remixRunning = remixImages.some((node) => node.metadata?.status === "loading" || node.metadata?.status === "stopping");
+    const remixCanGenerate = Boolean(remixRun?.plan) && remixRun?.binding === "active" && !remixRunning;
+    const remixCanReplan = Boolean(remixRun) && !remixRunning && toolbarNode?.metadata?.status !== "loading";
 
     return (
         <>
@@ -248,6 +256,16 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onSourceReset={(node) => handleResetSource(node.id)}
                     sourceExpandedNeedsSync={toolbarNode?.type === CanvasNodeType.Source ? sourceExpansionNeedsSync(toolbarNode, nodes) : false}
                     sourceRemixStale={toolbarNode?.type === CanvasNodeType.Source ? sourceRemixNeedsSync(toolbarNode, nodes) : false}
+                    onGenerateRemix={(node) => {
+                        const runId = node.metadata?.remixRun?.id;
+                        if (runId) void generateRemixRun(runId);
+                    }}
+                    onReplanRemix={(node) => {
+                        const sourceId = node.metadata?.remixRun?.input.sourceNodeId;
+                        if (sourceId) handleRemixWithAgent(sourceId);
+                    }}
+                    remixCanGenerate={remixCanGenerate}
+                    remixCanReplan={remixCanReplan}
                 />
 
                 <CanvasToolbar

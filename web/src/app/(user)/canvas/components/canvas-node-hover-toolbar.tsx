@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Dropdown, Modal, Segmented, Tooltip } from "antd";
-import { CircleAlert, Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Layers, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Send, Settings2, Sparkles, Trash2, Upload, Video } from "lucide-react";
+import { CircleAlert, ClipboardCheck, Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Layers, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Send, Settings2, Sparkles, Trash2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
@@ -49,6 +49,10 @@ type CanvasNodeHoverToolbarProps = {
     onSourceReset: (node: CanvasNodeData) => void;
     sourceExpandedNeedsSync: boolean;
     sourceRemixStale: boolean;
+    onGenerateRemix: (node: CanvasNodeData) => void;
+    onReplanRemix: (node: CanvasNodeData) => void;
+    remixCanGenerate: boolean;
+    remixCanReplan: boolean;
 };
 
 type ToolbarTool = {
@@ -93,6 +97,10 @@ export function CanvasNodeHoverToolbar({
     onSourceReset,
     sourceExpandedNeedsSync,
     sourceRemixStale,
+    onGenerateRemix,
+    onReplanRemix,
+    remixCanGenerate,
+    remixCanReplan,
 }: CanvasNodeHoverToolbarProps) {
     const [quickToolsConfigs, setQuickToolsConfigs] = useState(() => ({
         [IMAGE_QUICK_TOOLS_STORAGE_KEY]: { ids: defaultImageQuickToolIds, showLabels: true },
@@ -154,12 +162,13 @@ export function CanvasNodeHoverToolbar({
     const hasVideo = isVideo && Boolean(node.metadata?.content);
     const hasAudio = isAudio && Boolean(node.metadata?.content);
     const isText = node.type === CanvasNodeType.Text;
+    const isRemixPlan = isText && node.metadata?.remixRole === "plan";
     const isConfig = node.type === CanvasNodeType.Config;
     const isSource = node.type === CanvasNodeType.Source;
     const hasSourceMaterial = isSource && Boolean(node.metadata?.sourceTitle?.trim() || node.metadata?.sourceText?.trim() || node.metadata?.sourceImages?.length || node.metadata?.sourceCoverUrl?.trim());
     const sourceExpanded = node.metadata?.sourceExpanded === true;
     const isPublish = node.type === CanvasNodeType.Publish;
-    const canOpenDialog = isText || hasImage || isVideo;
+    const canOpenDialog = (isText && !isRemixPlan) || hasImage || isVideo;
     const canRetry = node.metadata?.status === "error";
     const quickImageToolIdSet = new Set(quickImageToolIds);
     const copyImagePrompt = (target: CanvasNodeData) => {
@@ -194,7 +203,7 @@ export function CanvasNodeHoverToolbar({
     const deleteTool: ToolbarTool = { id: "delete", title: "移除节点", label: "删除", icon: <Trash2 className="size-4" />, onClick: () => onDelete(node), danger: true };
     const nodeToolbarTools: ToolbarTool[] = [
         ...(canRetry ? [{ id: "retry", title: "重新生成", label: "重试", icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
-        ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
+        ...(hasImage || hasVideo || (isText && !isRemixPlan) ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
         ...((hasVideo || hasAudio) && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadMediaToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadMediaToCloud(node) }] : []),
         ...(hasImage && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadImageToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadImageToCloud(node) }] : []),
         ...(hasVideo ? [{
@@ -213,7 +222,7 @@ export function CanvasNodeHoverToolbar({
         }] : []),
         ...(hasImage || hasVideo || hasAudio ? [{ id: "download", title: hasAudio ? "下载音频" : hasVideo ? "下载视频" : "下载图片", label: "下载", icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
         ...(canOpenDialog ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
-        ...(isText ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
+        ...(isText && !isRemixPlan ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
         ...(isConfig ? [{ id: "config", title: "生成配置", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isSource ? [{ id: "sourcePanel", title: "打开素材源面板", label: "解析", icon: <Link2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(hasSourceMaterial && !node.metadata?.sourceParsing ? [{
@@ -228,9 +237,14 @@ export function CanvasNodeHoverToolbar({
             ),
             onClick: () => onSourceRemix(node),
         }] : []),
+        ...(isRemixPlan ? [
+            { id: "remixReview", title: "审阅复刻策划", label: "审阅", icon: <ClipboardCheck className="size-4" />, onClick: () => onToggleDialog(node) },
+            ...(remixCanGenerate ? [{ id: "remixGenerate", title: "生成复刻配图", label: "生成配图", icon: <Sparkles className="size-4" />, onClick: () => onGenerateRemix(node) }] : []),
+            ...(remixCanReplan ? [{ id: "remixReplan", title: "另做一版策划", label: "另做一版", icon: <RefreshCw className="size-4" />, onClick: () => onReplanRemix(node) }] : []),
+        ] : []),
         ...(isPublish ? [{ id: "publishPanel", title: "打开发布面板", label: "发布", icon: <Send className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
-        ...(isText ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
-        ...(isText ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
+        ...(isText && !isRemixPlan ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
+        ...(isText && !isRemixPlan ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
         ...(isImage && !isPanorama && !hasImage ? [{ id: "uploadImage", title: "上传图片", label: "上传图片", icon: <Upload className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(isVideo ? [{ id: "uploadVideo", title: hasVideo ? "替换视频" : "上传视频", label: hasVideo ? "替换视频" : "上传视频", icon: <Video className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(isAudio ? [{ id: "uploadAudio", title: hasAudio ? "替换音频" : "上传音频", label: hasAudio ? "替换音频" : "上传音频", icon: <Music2 className="size-4" />, onClick: () => onUpload(node) }] : []),
