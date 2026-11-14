@@ -59,14 +59,22 @@ export type CanvasPublishDraftValues = {
     imageNodeIds: string[];
 };
 
-/** 默认发布草稿：上游文案首行截 20 字作为标题，正文去掉话题标记，最多提取 5 个话题。 */
+/** 默认发布草稿：上游文案首行截 20 字作为标题，正文去掉话题标记和重复的标题行，最多提取 5 个话题。 */
 export function buildDefaultPublishDraft(inputs: CanvasPublishInputs): CanvasPublishDraftValues {
     const text = inputs.text.trim();
     const tags = extractPublishTags(text);
     const firstLine = text.split("\n").find((line) => line.trim()) || "";
+    const firstLineText = stripPublishTags(firstLine);
+    const title = firstLineText.slice(0, PUBLISH_TITLE_LIMIT);
+    const bodyLines = text.replace(HASHTAG_PATTERN, "\n").split("\n");
+    // 首行完整作为标题时从正文移除，避免标题在正文第一行重复；首行超长被截断则保留正文内容。
+    if (firstLineText === title) {
+        const titleIndex = bodyLines.findIndex((line) => line.trim() === firstLineText);
+        if (titleIndex >= 0) bodyLines.splice(titleIndex, 1);
+    }
     return {
-        title: stripPublishTags(firstLine).slice(0, PUBLISH_TITLE_LIMIT),
-        body: stripPublishTags(text.replace(HASHTAG_PATTERN, "\n")).replace(/\n{3,}/g, "\n\n").trim(),
+        title,
+        body: bodyLines.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
         tags,
         imageNodeIds: inputs.images.map((item) => item.nodeId),
     };

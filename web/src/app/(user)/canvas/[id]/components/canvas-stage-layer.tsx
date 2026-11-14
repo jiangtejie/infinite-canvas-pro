@@ -14,6 +14,7 @@ import { CanvasConfigNodePanel } from "../../components/canvas-config-node-panel
 import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-panel";
 import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card";
 import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
+import { CanvasMaterialTextCard } from "../../components/canvas-material-text-card";
 import { CanvasRemixPlanNodeCard } from "../../components/canvas-remix-plan-node-card";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
 import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
@@ -366,7 +367,9 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 )
                             }
                             renderNodeContent={(contentNode) =>
-                                contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
+                                contentNode.metadata?.sourceMaterialRole === "text" || contentNode.id.endsWith("-material-text") ? (
+                                    <CanvasMaterialTextCard node={contentNode} />
+                                ) : contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
                                     <CanvasRemixPlanNodeCard
                                         node={contentNode}
                                         images={nodes.filter((node) => node.metadata?.remixRunId === contentNode.metadata?.remixRun?.id && node.metadata?.remixRole === "image")}

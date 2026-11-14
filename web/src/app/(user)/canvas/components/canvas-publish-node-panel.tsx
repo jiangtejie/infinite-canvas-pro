@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowDown, ArrowUp, Bookmark, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, GripVertical, Heart, LoaderCircle, MessageCircle, Plus, Send, Share2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, CircleAlert, GripVertical, LoaderCircle, Plus, Send, X } from "lucide-react";
 import { App, Button, Input, Modal, QRCode, Select, Tag, theme as antdTheme } from "antd";
 
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
@@ -62,7 +62,6 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
     const [confirming, setConfirming] = useState(false);
     const [qrOpen, setQrOpen] = useState(false);
     const [addImagesOpen, setAddImagesOpen] = useState(false);
-    const [previewIndex, setPreviewIndex] = useState(0);
     const [draggingImageId, setDraggingImageId] = useState("");
     const [dragOverImageId, setDragOverImageId] = useState("");
     const [publishedUrl, setPublishedUrl] = useState(node.metadata?.publishRecord?.publishedUrl || "");
@@ -87,9 +86,6 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
     const selectedImages = selectedImageIds.map((nodeId) => imageByNodeId.get(nodeId)!);
     const unselectedImages = inputs.images.filter((item) => !selectedImageIds.includes(item.nodeId));
     const orderedImages = selectedImages.slice(0, PUBLISH_MAX_IMAGES);
-    const selectedImageKey = selectedImageIds.join("|");
-    const safePreviewIndex = selectedImages.length ? Math.min(previewIndex, selectedImages.length - 1) : 0;
-    const previewImage = selectedImages[safePreviewIndex];
     const channel = channels?.channels.find((item) => item.id === "douyin-h5") || channels?.channels[0];
     const channelReady = Boolean(channel?.available);
     const unavailableText = channelsError || (channels && !channelReady ? publishChannelReasonText(channel?.reason) : "");
@@ -125,10 +121,6 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
         const timer = window.setInterval(() => setNow(Date.now()), 30_000);
         return () => window.clearInterval(timer);
     }, [qrExpiresAt]);
-
-    useEffect(() => {
-        setPreviewIndex(0);
-    }, [selectedImageKey]);
 
     const updateDraft = (patch: Partial<{ title: string; body: string; tags: string[]; imageNodeIds: string[] }>) => {
         onChange({
@@ -235,22 +227,22 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
         }
     };
 
-    const sectionStyle = { background: theme.node.fill, borderColor: theme.node.stroke };
     const inputStyle = { background: theme.toolbar.panel, color: theme.node.text, borderColor: theme.node.stroke };
 
     return (
         <div
             data-canvas-no-zoom
-            className="thin-scrollbar max-h-[min(76vh,680px)] w-full overflow-y-auto rounded-2xl border p-3 shadow-2xl backdrop-blur"
+            className="thin-scrollbar max-h-[min(76vh,680px)] w-full overflow-y-auto rounded-2xl border p-4 shadow-2xl backdrop-blur"
             style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onMouseDown={stopPointer}
             onPointerDown={stopPointer}
             onWheel={stopPointer}
         >
-            <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    <Send className="size-4" style={{ color: theme.node.muted }} />
-                    发布 · {channel?.label || "抖音扫码发布"}
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="flex items-baseline gap-1.5 text-sm font-semibold">
+                    <Send className="size-4 self-center" style={{ color: theme.node.muted }} />
+                    发布
+                    <span className="text-[11px] font-normal" style={{ color: theme.node.muted }}>{channel?.label || "抖音扫码"}</span>
                 </span>
                 <div className="flex items-center gap-1.5">
                     {record?.mock || channels?.mock ? <Tag className="!m-0 !text-[10px]" color="warning">MOCK</Tag> : null}
@@ -266,52 +258,10 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
                 </div>
             ) : null}
 
-            <div className={`mt-2 grid gap-2 ${compact ? "" : "md:grid-cols-[240px_minmax(0,1fr)]"}`}>
-                <div className={`order-2 min-w-0 space-y-2 ${compact ? "" : "md:order-1"}`}>
-                    <div className="rounded-[26px] border p-2" style={{ background: theme.node.fill, borderColor: theme.node.stroke }}>
-                        <div className="overflow-hidden rounded-[18px]" style={{ background: theme.canvas.background }}>
-                            <div className="flex items-center justify-between px-3 pb-1 pt-2 text-[10px]" style={{ color: theme.node.placeholder }}>
-                                <span>抖音图文预览</span>
-                                <span>{selectedImages.length ? `${safePreviewIndex + 1}/${selectedImages.length}` : "0/0"}</span>
-                            </div>
-                            <div className="relative mx-2 aspect-[3/4] overflow-hidden rounded-lg" style={{ background: theme.toolbar.activeBg }}>
-                                {previewImage ? (
-                                    <img src={previewImage.image.dataUrl} alt={previewImage.title} draggable={false} className="size-full object-cover" />
-                                ) : (
-                                    <div className="flex size-full items-center justify-center px-4 text-center text-[11px]" style={{ color: theme.node.placeholder }}>暂无发布图片</div>
-                                )}
-                                {selectedImages.length > 1 ? (
-                                    <>
-                                        <button type="button" className="absolute left-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full opacity-80 transition hover:opacity-100" style={{ background: theme.toolbar.panel, color: theme.node.text }} aria-label="上一张预览图" onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => setPreviewIndex((safePreviewIndex - 1 + selectedImages.length) % selectedImages.length)}>
-                                            <ChevronLeft className="size-4" />
-                                        </button>
-                                        <button type="button" className="absolute right-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full opacity-80 transition hover:opacity-100" style={{ background: theme.toolbar.panel, color: theme.node.text }} aria-label="下一张预览图" onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => setPreviewIndex((safePreviewIndex + 1) % selectedImages.length)}>
-                                            <ChevronRight className="size-4" />
-                                        </button>
-                                        <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full px-2 py-0.5 text-[10px]" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{safePreviewIndex + 1}/{selectedImages.length}</span>
-                                    </>
-                                ) : null}
-                            </div>
-                            <div className="px-2 pb-2 pt-1.5">
-                                <div className="line-clamp-2 text-xs font-semibold leading-5" style={{ color: theme.node.text }}>{draftTitle || "未填写标题"}</div>
-                                <p className="m-0 mt-0.5 line-clamp-3 text-[10px] leading-4" style={{ color: theme.node.muted }}>{draftBody || "未填写正文"}</p>
-                                {draftTags.length ? <p className="m-0 mt-1 line-clamp-1 text-[10px]" style={{ color: token.colorLink }}>{draftTags.map((tag) => `#${tag}`).join(" ")}</p> : null}
-                                <div className="mt-1.5 flex items-center justify-between border-t pt-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.placeholder }}>
-                                    {[{ icon: Heart, label: "赞" }, { icon: MessageCircle, label: "评论" }, { icon: Bookmark, label: "收藏" }, { icon: Share2, label: "分享" }].map(({ icon: Icon, label }) => (
-                                        <span key={label} className="inline-flex items-center gap-0.5 text-[10px]">
-                                            <Icon className="size-3" />
-                                            {label}
-                                        </span>
-                                    ))}
-                                </div>
-                                <p className="m-0 mt-1 text-center text-[9px] leading-3" style={{ color: theme.node.placeholder }}>仅预览，实际以抖音编辑页为准</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl border p-2 text-[11px]" style={sectionStyle}>
-                        <div className="mb-1.5 flex items-center justify-between gap-1">
-                            <span className="text-xs font-semibold">扫码发布</span>
+            <div className={`mt-3 grid gap-4 ${compact ? "" : "md:grid-cols-[minmax(0,1fr)_232px]"}`}>
+                <div className="order-2 min-w-0 space-y-2.5 text-[11px] md:self-start md:border-l md:pl-4" style={{ borderColor: theme.node.stroke }}>
+                        <div className="flex items-center justify-between gap-1">
+                            <span className="text-xs font-semibold">二维码</span>
                             {record ? <Tag className="!m-0 !text-[10px]" color={record.status === "confirmed" ? "success" : "processing"}>{record.status === "confirmed" ? "已发布" : "待扫码发布"}</Tag> : null}
                         </div>
 
@@ -370,7 +320,7 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
                             </div>
                         ) : (
                             <div className="space-y-1.5">
-                                <p className="m-0 text-[10px] leading-4" style={{ color: theme.node.placeholder }}>按已选图片顺序转存并预检，通过后生成抖音扫码二维码。</p>
+                                <p className="m-0 text-[10px] leading-4" style={{ color: theme.node.placeholder }}>按图片顺序转存并预检。</p>
                                 {node.metadata?.publishError ? (
                                     <div className="flex items-start gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] leading-4" style={{ borderColor: theme.node.stroke, color: token.colorError }}>
                                         <CircleAlert className="mt-0.5 size-3 shrink-0" />
@@ -378,36 +328,34 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
                                     </div>
                                 ) : null}
                                 {issues.length ? <IssueList issues={issues} /> : null}
-                                <Button type="primary" size="small" className="!w-full" loading={generating || uploadBusy} disabled={!channelReady || generating || uploadBusy || confirming || !orderedImages.length} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void generate()}>
+                                <Button type="primary" className="!w-full" loading={generating || uploadBusy} disabled={!channelReady || generating || uploadBusy || confirming || !orderedImages.length} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={() => void generate()}>
                                     {generating && !uploadBusy ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
                                     生成二维码
                                 </Button>
                                 {uploadBusy ? <p className="m-0 text-[10px]" style={{ color: theme.node.placeholder }}>正在上传图片 {uploading.current}/{uploading.total}…</p> : generating ? <p className="m-0 text-[10px]" style={{ color: theme.node.placeholder }}>正在预检并生成二维码…</p> : null}
                             </div>
                         )}
-                    </div>
                 </div>
 
-                <div className={`order-1 min-w-0 space-y-2 ${compact ? "" : "md:order-2"}`}>
-                    <div className="space-y-2 rounded-xl border p-2.5" style={sectionStyle}>
-                        <div className="text-xs font-semibold">发布内容</div>
-                <Input size="small" value={draftTitle} maxLength={PUBLISH_TITLE_LIMIT} showCount disabled={locked} placeholder="发布标题（不超过 20 个字）" style={inputStyle} onChange={(event) => updateDraft({ title: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />
-                <Input.TextArea rows={3} value={draftBody} maxLength={1000} showCount disabled={locked} placeholder="发布正文" style={inputStyle} onChange={(event) => updateDraft({ body: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />
+                <div className="order-1 min-w-0 space-y-3">
+                    <div className="space-y-3">
+                        <div className="text-[11px] font-medium" style={{ color: theme.node.muted }}>发布内容</div>
+                <Input value={draftTitle} maxLength={PUBLISH_TITLE_LIMIT} showCount disabled={locked} placeholder="发布标题" style={inputStyle} onChange={(event) => updateDraft({ title: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />
+                <Input.TextArea rows={4} value={draftBody} maxLength={1000} showCount disabled={locked} placeholder="发布正文" style={inputStyle} onChange={(event) => updateDraft({ body: event.target.value })} onPointerDown={stopPointer} onMouseDown={stopPointer} />
                 <Select
                     mode="tags"
-                    size="small"
                     maxCount={PUBLISH_TAGS_LIMIT}
                     value={draftTags}
                     disabled={locked}
-                    placeholder="输入话题后回车，最多 5 个"
+                    placeholder="输入话题后回车"
                     style={{ width: "100%" }}
                     onChange={(values: string[]) => updateDraft({ tags: normalizePublishTags(values) })}
                 />
-                <div className="text-[11px]" style={{ color: theme.node.placeholder }}>标题最多 {PUBLISH_TITLE_LIMIT} 个字，正文最多 1000 个字，话题最多 {PUBLISH_TAGS_LIMIT} 个（不需要输入 #）。</div>
+                <div className="text-[11px]" style={{ color: theme.node.placeholder }}>标题 {PUBLISH_TITLE_LIMIT} 字 · 正文 1000 字 · 话题 {PUBLISH_TAGS_LIMIT} 个</div>
 
-                <div className="space-y-1.5 border-t pt-2" style={{ borderColor: theme.node.stroke }}>
+                <div className="space-y-2 border-t pt-3" style={{ borderColor: theme.node.stroke }}>
                     <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-medium" style={{ color: theme.node.muted }}>发布图片（按顺序上传）</span>
+                        <span className="text-[11px] font-medium" style={{ color: theme.node.muted }}>发布图片</span>
                         <span className="text-[11px]" style={{ color: theme.node.placeholder }}>已选 {selectedImages.length} 张</span>
                     </div>
                     {selectedImages.length ? (
@@ -488,7 +436,7 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
                             ) : null}
                         </div>
                     ) : null}
-                    <div className="text-[11px]" style={{ color: theme.node.placeholder }}>拖动图片调整发布顺序（触屏可用图下箭头）；图片会按顺序转存到发布域名，取消选择后可在上方「添加上游图片」重新加入。</div>
+                    <div className="text-[11px]" style={{ color: theme.node.placeholder }}>拖动排序，按顺序转存；取消选择后可重新添加上游图片。</div>
                 </div>
             </div>
                 </div>

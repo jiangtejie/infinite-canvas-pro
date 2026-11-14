@@ -92,6 +92,8 @@ test("material text joins title, body and hashtags", () => {
     assert.equal(textNode?.metadata?.content, "标题\n\n正文第一段\n正文第二段\n\n#话题1 #话题2");
     assert.equal(textNode?.metadata?.status, "success");
     assert.equal(textNode?.metadata?.fontSize, 14);
+    assert.equal(textNode?.title, "原始文案 · 参考");
+    assert.equal(textNode?.metadata?.sourceMaterialRole, "text");
 });
 
 test("material text is exactly the shared source text with normalized tags", () => {

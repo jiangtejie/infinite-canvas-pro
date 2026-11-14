@@ -43,8 +43,12 @@ test("buildDefaultPublishDraft uses the first line as title and extracts tags", 
     assert.equal(draft.title, "夏日海边穿搭分享");
     assert.deepEqual(draft.tags, ["穿搭", "海边", "夏日"]);
     assert.equal(draft.body?.includes("#"), false);
+    assert.equal(draft.body, "");
     assert.deepEqual(draft.imageNodeIds, ["img1", "img2"]);
     assert.equal(buildDefaultPublishDraft({ text: "x".repeat(40), textNodeIds: [], images: [] }).title?.length, 20);
+    const multiLine = buildDefaultPublishDraft({ text: "标题行\n\n正文第一段\n\n#话题", textNodeIds: [], images: [] });
+    assert.equal(multiLine.title, "标题行");
+    assert.equal(multiLine.body, "正文第一段");
 });
 
 test("extractPublishTags dedupes and limits to five tags", () => {

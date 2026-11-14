@@ -70,7 +70,7 @@ export function planSourceMaterialSync(source: CanvasNodeData, nodes: CanvasNode
         const planned = plannedById.get(node.id);
         if (!planned || !node.id.startsWith(materialPrefix)) return node;
         if (node.type === CanvasNodeType.Text) {
-            return { ...node, metadata: { ...node.metadata, content: planned.metadata?.content, status: "success" as const } };
+            return { ...node, title: node.title === "素材文案" ? planned.title : node.title, metadata: { ...node.metadata, content: planned.metadata?.content, status: "success" as const, sourceMaterialRole: "text" as const } };
         }
         return {
             ...node,
@@ -127,11 +127,11 @@ export function buildSourceMaterialPlan(source: CanvasNodeData): CanvasSourcePla
         nodes.push({
             id: materialTextId,
             type: CanvasNodeType.Text,
-            title: "素材文案",
+            title: "原始文案 · 参考",
             position: materialTextPosition,
             width: MATERIAL_TEXT_SIZE.width,
             height: MATERIAL_TEXT_SIZE.height,
-            metadata: { content: materialText, status: "success", fontSize: 14 },
+            metadata: { content: materialText, status: "success", fontSize: 14, sourceMaterialRole: "text" },
         });
         connections.push(connection(source.id, materialTextId));
     }
