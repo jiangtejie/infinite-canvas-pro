@@ -10,7 +10,6 @@ import type { CanvasAssistantMessage, CanvasAssistantSession } from "../types";
 export function useAssistantSessionWrite(onSessionsChange: (sessions: CanvasAssistantSession[], activeSessionId: string | null) => void) {
     const sessionsRef = useRef<CanvasAssistantSession[]>([]);
     const activeSessionIdRef = useRef<string | null>(null);
-    const lastSessionIds = useRef<Partial<Record<"api" | "codex", string>>>({});
 
     const syncSessions = useCallback((sessions: CanvasAssistantSession[], activeSessionId: string | null) => {
         sessionsRef.current = sessions;
@@ -21,8 +20,6 @@ export function useAssistantSessionWrite(onSessionsChange: (sessions: CanvasAssi
         (nextSessions: CanvasAssistantSession[], nextActiveSessionId: string | null = activeSessionIdRef.current) => {
             sessionsRef.current = nextSessions;
             activeSessionIdRef.current = nextActiveSessionId;
-            const selected = nextSessions.find((session) => session.id === nextActiveSessionId);
-            if (selected) lastSessionIds.current[selected.provider || "api"] = selected.id;
             onSessionsChange(nextSessions, nextActiveSessionId);
         },
         [onSessionsChange],
@@ -58,5 +55,5 @@ export function useAssistantSessionWrite(onSessionsChange: (sessions: CanvasAssi
         [updateSession],
     );
 
-    return { sessionsRef, activeSessionIdRef, lastSessionIds, syncSessions, commitSessions, updateSession, appendMessage, updateMessage };
+    return { sessionsRef, activeSessionIdRef, syncSessions, commitSessions, updateSession, appendMessage, updateMessage };
 }

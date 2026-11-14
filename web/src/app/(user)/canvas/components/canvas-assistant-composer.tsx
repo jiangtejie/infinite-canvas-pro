@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import { Brain, FolderOpen, ImageIcon, Menu, Navigation, Square, Upload, Video } from "lucide-react";
 import { Button } from "antd";
 import { createPortal } from "react-dom";
@@ -20,7 +20,6 @@ import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 export type CanvasAssistantComposerProps = {
     prompt: string;
     isRunning: boolean;
-    codexControls?: ReactNode;
     references: CanvasAssistantReference[];
     availableReferences?: CanvasResourceReference[];
     pendingReferences?: CanvasResourceReference[];
@@ -41,7 +40,6 @@ export type CanvasAssistantComposerProps = {
 export function CanvasAssistantComposer({
     prompt,
     isRunning,
-    codexControls,
     references,
     availableReferences,
     pendingReferences,
@@ -135,7 +133,6 @@ export function CanvasAssistantComposer({
                                 : null}
                         </div>
                         {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} /> : null}
-                        {codexControls}
                         <CanvasImageSettingsPopover
                             config={imageConfig}
                             placement="bottomLeft"
@@ -160,7 +157,6 @@ export function CanvasAssistantComposer({
                         />
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                        {!codexControls ? (
                         <button
                             type="button"
                             className="grid size-8 shrink-0 place-items-center rounded-full border transition-colors hover:opacity-90 active:scale-95"
@@ -177,7 +173,6 @@ export function CanvasAssistantComposer({
                         >
                             <Brain className="size-4" />
                         </button>
-                        ) : null}
                         <button
                             type="button"
                             className="grid size-10 shrink-0 place-items-center rounded-full border transition-colors hover:opacity-90 active:scale-95"

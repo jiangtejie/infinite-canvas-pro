@@ -1983,7 +1983,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         assistant: {
             nodes, connections, selectedNodeIds, focusNode, setAssistantMounted,
             setAgentPanel, handleUploadRequest, agentPanel, assetInsertPositionRef,
-            setAssetPickerTab, setAssetPickerOpen, assistantMounted, projectId,
+            setAssetPickerTab, setAssetPickerOpen, assistantMounted,
             agentReferenceNodeClick, chatSessions, activeChatId, resolvedAgentConfig,
             handleAssistantSessionsChange, handleAgentConfigChange, pasteAssistantImage, getCanvasAgentContext,
             executeCanvasAgentAction, beginCanvasAgentBatch, endCanvasAgentBatch, initialAgentRequest, setInitialAgentRequest,

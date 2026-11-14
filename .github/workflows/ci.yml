@@ -16,7 +16,7 @@ jobs:
       - name: Go test
         run: go test ./...
       - name: Comfy Bridge Go test
-        working-directory: canvas-agent/native/comfy-bridge
+        working-directory: web/native/comfy-bridge
         run: go test ./...
 
   web-build:

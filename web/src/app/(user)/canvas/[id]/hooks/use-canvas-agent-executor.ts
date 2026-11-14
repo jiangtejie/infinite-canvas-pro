@@ -62,7 +62,7 @@ type UseCanvasAgentExecutorOptions = {
 };
 
 /**
- * Agent（含 Codex）画布工具执行：读取画布上下文、校验并执行工具、回传结构化结果。
+ * 创作 Agent 画布工具执行：读取画布上下文、校验并执行工具、回传结构化结果。
  */
 export function useCanvasAgentExecutor({
     projectId,

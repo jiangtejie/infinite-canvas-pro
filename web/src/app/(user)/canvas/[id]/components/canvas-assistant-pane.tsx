@@ -23,7 +23,6 @@ export type CanvasAssistantModel = {
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
     assistantMounted: boolean;
-    projectId: string;
     agentReferenceNodeClick: { nodeId: string | null; version: number; };
     chatSessions: CanvasAssistantSession[];
     activeChatId: string | null;
@@ -56,7 +55,6 @@ export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) 
         setAssetPickerTab,
         setAssetPickerOpen,
         assistantMounted,
-        projectId,
         agentReferenceNodeClick,
         chatSessions,
         activeChatId,
@@ -76,7 +74,6 @@ export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) 
         <>
             {assistantMounted ? (
                 <CanvasAssistantPanel
-                    canvasId={projectId}
                     nodes={nodes}
                     connections={connections}
                     selectedNodeIds={selectedNodeIds}

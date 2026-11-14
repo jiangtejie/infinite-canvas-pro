@@ -1,8 +1,8 @@
 # 编译独立 ComfyUI Bridge 下载产物。
 FROM golang:1.25-alpine AS bridge-build
 
-WORKDIR /app/canvas-agent/native/comfy-bridge
-COPY canvas-agent/native/comfy-bridge ./
+WORKDIR /app/web/native/comfy-bridge
+COPY web/native/comfy-bridge ./
 RUN mkdir -p /bridge && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o /bridge/InfiniteCanvas-ComfyBridge.exe . \
     && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /bridge/InfiniteCanvas-ComfyBridge-linux-amd64 . \
     && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o /bridge/InfiniteCanvas-ComfyBridge-linux-arm64 .
@@ -16,7 +16,6 @@ RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lock
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
 COPY web ./
-COPY canvas-agent/scripts /app/canvas-agent/scripts
 COPY --from=bridge-build /bridge/ /app/web/public/
 ENV CANVAS_PREBUILT_BRIDGE=1
 RUN bun run build

@@ -8,7 +8,6 @@ data/
 *.log
 *.tsbuildinfo
 web/public/InfiniteCanvas-ComfyBridge*
-canvas-agent/native/comfy-bridge/comfy-bridge.exe
 .DS_Store
 .idea
 .tmp/

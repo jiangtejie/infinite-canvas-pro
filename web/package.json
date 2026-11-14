@@ -7,7 +7,7 @@
         "dev": "next dev --turbopack -H 0.0.0.0 -p 3000",
         "dev:webpack": "next dev --webpack -H 0.0.0.0 -p 3000",
         "build": "bun run build:bridge && next build",
-        "build:bridge": "bun ../canvas-agent/scripts/build-comfy-bridge.ts",
+        "build:bridge": "bun scripts/build-comfy-bridge.ts",
         "start": "next start",
         "test": "bun test",
         "typecheck": "tsc --noEmit",
