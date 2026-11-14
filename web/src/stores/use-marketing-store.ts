@@ -11,16 +11,18 @@ import { useUserStore } from "./use-user-store";
 export const MARKETING_STORE_KEY = "infinite-canvas:marketing_store";
 type MarketingState = {
     workspaces: MarketingWorkspace[];
+    details: Record<string, boolean>;
     loaded: boolean;
     loading: boolean;
     load: (refresh?: boolean) => Promise<void>;
+    ensureDetail: (id: string, force?: boolean) => Promise<MarketingWorkspace>;
     save: (workspace: MarketingWorkspace) => Promise<MarketingWorkspace>;
     remove: (id: string) => Promise<void>;
     getFresh: (id: string) => Promise<MarketingWorkspace>;
 };
 let loading: Promise<void> | null = null;
-async function persist(workspaces: MarketingWorkspace[]) {
-    await localForageStorage.setItem(accountStorageKey(MARKETING_STORE_KEY), JSON.stringify({ state: { workspaces } }));
+async function persist(workspaces: MarketingWorkspace[], details: Record<string, boolean>) {
+    await localForageStorage.setItem(accountStorageKey(MARKETING_STORE_KEY), JSON.stringify({ state: { workspaces: workspaces.filter((item) => details[item.id]) } }));
 }
 
 /** 营销资料跨设备可用前，先把引用的图片同步进账号云存储，并把存储键写回引用。 */
@@ -35,7 +37,7 @@ async function persistMarketingAssets(workspace: MarketingWorkspace, token: stri
 }
 
 export const useMarketingStore = create<MarketingState>((set, get) => ({
-    workspaces: [], loaded: false, loading: false,
+    workspaces: [], details: {}, loaded: false, loading: false,
     load: async (refresh = false) => {
         if (loading) return loading;
         if (get().loaded && !refresh) return;
@@ -44,8 +46,9 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         set({ loading: true });
         loading = (async () => {
             const { value } = await readAccountStorage(MARKETING_STORE_KEY);
-            const local: MarketingWorkspace[] = value ? JSON.parse(value).state.workspaces : [];
-            let workspaces = local;
+            const cached: MarketingWorkspace[] = value ? JSON.parse(value).state.workspaces : [];
+            let workspaces = cached;
+            const details: Record<string, boolean> = {};
             if (token) {
                 const summaries: MarketingWorkspace[] = [];
                 for (let page = 1; ; page++) {
@@ -53,21 +56,60 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
                     summaries.push(...result.items);
                     if (summaries.length >= result.total) break;
                 }
-                workspaces = await Promise.all(summaries.map((item) => fetchMarketingWorkspace(token, item.id)));
-                for (const entry of local.filter((item) => !item.ownerUserId && !workspaces.some((remote) => remote.id === item.id))) {
+                const cachedById = new Map(cached.map((item) => [item.id, item]));
+                workspaces = summaries.map((summary) => {
+                    const local = cachedById.get(summary.id);
+                    if (local && local.ownerUserId && local.revision === summary.revision) {
+                        details[local.id] = true;
+                        return local;
+                    }
+                    return summary;
+                });
+                for (const entry of cached.filter((item) => !item.ownerUserId && !workspaces.some((remote) => remote.id === item.id))) {
                     try {
                         await persistMarketingAssets(entry, token);
-                        workspaces.push(await saveMarketingWorkspace(token, { ...entry, revision: 0 }));
+                        const saved = await saveMarketingWorkspace(token, { ...entry, revision: 0 });
+                        workspaces.push(saved);
+                        details[saved.id] = true;
                     } catch {
                         workspaces.push(entry);
+                        details[entry.id] = true;
                     }
                 }
+            } else {
+                cached.forEach((item) => { details[item.id] = true; });
             }
             if (owner !== currentAccountId()) return;
-            await persist(workspaces);
-            set({ workspaces, loaded: true });
+            await persist(workspaces, details);
+            set({ workspaces, details, loaded: true });
         })().finally(() => { loading = null; if (owner === currentAccountId()) set({ loading: false }); });
         return loading;
+    },
+    ensureDetail: async (id, force = false) => {
+        const owner = currentAccountId();
+        const find = () => get().workspaces.find((item) => item.id === id);
+        let item = find();
+        if (!item) {
+            await get().load();
+            item = find();
+            if (!item) throw new Error("营销资料已删除，请重新选择");
+        }
+        if (!force && get().details[id]) return item;
+        const token = useUserStore.getState().token;
+        if (!token || !item.ownerUserId) {
+            if (!token) await get().load();
+            const local = find();
+            if (!local) throw new Error("营销资料已删除，请重新选择");
+            if (!get().details[id]) set({ details: { ...get().details, [id]: true } });
+            return local;
+        }
+        const fetched = await fetchMarketingWorkspace(token, id);
+        if (owner !== currentAccountId()) throw new Error("账号已切换");
+        const workspaces = [fetched, ...get().workspaces.filter((entry) => entry.id !== id)];
+        const details = { ...get().details, [id]: true };
+        await persist(workspaces, details);
+        set({ workspaces, details });
+        return fetched;
     },
     save: async (input) => {
         const owner = currentAccountId();
@@ -84,8 +126,9 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         }
         if (owner !== currentAccountId()) throw new Error("账号已切换，请重新打开营销资料");
         const workspaces = [saved, ...get().workspaces.filter((item) => item.id !== saved.id)];
-        await persist(workspaces);
-        set({ workspaces });
+        const details = { ...get().details, [saved.id]: true };
+        await persist(workspaces, details);
+        set({ workspaces, details });
         return saved;
     },
     remove: async (id) => {
@@ -96,30 +139,12 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         if (token && item.ownerUserId) await deleteMarketingWorkspace(token, id, item.revision);
         if (owner !== currentAccountId()) return;
         const workspaces = get().workspaces.filter((entry) => entry.id !== id);
-        await persist(workspaces);
-        set({ workspaces });
+        const details = { ...get().details };
+        delete details[id];
+        await persist(workspaces, details);
+        set({ workspaces, details });
     },
-    getFresh: async (id) => {
-        const token = useUserStore.getState().token;
-        if (!token) {
-            await get().load();
-            const item = get().workspaces.find((entry) => entry.id === id);
-            if (!item) throw new Error("营销资料已删除，请重新选择");
-            return item;
-        }
-        const owner = currentAccountId();
-        const item = await fetchMarketingWorkspace(token, id).catch((error) => {
-            // 登录后未能接管的游客资料仍可在本机继续策划，删改时再按云存储要求处理。
-            const local = get().workspaces.find((entry) => entry.id === id && !entry.ownerUserId);
-            if (local) return local;
-            throw error;
-        });
-        if (owner !== currentAccountId()) throw new Error("账号已切换");
-        const workspaces = [item, ...get().workspaces.filter((entry) => entry.id !== id)];
-        await persist(workspaces);
-        set({ workspaces });
-        return item;
-    },
+    getFresh: async (id) => get().ensureDetail(id, true),
 }));
 
 export async function assertMarketingAssetCanBeRemoved(id: string) {
@@ -129,4 +154,3 @@ export async function assertMarketingAssetCanBeRemoved(id: string) {
     const token = useUserStore.getState().token;
     if (token && (await fetchMarketingAssetReferences(token)).includes(id)) throw new Error("素材仍被营销资料引用，请先解除引用");
 }
-

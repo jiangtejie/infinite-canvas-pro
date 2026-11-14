@@ -4,10 +4,11 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
 import { nanoid } from "nanoid";
-import { accountStorageKey, readAccountStorage, readOtherAccountStates } from "@/lib/account-storage";
+import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/image-storage";
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
+import { collectStorageReferences, collectStorageReferenceKeys } from "@/services/storage-references";
 import { fetchUserAssetData, syncUserAssetData } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
 
@@ -43,10 +44,12 @@ type AssetStore = {
     cleanupImages: (extra?: unknown, storageKeys?: ReadonlyMap<string, string>, ownerToken?: string) => void;
 };
 
-const ASSET_STORE_KEY = "infinite-canvas:asset_store";
+export const ASSET_STORE_KEY = "infinite-canvas:asset_store";
 let activeAssetSyncToken = "";
 let accountAssetSyncEnabled = false;
 let isHydratingAccountAssets = false;
+let hydratedAccountToken = "";
+let hydratedAccountAt = 0;
 let syncTimer: number | null = null;
 
 type AssetSnapshot = { assets: Asset[] };
@@ -78,12 +81,6 @@ const assetStorage: PersistStorage<AssetStore> = {
     removeItem: (name) => localForageStorage.removeItem(accountStorageKey(name)),
 };
 
-/** blob 池跨账号共用，清理前要把其他账号分区的画布与素材引用一并算进来，否则会误删别人的图。 */
-async function otherAccountReferences() {
-    const { CANVAS_STORE_KEY } = await import("@/app/(user)/canvas/stores/use-canvas-store");
-    return [...(await readOtherAccountStates(CANVAS_STORE_KEY)), ...(await readOtherAccountStates(ASSET_STORE_KEY))];
-}
-
 export const useAssetStore = create<AssetStore>()(
     persist(
         (set, get) => ({
@@ -107,73 +104,21 @@ export const useAssetStore = create<AssetStore>()(
                     if (deletedAsset && deletedAsset.kind !== "text" && deletedAsset.data.storageKey) {
                         const key = deletedAsset.data.storageKey;
                         window.setTimeout(async () => {
-                            const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
-                            const usedKeys = new Set<string>();
-                            // 收集其余资产的 storageKey
-                            assets.forEach((a) => {
-                                if (a.kind !== "text" && a.data.storageKey) usedKeys.add(a.data.storageKey);
-                            });
-                            // 收集画布中引用的 storageKey
-                            const projects = useCanvasStore.getState().projects;
-                            const { collectImageStorageKeys } = await import("@/services/image-storage");
-                            const { collectMediaStorageKeys } = await import("@/services/file-storage");
-                            collectImageStorageKeys(projects, usedKeys);
-                            collectMediaStorageKeys(projects, usedKeys);
-                            const otherRefs = await otherAccountReferences();
-                            collectImageStorageKeys(otherRefs, usedKeys);
-                            collectMediaStorageKeys(otherRefs, usedKeys);
-
-                            // 收集本地/云端生图历史与视频历史中的 storageKey，避免生成结果卡片失效
                             try {
-                                const localforage = (await import("localforage")).default;
-                                const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-                                await imageLogStore.iterate((log: any) => {
-                                    if (log) {
-                                        if (Array.isArray(log.images)) {
-                                            log.images.forEach((img: any) => {
-                                                if (img && img.storageKey) usedKeys.add(img.storageKey);
-                                            });
-                                        }
-                                        if (Array.isArray(log.references)) {
-                                            log.references.forEach((ref: any) => {
-                                                if (ref && ref.storageKey) usedKeys.add(ref.storageKey);
-                                            });
-                                        }
+                                const usedKeys = collectStorageReferenceKeys(await collectStorageReferences({ assets }));
+                                // 若全站没有其他地方再引用此 storageKey，则执行真正的物理删除
+                                if (!usedKeys.has(key)) {
+                                    if (key.startsWith("image:") || key.startsWith("server:")) {
+                                        const { deleteStoredImages } = await import("@/services/image-storage");
+                                        await deleteStoredImages([key]);
                                     }
-                                });
-                            } catch (e) {
-                                console.error("Error iterating image_generation_logs", e);
-                            }
-
-                            try {
-                                const localforage = (await import("localforage")).default;
-                                const videoLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
-                                await videoLogStore.iterate((log: any) => {
-                                    if (log) {
-                                        if (log.video && log.video.storageKey) {
-                                            usedKeys.add(log.video.storageKey);
-                                        }
-                                        if (Array.isArray(log.references)) {
-                                            log.references.forEach((ref: any) => {
-                                                if (ref && ref.storageKey) usedKeys.add(ref.storageKey);
-                                            });
-                                        }
+                                    if (key.startsWith("file:") || key.startsWith("video:") || key.startsWith("server:")) {
+                                        const { deleteStoredMedia } = await import("@/services/file-storage");
+                                        await deleteStoredMedia([key]);
                                     }
-                                });
-                            } catch (e) {
-                                console.error("Error iterating video_generation_logs", e);
-                            }
-
-                            // 若全站没有其他地方再引用此 storageKey，则执行真正的物理删除
-                            if (!usedKeys.has(key)) {
-                                if (key.startsWith("image:") || key.startsWith("server:")) {
-                                    const { deleteStoredImages } = await import("@/services/image-storage");
-                                    await deleteStoredImages([key]);
                                 }
-                                if (key.startsWith("file:") || key.startsWith("video:") || key.startsWith("server:")) {
-                                    const { deleteStoredMedia } = await import("@/services/file-storage");
-                                    await deleteStoredMedia([key]);
-                                }
+                            } catch (error) {
+                                console.error("Error cleaning up removed asset", error);
                             }
                         }, 0);
                     }
@@ -183,9 +128,11 @@ export const useAssetStore = create<AssetStore>()(
                 }),
             hydrateAccountAssets: async (token, syncEnabled = false) => {
                 if (!token) return;
+                if (!syncEnabled && token === hydratedAccountToken && Date.now() - hydratedAccountAt < 15_000) return;
                 activeAssetSyncToken = token;
                 accountAssetSyncEnabled = syncEnabled;
                 isHydratingAccountAssets = true;
+                let succeeded = false;
                 try {
                     const remote = await fetchUserAssetData<AssetSnapshot>(token);
                     const remoteAssets = await Promise.all(
@@ -206,8 +153,13 @@ export const useAssetStore = create<AssetStore>()(
                             set({ assets: remoteAssets });
                         }
                     }
+                    succeeded = true;
                 } finally {
                     isHydratingAccountAssets = false;
+                    if (succeeded) {
+                        hydratedAccountToken = token;
+                        hydratedAccountAt = Date.now();
+                    }
                 }
             },
             syncAccountAssets: async (token) => {
@@ -239,53 +191,23 @@ export const useAssetStore = create<AssetStore>()(
             },
             cleanupImages: (extra, storageKeys, ownerToken) => {
                 window.setTimeout(async () => {
-                    const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
                     const { loadLocalAgentSkills, useAgentSkillStore } = await import("@/stores/use-agent-skill-store");
-                    const otherAccounts = await otherAccountReferences();
-                    const logKeys: string[] = [];
-                    try {
-                        const localforage = (await import("localforage")).default;
-                        const imageLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "image_generation_logs" });
-                        await imageLogStore.iterate((log: any) => {
-                            if (log) {
-                                if (Array.isArray(log.images)) {
-                                    log.images.forEach((img: any) => {
-                                        if (img && img.storageKey) logKeys.push(img.storageKey);
-                                    });
-                                }
-                                if (Array.isArray(log.references)) {
-                                    log.references.forEach((ref: any) => {
-                                        if (ref && ref.storageKey) logKeys.push(ref.storageKey);
-                                    });
-                                }
-                            }
-                        });
-                        const videoLogStore = localforage.createInstance({ name: "infinite-canvas", storeName: "video_generation_logs" });
-                        await videoLogStore.iterate((log: any) => {
-                            if (log) {
-                                if (log.video && log.video.storageKey) {
-                                    logKeys.push(log.video.storageKey);
-                                }
-                                if (Array.isArray(log.references)) {
-                                    log.references.forEach((ref: any) => {
-                                        if (ref && ref.storageKey) logKeys.push(ref.storageKey);
-                                    });
-                                }
-                            }
-                        });
-                    } catch (e) {
-                        console.error("Error gathering log keys in cleanupImages", e);
-                    }
-
+                    let skills: unknown;
                     try {
                         await useAgentSkillStore.getState().loadSkills();
                         const skillStore = useAgentSkillStore.getState();
                         const localSkills = useUserStore.getState().token ? await loadLocalAgentSkills() : [];
-                        await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, skills: [...skillStore.systemSkills, ...skillStore.userSkills, ...localSkills], extra, logKeys, otherAccounts }, storageKeys, ownerToken);
+                        skills = [...skillStore.systemSkills, ...skillStore.userSkills, ...localSkills];
                     } catch (error) {
                         console.error("Error gathering Skill keys in cleanupImages", error);
                     }
-                    await cleanupUnusedMedia({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, logKeys, otherAccounts });
+                    try {
+                        const used = await collectStorageReferences({ assets: get().assets, skills, extra });
+                        await cleanupUnusedImages(used, storageKeys, ownerToken);
+                        await cleanupUnusedMedia(used);
+                    } catch (error) {
+                        console.error("Error cleaning up unused media", error);
+                    }
                 }, 0);
             },
         }),

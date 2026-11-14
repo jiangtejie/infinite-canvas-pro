@@ -1,10 +1,10 @@
 import { currentAccountId } from "@/lib/account-storage";
-import { buildMarketingSnapshot, marketingSnapshotKey, type MarketingSelection } from "@/lib/marketing";
+import { buildMarketingSnapshot, marketingAssetIds, marketingSnapshotKey, type MarketingSelection } from "@/lib/marketing";
 import { fetchSystemAgentSkillPackage, fetchUserAgentSkills, type AgentSkill } from "@/services/api/agent-skills";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import { imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
-import { useAssetStore } from "@/stores/use-asset-store";
+import { useAssetStore, type Asset } from "@/stores/use-asset-store";
 import { useMarketingStore } from "@/stores/use-marketing-store";
 import type { AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -51,7 +51,8 @@ export async function currentMarketingSnapshot(selection: MarketingSelection) {
     });
     const token = useUserStore.getState().token;
     if (token) await store.getState().hydrateAccountAssets(token, false);
-    const images = await Promise.all(store.getState().assets.filter((asset) => asset.kind === "image").map(async (asset) => ({ ...asset, data: { ...asset.data, dataUrl: await resolveImageUrl(asset.data.storageKey, asset.data.dataUrl) } })));
+    const referenced = new Set(marketingAssetIds(workspace));
+    const images = await Promise.all(store.getState().assets.filter((asset): asset is Extract<Asset, { kind: "image" }> => asset.kind === "image" && referenced.has(asset.id)).map(async (asset) => ({ ...asset, data: { ...asset.data, dataUrl: await resolveImageUrl(asset.data.storageKey, asset.data.dataUrl) } })));
     if (owner !== currentAccountId()) throw new Error("账号已切换，请重新选择营销资料");
     return buildMarketingSnapshot(workspace, selection, images);
 }
