@@ -1657,10 +1657,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     // 组级策划与整组生成由 plan_source_remix / generate_remix_images 完成，页面不再承载复刻步骤。
     const handleRemixWithAgent = useCallback((sourceId: string) => {
         const result = handleExpandSource(sourceId);
-        if (!result.ok && result.reason) {
-            message.warning(result.reason);
+        if (!result.ok) {
+            if (result.needsSync) message.warning(`素材同步被阻止：${result.blockedNodeIds?.join("、") || "有旧素材节点"} 已连接到其他画布内容，请先处理这些连接。`);
+            else if (result.reason) message.warning(result.reason);
             return;
         }
+        closeOverlay();
         setAssistantMounted(true);
         setAgentPanel((current) => ({ ...current, open: true }));
         setInitialAgentRequest({
@@ -1668,7 +1670,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             references: [],
             skills: [],
         });
-    }, [handleExpandSource, message]);
+    }, [closeOverlay, handleExpandSource, message]);
 
     const batchTargetCount = useMemo(() => collectBatchTargetNodeIds(nodes, selectedNodeIds).length, [nodes, selectedNodeIds]);
 
@@ -1922,17 +1924,22 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             },
             handleExpandSource: (nodeId) => {
                 const result = handleExpandSource(nodeId);
-                if (!result.ok && result.reason) message.warning(result.reason);
+                if (!result.ok) {
+                    if (result.needsSync) message.warning(`素材更新被阻止，请先处理节点：${result.blockedNodeIds?.join("、") || "未知节点"}`);
+                    else if (result.reason) message.warning(result.reason);
+                }
+                return result;
             },
             handleRemixWithAgent,
             handleResetSource: (nodeId) => {
                 const result = handleResetSource(nodeId);
-                if (!result.ok && result.reason) {
-                    message.warning(result.reason);
-                    return;
+                if (!result.ok) {
+                    if (result.reason) message.warning(result.reason);
+                    return result;
                 }
                 if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
                 else message.success(`已清理 ${result.removed || 0} 个素材节点`);
+                return result;
             },
             projectLoaded, exitNodeReferenceSelection,
         },

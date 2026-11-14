@@ -28,7 +28,9 @@ import { createCanvasNode } from "../lib/canvas-node-factory";
 import { buildAgentMediaPlan } from "../lib/canvas-agent-media";
 import { AGENT_PRIMARY_SCRIPT_NODE_SIZE, planArrangeNodes, planCreateConnection, planCreateTextNode, planUpdateNodeTitle, planUpdateTextNode } from "../lib/canvas-agent-write-tools";
 import { applySourceRemixPlan, collectRemixImageNodeIds, collectSourceMaterialNodes, parseSourceRemixPlan, planSourceRemix, sourceRemixImagesReady } from "../lib/canvas-source-remix";
+import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
 import type { CanvasBatchRunResult } from "./use-canvas-batch-generation";
+import type { CanvasSourceActionResult } from "./use-canvas-source";
 import type { CanvasGenerateNodeOptions } from "./use-canvas-generation";
 import { errorMessage } from "@/lib/utils";
 
@@ -49,7 +51,7 @@ type UseCanvasAgentExecutorOptions = {
     handleGenerateNode: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string, options?: CanvasGenerateNodeOptions) => Promise<void>;
     startBatch: (nodeIds: Iterable<string>, options?: { label?: string; overwrite?: boolean }) => Promise<CanvasBatchRunResult>;
     createSourcePublishNode: (sourceId: string) => string | null;
-    handleExpandSource: (sourceId: string) => { ok: boolean; reason?: string; removed?: number };
+    handleExpandSource: (sourceId: string) => CanvasSourceActionResult;
     selectMany: (ids: Iterable<string>) => void;
     setSelectedConnectionId: (id: string | null) => void;
     deleteNodes: (ids: Set<string>) => void;
@@ -426,7 +428,7 @@ export function useCanvasAgentExecutor({
                     if (!source) return missingNodeResult(sourceId);
                     if (source.type !== CanvasNodeType.Source) return { ok: false, code: "not_source_node", message: "节点 " + sourceId + " 不是素材源" };
                     const result = handleExpandSource(sourceId);
-                    if (!result.ok) return { ok: false, code: "source_not_expandable", message: result.reason };
+                    if (!result.ok) return { ok: false, code: "source_not_expandable", message: result.needsSync ? `素材更新被阻止，请先处理：${result.blockedNodeIds?.join("、") || "关联节点"}` : result.reason };
                     await new Promise<void>((resolve) => setTimeout(resolve, 0));
                     const material = collectSourceMaterialNodes(nodesRef.current, sourceId);
                     return { ok: true, sourceNodeId: sourceId, materialTextNodeId: material.materialText?.id, materialImageNodeIds: material.materialImages.map((node) => node.id), removedNodeCount: result.removed || 0 };
@@ -437,8 +439,8 @@ export function useCanvasAgentExecutor({
                     const source = getNode(sourceId);
                     if (!source) return missingNodeResult(sourceId);
                     if (source.type !== CanvasNodeType.Source) return { ok: false, code: "not_source_node", message: "节点 " + sourceId + " 不是素材源" };
-                    if (!collectSourceMaterialNodes(nodesRef.current, sourceId).materialImages.length) {
-                        return { ok: false, code: "material_not_expanded", message: "素材源还没有展开出原图节点，请先调用 expand_source" };
+                    if (!collectSourceMaterialNodes(nodesRef.current, sourceId).materialImages.length || sourceExpansionNeedsSync(source, nodesRef.current)) {
+                        return { ok: false, code: "material_not_expanded", message: "素材源尚未展开或展开内容已过期，请先调用 expand_source 更新素材" };
                     }
                     const scaffold = planSourceRemix({ source, nodes: nodesRef.current, connections: connectionsRef.current, copy: stringValue("copy"), instruction: stringValue("instruction") });
                     commitNodes(scaffold.nodes);
@@ -458,7 +460,7 @@ export function useCanvasAgentExecutor({
                         return { ok: false, code: "remix_plan_invalid", message: "策划输出不是完整的整组 JSON，请重新调用 plan_source_remix", ...scaffoldResult };
                     }
                     // 文本生成会把节点标题改写成提示词前缀，策划节点要保留可读标题。
-                    commitNodes(applySourceRemixPlan(nodesRef.current, scaffold.imageNodeIds, plan).map((node) => (node.id === scaffold.planNodeId ? { ...node, title: "复刻策划" } : node)));
+                    commitNodes(applySourceRemixPlan(nodesRef.current, scaffold.imageNodeIds, plan).map((node) => (node.id === scaffold.planNodeId ? { ...node, title: "复刻策划", metadata: { ...node.metadata, remixSourceSignature: scaffold.sourceSignature } } : node)));
                     return { ok: true, ...scaffoldResult, shared: plan.shared, images: plan.images };
                 }
 

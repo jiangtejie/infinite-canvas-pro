@@ -5,10 +5,10 @@ import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type Set
 import { parseContentSource } from "@/services/api/content";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
-import { buildSourceMaterialPlan, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
+import { planSourceMaterialSync, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
 import { errorMessage } from "@/lib/utils";
 
-export type CanvasSourceActionResult = { ok: boolean; reason?: string; removed?: number; blocked?: number };
+export type CanvasSourceActionResult = { ok: boolean; reason?: string; removed?: number; blocked?: number; blockedNodeIds?: string[]; needsSync?: boolean; updated?: boolean };
 
 type UseCanvasSourceOptions = {
     nodesRef: RefObject<CanvasNodeData[]>;
@@ -154,26 +154,11 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
             return { ok: false, reason: "还没有可展开的素材，请先解析或手动填入文字" };
         }
 
-        const plan = buildSourceMaterialPlan(source);
-        const planNodeIds = new Set(plan.nodes.map((node) => node.id));
-        const materialPrefix = `${nodeId}-material-`;
-        const prune = pruneSourceDerivedNodes(source, nodesRef.current, connectionsRef.current,
-            (node) => node.id.startsWith(materialPrefix) && !planNodeIds.has(node.id));
-        const planNodeById = new Map(plan.nodes.map((node) => [node.id, node]));
-        const existingIds = new Set(prune.nodes.map((node) => node.id));
-        const nextNodes = prune.nodes
-            .map((node) => {
-                const planned = planNodeById.get(node.id);
-                if (!planned || !node.id.startsWith(materialPrefix)) return node;
-                return { ...node, width: planned.width, height: planned.height, metadata: { ...node.metadata, ...planned.metadata } };
-            })
-            .concat(plan.nodes.filter((node) => !existingIds.has(node.id)))
-            .map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...plan.sourcePatch } } : node);
-        const existingPairs = new Set(prune.connections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
-        const nextConnections = prune.connections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));
-        setNodes(nextNodes);
-        setConnections(nextConnections);
-        return { ok: true, removed: prune.removedNodeIds.length };
+        const result = planSourceMaterialSync(source, nodesRef.current, connectionsRef.current);
+        if (!result.ok) return { ok: false, needsSync: true, blocked: result.blockedNodeIds.length, blockedNodeIds: result.blockedNodeIds };
+        setNodes(result.nodes);
+        setConnections(result.connections);
+        return { ok: true, removed: result.removedNodeIds.length, needsSync: result.needsSync, updated: result.needsSync };
     }, [connectionsRef, nodesRef, setConnections, setNodes]);
 
     /** 重置素材：删除当前素材源派生出来的素材/复刻节点；已连接到画布其他节点的保留。 */
@@ -182,7 +167,15 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
         if (!source) return { ok: false, reason: "素材源节点已不存在" };
         const plan = pruneSourceDerivedNodes(source, nodesRef.current, connectionsRef.current, () => true);
         const remaining = plan.nodes.some((node) => node.id.startsWith(`${nodeId}-material-`) || node.id.startsWith(`${nodeId}-remix-`));
-        setNodes(plan.nodes.map((node) => node.id === nodeId ? { ...node, metadata: { ...node.metadata, sourceExpanded: remaining } } : node));
+        setNodes(plan.nodes.map((node) => node.id === nodeId ? {
+            ...node,
+            metadata: {
+                ...node.metadata,
+                sourceExpanded: remaining,
+                sourceExpandedSignature: remaining ? node.metadata?.sourceExpandedSignature : undefined,
+                sourceExpandedNodeSignatures: remaining ? node.metadata?.sourceExpandedNodeSignatures : undefined,
+            },
+        } : node));
         setConnections(plan.connections);
         return { ok: true, removed: plan.removedNodeIds.length, blocked: plan.blockedNodeIds.length };
     }, [connectionsRef, nodesRef, setConnections, setNodes]);

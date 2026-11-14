@@ -6,6 +6,8 @@ import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { getInputSummary } from "../lib/canvas-node-builders";
 import { isConnectionFlowing, isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
+import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
+import { sourceRemixNeedsSync } from "../lib/canvas-source-remix";
 import type { CanvasPublishInputs } from "../lib/canvas-publish";
 import { ActiveConnectionPath, ConnectionPath } from "../../components/canvas-connections";
 import { CanvasConfigComposer } from "../../components/canvas-config-composer";
@@ -28,6 +30,7 @@ import type { ViewportTransform, SelectionBox } from "../../types";
 import type { CanvasAlignmentGuides } from "../../utils/canvas-alignment";
 import type { CanvasResourceReference } from "../../utils/canvas-resource-references";
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
+import type { CanvasSourceActionResult } from "../hooks/use-canvas-source";
 import type { CanvasOverlay } from "../canvas-client-page";
 import { useConfigStore } from "@/stores/use-config-store";
 
@@ -114,9 +117,9 @@ export type CanvasStageModel = {
     createNode: (type: CanvasNodeType, position?: Position, textContent?: string, nodeId?: string) => void;
     handleParseSource: (nodeId: string, input: string) => Promise<void>;
     handleCancelSourceParse: (nodeId: string) => void;
-    handleExpandSource: (nodeId: string) => void;
+    handleExpandSource: (nodeId: string) => CanvasSourceActionResult;
     handleRemixWithAgent: (nodeId: string) => void;
-    handleResetSource: (nodeId: string) => void;
+    handleResetSource: (nodeId: string) => CanvasSourceActionResult;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -334,9 +337,11 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         parseEnabled={sourceParseEnabled}
                                         onParse={(input) => void handleParseSource(panelNode.id, input)}
                                         onCancel={() => handleCancelSourceParse(panelNode.id)}
-                                        onExpand={() => handleExpandSource(panelNode.id)}
-                                        onRemixWithAgent={() => handleRemixWithAgent(panelNode.id)}
+                                        expandedNeedsSync={sourceExpansionNeedsSync(panelNode, nodes)}
+                                        remixStale={sourceRemixNeedsSync(panelNode, nodes)}
+                                        onToggleExpanded={() => handleExpandSource(panelNode.id)}
                                         onReset={() => handleResetSource(panelNode.id)}
+                                        onRemixWithAgent={() => handleRemixWithAgent(panelNode.id)}
                                         onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
                                         onClose={() => closeOverlay()}
                                     />
@@ -368,7 +373,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 contentNode.type === CanvasNodeType.Director ? (
                                     <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
                                 ) : contentNode.type === CanvasNodeType.Source ? (
-                                    <CanvasSourceNodeCard node={contentNode} onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })} />
+                                    <CanvasSourceNodeCard node={contentNode} expandedNeedsSync={sourceExpansionNeedsSync(contentNode, nodes)} />
                                 ) : contentNode.type === CanvasNodeType.Publish ? (
                                     <CanvasPublishNodeCard
                                         node={contentNode}

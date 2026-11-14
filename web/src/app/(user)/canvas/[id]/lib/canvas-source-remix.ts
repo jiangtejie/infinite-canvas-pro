@@ -1,7 +1,7 @@
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
-import { pruneSourceDerivedNodes } from "./canvas-source-plan";
+import { pruneSourceDerivedNodes, sourceMaterialSignature } from "./canvas-source-plan";
 
 /**
  * 素材源复刻的唯一语义归属：节点 ID 约定、定位、策划提示词、策划解析、
@@ -63,6 +63,7 @@ export type SourceRemixScaffold = {
     planNodeId: string;
     imageNodeIds: string[];
     planPrompt: string;
+    sourceSignature: string;
 };
 
 function connection(fromNodeId: string, toNodeId: string): CanvasConnection {
@@ -137,6 +138,7 @@ export function planSourceRemix({ source, nodes: currentNodes, connections: curr
     const connections: CanvasConnection[] = [];
     const materialRight = [materialText, ...materialImages].reduce((right, node) => Math.max(right, node ? node.position.x + node.width : 0), source.position.x + source.width);
     const originX = materialRight + REMIX_GAP;
+    const sourceSignature = sourceMaterialSignature(source);
     const planPrompt = instruction?.trim() ? `${SOURCE_REMIX_PLAN_PROMPT}\n\n本次修改要求：${instruction.trim()}` : SOURCE_REMIX_PLAN_PROMPT;
 
     const copyNodeId = `${source.id}${REMIX_TEXT_SUFFIX}`;
@@ -161,7 +163,7 @@ export function planSourceRemix({ source, nodes: currentNodes, connections: curr
         position: { x: planX, y: source.position.y },
         width: REMIX_TEXT_SIZE.width,
         height: REMIX_TEXT_SIZE.height,
-        metadata: { prompt: planPrompt, status: "idle" },
+        metadata: { prompt: planPrompt, status: "idle", remixSourceSignature: undefined },
     });
     connections.push(connection(copyNodeId, planNodeId));
     for (const materialImage of materialImages) connections.push(connection(materialImage.id, planNodeId));
@@ -215,7 +217,7 @@ export function planSourceRemix({ source, nodes: currentNodes, connections: curr
             const planned = plannedById.get(node.id);
             if (!planned) return node;
             if (node.id === copyNodeId) return { ...node, metadata: { ...node.metadata, content: copy, status: "success", errorDetails: undefined } };
-            if (node.id === planNodeId) return { ...node, title: planned.title, metadata: { ...node.metadata, prompt: planPrompt, content: "", status: "idle", errorDetails: undefined } };
+            if (node.id === planNodeId) return { ...node, title: planned.title, metadata: { ...node.metadata, prompt: planPrompt, content: "", status: "idle", errorDetails: undefined, remixSourceSignature: undefined } };
             return {
                 ...node,
                 title: planned.title,
@@ -235,7 +237,7 @@ export function planSourceRemix({ source, nodes: currentNodes, connections: curr
         .concat(nodes.filter((node) => !existingIds.has(node.id)));
     const existingPairs = new Set(prune.connections.map((item) => `${item.fromNodeId}->${item.toNodeId}`));
     const nextConnections = prune.connections.concat(connections.filter((item) => !existingPairs.has(`${item.fromNodeId}->${item.toNodeId}`)));
-    return { nodes: nextNodes, connections: nextConnections, copyNodeId, planNodeId, imageNodeIds, planPrompt };
+    return { nodes: nextNodes, connections: nextConnections, copyNodeId, planNodeId, imageNodeIds, planPrompt, sourceSignature };
 }
 
 function fitRemixImageSize(width?: number, height?: number) {
@@ -275,8 +277,17 @@ export function applySourceRemixPlan(nodes: CanvasNodeData[], imageIds: string[]
 }
 
 /** 配图生成门禁：策划必须已产出正文，且每张配图都已拿到自包含提示词。 */
+export function sourceRemixNeedsSync(source: CanvasNodeData, nodes: CanvasNodeData[]) {
+    const planNode = findSourceRemixPlanNode(nodes, source.id);
+    return planNode?.metadata?.status === "success"
+        && Boolean(planNode.metadata.content)
+        && planNode.metadata.remixSourceSignature !== sourceMaterialSignature(source);
+}
+
 export function sourceRemixImagesReady(nodes: CanvasNodeData[], sourceId: string) {
-    if (!hasSourceRemixText(findSourceRemixPlanNode(nodes, sourceId))) return false;
+    const source = nodes.find((node) => node.id === sourceId && node.type === CanvasNodeType.Source);
+    const planNode = findSourceRemixPlanNode(nodes, sourceId);
+    if (!source || planNode?.metadata?.status !== "success" || !hasSourceRemixText(planNode) || planNode.metadata?.remixSourceSignature !== sourceMaterialSignature(source)) return false;
     const imageIds = collectRemixImageNodeIds(nodes, sourceId);
     if (!imageIds.length) return false;
     const byId = new Map(nodes.map((node) => [node.id, node]));

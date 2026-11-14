@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
-import { buildSourceMaterialPlan } from "./canvas-source-plan";
+import { buildSourceMaterialPlan, sourceMaterialSignature } from "./canvas-source-plan";
 import { collectBatchGenerationTargets } from "./canvas-batch";
 import {
     applySourceRemixPlan,
@@ -66,6 +66,7 @@ test("scaffold fans out one remix image per material image and wires the group p
     assert.deepEqual(plan.copyNodeId, "source-1-remix-text");
     assert.deepEqual(plan.planNodeId, "source-1-remix-plan");
     assert.deepEqual(plan.imageNodeIds, ["source-1-remix-image-0", "source-1-remix-image-1"]);
+    assert.equal(plan.sourceSignature, sourceMaterialSignature(canvas.source));
     assert.equal(plan.nodes.length, 8);
 
     const copyNode = findSourceRemixTextNode(plan.nodes, "source-1");
@@ -170,10 +171,13 @@ test("image generation is gated on a finished group plan and complete prompts", 
     assert.equal(sourceRemixImagesReady(plan.nodes, "source-2"), false);
 
     const groupPlan = { shared: "整组共同设定", images: ["第1张差异", "第2张差异"] };
+    const planSignature = sourceMaterialSignature(plan.nodes.find((item) => item.id === "source-1")!);
     const planned = applySourceRemixPlan(plan.nodes, plan.imageNodeIds, groupPlan).map((item) => item.id === plan.planNodeId
-        ? { ...item, metadata: { ...item.metadata, content: JSON.stringify(groupPlan), status: "success" as const } }
+        ? { ...item, metadata: { ...item.metadata, content: JSON.stringify(groupPlan), status: "success" as const, remixSourceSignature: planSignature } }
         : item);
     assert.equal(sourceRemixImagesReady(planned, "source-1"), true);
+    const updatedSource = { ...planned.find((item) => item.id === "source-1")!, metadata: { ...planned.find((item) => item.id === "source-1")!.metadata, sourceText: "更新后的素材" } };
+    assert.equal(sourceRemixImagesReady(planned.map((item) => item.id === "source-1" ? updatedSource : item), "source-1"), false);
 
     const partial = planned.map((item) => item.id === plan.imageNodeIds[1] ? { ...item, metadata: { ...item.metadata, prompt: "" } } : item);
     assert.equal(sourceRemixImagesReady(partial, "source-1"), false);
@@ -228,8 +232,9 @@ test("a slot manually expanded into a batch root stays in the remix group", () =
         metadata: { content: "https://example.com/primary.png", prompt: "整组设定\n\n第1张", remixIndex: 1, isBatchRoot: true, batchChildIds: ["child-a", "child-b"] },
     });
     const sibling = node("source-1-remix-image-1", CanvasNodeType.Image, { metadata: { content: "https://example.com/r2.png", prompt: "整组设定\n\n第2张", remixIndex: 2 } });
-    const planNode = node("source-1-remix-plan", CanvasNodeType.Text, { metadata: { content: "{\"shared\":\"设定\",\"images\":[\"a\",\"b\"]}" } });
-    const nodes = [sourceNode(), expanded, sibling, planNode];
+    const source = sourceNode();
+    const planNode = node("source-1-remix-plan", CanvasNodeType.Text, { metadata: { content: "{\"shared\":\"设定\",\"images\":[\"a\",\"b\"]}", status: "success", remixSourceSignature: sourceMaterialSignature(source) } });
+    const nodes = [source, expanded, sibling, planNode];
     assert.deepEqual(collectRemixImageNodeIds(nodes, "source-1"), ["source-1-remix-image-0", "source-1-remix-image-1"]);
     assert.deepEqual(collectPublishableRemixImages(nodes, "source-1").map((item) => item.id), ["source-1-remix-image-0", "source-1-remix-image-1"]);
     assert.equal(sourceRemixImagesReady(nodes, "source-1"), true);

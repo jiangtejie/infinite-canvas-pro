@@ -9,9 +9,9 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasNodeData } from "../types";
 
 /**
- * 素材源节点卡片：展示解析状态与结果摘要，双击/点击打开面板由外层处理。
+ * 素材源节点卡片：展示解析状态与结果摘要，双击节点打开解析面板。
  */
-export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; onOpen: () => void }) {
+export function CanvasSourceNodeCard({ node, expandedNeedsSync }: { node: CanvasNodeData; expandedNeedsSync: boolean }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const [previewIndex, setPreviewIndex] = useState(0);
@@ -29,8 +29,6 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
     const previewKey = previewUrls.join("|");
     const safePreviewIndex = previewUrls.length ? Math.min(previewIndex, previewUrls.length - 1) : 0;
     const previewUrl = previewUrls[safePreviewIndex] || "";
-    const actionStyle = { background: theme.toolbar.itemHover, borderColor: theme.node.stroke, color: theme.node.text };
-
     useEffect(() => {
         setPreviewIndex(0);
     }, [node.id, previewKey]);
@@ -54,9 +52,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                 <CircleAlert className="size-8" style={{ color: token.colorError }} />
                 <span className="text-sm font-medium" style={{ color: token.colorError }}>解析失败</span>
                 <span className="line-clamp-3 max-w-[320px] text-xs leading-5" style={{ color: theme.node.muted }}>{node.metadata?.sourceError || "请检查链接后重试"}</span>
-                <button type="button" className="mt-1 rounded-lg border px-3 py-1.5 text-xs transition" style={actionStyle} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
-                    重新解析
-                </button>
+                <span className="text-[11px]" style={{ color: theme.node.placeholder }}>双击节点重新解析</span>
             </div>
         );
     }
@@ -68,10 +64,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                     <Link2 className="size-6" />
                 </div>
                 <p className="m-0 text-base font-medium" style={{ color: theme.node.text }}>粘贴抖音链接解析图文素材</p>
-                <p className="m-0 max-w-[320px] text-xs leading-5" style={{ color: theme.node.placeholder }}>点击节点打开面板，解析后可展开素材 / 交给 Agent 复刻</p>
-                <button type="button" className="rounded-lg border px-3 py-1.5 text-xs transition" style={actionStyle} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
-                    打开解析面板
-                </button>
+                <p className="m-0 max-w-[320px] text-xs leading-5" style={{ color: theme.node.placeholder }}>双击节点打开解析面板</p>
             </div>
         );
     }
@@ -101,6 +94,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                             <CircleAlert className="size-4" style={{ color: token.colorWarning }} />
                         </Tooltip>
                     ) : null}
+                    {expandedNeedsSync ? <Tooltip title="素材有更新，双击节点打开面板并同步展开内容"><CircleAlert className="size-4" style={{ color: token.colorWarning }} /></Tooltip> : null}
                     {parsing ? <LoaderCircle className="size-4 animate-spin" style={{ color: theme.node.activeStroke }} /> : null}
                 </div>
             </div>
@@ -129,7 +123,7 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                     {previewFailed ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-4 text-center">
                             <CircleAlert className="size-5" style={{ color: token.colorError }} />
-                            <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>图片加载失败，打开面板重新解析</span>
+                            <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>图片加载失败，双击节点重新解析</span>
                         </div>
                     ) : (
                         <img src={previewUrl} alt={title || "素材图片"} draggable={false} className="relative size-full object-contain" onError={() => setPreviewFailed(true)} />
@@ -181,13 +175,9 @@ export function CanvasSourceNodeCard({ node, onOpen }: { node: CanvasNodeData; o
                 </div>
             )}
 
-            <div className="mt-auto flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-[11px]" style={{ color: theme.node.muted }}>
-                    {previewUrls.length ? `共 ${previewUrls.length} 张` : text ? "纯文字素材" : "解析后可展开素材 / 交给 Agent 复刻"}
-                </span>
-                <button type="button" className="shrink-0 rounded-lg border px-3 py-1.5 text-xs transition" style={actionStyle} onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onOpen(); }}>
-                    打开素材面板
-                </button>
+            <div className="mt-auto flex min-w-0 items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
+                <span className="truncate">{previewUrls.length ? `共 ${previewUrls.length} 张` : text ? "纯文字素材" : ""}</span>
+                <span className="shrink-0" style={{ color: theme.node.placeholder }}>双击查看 · 编辑</span>
             </div>
         </div>
     );
