@@ -26,6 +26,15 @@ func AgentSkillFile(w http.ResponseWriter, r *http.Request, id string) {
 	OK(w, item)
 }
 
+func AgentSkillPackage(w http.ResponseWriter, r *http.Request, id string) {
+	item, err := service.ReadEnabledSystemAgentSkillPackage(id)
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, item)
+}
+
 func UserAgentSkills(w http.ResponseWriter, r *http.Request) {
 	items, err := service.ListCurrentUserAgentSkills(r.Context())
 	if err != nil {

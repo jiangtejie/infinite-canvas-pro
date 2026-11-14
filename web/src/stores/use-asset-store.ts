@@ -34,10 +34,11 @@ type AssetBase<T extends AssetKind> = {
 type AssetStore = {
     assets: Asset[];
     addAsset: (asset: Omit<Asset, "id" | "createdAt" | "updatedAt">) => string;
-    updateAsset: (id: string, patch: Partial<Omit<Asset, "id" | "createdAt">>) => void;
+    updateAsset: (id: string, patch: Partial<Omit<Asset, "id" | "createdAt">>) => Promise<void>;
     removeAsset: (id: string) => void;
     hydrateAccountAssets: (token: string, syncEnabled?: boolean) => Promise<void>;
     syncAccountAssets: (token: string) => Promise<void>;
+    syncMarketingAssets: (token: string, assetIds: string[]) => Promise<void>;
     stopAccountAssetSync: () => void;
     cleanupImages: (extra?: unknown, storageKeys?: ReadonlyMap<string, string>, ownerToken?: string) => void;
 };
@@ -94,12 +95,10 @@ export const useAssetStore = create<AssetStore>()(
                 scheduleAssetSync(get);
                 return id;
             },
-            updateAsset: (id, patch) =>
-                set((state) => {
-                    const assets = state.assets.map((asset) => (asset.id === id ? ({ ...asset, ...patch, updatedAt: new Date().toISOString() } as Asset) : asset));
-                    window.setTimeout(() => scheduleAssetSync(get), 0);
-                    return { assets };
-                }),
+            updateAsset: async (id, patch) => {
+                set((state) => ({ assets: state.assets.map((asset) => (asset.id === id ? ({ ...asset, ...patch, updatedAt: new Date().toISOString() } as Asset) : asset)) }));
+                scheduleAssetSync(get);
+            },
             removeAsset: (id) =>
                 set((state) => {
                     const deletedAsset = state.assets.find((asset) => asset.id === id);
@@ -213,6 +212,24 @@ export const useAssetStore = create<AssetStore>()(
             },
             syncAccountAssets: async (token) => {
                 if (!token || !accountAssetSyncEnabled) return;
+                await syncUserAssetData(token, { assets: get().assets });
+            },
+            syncMarketingAssets: async (token, assetIds) => {
+                if (!token) throw new Error("营销资料图片跨设备复用需要先登录");
+                const ids = new Set(assetIds);
+                const currentAssets = get().assets;
+                const targetAssets = currentAssets.filter((asset) => ids.has(asset.id) && asset.kind === "image");
+                if (targetAssets.length !== ids.size) throw new Error("营销资料引用的图片已不在当前账号的我的素材中");
+                const unresolved = targetAssets.filter((asset) => asset.kind === "image" && !asset.data.storageKey?.startsWith("server:"));
+                if (unresolved.length) {
+                    for (const asset of unresolved) {
+                        const image = asset as Extract<Asset, { kind: "image" }>;
+                        const result = await uploadImage(image.data.dataUrl);
+                        if (!result.storageKey.startsWith("server:")) throw new Error("营销图片没有保存到账号云存储，请检查存储权限后重试");
+                        await get().updateAsset(image.id, { data: { ...image.data, ...result }, coverUrl: result.url });
+                    }
+                }
+                if (get().assets.some((asset) => ids.has(asset.id) && asset.kind === "image" && !asset.data.storageKey?.startsWith("server:"))) throw new Error("营销图片同步未完成");
                 await syncUserAssetData(token, { assets: get().assets });
             },
             stopAccountAssetSync: () => {

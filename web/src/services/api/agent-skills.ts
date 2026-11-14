@@ -36,6 +36,10 @@ export function fetchSystemAgentSkillFile(id: string, path: string) {
     return apiGet<AgentSkillFile>(`/api/agent-skills/${encodeURIComponent(id)}/file`, { path });
 }
 
+export function fetchSystemAgentSkillPackage(id: string) {
+    return apiGet<AgentSkill>(`/api/agent-skills/${encodeURIComponent(id)}/package`);
+}
+
 export function fetchUserAgentSkills(token: string) {
     return apiGet<AgentSkill[]>("/api/v1/agent-skills", undefined, token);
 }

@@ -301,8 +301,7 @@ function reportStorageSyncFailure(error: unknown) {
     window.dispatchEvent(new CustomEvent(STORAGE_SYNC_FAILED_EVENT, { detail: errorMessage(error, "") }));
 }
 
-export function canUseGlobalStorage(config: StorageConfig) {
-    const user = useUserStore.getState().user;
+export function canUseGlobalStorage(config: StorageConfig) {    const user = useUserStore.getState().user;
     return config.mode === "server_sqlite_s3" && Boolean(user && user.role !== "guest" && (user.role === "admin" || config.allowUserGlobalProvider));
 }
 

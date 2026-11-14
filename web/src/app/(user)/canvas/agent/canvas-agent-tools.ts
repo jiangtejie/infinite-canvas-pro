@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { CanvasAgentPhase } from "../types";
+import type { CanvasAgentPhase, CanvasAgentSkillSelection } from "../types";
 import { errorMessage } from "@/lib/utils";
 
 export const CANVAS_AGENT_ACTION_NAMES = [
@@ -41,6 +41,8 @@ export type CanvasAgentAction = {
     name: CanvasAgentActionName;
     arguments: Record<string, unknown>;
 };
+
+export type CanvasAgentExecutionContext = { skills?: CanvasAgentSkillSelection[]; signal?: AbortSignal };
 
 export type CanvasAgentToolResult = {
     ok: boolean;
@@ -189,15 +191,15 @@ export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     ),
     defineTool(
         "plan_source_remix",
-        "素材源复刻的必经组级策划：一次读入新文案与该素材源的全部原图，产出整组共同设定与逐张配图提示词，并建好复刻文案/策划/配图节点与连线。copy 由你按原素材的结构与传播逻辑原创重写，不要照抄原句。必须先用 expand_source 得到真实素材图节点；修改整组时传 instruction 重新策划，不要逐张单独写提示词。",
-        { sourceNodeId: STRING, copy: STRING, instruction: STRING },
-        ["sourceNodeId", "copy"],
+        "为素材源创建独立复刻版本。工具打开本次设置，由用户明确选择内容/营销模式、门店、商品、植入方式和 Skill；一次读取原文与整组原图，同时产出原创文案与逐张配图策划。instruction 只补充本轮要求，不要自行编写成品文案或逐张绕过策划。返回 runId 后以该编号生成。取消后停止，不重复催促。",
+        { sourceNodeId: STRING, instruction: STRING },
+        ["sourceNodeId"],
     ),
     defineTool(
         "generate_remix_images",
-        "按已完成的组级策划整组提交复刻配图生成，并在成功后创建或复用发布节点。策划未完成或配图提示词未写齐时会被拒绝；不要用 generate_image 逐张绕过策划。",
-        { sourceNodeId: STRING },
-        ["sourceNodeId"],
+        "按指定 runId 审阅整组策划后提交复刻配图，成功后创建或复用本轮发布节点。资料、Skill、原图或提示词变化时会拒绝。关闭自动生成时只保留策划，提示用户从策划面板手动生成；不要另用 generate_image 绕过。",
+        { runId: STRING },
+        ["runId"],
     ),
 ];
 
@@ -346,12 +348,11 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "plan_source_remix":
             normalized = {
                 sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId"),
-                copy: requiredString(input.copy, "copy"),
                 ...(optionalString(input.instruction) ? { instruction: optionalString(input.instruction) } : {}),
             };
             break;
         case "generate_remix_images":
-            normalized = { sourceNodeId: requiredString(input.sourceNodeId, "sourceNodeId") };
+            normalized = { runId: requiredString(input.runId, "runId") };
             break;
     }
 

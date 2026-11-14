@@ -17,10 +17,11 @@ import { WORKFLOW_SKILL } from "./skills/workflow";
 
 export function buildCanvasAgentSkillPrompt(phase: CanvasAgentPhase, userText: string, context: CanvasAgentContext, activeSkillContents?: string, contextCheckpoint?: string, skillFileToolAvailable = false) {
     const skills = [CORE_SKILL];
+    const intent = buildIntentText(userText, context);
+    if (context.nodes.some((node) => context.selectedNodeIds.includes(node.id) && (node.type === "source" || node.remixRunId)) || /复刻|仿写|仿照|同款图文|重制这条|二次创作|二创/.test(intent)) skills.push(SOURCE_REMIX_SKILL);
 
     if (!activeSkillContents) {
         skills.push(WORKFLOW_SKILL);
-        const intent = buildIntentText(userText, context);
         const selectedTypes = new Set<string>(context.nodes.filter((node) => context.selectedNodeIds.includes(node.id)).map((node) => node.type));
 
         const oneOffMedia =
@@ -62,7 +63,6 @@ export function buildCanvasAgentSkillPrompt(phase: CanvasAgentPhase, userText: s
             selectedTypes.has("audio") ||
             /独立音频|音色|配音|声音样本|角色声音|角色音色|对白音频|旁白|最终对白|最终旁白|朗读|语音/.test(intent);
         const wantsOrganize = phase === "references" || phase === "review" || phase === "complete" || /分组|整理|布局|归类|排列|收纳|画布太乱|自动整理/.test(intent);
-        const wantsSourceRemix = selectedTypes.has("source") || /复刻|仿写|仿照|同款图文|重制这条|二次创作|二创/.test(intent);
 
         if (wantsScript) skills.push(SCRIPT_SKILL);
         if (wantsImage) skills.push(IMAGE_SKILL);
@@ -76,7 +76,6 @@ export function buildCanvasAgentSkillPrompt(phase: CanvasAgentPhase, userText: s
             if (!wantsExtension && !wantsVideoEdit && !wantsMultiShot) skills.push(VIDEO_SINGLE_SHOT_SKILL);
         }
         if (wantsAudio) skills.push(AUDIO_SKILL);
-        if (wantsSourceRemix) skills.push(SOURCE_REMIX_SKILL);
         if (wantsOrganize) skills.push(ORGANIZE_SKILL);
     }
 

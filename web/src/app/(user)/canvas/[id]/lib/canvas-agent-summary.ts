@@ -34,6 +34,9 @@ export function canvasAgentNodeSummary(node: CanvasNodeData) {
         progress: node.metadata?.progress,
         error: isSource ? node.metadata?.sourceError : isPublish ? node.metadata?.publishError : node.metadata?.errorDetails,
         groupId: node.metadata?.groupId,
+        remixRunId: node.metadata?.remixRunId,
+        remixRole: node.metadata?.remixRole,
+        remixTarget: node.metadata?.remixRun?.input.marketing?.location.name,
     };
 }
 

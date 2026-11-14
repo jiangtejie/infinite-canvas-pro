@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { Clapperboard, FileText, GitBranch, ImagePlus, Images, Library, Maximize2, PenLine, Sparkles, Video } from "lucide-react";
+import { Building2, Clapperboard, FileText, GitBranch, ImagePlus, Images, Library, Maximize2, PenLine, Sparkles, Video } from "lucide-react";
 
-export type NavigationToolSlug = "canvas" | "image" | "video" | "workflows" | "prompts" | "film" | "script" | "assets" | "asset-library";
+export type NavigationToolSlug = "canvas" | "image" | "video" | "workflows" | "prompts" | "film" | "script" | "assets" | "asset-library" | "marketing";
 
 export type NavigationTool = {
     slug: NavigationToolSlug;
@@ -31,6 +31,7 @@ export const navigationSections: NavigationSection[] = [
         icon: Images,
         children: [
             { slug: "assets", label: "我的素材", icon: Images },
+            { slug: "marketing", label: "营销资料", icon: Building2 },
             { slug: "asset-library", label: "公共素材库", icon: Library },
             { slug: "prompts", label: "提示词库", icon: FileText },
         ],

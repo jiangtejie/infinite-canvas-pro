@@ -28,6 +28,7 @@ type RequestCanvasAgentTurnInput = {
     messages: CanvasAgentProtocolMessage[];
     tools: CanvasAgentToolDefinition[];
     toolMode: CanvasAgentToolMode;
+    requireImageInput?: boolean;
     signal?: AbortSignal;
 };
 
@@ -130,7 +131,7 @@ export async function requestCanvasAgentTurn(input: RequestCanvasAgentTurnInput)
         } catch (error) {
             requestError = error;
             if (isCanvasAgentContextLimitError(error)) throw error;
-            if (hasImageContent(messages) && isImageCompatibilityError(error)) {
+            if (hasImageContent(messages) && isImageCompatibilityError(error) && !input.requireImageInput) {
                 messages = stripImageContent(messages);
                 continue;
             }

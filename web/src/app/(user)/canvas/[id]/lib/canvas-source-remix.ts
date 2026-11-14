@@ -1,295 +1,200 @@
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
-import { pruneSourceDerivedNodes, sourceMaterialSignature } from "./canvas-source-plan";
+import type { RemixInput, RemixRun, SourceRemixPlan } from "../../remix-types";
+import { REMIX_CORE_VERSION } from "../../remix-policy";
+import { sourceMaterialSignature } from "./canvas-source-plan";
 
-/**
- * 素材源复刻的唯一语义归属：节点 ID 约定、定位、策划提示词、策划解析、
- * 复刻文案/策划/配图建图与比例选尺寸、配图生成门禁。
- * 素材展开建图与派生节点清理在 canvas-source-plan，本模块单向依赖它，不反向被它依赖。
- */
-
-const REMIX_IMAGE_SUFFIX = "-remix-image-";
-const REMIX_TEXT_SUFFIX = "-remix-text";
-const REMIX_PLAN_SUFFIX = "-remix-plan";
-const MATERIAL_IMAGE_SUFFIX = "-material-image-";
-const MATERIAL_TEXT_SUFFIX = "-material-text";
-
-const REMIX_GAP = 96;
-const REMIX_TEXT_SIZE = NODE_DEFAULT_SIZE[CanvasNodeType.Text];
-const REMIX_IMAGE_CELL = { width: 320, height: 400 };
-const REMIX_IMAGE_MAX_WIDTH = 320;
-const REMIX_IMAGE_MAX_HEIGHT = 400;
-const REMIX_IMAGE_COLUMNS = 2;
-const REMIX_IMAGE_GAP = 20;
-const REMIX_IMAGE_COLUMN_STAGGER = 18;
-
-/** 常见图片比例对应的标准生成尺寸，按比例最接近的匹配，避免模型收到不支持的自定义尺寸。 */
-const REMIX_GENERATION_SIZES = [
-    { size: "1024x1024", ratio: 1 },
-    { size: "1536x1024", ratio: 3 / 2 },
-    { size: "1024x1536", ratio: 2 / 3 },
-    { size: "1024x768", ratio: 4 / 3 },
-    { size: "768x1024", ratio: 3 / 4 },
-    { size: "1024x1280", ratio: 4 / 5 },
-    { size: "1280x1024", ratio: 5 / 4 },
-    { size: "1920x1080", ratio: 16 / 9 },
-    { size: "1080x1920", ratio: 9 / 16 },
-    { size: "1568x672", ratio: 21 / 9 },
-];
-
-export const SOURCE_REMIX_PLAN_PROMPT = `你要为一组图文做复刻策划。上游是新文案；如果附有图片，那是这组图的原始配图，按原图顺序排列，第 1 张对应 images[0]。先把整组图当成一个整体读懂，再逐张产出新配图提示词。
-
-第一步，判断整组图的关系：同一界面的连续截图、步骤递进、前后对比、并列清单还是总分结构。据此定下叙事顺序和每张图的职责（钩子 / 展开 / 结果）。
-
-第二步，提取必须跨图完全一致的视觉锚点：界面或场景类型、同一主体的外观（头像、昵称、名称、配色、字体、圆角、状态栏、气泡或卡片样式）、版式网格、文字区位置、色调与光线。这些是整组图的身份，任何一张改了整组就散。
-
-第三步，逐张提取并重写图内文字。图内文字是这类图的信息主体：标题、对话气泡、步骤编号、标注、按钮文案都要重写，服务于新文案，并且跨图连贯——同一段对话的多次截图必须接得上，步骤编号必须连续，不能各写各的。文字要短、字号大、位置明确，不要长段落，生图模型渲染不好密集中文。
-
-只输出 JSON，不要解释，不要 markdown 代码块：
-{"shared":"整组共同设定，150字以内，写清视觉锚点与统一风格","images":["第1张提示词","第2张提示词"]}
-
-images 条数必须与原图张数完全一致。每条只写本张的差异：承担的职责、画面内容、图内文字的确切内容与位置，不要重复 shared 已有的设定。参考图只用于版式与风格，画面内容按新文案替换，不要照抄原图文字。`;
-
-export type SourceRemixPlan = {
-    shared: string;
-    images: string[];
-};
-
-export type SourceRemixScaffold = {
-    nodes: CanvasNodeData[];
-    connections: CanvasConnection[];
-    copyNodeId: string;
-    planNodeId: string;
-    imageNodeIds: string[];
-    planPrompt: string;
-    sourceSignature: string;
-};
-
-function connection(fromNodeId: string, toNodeId: string): CanvasConnection {
-    return { id: `${fromNodeId}->${toNodeId}`, fromNodeId, toNodeId };
-}
-
-/** 素材展开后的真实节点：复刻骨架按它们的实际右边界排布，不重算素材布局常量。 */
 export function collectSourceMaterialNodes(nodes: CanvasNodeData[], sourceId: string) {
-    const materialImages = nodes
-        .filter((node) => node.id.startsWith(`${sourceId}${MATERIAL_IMAGE_SUFFIX}`) && isCanvasImageNodeType(node.type))
-        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-    const materialText = nodes.find((node) => node.id === `${sourceId}${MATERIAL_TEXT_SUFFIX}` && node.type === CanvasNodeType.Text);
-    return { materialText, materialImages };
-}
-
-export function findSourceRemixTextNode(nodes: CanvasNodeData[], sourceId: string) {
-    if (!sourceId) return undefined;
-    const id = `${sourceId}${REMIX_TEXT_SUFFIX}`;
-    return nodes.find((node) => node.id === id && node.type === CanvasNodeType.Text);
+    return {
+        materialText: nodes.find((node) => node.id === `${sourceId}-material-text` && node.type === CanvasNodeType.Text),
+        materialImages: nodes.filter((node) => node.id.startsWith(`${sourceId}-material-image-`) && node.type === CanvasNodeType.Image).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })),
+    };
 }
 
 export function findSourceRemixPlanNode(nodes: CanvasNodeData[], sourceId: string) {
-    if (!sourceId) return undefined;
-    const id = `${sourceId}${REMIX_PLAN_SUFFIX}`;
-    return nodes.find((node) => node.id === id && node.type === CanvasNodeType.Text);
+    return nodes.findLast((node) => node.metadata?.remixRole === "plan" && node.metadata.remixSourceId === sourceId);
 }
-
-/**
- * 复刻配图节点：优先按 `${sourceId}-remix-image-` 前缀识别（含批量组根节点）；
- * 复制/粘贴后 ID 变化时退回 metadata.remixIndex 识别，顺序按 remixIndex 升序。
- * 组内归属只看 ID/remixIndex，不看 isBatchRoot：用户手动把某张按多结果原地生成后
- * 它仍是本组的一个槽位，发布与门禁都不能少算它；能否入批量队列由 canvas-batch 另行判定。
- */
-export function collectRemixImageNodeIds(nodes: CanvasNodeData[], sourceId: string): string[] {
-    if (!sourceId) return [];
-    const prefixed = nodes.filter((node) => isCanvasImageNodeType(node.type) && node.id.startsWith(`${sourceId}${REMIX_IMAGE_SUFFIX}`));
-    const candidates = prefixed.length
-        ? prefixed
-        : nodes.filter((node) => isCanvasImageNodeType(node.type) && node.metadata?.remixSourceId === sourceId && typeof node.metadata?.remixIndex === "number");
-    return candidates
-        .map((node, index) => ({ node, index }))
-        .sort((a, b) => (a.node.metadata?.remixIndex ?? Number.MAX_SAFE_INTEGER) - (b.node.metadata?.remixIndex ?? Number.MAX_SAFE_INTEGER) || a.index - b.index)
-        .map(({ node }) => node.id);
+export function findRemixRunNode(nodes: CanvasNodeData[], runId: string) {
+    return nodes.find((node) => node.metadata?.remixRun?.id === runId && node.metadata.remixRole === "plan");
 }
-
-/** 已成功生成内容的复刻配图，用于发布节点选图。 */
-export function collectPublishableRemixImages(nodes: CanvasNodeData[], sourceId: string) {
-    const byId = new Map(nodes.map((node) => [node.id, node]));
-    return collectRemixImageNodeIds(nodes, sourceId)
-        .map((nodeId) => byId.get(nodeId))
-        .filter((node): node is CanvasNodeData => Boolean(node && (node.metadata?.content || "").trim()));
+export function findSourceRemixTextNode(nodes: CanvasNodeData[], runId: string) {
+    return nodes.find((node) => node.metadata?.remixRunId === runId && node.metadata.remixRole === "copy");
 }
-
-/** 文案是否已生成内容；策划与配图都以它为前置条件。 */
+export function collectRemixImageNodeIds(nodes: CanvasNodeData[], runId: string) {
+    return nodes.filter((node) => node.type === CanvasNodeType.Image && node.metadata?.remixRunId === runId && node.metadata.remixRole === "image")
+        .sort((a, b) => (a.metadata?.remixIndex || 0) - (b.metadata?.remixIndex || 0)).map((node) => node.id);
+}
+export function collectPublishableRemixImages(nodes: CanvasNodeData[], runId: string) {
+    const ids = new Set(collectRemixImageNodeIds(nodes, runId));
+    return nodes.filter((node) => ids.has(node.id) && node.metadata?.status === "success" && Boolean(node.metadata.content?.trim()))
+        .sort((a, b) => (a.metadata?.remixIndex || 0) - (b.metadata?.remixIndex || 0));
+}
 export function hasSourceRemixText(node: CanvasNodeData | undefined) {
-    return Boolean(node && (node.metadata?.content || "").trim());
+    return Boolean(node?.metadata?.content?.trim());
 }
-
-/**
- * 建复刻骨架并并入画布：复刻文案（正文由 Agent 直接写入）→ 策划（读新文案 + 全部原图）→ 一张原图对应一张配图。
- * 同 ID 节点复用，配图保留已生成内容；策划正文与配图提示词清空，必须等本次策划写回后才允许生成。
- */
-export function planSourceRemix({ source, nodes: currentNodes, connections: currentConnections, copy, instruction }: {
-    source: CanvasNodeData;
-    nodes: CanvasNodeData[];
-    connections: CanvasConnection[];
-    copy: string;
-    instruction?: string;
-}): SourceRemixScaffold {
-    const { materialText, materialImages } = collectSourceMaterialNodes(currentNodes, source.id);
-    const nodes: CanvasNodeData[] = [];
-    const connections: CanvasConnection[] = [];
-    const materialRight = [materialText, ...materialImages].reduce((right, node) => Math.max(right, node ? node.position.x + node.width : 0), source.position.x + source.width);
-    const originX = materialRight + REMIX_GAP;
-    const sourceSignature = sourceMaterialSignature(source);
-    const planPrompt = instruction?.trim() ? `${SOURCE_REMIX_PLAN_PROMPT}\n\n本次修改要求：${instruction.trim()}` : SOURCE_REMIX_PLAN_PROMPT;
-
-    const copyNodeId = `${source.id}${REMIX_TEXT_SUFFIX}`;
-    nodes.push({
-        id: copyNodeId,
-        type: CanvasNodeType.Text,
-        title: "复刻文案",
-        position: { x: originX, y: source.position.y },
-        width: REMIX_TEXT_SIZE.width,
-        height: REMIX_TEXT_SIZE.height,
-        metadata: { content: copy, status: "success", fontSize: 14 },
+export function remixCopyText(plan: SourceRemixPlan) {
+    return [plan.copy.title, plan.copy.body, plan.copy.tags.map((tag) => `#${tag}`).join(" ")].join("\n\n");
+}
+export function remixImagePromptFromPlan(plan: SourceRemixPlan, index: number, input: RemixInput) {
+    const image = plan.visual.images[index];
+    const offset = input.sourceImages.length ? 2 : 1;
+    const references = image.referenceAssetIds.map((id, i) => {
+        const asset = input.marketing?.assets.find((item) => item.assetId === id)!;
+        return `图片${i + offset}：${asset.title}（${asset.role}），保持真实外观与品牌身份`;
     });
-    // 复刻文案只引用原文：多数文本模型不读图，连图会直接报错；读整组图交给策划节点。
-    if (materialText) connections.push(connection(materialText.id, copyNodeId));
-
-    const planNodeId = `${source.id}${REMIX_PLAN_SUFFIX}`;
-    const planX = originX + REMIX_TEXT_SIZE.width + REMIX_GAP;
-    nodes.push({
-        id: planNodeId,
-        type: CanvasNodeType.Text,
-        title: "复刻策划",
-        position: { x: planX, y: source.position.y },
-        width: REMIX_TEXT_SIZE.width,
-        height: REMIX_TEXT_SIZE.height,
-        metadata: { prompt: planPrompt, status: "idle", remixSourceSignature: undefined },
-    });
-    connections.push(connection(copyNodeId, planNodeId));
-    for (const materialImage of materialImages) connections.push(connection(materialImage.id, planNodeId));
-
-    // 一张原图对应一张复刻图：不要把多张原图全塞给一个图片节点当参考，
-    // 否则生成结果和原图顺序对不上，也无法逐张替换/发布。
-    const imageCount = materialImages.length || 1;
-    const imagesX = planX + REMIX_TEXT_SIZE.width + REMIX_GAP;
-    const imageNodeIds: string[] = [];
-    for (let index = 0; index < imageCount; index++) {
-        const imageNodeId = `${source.id}${REMIX_IMAGE_SUFFIX}${index}`;
-        const column = index % REMIX_IMAGE_COLUMNS;
-        const row = Math.floor(index / REMIX_IMAGE_COLUMNS);
-        const materialImage = materialImages[index];
-        const width = materialImage?.metadata?.naturalWidth;
-        const height = materialImage?.metadata?.naturalHeight;
-        const nodeSize = fitRemixImageSize(width, height);
-        const generationSize = chooseRemixGenerationSize(width, height);
-        nodes.push({
-            id: imageNodeId,
-            type: CanvasNodeType.Image,
-            title: imageCount > 1 ? `复刻配图 ${index + 1}` : "复刻配图",
-            position: {
-                x: imagesX + column * (REMIX_IMAGE_CELL.width + REMIX_IMAGE_GAP),
-                y: source.position.y + row * (REMIX_IMAGE_CELL.height + REMIX_IMAGE_GAP) + (column > 0 ? REMIX_IMAGE_COLUMN_STAGGER : 0),
-            },
-            width: nodeSize.width,
-            height: nodeSize.height,
-            metadata: {
-                prompt: "",
-                status: "idle",
-                remixIndex: index + 1,
-                remixSourceId: source.id,
-                ...(generationSize ? { size: generationSize } : {}),
-                naturalWidth: width,
-                naturalHeight: height,
-            },
-        });
-        // 复刻文案是抖音正文，不作为配图提示词；配图只参考对应原图。
-        if (materialImage) connections.push(connection(materialImage.id, imageNodeId));
-        imageNodeIds.push(imageNodeId);
-    }
-
-    const scaffoldIds = new Set(nodes.map((node) => node.id));
-    const prune = pruneSourceDerivedNodes(source, currentNodes, currentConnections,
-        (node) => node.id.startsWith(`${source.id}${REMIX_IMAGE_SUFFIX}`) && !scaffoldIds.has(node.id));
-    const plannedById = new Map(nodes.map((node) => [node.id, node]));
-    const existingIds = new Set(prune.nodes.map((node) => node.id));
-    const nextNodes = prune.nodes
-        .map((node): CanvasNodeData => {
-            const planned = plannedById.get(node.id);
-            if (!planned) return node;
-            if (node.id === copyNodeId) return { ...node, metadata: { ...node.metadata, content: copy, status: "success", errorDetails: undefined } };
-            if (node.id === planNodeId) return { ...node, title: planned.title, metadata: { ...node.metadata, prompt: planPrompt, content: "", status: "idle", errorDetails: undefined, remixSourceSignature: undefined } };
-            return {
-                ...node,
-                title: planned.title,
-                width: planned.width,
-                height: planned.height,
-                metadata: {
-                    ...node.metadata,
-                    prompt: "",
-                    size: node.metadata?.size || planned.metadata?.size,
-                    naturalWidth: planned.metadata?.naturalWidth,
-                    naturalHeight: planned.metadata?.naturalHeight,
-                    remixIndex: planned.metadata?.remixIndex,
-                    remixSourceId: planned.metadata?.remixSourceId,
-                },
-            };
-        })
-        .concat(nodes.filter((node) => !existingIds.has(node.id)));
-    const existingPairs = new Set(prune.connections.map((item) => `${item.fromNodeId}->${item.toNodeId}`));
-    const nextConnections = prune.connections.concat(connections.filter((item) => !existingPairs.has(`${item.fromNodeId}->${item.toNodeId}`)));
-    return { nodes: nextNodes, connections: nextConnections, copyNodeId, planNodeId, imageNodeIds, planPrompt, sourceSignature };
+    return [plan.visual.sharedAnchors.join("\n"), image.prompt, input.sourceImages.length ? "图片1仅参考原图的版式与结构，主体和文字以本策划为准。" : "", ...references].filter(Boolean).join("\n\n");
+}
+export function formatRemixPlan(plan: SourceRemixPlan) {
+    return [`结构：${plan.sourcePattern.type}`, `保留：${plan.sourcePattern.preserve.join("；")}`, `植入：${plan.marketingPlacement.reason}`, `引导：${plan.marketingPlacement.cta || "无"}`, "", ...plan.visual.images.map((image, index) => `第${index + 1}张 · ${image.role}\n${image.prompt}`)].join("\n\n");
 }
 
-function fitRemixImageSize(width?: number, height?: number) {
-    if (!width || !height || width <= 0 || height <= 0) return { width: REMIX_IMAGE_MAX_WIDTH, height: REMIX_IMAGE_MAX_HEIGHT };
-    const scale = Math.min(1, REMIX_IMAGE_MAX_WIDTH / width, REMIX_IMAGE_MAX_HEIGHT / height);
-    return { width: Math.round(width * scale), height: Math.round(height * scale) };
-}
-
-function chooseRemixGenerationSize(width?: number, height?: number) {
-    if (!width || !height || width <= 0 || height <= 0) return "";
+const SIZES = [["1024x1024", 1], ["1536x1024", 1.5], ["1024x1536", 2 / 3], ["1024x768", 4 / 3], ["768x1024", 3 / 4], ["1024x1280", 4 / 5], ["1280x1024", 5 / 4], ["1920x1080", 16 / 9], ["1080x1920", 9 / 16]] as const;
+function imageSize(width = 1024, height = 768) {
+    const scale = Math.min(1, 320 / width, 400 / height);
     const ratio = width / height;
-    return REMIX_GENERATION_SIZES.reduce((best, current) => Math.abs(current.ratio - ratio) < Math.abs(best.ratio - ratio) ? current : best).size;
+    return { width: Math.round(width * scale), height: Math.round(height * scale), size: SIZES.reduce((best, current) => Math.abs(current[1] - ratio) < Math.abs(best[1] - ratio) ? current : best)[0] };
 }
 
-/** 策划节点输出的是模型生成的 JSON：整组共同设定 + 按原图顺序的逐张提示词。 */
-export async function parseSourceRemixPlan(text: string, count: number): Promise<SourceRemixPlan> {
+export function planSourceRemix({ source, nodes, connections, run }: { source: CanvasNodeData; nodes: CanvasNodeData[]; connections: CanvasConnection[]; run: RemixRun }) {
+    const material = collectSourceMaterialNodes(nodes, source.id);
+    const materialRight = [source, material.materialText, ...material.materialImages].reduce((right, node) => Math.max(right, node ? node.position.x + node.width : 0), 0);
+    const previous = nodes.filter((node) => node.metadata?.remixSourceId === source.id);
+    const top = previous.length ? Math.max(...previous.map((node) => node.position.y + node.height)) + 100 : source.position.y;
+    const prefix = `${source.id}-remix-${run.id}`;
+    const planNodeId = `${prefix}-plan`;
+    const copyNodeId = `${prefix}-copy`;
+    const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Text];
+    const base = { remixSourceId: source.id, remixRunId: run.id };
+    const additions: CanvasNodeData[] = [
+        { id: planNodeId, type: CanvasNodeType.Text, ...spec, title: "复刻策划", position: { x: materialRight + 96, y: top }, metadata: { ...base, remixRole: "plan", remixRun: run, content: "正在准备组级策划", status: "idle", fontSize: 14 } },
+        { id: copyNodeId, type: CanvasNodeType.Text, ...spec, title: "复刻文案", position: { x: materialRight + spec.width + 192, y: top }, metadata: { ...base, remixRole: "copy", content: "", status: "idle", fontSize: 14 } },
+    ];
+    const edge = (fromNodeId: string, toNodeId: string): CanvasConnection => ({ id: `${fromNodeId}->${toNodeId}`, fromNodeId, toNodeId });
+    const newConnections = [edge(source.id, planNodeId)];
+    const imageNodeIds: string[] = [];
+    for (let index = 0; index < Math.max(1, run.input.sourceImages.length); index++) {
+        const original = run.input.sourceImages[index];
+        const size = imageSize(original?.width, original?.height);
+        const id = `${prefix}-image-${index}`;
+        imageNodeIds.push(id);
+        additions.push({ id, type: CanvasNodeType.Image, title: `复刻配图 ${index + 1}`, position: { x: materialRight + spec.width * 2 + 288 + index % 2 * 340, y: top + Math.floor(index / 2) * 440 }, width: size.width, height: size.height, metadata: { ...base, remixRole: "image", remixIndex: index + 1, prompt: "", size: size.size, count: 1, status: "idle" } });
+    }
+    for (const [index, asset] of (run.input.marketing?.assets || []).entries()) {
+        const serverObject = asset.storageKey.startsWith("server:") && !asset.storageKey.startsWith("server:webdav:");
+        additions.push({ id: `${prefix}-reference-${index}`, type: CanvasNodeType.Image, title: asset.title, position: { x: materialRight + 96 + index % 2 * 240, y: top + spec.height + 80 + Math.floor(index / 2) * 220 }, width: 220, height: asset.width && asset.height ? Math.min(200, 220 * asset.height / asset.width) : 180, metadata: { ...base, remixRole: "reference", marketingAssetId: asset.assetId, content: serverObject ? `/api/files/${encodeURIComponent(asset.storageKey.slice("server:".length))}/content` : "", storageKey: asset.storageKey, naturalWidth: asset.width, naturalHeight: asset.height, mimeType: asset.mimeType, status: "success" } });
+    }
+    return { nodes: [...nodes, ...additions], connections: [...connections, ...newConnections], planNodeId, copyNodeId, imageNodeIds };
+}
+
+export function applySourceRemixPlan(nodes: CanvasNodeData[], connections: CanvasConnection[], runId: string, plan: SourceRemixPlan) {
+    const planNode = findRemixRunNode(nodes, runId);
+    const run = planNode?.metadata?.remixRun;
+    if (!run) throw new Error("复刻运行记录已不存在");
+    const imageIds = collectRemixImageNodeIds(nodes, runId);
+    const affectedIds = new Set(imageIds);
+    const nextConnections = connections.filter((edge) => !affectedIds.has(edge.toNodeId));
+    plan.visual.images.forEach((image, index) => {
+        const referenceIds = [image.sourceImageId, ...image.referenceAssetIds.map((id) => nodes.find((node) => node.metadata?.remixRunId === runId && node.metadata.marketingAssetId === id && node.metadata.remixRole === "reference")?.id || "")].filter(Boolean);
+        referenceIds.forEach((fromNodeId) => nextConnections.push({ id: `${fromNodeId}->${imageIds[index]}`, fromNodeId, toNodeId: imageIds[index] }));
+    });
+    return {
+        nodes: nodes.map((node): CanvasNodeData => {
+            if (node.metadata?.remixRunId !== runId) return node;
+            if (node.metadata.remixRole === "plan") return { ...node, metadata: { ...node.metadata, content: formatRemixPlan(plan), status: "success", remixRun: { ...run, plan, approvedKey: undefined, error: undefined } } };
+            if (node.metadata.remixRole === "copy") return { ...node, metadata: { ...node.metadata, content: remixCopyText(plan), status: "success" } };
+            const index = imageIds.indexOf(node.id);
+            return index < 0 ? node : { ...node, metadata: { ...node.metadata, prompt: remixImagePromptFromPlan(plan, index, run.input) } };
+        }), connections: nextConnections,
+    };
+}
+
+function record(value: unknown): value is Record<string, unknown> { return Boolean(value && typeof value === "object" && !Array.isArray(value)); }
+function text(value: unknown, name: string, max = 12000): string {
+    if (typeof value !== "string" || !value.trim() || Array.from(value).length > max) throw new Error(`策划 ${name} 缺失或过长`);
+    return value.trim();
+}
+function strings(value: unknown, name: string, empty = false): string[] {
+    if (!Array.isArray(value) || (!empty && !value.length) || value.length > 100) throw new Error(`策划 ${name} 必须为数组`);
+    return value.map((item) => text(item, name, 4000));
+}
+export async function parseSourceRemixPlan(raw: string, input: RemixInput): Promise<SourceRemixPlan> {
     const { jsonrepair } = await import("jsonrepair");
-    const parsed = JSON.parse(jsonrepair(text)) as { shared?: unknown; images?: unknown };
-    const shared = typeof parsed.shared === "string" ? parsed.shared.trim() : "";
-    const images = Array.isArray(parsed.images)
-        ? parsed.images.map((item) => (typeof item === "string" ? item.trim() : ""))
-        : [];
-    if (!shared || images.length !== count || images.some((item) => !item)) throw new Error("策划输出不完整，请重新生成策划");
-    return { shared, images };
+    const value: unknown = JSON.parse(jsonrepair(raw.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "")));
+    return validateSourceRemixPlan(value, input);
+}
+export function validateSourceRemixPlan(value: unknown, input: RemixInput): SourceRemixPlan {
+    if (!record(value) || value.schemaVersion !== 1 || !record(value.copy) || !record(value.sourcePattern) || !record(value.marketingPlacement) || !record(value.visual)) throw new Error("策划输出结构不完整");
+    const title = text(value.copy.title, "标题", 20);
+    const body = text(value.copy.body, "正文", 2000);
+    const tags = strings(value.copy.tags, "话题", true);
+    if (tags.length > 5 || new Set(tags).size !== tags.length || tags.some((tag) => /[#\s]/.test(tag))) throw new Error("策划话题最多 5 个，不能重复或包含 # 与空白");
+    const mode = input.settings.mode === "content" ? "content" : input.settings.placement;
+    if (value.marketingPlacement.mode !== mode || typeof value.marketingPlacement.cta !== "string") throw new Error("策划植入方式与本次设置不一致");
+    const assetIds = new Set(input.marketing?.assets.map((asset) => asset.assetId) || []);
+    if (!Array.isArray(value.visual.images) || value.visual.images.length !== Math.max(1, input.sourceImages.length)) throw new Error("策划配图数量与原图不一致");
+    const images = value.visual.images.map((item, index) => {
+        if (!record(item) || item.sourceImageId !== (input.sourceImages[index]?.nodeId || "")) throw new Error("策划原图顺序或编号不匹配");
+        const refs = strings(item.referenceAssetIds, "图片引用", true);
+        if (new Set(refs).size !== refs.length || refs.some((id) => !assetIds.has(id))) throw new Error("策划引用了未选中的营销图片");
+        return { sourceImageId: item.sourceImageId as string, role: text(item.role, "图片职责", 300), prompt: text(item.prompt, "图片提示词"), referenceAssetIds: refs };
+    });
+    const factIds = new Set(input.marketing?.facts.map((fact) => fact.id) || []);
+    if (!Array.isArray(value.factsUsed)) throw new Error("策划缺少事实使用说明");
+    const usedIds = new Set<string>();
+    const factsUsed = value.factsUsed.map((item) => {
+        if (!record(item) || typeof item.factId !== "string" || !factIds.has(item.factId) || usedIds.has(item.factId)) throw new Error("策划引用了未知或重复的事实");
+        usedIds.add(item.factId);
+        const usedIn = strings(item.usedIn, "事实位置");
+        if (usedIn.some((path) => !["copy.title", "copy.body", "marketingPlacement.cta", ...images.map((_, index) => `images[${index}]`)].includes(path))) throw new Error("策划事实位置无效");
+        return { factId: item.factId, usedIn };
+    });
+    const plan: SourceRemixPlan = { schemaVersion: 1, sourcePattern: { type: text(value.sourcePattern.type, "内容结构", 300), preserve: strings(value.sourcePattern.preserve, "保留特征") }, copy: { title, body, tags }, marketingPlacement: { mode, reason: text(value.marketingPlacement.reason, "植入说明", 2000), cta: value.marketingPlacement.cta.trim() }, factsUsed, visual: { sharedAnchors: strings(value.visual.sharedAnchors, "共同视觉锚点"), images } };
+    const output = [title, body, plan.marketingPlacement.cta, ...images.map((image) => image.prompt)].join("\n");
+    if (input.marketing?.forbidden.some((word) => word.trim() && output.includes(word))) throw new Error("策划包含资料中明确禁止的表述，请重新策划");
+    return plan;
 }
 
-/** 每张配图拿到的是「整组共同设定 + 本张差异」，生图调用彼此独立，提示词必须自包含。 */
-export function remixImagePromptFromPlan(plan: SourceRemixPlan, index: number) {
-    return `${plan.shared}\n\n${plan.images[index]}`;
+export function remixApprovalKey(run: RemixRun) {
+    return JSON.stringify([run.input.sourceSignature, run.input.marketingKey, run.input.skills, run.input.settings, run.input.coreVersion, run.plan]);
 }
 
-export function applySourceRemixPlan(nodes: CanvasNodeData[], imageIds: string[], plan: SourceRemixPlan): CanvasNodeData[] {
-    const promptById = new Map(imageIds.map((id, index) => [id, remixImagePromptFromPlan(plan, index)]));
-    return nodes.map((node) => promptById.has(node.id)
-        ? { ...node, metadata: { ...node.metadata, prompt: promptById.get(node.id) } }
-        : node);
+export function assertRemixRunStructure(nodes: CanvasNodeData[], connections: CanvasConnection[], runId: string): RemixRun {
+    const planNode = findRemixRunNode(nodes, runId);
+    const run = planNode?.metadata?.remixRun;
+    if (!run?.plan || planNode?.metadata?.status !== "success") throw new Error("整组策划未完成，请先完成复刻策划");
+    if (run.binding !== "active") throw new Error("该复刻来自导入或复制，请重新选择营销资料并创建新策划");
+    if (run.input.coreVersion !== REMIX_CORE_VERSION) throw new Error("复刻规则已更新，请重新策划");
+    const source = nodes.find((node) => node.id === run.input.sourceNodeId);
+    if (!source || sourceMaterialSignature(source) !== run.input.sourceSignature) throw new Error("原素材已变化，请重新策划");
+    validateSourceRemixPlan(run.plan, run.input);
+    if (planNode.metadata.content !== formatRemixPlan(run.plan) || findSourceRemixTextNode(nodes, runId)?.metadata?.content !== remixCopyText(run.plan)) throw new Error("复刻文案或策划已编辑，请重新策划后审阅");
+    const images = collectRemixImageNodeIds(nodes, runId).map((id) => nodes.find((node) => node.id === id)!);
+    if (images.length !== run.plan.visual.images.length) throw new Error("复刻配图槽位已变化，请重新策划");
+    for (const [index, node] of images.entries()) {
+        if (node.metadata?.remixIndex !== index + 1 || node.metadata.isBatchRoot || node.metadata.batchRootId || node.metadata.prompt !== remixImagePromptFromPlan(run.plan, index, run.input)) throw new Error("复刻配图提示词或槽位已变化，请重新策划");
+        const image = run.plan.visual.images[index];
+        const expected = [image.sourceImageId, ...image.referenceAssetIds.map((id) => {
+            const asset = run.input.marketing?.assets.find((entry) => entry.assetId === id)!;
+            const reference = nodes.find((entry) => entry.metadata?.remixRunId === runId && entry.metadata.remixRole === "reference" && entry.metadata.marketingAssetId === id);
+            if (!reference || reference.metadata?.storageKey !== asset.storageKey) throw new Error("营销图片引用已变化，请重新策划");
+            return reference.id;
+        })].filter(Boolean);
+        const actual = connections.filter((edge) => edge.toNodeId === node.id).map((edge) => edge.fromNodeId);
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("复刻参考图或连线已变化，请重新策划");
+        const original = run.input.sourceImages[index];
+        if (original) {
+            const live = nodes.find((entry) => entry.id === original.nodeId);
+            if (!live || (original.storageKey ? live.metadata?.storageKey !== original.storageKey : live.metadata?.content !== original.url)) throw new Error("展开的原图已变化，请重新策划");
+        }
+    }
+    return run;
 }
 
-/** 配图生成门禁：策划必须已产出正文，且每张配图都已拿到自包含提示词。 */
 export function sourceRemixNeedsSync(source: CanvasNodeData, nodes: CanvasNodeData[]) {
-    const planNode = findSourceRemixPlanNode(nodes, source.id);
-    return planNode?.metadata?.status === "success"
-        && Boolean(planNode.metadata.content)
-        && planNode.metadata.remixSourceSignature !== sourceMaterialSignature(source);
+    const run = findSourceRemixPlanNode(nodes, source.id)?.metadata?.remixRun;
+    return Boolean(run?.plan && run.input.sourceSignature !== sourceMaterialSignature(source));
 }
 
-export function sourceRemixImagesReady(nodes: CanvasNodeData[], sourceId: string) {
-    const source = nodes.find((node) => node.id === sourceId && node.type === CanvasNodeType.Source);
-    const planNode = findSourceRemixPlanNode(nodes, sourceId);
-    if (!source || planNode?.metadata?.status !== "success" || !hasSourceRemixText(planNode) || planNode.metadata?.remixSourceSignature !== sourceMaterialSignature(source)) return false;
-    const imageIds = collectRemixImageNodeIds(nodes, sourceId);
-    if (!imageIds.length) return false;
-    const byId = new Map(nodes.map((node) => [node.id, node]));
-    return imageIds.every((id) => Boolean((byId.get(id)?.metadata?.prompt || "").trim()));
+export function detachRemixNodes(nodes: CanvasNodeData[]) {
+    return nodes.map((node) => node.metadata?.remixRun ? { ...node, metadata: { ...node.metadata, remixRun: { ...node.metadata.remixRun, binding: "detached" as const, approvedKey: undefined } } } : node);
 }

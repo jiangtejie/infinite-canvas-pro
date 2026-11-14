@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
 import { nanoid } from "nanoid";
+import { detachRemixNodes } from "../[id]/lib/canvas-source-remix";
 import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { deleteImagePreviews } from "@/services/image-storage";
@@ -314,7 +315,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     title: source.title || "导入画布",
                     createdAt: source.createdAt || now,
                     updatedAt: now,
-                    nodes: source.nodes || [],
+                    nodes: detachRemixNodes(source.nodes || []),
                     connections: source.connections || [],
                     chatSessions: source.chatSessions || [],
                     activeChatId: source.activeChatId || null,

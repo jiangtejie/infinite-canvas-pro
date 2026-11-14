@@ -72,6 +72,11 @@ func New() *gin.Engine {
 	v1.GET("/videos/:id/content", func(c *gin.Context) {
 		handler.AIVideoContent(c.Writer, c.Request, c.Param("id"))
 	})
+	v1.GET("/marketing/workspaces", gin.WrapF(handler.MarketingWorkspaces))
+	v1.POST("/marketing/workspaces", gin.WrapF(handler.SaveMarketingWorkspace))
+	v1.GET("/marketing/workspaces/:id", func(c *gin.Context) { handler.MarketingWorkspace(c.Writer, c.Request, c.Param("id")) })
+	v1.DELETE("/marketing/workspaces/:id", func(c *gin.Context) { handler.DeleteMarketingWorkspace(c.Writer, c.Request, c.Param("id")) })
+	v1.GET("/marketing/asset-references", gin.WrapF(handler.MarketingAssetReferences))
 	v1.GET("/workflows", gin.WrapF(handler.UserWorkflows))
 	v1.POST("/workflows", gin.WrapF(handler.SaveUserWorkflow))
 	v1.POST("/workflows/agent-draft", gin.WrapF(handler.DraftUserWorkflow))
@@ -147,6 +152,7 @@ func New() *gin.Engine {
 	api.GET("/proxy-image", gin.WrapF(handler.ProxyImage))
 	api.GET("/prompts", middleware.OptionalAuth, gin.WrapF(handler.Prompts))
 	api.GET("/agent-skills", gin.WrapF(handler.AgentSkills))
+	api.GET("/agent-skills/:id/package", func(c *gin.Context) { handler.AgentSkillPackage(c.Writer, c.Request, c.Param("id")) })
 	api.GET("/agent-skills/:id/file", func(c *gin.Context) {
 		handler.AgentSkillFile(c.Writer, c.Request, c.Param("id"))
 	})

@@ -152,7 +152,10 @@ export type CanvasNodeMetadata = {
     sourceExpanded?: boolean;
     sourceExpandedSignature?: string;
     sourceExpandedNodeSignatures?: Record<string, string>;
-    remixSourceSignature?: string;
+    remixRole?: import("./remix-types").RemixNodeRole;
+    remixRunId?: string;
+    remixRun?: import("./remix-types").RemixRun;
+    marketingAssetId?: string;
     remixIndex?: number;
     remixSourceId?: string;
     publishSourceId?: string;

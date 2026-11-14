@@ -138,8 +138,14 @@ export default function AssetsPage() {
     const deleteAsset = async (asset: Asset) => {
         const confirmed = await confirm({ title: "删除素材", description: `确定删除「${asset.title}」吗？删除后会从我的素材中移除。`, confirmText: "删除", tone: "danger" });
         if (!confirmed) return;
-        removeAsset(asset.id);
-        message.success("素材已删除");
+        try {
+            const { assertMarketingAssetCanBeRemoved } = await import("@/stores/use-marketing-store");
+            await assertMarketingAssetCanBeRemoved(asset.id);
+            removeAsset(asset.id);
+            message.success("素材已删除");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "素材删除失败");
+        }
     };
 
     return (
@@ -158,6 +164,7 @@ export default function AssetsPage() {
                         }
                         actions={
                             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                                <Button href="/marketing">营销资料</Button>
                                 <Button className="max-sm:!h-10" icon={<FileUp className="size-4" />} onClick={() => assetInputRef.current?.click()}>
                                     导入
                                 </Button>

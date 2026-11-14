@@ -48,7 +48,7 @@ test("source expansion sync updates changed content and stores its signatures", 
     const initialSource = sourceNode();
     const initialPlan = buildSourceMaterialPlan(initialSource);
     const expandedSource = { ...initialSource, metadata: { ...initialSource.metadata, ...initialPlan.sourcePatch } };
-    const changedSource = { ...expandedSource, metadata: { ...expandedSource.metadata, sourceText: "更新正文", sourceImages: [{ url: "/api/files/new/content", width: 800, height: 600 }] } };
+    const changedSource = { ...expandedSource, metadata: { ...expandedSource.metadata, sourceText: "更新正文", sourceImages: [{ url: "/api/files/new/content", storageKey: "server:new", width: 800, height: 600 }] } };
     const nodes = [expandedSource, ...initialPlan.nodes.map((node) => node.id === "source-1-material-image-0" ? { ...node, width: 111, height: 222 } : node)];
     assert.equal(sourceExpansionNeedsSync(changedSource, nodes), true);
 
@@ -65,6 +65,8 @@ test("source expansion sync updates changed content and stores its signatures", 
     assert.equal(updatedSource.metadata?.sourceExpandedSignature, sourceMaterialSignature(changedSource));
     assert.equal(updatedSource.metadata?.sourceExpandedNodeSignatures?.[text!.id], sourceMaterialNodeSignature(text!));
     assert.equal(sourceExpansionNeedsSync(updatedSource, result.nodes), false);
+    const syncedImageUrlOnly = { ...updatedSource, metadata: { ...updatedSource.metadata, sourceImages: updatedSource.metadata?.sourceImages?.map((image) => ({ ...image, url: "blob:refreshed-preview" })) } };
+    assert.equal(sourceExpansionNeedsSync(syncedImageUrlOnly, result.nodes), false);
 });
 
 test("source expansion sync stops when changed material is manually edited or externally connected", () => {
@@ -78,9 +80,9 @@ test("source expansion sync stops when changed material is manually edited or ex
     if (!editedResult.ok) assert.deepEqual(editedResult.blockedNodeIds, [editedText.id]);
 
     const external = { id: "external", type: CanvasNodeType.Text, title: "外部", position: { x: 0, y: 0 }, width: 200, height: 100, metadata: {} } satisfies CanvasNodeData;
-    const linkedResult = planSourceMaterialSync(changedSource, [changedSource, ...plan.nodes, external], [...plan.connections, { id: "external-use", fromNodeId: plan.nodes[1]!.id, toNodeId: external.id }]);
+    const linkedResult = planSourceMaterialSync(changedSource, [changedSource, ...plan.nodes, external], [...plan.connections, { id: "external-use", fromNodeId: plan.nodes[0]!.id, toNodeId: external.id }]);
     assert.equal(linkedResult.ok, false);
-    if (!linkedResult.ok) assert.deepEqual(linkedResult.blockedNodeIds, [plan.nodes[1]!.id]);
+    if (!linkedResult.ok) assert.deepEqual(linkedResult.blockedNodeIds, [plan.nodes[0]!.id]);
 });
 
 test("material text joins title, body and hashtags", () => {

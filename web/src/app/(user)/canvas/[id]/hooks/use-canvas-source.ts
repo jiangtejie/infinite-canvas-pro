@@ -156,6 +156,8 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
 
         const result = planSourceMaterialSync(source, nodesRef.current, connectionsRef.current);
         if (!result.ok) return { ok: false, needsSync: true, blocked: result.blockedNodeIds.length, blockedNodeIds: result.blockedNodeIds };
+        nodesRef.current = result.nodes;
+        connectionsRef.current = result.connections;
         setNodes(result.nodes);
         setConnections(result.connections);
         return { ok: true, removed: result.removedNodeIds.length, needsSync: result.needsSync, updated: result.needsSync };

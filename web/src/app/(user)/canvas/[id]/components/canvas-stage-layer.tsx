@@ -17,6 +17,7 @@ import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card
 import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
 import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
+import { CanvasRemixPlanPanel } from "../../components/canvas-remix-plan-panel";
 import { type NodeGenerationInput } from "../../components/canvas-node-generation";
 import { InfiniteCanvas } from "../../components/infinite-canvas";
 import { CanvasNode } from "../../components/canvas-node";
@@ -119,6 +120,7 @@ export type CanvasStageModel = {
     handleCancelSourceParse: (nodeId: string) => void;
     handleExpandSource: (nodeId: string) => CanvasSourceActionResult;
     handleRemixWithAgent: (nodeId: string) => void;
+    generateRemixRun: (runId: string) => Promise<void>;
     handleResetSource: (nodeId: string) => CanvasSourceActionResult;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
@@ -216,6 +218,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         handleCancelSourceParse,
         handleExpandSource,
         handleRemixWithAgent,
+        generateRemixRun,
         handleResetSource,
         assetInsertPositionRef,
         setAssetPickerTab,
@@ -313,7 +316,9 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             mentionReferences={mentionReferencesByNodeId.get(node.id) || []}
                             now={node.metadata?.status === NODE_STATUS_LOADING && !node.metadata.content && (node.type === CanvasNodeType.Video || isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Audio) ? canvasNow : undefined}
                             renderPanel={(panelNode) =>
-                                panelNode.type === CanvasNodeType.Config ? (
+                                panelNode.metadata?.remixRole === "plan" && panelNode.metadata.remixRun ? (
+                                    <CanvasRemixPlanPanel node={panelNode} nodes={nodes} onGenerate={(id) => void generateRemixRun(id)} onReplan={handleRemixWithAgent} onClose={closeOverlay} />
+                                ) : panelNode.type === CanvasNodeType.Config ? (
                                     <CanvasConfigComposer
                                         value={panelNode.metadata?.composerContent ?? panelNode.metadata?.prompt ?? ""}
                                         inputs={configInputsById.get(panelNode.id) || []}

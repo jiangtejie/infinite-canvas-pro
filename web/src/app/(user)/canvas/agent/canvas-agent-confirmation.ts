@@ -1,4 +1,3 @@
-import { collectSourceMaterialNodes } from "../[id]/lib/canvas-source-remix";
 import type { CanvasConnection, CanvasNodeData } from "../types";
 import type { CanvasAgentAction } from "./canvas-agent-tools";
 
@@ -40,11 +39,7 @@ export function canvasAgentConfirmation(action: CanvasAgentAction, context: Canv
         const detail = connection ? `${nodeTitle(context.nodes, connection.fromNodeId)} → ${nodeTitle(context.nodes, connection.toNodeId)}` : "找不到这条连线，执行后将返回失败";
         return { title: "删除这条连线？", detail, okText: "确认删除", danger: true };
     }
-    if (action.name === "plan_source_remix") {
-        if (context.confirmMediaGeneration === false) return null;
-        const imageCount = collectSourceMaterialNodes(context.nodes, String(action.arguments.sourceNodeId || "")).materialImages.length;
-        return { title: "做整组复刻策划？", detail: `一次读入新文案与 ${imageCount} 张原图，产出整组共同设定与逐张配图提示词`, okText: "开始策划", danger: false };
-    }
+    if (action.name === "plan_source_remix") return null;
     // generate_remix_images 复用批量队列自带的确认（张数、模型、算力点），不再叠一层卡片。
     if (!context.autoGenerateMedia) return null;
     if (context.confirmMediaGeneration === false) return null;

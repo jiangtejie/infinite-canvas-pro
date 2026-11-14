@@ -17,7 +17,7 @@ import { useCanvasStore } from "../../stores/use-canvas-store";
 import { CanvasNodeType, type CanvasAgentState, type CanvasConnection, type CanvasNodeData, type Position } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { buildCanvasAgentContext } from "../../agent/canvas-agent-context";
-import type { CanvasAgentAction, CanvasAgentToolResult } from "../../agent/canvas-agent-tools";
+import type { CanvasAgentAction, CanvasAgentExecutionContext, CanvasAgentToolResult } from "../../agent/canvas-agent-tools";
 import { canvasAgentClearsAutoTitle } from "../../agent/canvas-agent-registry";
 import { nextAgentNodeCenter } from "../lib/canvas-agent-layout";
 import { agentNodeNeighbors, isAgentMediaNodeType, queryAgentCanvasNodes } from "../lib/canvas-agent-read-tools";
@@ -27,8 +27,8 @@ import { applyNodeConfigPatch } from "../lib/canvas-node-builders";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { buildAgentMediaPlan } from "../lib/canvas-agent-media";
 import { AGENT_PRIMARY_SCRIPT_NODE_SIZE, planArrangeNodes, planCreateConnection, planCreateTextNode, planUpdateNodeTitle, planUpdateTextNode } from "../lib/canvas-agent-write-tools";
-import { applySourceRemixPlan, collectRemixImageNodeIds, collectSourceMaterialNodes, parseSourceRemixPlan, planSourceRemix, sourceRemixImagesReady } from "../lib/canvas-source-remix";
-import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
+import { collectRemixImageNodeIds, collectSourceMaterialNodes } from "../lib/canvas-source-remix";
+import type { RemixRun, RemixSkillSelection } from "../../remix-types";
 import type { CanvasBatchRunResult } from "./use-canvas-batch-generation";
 import type { CanvasSourceActionResult } from "./use-canvas-source";
 import type { CanvasGenerateNodeOptions } from "./use-canvas-generation";
@@ -52,6 +52,8 @@ type UseCanvasAgentExecutorOptions = {
     startBatch: (nodeIds: Iterable<string>, options?: { label?: string; overwrite?: boolean }) => Promise<CanvasBatchRunResult>;
     createSourcePublishNode: (sourceId: string) => string | null;
     handleExpandSource: (sourceId: string) => CanvasSourceActionResult;
+    planRemix: (sourceId: string, instruction?: string, skills?: RemixSkillSelection[], signal?: AbortSignal) => Promise<{ runId: string; planNodeId: string; copyNodeId: string; imageNodeIds: string[] } | null>;
+    freshRun: (runId: string) => Promise<RemixRun>;
     selectMany: (ids: Iterable<string>) => void;
     setSelectedConnectionId: (id: string | null) => void;
     deleteNodes: (ids: Set<string>) => void;
@@ -80,6 +82,8 @@ export function useCanvasAgentExecutor({
     startBatch,
     createSourcePublishNode,
     handleExpandSource,
+    planRemix,
+    freshRun,
     selectMany,
     setSelectedConnectionId,
     deleteNodes,
@@ -132,7 +136,7 @@ export function useCanvasAgentExecutor({
     );
 
     const executeCanvasAgentAction = useCallback(
-        async (action: CanvasAgentAction, messageReferenceNodeIds: string[]): Promise<CanvasAgentToolResult> => {
+        async (action: CanvasAgentAction, messageReferenceNodeIds: string[], execution?: CanvasAgentExecutionContext): Promise<CanvasAgentToolResult> => {
             const args = action.arguments;
             const stringValue = (key: string) => (typeof args[key] === "string" ? (args[key] as string).trim() : "");
             const stringValues = (key: string) =>
@@ -435,43 +439,17 @@ export function useCanvasAgentExecutor({
                 }
 
                 if (action.name === "plan_source_remix") {
-                    const sourceId = stringValue("sourceNodeId");
-                    const source = getNode(sourceId);
-                    if (!source) return missingNodeResult(sourceId);
-                    if (source.type !== CanvasNodeType.Source) return { ok: false, code: "not_source_node", message: "节点 " + sourceId + " 不是素材源" };
-                    if (!collectSourceMaterialNodes(nodesRef.current, sourceId).materialImages.length || sourceExpansionNeedsSync(source, nodesRef.current)) {
-                        return { ok: false, code: "material_not_expanded", message: "素材源尚未展开或展开内容已过期，请先调用 expand_source 更新素材" };
-                    }
-                    const scaffold = planSourceRemix({ source, nodes: nodesRef.current, connections: connectionsRef.current, copy: stringValue("copy"), instruction: stringValue("instruction") });
-                    commitNodes(scaffold.nodes);
-                    commitConnections(scaffold.connections);
-                    selectOnly(scaffold.planNodeId);
-                    const createdNodeIds = [scaffold.copyNodeId, scaffold.planNodeId, ...scaffold.imageNodeIds];
-                    const scaffoldResult = { nodeId: scaffold.planNodeId, createdNodeIds, copyNodeId: scaffold.copyNodeId, planNodeId: scaffold.planNodeId, imageNodeIds: scaffold.imageNodeIds };
-
-                    let planText = "";
-                    await handleGenerateNode(scaffold.planNodeId, "text", scaffold.planPrompt, { overwrite: true, onText: (text) => { planText = text; } });
-                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-                    if (!planText.trim()) {
-                        return { ok: false, code: "remix_plan_empty", message: "策划没有产出内容，请检查文本模型配置后重新策划", ...scaffoldResult };
-                    }
-                    const plan = await parseSourceRemixPlan(planText, scaffold.imageNodeIds.length).catch(() => null);
-                    if (!plan) {
-                        return { ok: false, code: "remix_plan_invalid", message: "策划输出不是完整的整组 JSON，请重新调用 plan_source_remix", ...scaffoldResult };
-                    }
-                    // 文本生成会把节点标题改写成提示词前缀，策划节点要保留可读标题。
-                    commitNodes(applySourceRemixPlan(nodesRef.current, scaffold.imageNodeIds, plan).map((node) => (node.id === scaffold.planNodeId ? { ...node, title: "复刻策划", metadata: { ...node.metadata, remixSourceSignature: scaffold.sourceSignature } } : node)));
-                    return { ok: true, ...scaffoldResult, shared: plan.shared, images: plan.images };
+                    const result = await planRemix(stringValue("sourceNodeId"), stringValue("instruction"), execution?.skills, execution?.signal);
+                    if (!result) return { ok: false, code: "action_cancelled", message: "用户取消本次复刻，请停止，不要重新请求" };
+                    return { ok: true, ...result, nodeId: result.planNodeId, createdNodeIds: [result.planNodeId, result.copyNodeId, ...result.imageNodeIds], message: "组级策划已完成，等待用户审阅后生成" };
                 }
 
                 if (action.name === "generate_remix_images") {
-                    const sourceId = stringValue("sourceNodeId");
-                    if (!getNode(sourceId)) return missingNodeResult(sourceId);
-                    const imageNodeIds = collectRemixImageNodeIds(nodesRef.current, sourceId);
-                    if (!imageNodeIds.length) return { ok: false, code: "remix_not_planned", message: "还没有复刻配图节点，请先用 plan_source_remix 做整组策划" };
-                    if (!sourceRemixImagesReady(nodesRef.current, sourceId)) {
-                        return { ok: false, code: "remix_plan_required", message: "整组策划未完成或配图提示词未写齐，必须先用 plan_source_remix 完成策划", imageNodeIds };
-                    }
+                    const runId = stringValue("runId");
+                    execution?.signal?.throwIfAborted();
+                    await freshRun(runId);
+                    const imageNodeIds = collectRemixImageNodeIds(nodesRef.current, runId);
+                    if (!imageNodeIds.length) return { ok: false, code: "remix_not_planned", message: "复刻配图节点已不存在，请重新策划" };
                     if (!autoGenerateMedia) {
                         return { ok: true, submitted: false, message: "复刻配图提示词已写齐；未开启自动生成，请让用户手动批量生成", imageNodeIds };
                     }
@@ -492,7 +470,7 @@ export function useCanvasAgentExecutor({
                             imageNodeIds,
                         };
                     }
-                    const publishNodeId = batch.completed > 0 ? createSourcePublishNode(sourceId) : null;
+                    const publishNodeId = batch.completed > 0 ? createSourcePublishNode(runId) : null;
                     await new Promise<void>((resolve) => setTimeout(resolve, 0));
                     return {
                         ok: batch.status === "success",
@@ -509,7 +487,7 @@ export function useCanvasAgentExecutor({
                 return { ok: false, code: "tool_error", message: errorMessage(error, "画布工具执行失败") };
             }
         },
-        [agentEffectiveConfig, createGroupFromSelection, createSourcePublishNode, handleExpandSource, projectTitle, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, autoGenerateMedia, startBatch, updateProject, selectMany, selectedNodeIdsRef, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
+        [agentEffectiveConfig, createGroupFromSelection, createSourcePublishNode, freshRun, handleExpandSource, planRemix, projectTitle, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, autoGenerateMedia, startBatch, updateProject, selectMany, selectedNodeIdsRef, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
     );
 
     return { getCanvasAgentContext, executeCanvasAgentAction, beginCanvasAgentBatch, endCanvasAgentBatch };

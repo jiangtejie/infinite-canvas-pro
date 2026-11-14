@@ -87,6 +87,7 @@ type UseCanvasGenerationOptions = {
     openOverlay: (overlay: { kind: "prompt"; nodeId: string }) => void;
     closeOverlay: () => void;
     cancelPendingHistoryCommit: () => void;
+    authorizeImage: (nodeId: string, mode: string, prompt: string, background: boolean) => Promise<boolean>;
 };
 
 /**
@@ -115,6 +116,7 @@ export function useCanvasGeneration({
     openOverlay,
     closeOverlay,
     cancelPendingHistoryCommit,
+    authorizeImage,
 }: UseCanvasGenerationOptions) {
     const createImageReversePromptNodes = useCallback(
         (node: CanvasNodeData) => {
@@ -394,7 +396,18 @@ export function useCanvasGeneration({
     const handleGenerateNode = useCallback(
         async (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string, options?: CanvasGenerateNodeOptions) => {
             const background = options?.background === true;
-            const sourceNode = nodesRef.current.find((node) => node.id === nodeId);
+            let sourceNode = nodesRef.current.find((node) => node.id === nodeId);
+            if (sourceNode?.metadata?.remixRunId) {
+                try {
+                    if (!await authorizeImage(nodeId, mode, prompt, background)) return;
+                } catch (error) {
+                    message.error(toErrorMessage(error, "复刻策划校验失败"));
+                    if (background) throw error;
+                    return;
+                }
+                sourceNode = nodesRef.current.find((node) => node.id === nodeId);
+                options = { ...options, overwrite: true, countOverride: "1" };
+            }
             const generationConfig = buildGenerationConfig(effectiveConfig, sourceNode, mode);
             const workflowRef = mode === "text" ? undefined : sourceNode?.metadata?.workflowRef;
             if (workflowRef && !useUserStore.getState().token) {
@@ -832,6 +845,7 @@ export function useCanvasGeneration({
                     const videoReferenceImages = frameReferencesEnabled || isAutoDLConfig(videoGenerationConfig) ? generationContext.referenceImages : [...generationContext.referenceImages, ...[generationContext.firstFrame, generationContext.lastFrame].filter((image): image is ReferenceImage => Boolean(image))];
                     const spec = nodeSizeFromRatio(videoGenerationConfig.size, NODE_DEFAULT_SIZE[CanvasNodeType.Video].width, NODE_DEFAULT_SIZE[CanvasNodeType.Video].height) || NODE_DEFAULT_SIZE[CanvasNodeType.Video];
                     const isEmptyVideoNode = sourceNode?.type === CanvasNodeType.Video && (overwriteExisting || !sourceNode.metadata?.content);
+                    const emptyVideoSource = isEmptyVideoNode ? sourceNode : undefined;
                     const videoId = isEmptyVideoNode ? nodeId : nanoid();
                     const clientTaskId = `client_video_task_${nanoid()}`;
                     const parent = sourceNode?.position || { x: 0, y: 0 };
@@ -839,9 +853,9 @@ export function useCanvasGeneration({
                         id: videoId,
                         type: CanvasNodeType.Video,
                         title: effectivePrompt.slice(0, 32) || "Generated Video",
-                        position: isEmptyVideoNode ? sourceNode.position : { x: parent.x + (sourceNode?.width || spec.width) + 96, y: parent.y },
-                        width: isEmptyVideoNode ? sourceNode.width : spec.width,
-                        height: isEmptyVideoNode ? sourceNode.height : spec.height,
+                        position: emptyVideoSource ? emptyVideoSource.position : { x: parent.x + (sourceNode?.width || spec.width) + 96, y: parent.y },
+                        width: emptyVideoSource ? emptyVideoSource.width : spec.width,
+                        height: emptyVideoSource ? emptyVideoSource.height : spec.height,
                         metadata: { prompt: effectivePrompt, cameraControl: sourceNode?.metadata?.cameraControl, status: NODE_STATUS_LOADING, model: videoGenerationConfig.model, channelId: videoGenerationConfig.videoChannelId || videoGenerationConfig.activeChannelId, workflowRef, size: videoGenerationConfig.size, seconds: videoGenerationConfig.videoSeconds, vquality: videoGenerationConfig.vquality, mode: videoGenerationConfig.videoMode, negativePrompt: videoGenerationConfig.videoNegativePrompt, multiShot: videoGenerationConfig.videoMultiShot, shotType: videoGenerationConfig.videoShotType, generateAudio: videoGenerationConfig.videoGenerateAudio, characterOrientation: videoGenerationConfig.videoCharacterOrientation, watermark: videoGenerationConfig.videoWatermark, references: generationReferenceUrls({ ...generationContext, referenceImages: videoReferenceImages, firstFrame, lastFrame }), firstFrameNodeId: sourceNode?.metadata?.firstFrameNodeId, lastFrameNodeId: sourceNode?.metadata?.lastFrameNodeId, klingImageNodeIds: sourceNode?.metadata?.klingImageNodeIds, klingMultiPrompt: sourceNode?.metadata?.klingMultiPrompt, klingElementList: sourceNode?.metadata?.klingElementList, startedAt: generationStartedAt, progress: 0, clientTaskId, videoTaskId: clientTaskId },
                     };
                     pendingChildIds = [videoId];
@@ -862,6 +876,7 @@ export function useCanvasGeneration({
                     if (preparingRun?.preparing === runningRequest) delete preparingRun.preparing;
                     const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Audio];
                     const isEmptyAudioNode = sourceNode?.type === CanvasNodeType.Audio && (overwriteExisting || !sourceNode.metadata?.content);
+                    const emptyAudioSource = isEmptyAudioNode ? sourceNode : undefined;
                     const audioId = isEmptyAudioNode ? nodeId : nanoid();
                     const clientAudioTaskId = `client_audio_task_${nanoid()}`;
                     const parent = sourceNode?.position || { x: 0, y: 0 };
@@ -869,9 +884,9 @@ export function useCanvasGeneration({
                         id: audioId,
                         type: CanvasNodeType.Audio,
                         title: effectivePrompt.slice(0, 32) || "Generated Audio",
-                        position: isEmptyAudioNode ? sourceNode.position : { x: parent.x + (sourceNode?.width || spec.width) + 96, y: parent.y + ((sourceNode?.height || spec.height) - spec.height) / 2 },
-                        width: isEmptyAudioNode ? sourceNode.width : spec.width,
-                        height: isEmptyAudioNode ? sourceNode.height : spec.height,
+                        position: emptyAudioSource ? emptyAudioSource.position : { x: parent.x + (sourceNode?.width || spec.width) + 96, y: parent.y + ((sourceNode?.height || spec.height) - spec.height) / 2 },
+                        width: emptyAudioSource ? emptyAudioSource.width : spec.width,
+                        height: emptyAudioSource ? emptyAudioSource.height : spec.height,
                         metadata: { prompt: effectivePrompt, status: NODE_STATUS_LOADING, startedAt: generationStartedAt, progress: 0, clientTaskId: clientAudioTaskId, audioTaskId: clientAudioTaskId, ...buildAudioGenerationMetadata(generationConfig, sourceNode?.metadata), workflowRef },
                     };
                     pendingChildIds = [audioId];
@@ -958,11 +973,15 @@ export function useCanvasGeneration({
                 if (runningRequestRef.current === runningRequest) setRunningNodeId(null);
             }
         },
-        [cancelPendingHistoryCommit, effectiveConfig, openConfigDialog, openOverlay, isNodeTaskActive, submitNodeTask, handleStopNode, isAiConfigReady, message, nodeTaskRunsRef, projectId, runningRequestRef, selectOnly, setRunningNodeId, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
+        [authorizeImage, cancelPendingHistoryCommit, effectiveConfig, openConfigDialog, openOverlay, isNodeTaskActive, submitNodeTask, handleStopNode, isAiConfigReady, message, nodeTaskRunsRef, projectId, runningRequestRef, selectOnly, setRunningNodeId, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
     );
 
     const handleRetryNode = useCallback(
         async (node: CanvasNodeData) => {
+            if (node.metadata?.remixRunId) {
+                await handleGenerateNode(node.id, "image", node.metadata.prompt || "", { overwrite: true, countOverride: "1" });
+                return;
+            }
             const sourceNode = findRetrySourceNode(node.id, nodesRef.current, connectionsRef.current) || node;
             const retryWorkflowRef = node.metadata?.workflowRef;
             const batchPrimaryId = retryWorkflowRef && isCanvasImageNodeType(node.type) && node.metadata?.isBatchRoot ? node.metadata.primaryImageId : undefined;
@@ -1114,7 +1133,7 @@ export function useCanvasGeneration({
                 if (runningRequestRef.current === runningRequest) setRunningNodeId(null);
             }
         },
-        [effectiveConfig, message, openConfigDialog, projectId, isNodeTaskActive, submitNodeTask, isAiConfigReady, runningRequestRef, setRunningNodeId, connectionsRef, nodesRef, setConnections, setNodes],
+        [effectiveConfig, handleGenerateNode, message, openConfigDialog, projectId, isNodeTaskActive, submitNodeTask, isAiConfigReady, runningRequestRef, setRunningNodeId, connectionsRef, nodesRef, setConnections, setNodes],
     );
 
     const generateImageFromTextNode = useCallback(

@@ -49,7 +49,7 @@ import { formatAssistantBatch, mergeAssistantBatch, shouldShowAssistantBatch } f
 import { useAssistantSessionWrite } from "./use-assistant-session-write";
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
 import type { CanvasAgentBatchSummary } from "../agent/canvas-agent-runtime";
-import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
+import type { CanvasAgentAction, CanvasAgentExecutionContext, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
 import {
     MAX_CANVAS_AGENT_SKILLS,
     CanvasNodeType,
@@ -106,7 +106,7 @@ type CanvasAssistantPanelProps = {
     onOpenUpload: () => void;
     onOpenAssets: () => void;
     getAgentContext: (state: CanvasAgentState) => CanvasAgentContext;
-    onExecuteAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[]) => Promise<CanvasAgentToolResult>;
+    onExecuteAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[], execution?: CanvasAgentExecutionContext) => Promise<CanvasAgentToolResult>;
     onBatchStart?: () => void;
     onBatchEnd?: (summary: CanvasAgentBatchSummary) => void;
     onCollapseStart: () => void;
@@ -319,10 +319,10 @@ export function CanvasAssistantPanel({
         }
         const creditCost = estimateMediaCredits(action);
         const confirmation = canvasAgentConfirmation(action, { nodes, connections, autoGenerateMedia: Boolean(agentConfig.autoGenerateMedia), confirmMediaGeneration: agentConfig.confirmMediaGeneration, creditCost });
-        if (!confirmation) return onExecuteAction(action, messageReferenceNodeIds);
+        if (!confirmation) return onExecuteAction(action, messageReferenceNodeIds, { skills: activeSkills, signal });
         const confirmed = await requestConfirmation(confirmation, signal);
         signal.throwIfAborted();
-        if (confirmed) return onExecuteAction(action, messageReferenceNodeIds);
+        if (confirmed) return onExecuteAction(action, messageReferenceNodeIds, { skills: activeSkills, signal });
         return { ok: false, code: action.name === "delete_node" ? "delete_cancelled" : "action_cancelled", message: action.name === "delete_node" ? "用户取消删除，原节点已保留" : "用户取消操作，画布未变更" };
     };
     useEffect(() => {

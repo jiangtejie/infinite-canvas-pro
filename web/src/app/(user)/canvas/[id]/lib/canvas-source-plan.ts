@@ -13,7 +13,7 @@ export function sourceMaterialSignature(source: CanvasNodeData) {
         sourceNodeText(source),
         source.metadata?.sourcePlatform,
         source.metadata?.sourceId,
-        buildMaterialImages(source).map(({ url, storageKey, width, height, mimeType }) => [url, storageKey, width, height, mimeType]),
+        buildMaterialImages(source).map(({ url, storageKey, width, height, mimeType }) => [storageKey || (url.startsWith("blob:") ? "" : url), storageKey, width, height, mimeType]),
     ]);
 }
 
@@ -30,7 +30,9 @@ export function sourceExpansionNeedsSync(source: CanvasNodeData, nodes: CanvasNo
 }
 
 export function sourceMaterialNodeSignature(node: CanvasNodeData) {
-    return JSON.stringify([node.type, node.metadata?.content, node.metadata?.storageKey, node.metadata?.naturalWidth, node.metadata?.naturalHeight, node.metadata?.mimeType]);
+    // 图片有 storageKey 时以存储键为身份，展示 URL（可能是临时 blob）不参与比较。
+    const content = node.type === CanvasNodeType.Image && node.metadata?.storageKey ? undefined : node.metadata?.content;
+    return JSON.stringify([node.type, content, node.metadata?.storageKey, node.metadata?.naturalWidth, node.metadata?.naturalHeight, node.metadata?.mimeType]);
 }
 
 export function sourceMaterialNodeMatches(current: CanvasNodeData, planned: CanvasNodeData) {
@@ -75,7 +77,7 @@ export function planSourceMaterialSync(source: CanvasNodeData, nodes: CanvasNode
             metadata: {
                 ...node.metadata,
                 content: planned.metadata?.content,
-                storageKey: planned.metadata?.storageKey,
+                storageKey: planned.metadata?.storageKey || undefined,
                 naturalWidth: planned.metadata?.naturalWidth,
                 naturalHeight: planned.metadata?.naturalHeight,
                 mimeType: planned.metadata?.mimeType,
@@ -87,7 +89,7 @@ export function planSourceMaterialSync(source: CanvasNodeData, nodes: CanvasNode
     const nodeSignatures = Object.fromEntries(nextMaterialNodes.filter((node) => node.id.startsWith(materialPrefix)).map((node) => [node.id, sourceMaterialNodeSignature(node)]));
     const nextNodes = nextMaterialNodes.map((node) => node.id === source.id ? {
         ...node,
-        metadata: { ...node.metadata, ...plan.sourcePatch, sourceExpandedNodeSignatures: nodeSignatures },
+        metadata: { ...node.metadata, ...source.metadata, ...plan.sourcePatch, sourceExpandedNodeSignatures: nodeSignatures },
     } : node);
     const existingPairs = new Set(pruned.connections.map((connection) => `${connection.fromNodeId}->${connection.toNodeId}`));
     const nextConnections = pruned.connections.concat(plan.connections.filter((connection) => !existingPairs.has(`${connection.fromNodeId}->${connection.toNodeId}`)));

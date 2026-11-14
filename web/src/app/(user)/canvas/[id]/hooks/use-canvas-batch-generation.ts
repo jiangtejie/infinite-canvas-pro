@@ -47,6 +47,7 @@ type UseCanvasBatchGenerationOptions = {
     handleGenerateNode: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string, options?: CanvasGenerateNodeOptions) => Promise<void>;
     handleStopNode: (nodeId: string) => Promise<void>;
     message: CanvasBatchMessage;
+    reviewBatch: (nodeIds: string[], credits: number) => Promise<boolean | null>;
 };
 
 export type CanvasBatchResult = "success" | "failure" | "stopped" | "timeout";
@@ -71,6 +72,7 @@ export function useCanvasBatchGeneration({
     handleGenerateNode,
     handleStopNode,
     message,
+    reviewBatch,
 }: UseCanvasBatchGenerationOptions) {
     const confirm = useConfirm();
     const modelCosts = useConfigStore((state) => state.publicSettings?.modelChannel.modelCosts);
@@ -146,13 +148,15 @@ export function useCanvasBatchGeneration({
         runningRef.current = true;
         let confirmed = false;
         try {
-            confirmed = await confirm({
+            const remixReview = await reviewBatch(targets, credits);
+            confirmed = remixReview === null ? await confirm({
                 title: `${label}（${targets.length} 张）`,
                 description: `将按顺序逐张生成图片，图片模型：${imageModel}；${credits > 0 ? `预计消耗 ${credits.toLocaleString()} 力点；` : ""}生成过程中可随时停止，已完成的结果会保留。`,
                 confirmText: "开始生成",
                 cancelText: "取消",
-            });
-        } catch {
+            }) : remixReview;
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "复刻生成校验失败");
             confirmed = false;
         }
         if (!confirmed) {
@@ -227,7 +231,7 @@ export function useCanvasBatchGeneration({
             }
         }
         return createBatchRunResult(interrupted ? "stopped" : failed === 0 ? "success" : completed === 0 && timedOut ? "timeout" : "partial", targets.length, completed, failed, [...failedNodeIds]);
-    }, [confirm, effectiveConfig, handleGenerateNode, isAiConfigReady, message, modelCosts, nodesRef, openConfigDialog, selectMany, waitForGeneration]);
+    }, [confirm, effectiveConfig, handleGenerateNode, isAiConfigReady, message, modelCosts, nodesRef, openConfigDialog, reviewBatch, selectMany, waitForGeneration]);
 
     const stopBatch = useCallback(async () => {
         if (!runningRef.current) return;

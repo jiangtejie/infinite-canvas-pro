@@ -7,7 +7,7 @@ import { type CanvasAgentConfig, type CanvasAssistantReference, type CanvasAssis
 import type { CanvasSidePanelState } from "../../stores/use-canvas-store";
 import type { CanvasAgentState } from "../../types";
 import type { CanvasAgentContext } from "../../agent/canvas-agent-context";
-import type { CanvasAgentAction, CanvasAgentToolResult } from "../../agent/canvas-agent-tools";
+import type { CanvasAgentAction, CanvasAgentExecutionContext, CanvasAgentToolResult } from "../../agent/canvas-agent-tools";
 
 
 export type CanvasAssistantModel = {
@@ -31,7 +31,7 @@ export type CanvasAssistantModel = {
     handleAgentConfigChange: (patch: Partial<CanvasAgentConfig>) => void;
     pasteAssistantImage: (file: File) => void;
     getCanvasAgentContext: (agentState: CanvasAgentState) => CanvasAgentContext;
-    executeCanvasAgentAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[]) => Promise<CanvasAgentToolResult>;
+    executeCanvasAgentAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[], execution?: CanvasAgentExecutionContext) => Promise<CanvasAgentToolResult>;
     beginCanvasAgentBatch: () => void;
     endCanvasAgentBatch: (summary: { rolledBack: boolean }) => void;
     initialAgentRequest: { prompt: CanvasPendingAgentRequest["prompt"]; references: CanvasAssistantReference[]; skills: CanvasPendingAgentRequest["skills"]; } | null;

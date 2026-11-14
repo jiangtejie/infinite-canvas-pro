@@ -60,6 +60,18 @@ func ReadEnabledSystemAgentSkillFile(id string, filePath string) (model.AgentSki
 	return file, nil
 }
 
+func ReadEnabledSystemAgentSkillPackage(id string) (model.AgentSkill, error) {
+	item, found, err := repository.GetAgentSkill(strings.TrimSpace(id))
+	if err != nil {
+		return item, err
+	}
+	if !found || item.Source != model.AgentSkillSourceSystem || !item.Enabled {
+		return item, safeMessageError{message: "Skill 不存在或未启用"}
+	}
+	item.Files, err = repository.ListAgentSkillFiles(item.ID)
+	return item, err
+}
+
 func ListCurrentUserAgentSkills(ctx context.Context) ([]model.AgentSkill, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok || user.ID == "" {

@@ -25,6 +25,8 @@ export type CanvasAgentContextNode = {
     taskId?: string;
     error?: string;
     groupId?: string;
+    remixRunId?: string;
+    remixRole?: string;
 };
 
 export type CanvasAgentContext = {
@@ -185,6 +187,8 @@ function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentConte
         hasMedia: !isText && !isPublish ? Boolean(content) : undefined,
         status: isPublish ? canvasNodeDisplayStatus(node) : node.metadata?.status,
         groupId: node.metadata?.groupId,
+        remixRunId: node.metadata?.remixRunId,
+        remixRole: node.metadata?.remixRole,
     };
     if (!detailed) return base;
     return {

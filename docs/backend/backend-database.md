@@ -43,6 +43,12 @@ MySQL 建库默认使用 `utf8mb4 / utf8mb4_bin`，与 SQLite 的 BINARY 比较�
 - `recharge_orders`
 - `invoice_requests`
 - `creative_workflows`
+- `marketing_workspaces`
+- `marketing_brands`
+- `marketing_locations`
+- `marketing_offerings`
+- `marketing_location_offerings`
+- `marketing_asset_reference_records`
 - `ai_call_logs`
 
 后续新增表时再同步补充本文档，未实际使用的规划表不提前写入。
@@ -580,6 +586,91 @@ AI 调用日志表。字段与文件日志一致，当前后端调用只写入 `
 | `created_at` | string | 创建时间，索引列 |
 
 索引：`idx_ai_call_logs_user_id`、`idx_ai_call_logs_endpoint`、`idx_ai_call_logs_model`、`idx_ai_call_logs_channel_id`、`idx_ai_call_logs_status`、`idx_ai_call_logs_created_at`。
+
+### marketing_workspaces
+
+账号级营销资料空间。保存企业经营、品牌、门店与商品的业务事实，不属于画布数据，也不写入 `user_configs.asset_data`。`owner_user_id` 隔离账号，`revision` 作为乐观锁版本；保存时事务内全量重建子表，失败整体回滚。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键，最大 48 字符 |
+| `owner_user_id` | string | 所属用户 ID，索引列 |
+| `name` | string | 资料空间名称 |
+| `industry` | string | 行业 |
+| `revision` | number | 乐观锁版本，每次保存递增 |
+| `description` | 大文本 | 企业基本介绍 |
+| `audience` | 大文本 | 目标受众 |
+| `guidance` | 大文本 | 表达与风格指导 |
+| `forbidden` | 大文本 | 禁用表述 JSON 数组 |
+| `facts` | 大文本 | 可核对营销事实 JSON 数组 |
+| `assets` | 大文本 | 图片引用 JSON 数组：`assetId`、`storageKey`、`role` |
+| `created_at` | string | 创建时间 |
+| `updated_at` | string | 更新时间 |
+
+### marketing_brands
+
+品牌表，按 `workspace_id + id` 复合主键。字段与企业空间一致：基本介绍、受众、风格指导、禁用表述、事实和图片引用。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `workspace_id` | string | 所属资料空间，复合主键 |
+| `id` | string | 品牌 ID，复合主键，最大 48 字符 |
+| `name` | string | 品牌名称 |
+| `description` / `audience` / `guidance` | 大文本 | 品牌资料 |
+| `forbidden` / `facts` / `assets` | 大文本 | JSON 数组，与企业空间同结构 |
+
+### marketing_locations
+
+门店或服务点表，按 `workspace_id + id` 复合主键；`brand_id` 必须属于同一资料空间。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `workspace_id` / `id` | string | 复合主键 |
+| `brand_id` | string | 所属品牌 |
+| `name` | string | 门店 / 服务点名称 |
+| `kind` | string | `store`、`service` 或 `online` |
+| `city` / `district` / `address` | string | 城市、区县与地址 |
+| `local_context` | text | 本地客群与城市特点 |
+| `description` / `audience` / `guidance` | 大文本 | 门店资料 |
+| `forbidden` / `facts` / `assets` | 大文本 | JSON 数组，与品牌同结构 |
+
+### marketing_offerings
+
+商品或服务表，按 `workspace_id + id` 复合主键；`brand_id` 必须属于同一资料空间。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `workspace_id` / `id` | string | 复合主键 |
+| `brand_id` | string | 所属品牌 |
+| `name` | string | 商品 / 服务名称 |
+| `kind` | string | `product` 或 `service` |
+| `category` | string | 分类 |
+| `description` / `audience` / `guidance` | 大文本 | 商品资料 |
+| `forbidden` / `facts` / `assets` | 大文本 | JSON 数组，与品牌同结构 |
+
+### marketing_location_offerings
+
+门店与商品的多对多可售关系，按 `workspace_id + location_id + offering_id` 复合主键；门店与商品必须属于同一品牌。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `workspace_id` / `location_id` / `offering_id` | string | 复合主键 |
+| `available` | boolean | 该门店当前是否提供 |
+| `highlights` | text | 本店主推特点 |
+| `facts` | 大文本 | 本店可核对事实 JSON 数组 |
+
+### marketing_asset_reference_records
+
+营销资料对“我的素材”图片的引用索引，保存时全量重建。用于在素材删除、素材数据同步时阻止移除仍被营销资料引用的图片；图片本体不复制，只保存素材 ID、存储键与用途。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键，UUID，最大 48 字符 |
+| `owner_user_id` | string | 所属用户 ID，索引列 |
+| `workspace_id` | string | 所属资料空间，索引列 |
+| `entity_id` | string | 引用来源实体 ID（空间 / 品牌 / 门店 / 商品） |
+| `asset_id` | string | 素材 ID，索引列 |
+| `role` | string | 图片用途（Logo、门店环境、商品外观等） |
 
 ## MySQL 注意事项
 

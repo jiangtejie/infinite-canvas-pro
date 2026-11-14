@@ -94,16 +94,12 @@ test("group remix planning confirms with the material image count regardless of 
         node({ id: "source-1-material-image-0", type: CanvasNodeType.Image, title: "素材图 1" }),
         node({ id: "source-1-material-image-1", type: CanvasNodeType.Image, title: "素材图 2" }),
     ];
-    const plan = action("plan_source_remix", { sourceNodeId: "source-1", copy: "新文案" });
-    const confirmation = canvasAgentConfirmation(plan, context({ nodes, autoGenerateMedia: false }));
-    assert.ok(confirmation);
-    assert.equal(confirmation.title, "做整组复刻策划？");
-    assert.match(confirmation.detail, /2 张原图/);
-    assert.equal(confirmation.danger, false);
-    assert.equal(canvasAgentConfirmation(plan, context({ nodes, confirmMediaGeneration: false })), null);
+    const setup = action("plan_source_remix", { sourceNodeId: "source-1" });
+    assert.equal(canvasAgentConfirmation(setup, context({ nodes, autoGenerateMedia: false })), null);
+    assert.equal(canvasAgentConfirmation(setup, context({ nodes, confirmMediaGeneration: false })), null);
 });
 
 test("expand and remix batch reuse existing confirmations instead of stacking cards", () => {
     assert.equal(canvasAgentConfirmation(action("expand_source", { sourceNodeId: "source-1" }), context()), null);
-    assert.equal(canvasAgentConfirmation(action("generate_remix_images", { sourceNodeId: "source-1" }), context()), null);
+    assert.equal(canvasAgentConfirmation(action("generate_remix_images", { runId: "run-1" }), context()), null);
 });

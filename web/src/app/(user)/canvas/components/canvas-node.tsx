@@ -410,7 +410,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         event.stopPropagation();
                         return;
                     }
-                    if (data.type === CanvasNodeType.Source || data.type === CanvasNodeType.Publish) {
+                    if (data.type === CanvasNodeType.Source || data.type === CanvasNodeType.Publish || data.metadata?.remixRole === "plan") {
                         event.preventDefault();
                         event.stopPropagation();
                         onOpenPanel?.(data);

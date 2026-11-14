@@ -39,9 +39,10 @@ import { useCanvasClipboard } from "./hooks/use-canvas-clipboard";
 import { useCanvasPointer } from "./hooks/use-canvas-pointer";
 import { useCanvasGeneration } from "./hooks/use-canvas-generation";
 import { useCanvasBatchGeneration } from "./hooks/use-canvas-batch-generation";
+import { useCanvasRemix } from "./hooks/use-canvas-remix";
 import { collectBatchTargetNodeIds } from "./lib/canvas-batch";
 import { planSourcePublishNode } from "./lib/canvas-publish";
-import { collectPublishableRemixImages, findSourceRemixTextNode, hasSourceRemixText } from "./lib/canvas-source-remix";
+import { collectPublishableRemixImages, collectRemixImageNodeIds, findRemixRunNode, findSourceRemixTextNode, hasSourceRemixText } from "./lib/canvas-source-remix";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
@@ -1573,6 +1574,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         [addAsset, message],
     );
 
+    const showRemixPlan = useCallback((nodeId: string) => openOverlay({ kind: "prompt", nodeId }), [openOverlay]);
+    const { planRemix, authorizeImage, reviewBatch, freshRun, setupDialog } = useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnections, effectiveConfig: agentEffectiveConfig, agentConfig: resolvedAgentConfig, handleExpandSource, selectMany, openPlan: showRemixPlan });
+
     const {
         handleGenerateNode,
         handleRetryNode,
@@ -1607,6 +1611,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         openOverlay,
         closeOverlay,
         cancelPendingHistoryCommit,
+        authorizeImage,
     });
 
     const { batchState, startBatch, stopBatch } = useCanvasBatchGeneration({
@@ -1619,6 +1624,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         handleGenerateNode,
         handleStopNode,
         message,
+        reviewBatch,
     });
 
     const createSourcePublishNode = useCallback((sourceId: string): string | null => {
@@ -1643,7 +1649,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             return existingPublishNodeId;
         }
         if (!plan.createPosition) return null;
-        const publishNode = createCanvasNode(CanvasNodeType.Publish, plan.createPosition, { publishSourceId: sourceId });
+        const run = findRemixRunNode(currentNodes, sourceId)?.metadata?.remixRun;
+        const publishNode = createCanvasNode(CanvasNodeType.Publish, plan.createPosition, { publishSourceId: sourceId, remixRunId: sourceId, remixSourceId: run?.input.sourceNodeId, remixRole: "publish" });
         setNodes((prev) => [...prev, publishNode]);
         setConnections((prev) => [...prev, ...plan.connectNodeIds.map((fromNodeId) => ({ id: nanoid(), fromNodeId, toNodeId: publishNode.id }))]);
         selectOnly(publishNode.id);
@@ -1653,24 +1660,22 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         return publishNode.id;
     }, [connectionsRef, message, nodesRef, openOverlay, selectOnly, setConnections, setNodes, setSelectedConnectionId]);
 
-    // 复刻交给创作 Agent：先确保素材已展开成真实节点，再打开助手并预置复刻指令。
-    // 组级策划与整组生成由 plan_source_remix / generate_remix_images 完成，页面不再承载复刻步骤。
+    const generateRemixRun = useCallback(async (runId: string) => {
+        try {
+            await freshRun(runId);
+            const ids = collectRemixImageNodeIds(nodesRef.current, runId);
+            const result = await startBatch(ids, { label: "复刻配图", overwrite: true });
+            if (result.completed > 0) createSourcePublishNode(runId);
+        } catch (error) { message.error(toErrorMessage(error, "复刻配图生成失败")); }
+    }, [createSourcePublishNode, freshRun, message, nodesRef, startBatch]);
+
     const handleRemixWithAgent = useCallback((sourceId: string) => {
-        const result = handleExpandSource(sourceId);
-        if (!result.ok) {
-            if (result.needsSync) message.warning(`素材同步被阻止：${result.blockedNodeIds?.join("、") || "有旧素材节点"} 已连接到其他画布内容，请先处理这些连接。`);
-            else if (result.reason) message.warning(result.reason);
-            return;
-        }
         closeOverlay();
-        setAssistantMounted(true);
-        setAgentPanel((current) => ({ ...current, open: true }));
-        setInitialAgentRequest({
-            prompt: `复刻素材源节点 ${sourceId}，素材已展开。先按原素材的结构与传播逻辑原创重写文案，再用 plan_source_remix 做整组策划，最后用 generate_remix_images 整组生成配图。`,
-            references: [],
-            skills: [],
-        });
-    }, [closeOverlay, handleExpandSource, message]);
+        const skills = chatSessions.find((session) => session.id === activeChatId)?.activeSkills || [];
+        void planRemix(sourceId, "", skills).then(async (result) => {
+            if (result && resolvedAgentConfig.autoGenerateMedia) await generateRemixRun(result.runId);
+        }).catch((error) => message.error(toErrorMessage(error, "复刻策划失败")));
+    }, [activeChatId, chatSessions, closeOverlay, generateRemixRun, message, planRemix, resolvedAgentConfig.autoGenerateMedia]);
 
     const batchTargetCount = useMemo(() => collectBatchTargetNodeIds(nodes, selectedNodeIds).length, [nodes, selectedNodeIds]);
 
@@ -1786,6 +1791,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         startBatch,
         createSourcePublishNode,
         handleExpandSource,
+        planRemix,
+        freshRun,
         selectMany,
         setSelectedConnectionId,
         deleteNodes,
@@ -1931,6 +1938,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 return result;
             },
             handleRemixWithAgent,
+            generateRemixRun,
             handleResetSource: (nodeId) => {
                 const result = handleResetSource(nodeId);
                 if (!result.ok) {
@@ -1999,7 +2007,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         },
     };
 
-    return <CanvasWorkspace model={workspace} />;
+    return <><CanvasWorkspace model={workspace} />{setupDialog}</>;
 }
 
 async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
