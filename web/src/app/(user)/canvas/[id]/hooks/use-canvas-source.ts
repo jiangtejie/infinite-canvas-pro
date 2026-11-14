@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import { parseContentSource } from "@/services/api/content";
-import { NODE_DEFAULT_SIZE } from "../../constants";
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
+import { fitSourceNodeSize } from "../../utils/canvas-node-size";
+import type { CanvasConnection, CanvasNodeData, CanvasNodeMetadata } from "../../types";
 import { planSourceMaterialSync, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
 import { errorMessage } from "@/lib/utils";
 
@@ -82,13 +82,13 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
             parseControllerRef.current = null;
             parseSnapshotRef.current = null;
             const author = source.author?.trim() || "";
+            const previousSize = { width: node.width, height: node.height };
+            const previewUrl = source.images.find((image) => image.url)?.url || source.coverUrl;
             setNodes((prev) =>
                 prev.map((item) => {
                     if (item.id !== nodeId) return item;
-                    const title = item.title === NODE_DEFAULT_SIZE[CanvasNodeType.Source].title && author ? `素材源 · ${author}` : item.title;
                     return {
                         ...item,
-                        title,
                         metadata: {
                             ...item.metadata,
                             sourceInput: value,
@@ -112,6 +112,27 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
                     };
                 }),
             );
+            if (previewUrl) {
+                // 按首图比例定尺寸；解析期间用户已手动改过尺寸的话保留手动值。
+                void measureImageSize(previewUrl).then((size) => {
+                    if (!size) return;
+                    const fitted = fitSourceNodeSize(size.width, size.height);
+                    setNodes((prev) => prev.map((item) => {
+                        if (item.id !== nodeId || item.metadata?.sourceId !== source.sourceId) return item;
+                        if (item.width !== previousSize.width || item.height !== previousSize.height) return item;
+                        if (item.width === fitted.width && item.height === fitted.height) return item;
+                        return {
+                            ...item,
+                            width: fitted.width,
+                            height: fitted.height,
+                            position: {
+                                x: item.position.x + (item.width - fitted.width) / 2,
+                                y: item.position.y + (item.height - fitted.height) / 2,
+                            },
+                        };
+                    }));
+                });
+            }
             return { ok: true };
         } catch (error) {
             if (requestId !== parseRequestRef.current || controller.signal.aborted) return { ok: false };
@@ -187,4 +208,13 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
 
 function patchSourceMetadata(nodes: CanvasNodeData[], nodeId: string, patch: Partial<CanvasNodeMetadata>) {
     return nodes.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...patch } } : node));
+}
+
+function measureImageSize(url: string) {
+    return new Promise<{ width: number; height: number } | null>((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve(image.naturalWidth > 0 && image.naturalHeight > 0 ? { width: image.naturalWidth, height: image.naturalHeight } : null);
+        image.onerror = () => resolve(null);
+        image.src = url;
+    });
 }

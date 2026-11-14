@@ -7,6 +7,19 @@ export function fitNodeSize(width: number, height: number, maxWidth = 640, maxHe
     return { width: w * scale, height: h * scale };
 }
 
+const SOURCE_PREVIEW_MAX_WIDTH = 488;
+const SOURCE_PREVIEW_MAX_HEIGHT = 400;
+const SOURCE_NODE_MIN_WIDTH = 280;
+const SOURCE_NODE_CHROME_HEIGHT = 100;
+
+export function fitSourceNodeSize(width: number, height: number) {
+    const preview = fitNodeSize(width, height, SOURCE_PREVIEW_MAX_WIDTH, SOURCE_PREVIEW_MAX_HEIGHT);
+    return {
+        width: Math.round(Math.max(SOURCE_NODE_MIN_WIDTH, preview.width + 32)),
+        height: Math.round(preview.height + SOURCE_NODE_CHROME_HEIGHT),
+    };
+}
+
 export function nodeSizeFromRatio(size: string, baseWidth: number, baseHeight: number) {
     const match = size?.match(/^(\d+)(?:x|:)(\d+)/);
     if (!match) return null;

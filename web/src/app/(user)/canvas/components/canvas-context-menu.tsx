@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, type CSSProperties, type ReactNode } from "react";
-import { BetweenHorizontalStart, GalleryHorizontal, GalleryHorizontalEnd, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
+import { BetweenHorizontalStart, Copy, GalleryHorizontal, GalleryHorizontalEnd, Pencil, Sparkles, Trash2 } from "lucide-react";
 
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -25,7 +25,7 @@ export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, canGenerate,
             role="menu"
             aria-label="节点操作"
             tabIndex={-1}
-            className="fixed min-w-44 overflow-hidden rounded-xl border py-1 shadow-2xl"
+            className="fixed min-w-44 overflow-hidden rounded-2xl border py-1 shadow-2xl"
             style={{ left: menu.x, top: menu.y, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, zIndex: CANVAS_Z.contextMenu, "--canvas-menu-hover": theme.toolbar.itemHover } as CSSProperties}
             onPointerDown={(event) => event.stopPropagation()}
             onKeyDown={menuNavigation.handleKeyDown}
@@ -41,7 +41,7 @@ export function CanvasNodeContextMenu({ menu, canCaptureVideoFrame, canGenerate,
                     <div className="my-1 border-t" style={{ borderColor: theme.toolbar.border }} />
                 </>
             ) : null}
-            {menu.type === "node" ? <MenuButton icon={<Plus className="size-4" />} label="复制" onClick={onDuplicate} /> : null}
+            {menu.type === "node" ? <MenuButton icon={<Copy className="size-4" />} label="复制" onClick={onDuplicate} /> : null}
             <MenuButton icon={<Trash2 className="size-4" />} label="删除" onClick={onDelete} danger />
         </div>
     );
@@ -51,7 +51,7 @@ function MenuButton({ icon, label, onClick, danger = false }: { icon: ReactNode;
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
 
     return (
-        <button type="button" role="menuitem" data-menu-item tabIndex={-1} className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--canvas-menu-hover)] focus-visible:bg-[var(--canvas-menu-hover)]" style={{ color: danger ? canvasStatusColors.error : theme.node.text }} onClick={onClick}>
+        <button type="button" role="menuitem" data-menu-item tabIndex={-1} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--canvas-menu-hover)] focus-visible:bg-[var(--canvas-menu-hover)]" style={{ color: danger ? canvasStatusColors.error : theme.node.text }} onClick={onClick}>
             {icon}
             <span>{label}</span>
         </button>

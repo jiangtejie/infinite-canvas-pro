@@ -3,7 +3,7 @@
 import { Drawer } from "antd";
 import Link from "next/link";
 
-import { navigationSections, type NavigationTool, type NavigationToolSlug } from "@/constant/navigation-tools";
+import { navigationSections, navigationSectionTools, type NavigationTool, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { cn } from "@/lib/utils";
 
 type MobileNavDrawerProps = {
@@ -39,16 +39,23 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
         <Drawer title="导航" placement="left" size={280} open={open} onClose={onClose} styles={{ body: { paddingTop: 8 } }}>
             <div className="space-y-1.5">
                 {navigationSections.map((section) => {
-                    const tools: readonly NavigationTool[] = "children" in section ? section.children : [section];
+                    const tools: readonly NavigationTool[] = navigationSectionTools(section);
                     const sectionActive = tools.some((tool) => tool.slug === activeToolSlug);
                     return (
-                        <div key={"children" in section ? section.label : section.slug} className="space-y-1.5">
-                            {"children" in section ? (
+                        <div key={"groups" in section ? section.label : section.slug} className="space-y-1.5">
+                            {"groups" in section ? (
                                 <p className={cn("px-3 pt-2 font-mono text-[10px] tracking-[0.18em] uppercase", sectionActive ? "text-acid-ink" : "text-muted-foreground/60")}>
                                     {section.label}
                                 </p>
                             ) : null}
-                            {tools.map(renderTool)}
+                            {"groups" in section
+                                ? section.groups.map((group, groupIndex) => (
+                                    <div key={group.label || groupIndex} className="space-y-1.5">
+                                        {group.label ? <p className={cn("px-3 pt-1 font-mono text-[10px] tracking-[0.18em] uppercase", group.items.some((item) => item.slug === activeToolSlug) ? "text-acid-ink" : "text-muted-foreground/60")}>{group.label}</p> : null}
+                                        {group.items.map(renderTool)}
+                                    </div>
+                                ))
+                                : renderTool(section)}
                         </div>
                     );
                 })}

@@ -1929,26 +1929,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             handleCancelSourceParse: (nodeId) => {
                 handleCancelSourceParse(nodeId);
             },
-            handleExpandSource: (nodeId) => {
-                const result = handleExpandSource(nodeId);
-                if (!result.ok) {
-                    if (result.needsSync) message.warning(`素材更新被阻止，请先处理节点：${result.blockedNodeIds?.join("、") || "未知节点"}`);
-                    else if (result.reason) message.warning(result.reason);
-                }
-                return result;
-            },
             handleRemixWithAgent,
             generateRemixRun,
-            handleResetSource: (nodeId) => {
-                const result = handleResetSource(nodeId);
-                if (!result.ok) {
-                    if (result.reason) message.warning(result.reason);
-                    return result;
-                }
-                if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
-                else message.success(`已清理 ${result.removed || 0} 个素材节点`);
-                return result;
-            },
             projectLoaded, exitNodeReferenceSelection,
         },
         overlays: {
@@ -1961,6 +1943,25 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             handleDirectorProjectChange, handleDirectorPanoramaRemoved, handleDirectorCapturesSent, handleDirectorVideoSent,
             isNodeDragging, nodeImageSettingsOpen, toolbarNode, keepNodeToolbar,
             hideNodeToolbar, handleFontSizeChange, generateImageFromTextNode, extractAudio,
+            handleRemixWithAgent,
+            handleExpandSource: (nodeId) => {
+                const result = handleExpandSource(nodeId);
+                if (!result.ok) {
+                    if (result.needsSync) message.warning(`素材更新被阻止，请先处理节点：${result.blockedNodeIds?.join("、") || "未知节点"}`);
+                    else if (result.reason) message.warning(result.reason);
+                } else {
+                    message.success(result.updated ? "素材已同步到画布" : "素材已展开到画布");
+                }
+            },
+            handleResetSource: (nodeId) => {
+                const result = handleResetSource(nodeId);
+                if (!result.ok) {
+                    if (result.reason) message.warning(result.reason);
+                    return;
+                }
+                if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
+                else message.success(`已清理 ${result.removed || 0} 个素材节点`);
+            },
             downloadNodeImage, saveNodeAsset, uploadNodeMediaToCloud, uploadNodeImageToCloud,
             effectiveConfig, setMaskEditModel, setMaskEditChannelId, createImageReversePromptNodes,
             toggleNodeFreeResize, deleteNodes, alignSelectedNodes, groupSelectedNodes,

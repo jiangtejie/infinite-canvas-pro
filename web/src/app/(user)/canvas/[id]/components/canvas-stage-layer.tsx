@@ -7,7 +7,6 @@ import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { getInputSummary } from "../lib/canvas-node-builders";
 import { isConnectionFlowing, isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
 import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
-import { sourceRemixNeedsSync } from "../lib/canvas-source-remix";
 import type { CanvasPublishInputs } from "../lib/canvas-publish";
 import { ActiveConnectionPath, ConnectionPath } from "../../components/canvas-connections";
 import { CanvasConfigComposer } from "../../components/canvas-config-composer";
@@ -26,12 +25,12 @@ import type { CanvasVideoResourceOption } from "../../components/canvas-video-se
 import { type AssetPickerTab } from "../../components/asset-picker-modal";
 import { ConnectionCreateMenu, NodeCreateMenu } from "./canvas-create-menus";
 import { isCanvasReferenceNode } from "../../utils/canvas-resource-references";
+import { fitSourceNodeSize } from "../../utils/canvas-node-size";
 import { CanvasNodeType, type CanvasConnection, type PendingConnectionCreate, type CanvasNodeData, type ConnectionHandle, type ContextMenuState, type Position } from "../../types";
 import type { ViewportTransform, SelectionBox } from "../../types";
 import type { CanvasAlignmentGuides } from "../../utils/canvas-alignment";
 import type { CanvasResourceReference } from "../../utils/canvas-resource-references";
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
-import type { CanvasSourceActionResult } from "../hooks/use-canvas-source";
 import type { CanvasOverlay } from "../canvas-client-page";
 import { useConfigStore } from "@/stores/use-config-store";
 
@@ -118,10 +117,8 @@ export type CanvasStageModel = {
     createNode: (type: CanvasNodeType, position?: Position, textContent?: string, nodeId?: string) => void;
     handleParseSource: (nodeId: string, input: string) => Promise<void>;
     handleCancelSourceParse: (nodeId: string) => void;
-    handleExpandSource: (nodeId: string) => CanvasSourceActionResult;
     handleRemixWithAgent: (nodeId: string) => void;
     generateRemixRun: (runId: string) => Promise<void>;
-    handleResetSource: (nodeId: string) => CanvasSourceActionResult;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -216,10 +213,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         createNode,
         handleParseSource,
         handleCancelSourceParse,
-        handleExpandSource,
         handleRemixWithAgent,
         generateRemixRun,
-        handleResetSource,
         assetInsertPositionRef,
         setAssetPickerTab,
         setAssetPickerOpen,
@@ -342,11 +337,6 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         parseEnabled={sourceParseEnabled}
                                         onParse={(input) => void handleParseSource(panelNode.id, input)}
                                         onCancel={() => handleCancelSourceParse(panelNode.id)}
-                                        expandedNeedsSync={sourceExpansionNeedsSync(panelNode, nodes)}
-                                        remixStale={sourceRemixNeedsSync(panelNode, nodes)}
-                                        onToggleExpanded={() => handleExpandSource(panelNode.id)}
-                                        onReset={() => handleResetSource(panelNode.id)}
-                                        onRemixWithAgent={() => handleRemixWithAgent(panelNode.id)}
                                         onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
                                         onClose={() => closeOverlay()}
                                     />
@@ -378,7 +368,17 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 contentNode.type === CanvasNodeType.Director ? (
                                     <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
                                 ) : contentNode.type === CanvasNodeType.Source ? (
-                                    <CanvasSourceNodeCard node={contentNode} expandedNeedsSync={sourceExpansionNeedsSync(contentNode, nodes)} />
+                                    <CanvasSourceNodeCard
+                                        node={contentNode}
+                                        expandedNeedsSync={sourceExpansionNeedsSync(contentNode, nodes)}
+                                        onPreviewSize={(width, height) => {
+                                            const size = fitSourceNodeSize(width, height);
+                                            handleNodeResize(contentNode.id, size.width, size.height, {
+                                                x: contentNode.position.x + (contentNode.width - size.width) / 2,
+                                                y: contentNode.position.y + (contentNode.height - size.height) / 2,
+                                            });
+                                        }}
+                                    />
                                 ) : contentNode.type === CanvasNodeType.Publish ? (
                                     <CanvasPublishNodeCard
                                         node={contentNode}
@@ -481,9 +481,9 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-foreground sm:text-[28px]">双击任意位置，开始第一笔</h2>
                             <p className="mt-3 max-w-md text-balance text-sm leading-7 text-muted-foreground">图片、视频、文本与素材都可以成为节点，连起来就是一条创作链。</p>
                             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                                {["双击创建", "拖入素材", "@ 引用"].map((hint) => (
-                                    <span key={hint} className="chip">{hint}</span>
-                                ))}
+                                <button type="button" className="chip pointer-events-auto cursor-pointer transition-colors hover:border-acid/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={() => createNode(CanvasNodeType.Text)}>新建文本</button>
+                                <button type="button" className="chip pointer-events-auto cursor-pointer transition-colors hover:border-acid/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={() => handleUploadRequest()}>上传素材</button>
+                                <button type="button" className="chip pointer-events-auto cursor-pointer transition-colors hover:border-acid/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={() => { assetInsertPositionRef.current = null; setAssetPickerTab("library"); setAssetPickerOpen(true); }}>素材库</button>
                             </div>
                         </div>
                     </div>

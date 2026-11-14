@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "antd";
-import { Bot, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
+import { Bot, Eraser, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -70,6 +70,7 @@ export function CanvasTopBar({
     const retrySave = useCanvasStore((state) => state.retrySave);
     const [menuOpen, setMenuOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
+    const [showSaved, setShowSaved] = useState(false);
     const shortcutsOpen = useCanvasUiStore((state) => state.shortcutsOpen);
     const wheelMode = useCanvasUiStore((state) => state.wheelMode);
     const [modifierKey, setModifierKey] = useState("Ctrl");
@@ -82,6 +83,16 @@ export function CanvasTopBar({
         if (wasTitleEditingRef.current && !isTitleEditing) titleRef.current?.querySelector("button")?.focus({ preventScroll: true });
         wasTitleEditingRef.current = isTitleEditing;
     }, [isTitleEditing]);
+
+    useEffect(() => {
+        if (saveStatus !== "saved") {
+            setShowSaved(false);
+            return;
+        }
+        setShowSaved(true);
+        const timer = window.setTimeout(() => setShowSaved(false), 2000);
+        return () => window.clearTimeout(timer);
+    }, [saveStatus]);
 
     useEffect(() => {
         if (!isTitleEditing) return;
@@ -142,7 +153,8 @@ export function CanvasTopBar({
                                 <CanvasMenuItem icon={<Images className="size-4" />} label="我的画布" onClick={() => runMenuAction(onProjects)} />
                                 <CanvasMenuDivider theme={theme} />
                                 <CanvasMenuItem icon={<Plus className="size-4" />} label="新建画布" onClick={() => runMenuAction(onCreateProject)} />
-                                <CanvasMenuItem icon={<Trash2 className="size-4" />} label="清空画布内容" danger onClick={() => runMenuAction(onClear)} />
+                                <CanvasMenuItem icon={<Eraser className="size-4" />} label="清空画布内容" danger onClick={() => runMenuAction(onClear)} />
+                                <CanvasMenuDivider theme={theme} />
                                 <CanvasMenuItem icon={<Trash2 className="size-4" />} label="删除当前画布" danger onClick={() => runMenuAction(onDeleteProject)} />
                                 <CanvasMenuDivider theme={theme} />
                                 <CanvasMenuItem icon={<Upload className="size-4" />} label="导入素材" onClick={() => runMenuAction(onImportImage)} />
@@ -192,7 +204,7 @@ export function CanvasTopBar({
                     {saveStatus === "saving" ? (
                         <span className="hidden px-1.5 text-xs sm:inline" style={{ color: theme.node.muted }}>保存中…</span>
                     ) : saveStatus === "saved" ? (
-                        <span className="hidden px-1.5 text-xs sm:inline" style={{ color: theme.node.muted }}>已保存</span>
+                        <span aria-hidden={!showSaved} className={`hidden px-1.5 text-xs transition-opacity duration-500 sm:inline ${showSaved ? "opacity-100" : "opacity-0"}`} style={{ color: theme.node.muted }}>已保存</span>
                     ) : saveStatus === "error" ? (
                         <button type="button" onClick={retrySave} title="点击重试保存" className="rounded-full px-2 py-1 text-xs transition-colors hover:bg-[var(--canvas-topbar-hover)]" style={{ color: canvasStatusColors.error }}>保存失败 · 重试</button>
                     ) : null}

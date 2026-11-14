@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch, Tooltip } from "antd";
-import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
+import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Plus, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
 
 import { CANVAS_SHORTCUT_LABELS } from "../utils/canvas-shortcuts";
 
@@ -169,6 +169,11 @@ export function CanvasToolbar({
 
     const menuNavigation = useMenuNavigation({ open: openMenu !== null, onClose: () => setOpenMenu(null), panelRef, triggerRef, escapeScope: "document" });
 
+    useEffect(() => {
+        if (selectedCount === 0) return;
+        setOpenMenu((current) => current === "add" || current === "assets" || current === "more" ? null : current);
+    }, [selectedCount]);
+
     return (
         <div data-canvas-no-zoom data-canvas-toolbar className="pointer-events-none absolute inset-x-2 canvas-floating-toolbar flex justify-center md:left-[var(--canvas-toolbar-left)]" style={{ "--canvas-toolbar-left": `${sidePanelWidth + 16}px`, zIndex: CANVAS_Z.toolbar } as CSSProperties}>
             <div ref={dockRef} className="pointer-events-auto relative flex h-14 max-w-full items-center gap-1 rounded-xl border px-1.5 shadow-lg backdrop-blur max-sm:h-auto max-sm:flex-wrap max-sm:justify-center max-sm:gap-0 max-sm:gap-y-0.5 max-sm:px-0.5 max-sm:py-1 sm:px-2" style={dockStyle}>
@@ -178,10 +183,13 @@ export function CanvasToolbar({
                 <Tooltip title={shortcutTitle("撤销", CANVAS_SHORTCUT_LABELS.undo)} placement="top"><Button type="text" aria-label="撤销" disabled={!canUndo} className="!size-10 !min-w-10 !p-0" style={{ color: theme.toolbar.item }} icon={<Undo2 className="size-4.5" />} onClick={onUndo} /></Tooltip>
                 <Tooltip title={shortcutTitle("重做", CANVAS_SHORTCUT_LABELS.redo)} placement="top"><Button type="text" aria-label="重做" disabled={!canRedo} className="!size-10 !min-w-10 !p-0" style={{ color: theme.toolbar.item }} icon={<Redo2 className="size-4.5" />} onClick={onRedo} /></Tooltip>
                 <Divider theme={theme} />
-                <Tooltip title="添加图片" placement="top"><Button type="text" aria-label="添加图片" className="!size-10 !min-w-10 !p-0" style={{ color: theme.toolbar.item }} icon={<ImageIcon className="size-4.5" />} onClick={onAddImage} /></Tooltip>
-                <Button data-canvas-dock-trigger type="text" aria-label="其他添加工具" aria-haspopup="menu" aria-expanded={openMenu === "add"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "add" ? activeStyle : { color: theme.toolbar.item }} icon={<Ellipsis className="size-4" />} onClick={(event) => toggleMenu("add", event)}>添加</Button>
-                <Button data-canvas-dock-trigger type="text" aria-label="素材" aria-haspopup="menu" aria-expanded={openMenu === "assets"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "assets" ? activeStyle : { color: theme.toolbar.item }} onClick={(event) => toggleMenu("assets", event)}>素材</Button>
-                <Button data-canvas-dock-trigger type="text" aria-label="更多工具" aria-haspopup="menu" aria-expanded={openMenu === "more"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "more" ? activeStyle : { color: theme.toolbar.item }} icon={<Ellipsis className="size-4" />} onClick={(event) => toggleMenu("more", event)}>更多</Button>
+                {selectedCount === 0 ? (
+                    <>
+                        <Button data-canvas-dock-trigger type="text" aria-label="添加节点" aria-haspopup="menu" aria-expanded={openMenu === "add"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "add" ? activeStyle : { color: theme.toolbar.item }} icon={<Plus className="size-4" />} onClick={(event) => toggleMenu("add", event)}>添加</Button>
+                        <Button data-canvas-dock-trigger type="text" aria-label="素材" aria-haspopup="menu" aria-expanded={openMenu === "assets"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "assets" ? activeStyle : { color: theme.toolbar.item }} onClick={(event) => toggleMenu("assets", event)}>素材</Button>
+                        <Button data-canvas-dock-trigger type="text" aria-label="更多工具" aria-haspopup="menu" aria-expanded={openMenu === "more"} className="!h-10 !min-w-10 !px-2 max-sm:!px-1.5" style={openMenu === "more" ? activeStyle : { color: theme.toolbar.item }} icon={<Ellipsis className="size-4" />} onClick={(event) => toggleMenu("more", event)}>更多</Button>
+                    </>
+                ) : null}
                 {canBatchGenerate || batchGenerating ? (
                     <>
                         <Divider theme={theme} />

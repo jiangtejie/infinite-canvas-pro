@@ -4,6 +4,8 @@ import type { ChangeEvent as ReactChangeEvent, Dispatch, RefObject, SetStateActi
 import { type CanvasBackgroundMode, type CanvasTheme } from "@/lib/canvas-theme";
 import { type VideoFramePosition } from "../../utils/canvas-video-frame";
 import { buildGenerationConfig } from "../lib/canvas-generation-config";
+import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
+import { sourceRemixNeedsSync } from "../lib/canvas-source-remix";
 import { CanvasDirector } from "../../components/canvas-director";
 import { CanvasNodeContextMenu } from "../../components/canvas-context-menu";
 import { CanvasNodeHoverToolbar } from "../../components/canvas-node-hover-toolbar";
@@ -57,6 +59,9 @@ export type CanvasStageOverlaysModel = {
     toolbarNode: CanvasNodeData | null;
     keepNodeToolbar: (nodeId: string) => void;
     hideNodeToolbar: () => void;
+    handleRemixWithAgent: (nodeId: string) => void;
+    handleExpandSource: (nodeId: string) => void;
+    handleResetSource: (nodeId: string) => void;
     handleFontSizeChange: (nodeId: string, fontSize: number) => void;
     generateImageFromTextNode: (node: CanvasNodeData) => void;
     extractAudio: (node: CanvasNodeData, trim?: { start: number; end: number; }) => Promise<string | undefined>;
@@ -141,6 +146,9 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         toolbarNode,
         keepNodeToolbar,
         hideNodeToolbar,
+        handleRemixWithAgent,
+        handleExpandSource,
+        handleResetSource,
         handleFontSizeChange,
         generateImageFromTextNode,
         extractAudio,
@@ -235,6 +243,11 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onRetry={(node) => void handleRetryNode(node)}
                     onToggleFreeResize={(node) => toggleNodeFreeResize(node.id)}
                     onDelete={(node) => deleteNodes(new Set([node.id]))}
+                    onSourceRemix={(node) => handleRemixWithAgent(node.id)}
+                    onSourceExpand={(node) => handleExpandSource(node.id)}
+                    onSourceReset={(node) => handleResetSource(node.id)}
+                    sourceExpandedNeedsSync={toolbarNode?.type === CanvasNodeType.Source ? sourceExpansionNeedsSync(toolbarNode, nodes) : false}
+                    sourceRemixStale={toolbarNode?.type === CanvasNodeType.Source ? sourceRemixNeedsSync(toolbarNode, nodes) : false}
                 />
 
                 <CanvasToolbar

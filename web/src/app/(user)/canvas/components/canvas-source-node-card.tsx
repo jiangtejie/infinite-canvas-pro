@@ -6,12 +6,13 @@ import { theme as antdTheme, Tooltip } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
-import type { CanvasNodeData } from "../types";
+import { NODE_DEFAULT_SIZE } from "../constants";
+import { CanvasNodeType, type CanvasNodeData } from "../types";
 
 /**
  * 素材源节点卡片：展示解析状态与结果摘要，双击节点打开解析面板。
  */
-export function CanvasSourceNodeCard({ node, expandedNeedsSync }: { node: CanvasNodeData; expandedNeedsSync: boolean }) {
+export function CanvasSourceNodeCard({ node, expandedNeedsSync, onPreviewSize }: { node: CanvasNodeData; expandedNeedsSync: boolean; onPreviewSize?: (width: number, height: number) => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const [previewIndex, setPreviewIndex] = useState(0);
@@ -94,7 +95,7 @@ export function CanvasSourceNodeCard({ node, expandedNeedsSync }: { node: Canvas
                             <CircleAlert className="size-4" style={{ color: token.colorWarning }} />
                         </Tooltip>
                     ) : null}
-                    {expandedNeedsSync ? <Tooltip title="素材有更新，双击节点打开面板并同步展开内容"><CircleAlert className="size-4" style={{ color: token.colorWarning }} /></Tooltip> : null}
+                    {expandedNeedsSync ? <Tooltip title="素材有更新，可在节点工具栏的「素材」菜单更新展开素材"><CircleAlert className="size-4" style={{ color: token.colorWarning }} /></Tooltip> : null}
                     {parsing ? <LoaderCircle className="size-4 animate-spin" style={{ color: theme.node.activeStroke }} /> : null}
                 </div>
             </div>
@@ -126,7 +127,19 @@ export function CanvasSourceNodeCard({ node, expandedNeedsSync }: { node: Canvas
                             <span className="text-[11px] leading-4" style={{ color: theme.node.muted }}>图片加载失败，双击节点重新解析</span>
                         </div>
                     ) : (
-                        <img src={previewUrl} alt={title || "素材图片"} draggable={false} className="relative size-full object-contain" onError={() => setPreviewFailed(true)} />
+                        <img
+                            src={previewUrl}
+                            alt={title || "素材图片"}
+                            draggable={false}
+                            className="relative size-full object-contain"
+                            onLoad={(event) => {
+                                const image = event.currentTarget;
+                                const defaultSize = NODE_DEFAULT_SIZE[CanvasNodeType.Source];
+                                if (node.width !== defaultSize.width || node.height !== defaultSize.height) return;
+                                onPreviewSize?.(image.naturalWidth, image.naturalHeight);
+                            }}
+                            onError={() => setPreviewFailed(true)}
+                        />
                     )}
                     {previewUrls.length > 1 ? (
                         <>
@@ -174,11 +187,6 @@ export function CanvasSourceNodeCard({ node, expandedNeedsSync }: { node: Canvas
                     <span className="text-[11px]" style={{ color: theme.node.placeholder }}>文字素材，无图片</span>
                 </div>
             )}
-
-            <div className="mt-auto flex min-w-0 items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
-                <span className="truncate">{previewUrls.length ? `共 ${previewUrls.length} 张` : text ? "纯文字素材" : ""}</span>
-                <span className="shrink-0" style={{ color: theme.node.placeholder }}>双击查看 · 编辑</span>
-            </div>
         </div>
     );
 }

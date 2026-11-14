@@ -25,6 +25,8 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
     const zoomMenuRef = useRef<HTMLDivElement>(null);
     const zoomTriggerRef = useRef<HTMLButtonElement>(null);
     const menuNavigation = useMenuNavigation({ open: zoomMenuOpen, onClose: () => setZoomMenuOpen(false), panelRef: zoomMenuRef, triggerRef: zoomTriggerRef, escapeScope: "document" });
+    const zoomPercent = Math.round(scale * 100);
+    const fillPercent = Math.max(0, Math.min(100, ((zoomPercent - 5) / 495) * 100));
 
     const dockStyle = { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item, boxShadow: theme.shadow.panel };
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
@@ -51,9 +53,16 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
                         min="5"
                         max="500"
                         step="1"
-                        value={Math.round(scale * 100)}
-                        className="w-24 [@media(pointer:coarse)]:w-28"
-                        style={{ accentColor: theme.node.activeStroke }}
+                        value={zoomPercent}
+                        className="h-3 w-24 cursor-pointer appearance-none rounded-full outline-none focus-visible:outline focus-visible:outline-offset-2 [@media(pointer:coarse)]:w-28 [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[var(--zoom-accent)] [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--zoom-accent)] [&::-webkit-slider-thumb]:shadow"
+                        style={{
+                            "--zoom-accent": theme.node.activeStroke,
+                            backgroundImage: `linear-gradient(to right, ${theme.node.activeStroke} ${fillPercent}%, ${theme.node.stroke} ${fillPercent}%)`,
+                            backgroundSize: "100% 6px",
+                            backgroundPosition: "center",
+                            backgroundRepeat: "no-repeat",
+                            outlineColor: theme.node.activeStroke,
+                        } as CSSProperties}
                         onChange={(event) => onScaleChange(Number(event.target.value) / 100)}
                         aria-label="放大/缩小画布"
                     />
@@ -63,7 +72,7 @@ export function CanvasZoomControls({ scale, onScaleChange, onFitAll, onFitSelect
                         {Math.round(scale * 100)}%
                     </Button>
                     {zoomMenuOpen ? (
-                        <div role="menu" onKeyDown={menuNavigation.handleKeyDown} className="absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 rounded-xl border p-1" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, boxShadow: theme.shadow.float, zIndex: CANVAS_Z.toolbarMenu, "--canvas-menu-hover": theme.toolbar.itemHover } as CSSProperties}>
+                        <div role="menu" onKeyDown={menuNavigation.handleKeyDown} className="absolute bottom-full left-1/2 mb-2 w-52 -translate-x-1/2 rounded-2xl border p-1 shadow-2xl" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, zIndex: CANVAS_Z.toolbarMenu, "--canvas-menu-hover": theme.toolbar.itemHover } as CSSProperties}>
                             <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[var(--canvas-menu-hover)] [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitAll(); }}>查看全部（Shift + 1）</button>
                             <button type="button" role="menuitem" disabled={!hasSelection} className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[var(--canvas-menu-hover)] disabled:cursor-not-allowed disabled:opacity-40" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onFitSelected(); }}>聚焦选中（Shift + 2）</button>
                             <button type="button" role="menuitem" className="w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-[var(--canvas-menu-hover)] [@media(pointer:coarse)]:min-h-10" style={{ color: theme.node.text }} onClick={() => { setZoomMenuOpen(false); onScaleChange(1); }}>100%（Shift + 0）</button>

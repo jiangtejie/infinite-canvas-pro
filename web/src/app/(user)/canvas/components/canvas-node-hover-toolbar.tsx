@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { App, Modal, Segmented, Tooltip } from "antd";
-import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Send, Settings2, Trash2, Upload, Video } from "lucide-react";
+import { App, Dropdown, Modal, Segmented, Tooltip } from "antd";
+import { CircleAlert, Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Layers, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Send, Settings2, Sparkles, Trash2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import { formatBytes, getDataUrlByteSize } from "@/lib/image-utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
@@ -43,6 +44,11 @@ type CanvasNodeHoverToolbarProps = {
     onRetry: (node: CanvasNodeData) => void;
     onToggleFreeResize: (node: CanvasNodeData) => void;
     onDelete: (node: CanvasNodeData) => void;
+    onSourceRemix: (node: CanvasNodeData) => void;
+    onSourceExpand: (node: CanvasNodeData) => void;
+    onSourceReset: (node: CanvasNodeData) => void;
+    sourceExpandedNeedsSync: boolean;
+    sourceRemixStale: boolean;
 };
 
 type ToolbarTool = {
@@ -82,6 +88,11 @@ export function CanvasNodeHoverToolbar({
     onRetry,
     onToggleFreeResize,
     onDelete,
+    onSourceRemix,
+    onSourceExpand,
+    onSourceReset,
+    sourceExpandedNeedsSync,
+    sourceRemixStale,
 }: CanvasNodeHoverToolbarProps) {
     const [quickToolsConfigs, setQuickToolsConfigs] = useState(() => ({
         [IMAGE_QUICK_TOOLS_STORAGE_KEY]: { ids: defaultImageQuickToolIds, showLabels: true },
@@ -90,7 +101,9 @@ export function CanvasNodeHoverToolbar({
     const [draftImageToolIds, setDraftImageToolIds] = useState<ImageQuickToolId[]>(defaultImageQuickToolIds);
     const [draftShowImageToolLabels, setDraftShowImageToolLabels] = useState(true);
     const [imageToolSettingsOpen, setImageToolSettingsOpen] = useState(false);
+    const [sourceMenuOpen, setSourceMenuOpen] = useState(false);
     const { message } = App.useApp();
+    const confirm = useConfirm();
     const copyText = useCopyText();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const isPanorama = isPanoramaNodeType(node?.type);
@@ -122,6 +135,7 @@ export function CanvasNodeHoverToolbar({
 
     useEffect(() => {
         setImageToolSettingsOpen(false);
+        setSourceMenuOpen(false);
     }, [node?.id]);
 
     if (!node) return null;
@@ -142,6 +156,8 @@ export function CanvasNodeHoverToolbar({
     const isText = node.type === CanvasNodeType.Text;
     const isConfig = node.type === CanvasNodeType.Config;
     const isSource = node.type === CanvasNodeType.Source;
+    const hasSourceMaterial = isSource && Boolean(node.metadata?.sourceTitle?.trim() || node.metadata?.sourceText?.trim() || node.metadata?.sourceImages?.length || node.metadata?.sourceCoverUrl?.trim());
+    const sourceExpanded = node.metadata?.sourceExpanded === true;
     const isPublish = node.type === CanvasNodeType.Publish;
     const canOpenDialog = isText || hasImage || isVideo;
     const canRetry = node.metadata?.status === "error";
@@ -155,6 +171,15 @@ export function CanvasNodeHoverToolbar({
         copyText(prompt, "提示词已复制");
     };
     const imageTools = buildImageToolbarTools(node, { onUpload, onToggleFreeResize, onMaskEdit, onCrop, onSplit, onUpscale, onAngle, onViewImage, onCopyPrompt: copyImagePrompt, onReversePrompt }).filter((tool) => !isPanorama || tool.id !== "replace");
+    const resetSourceMaterials = async () => {
+        const accepted = await confirm({
+            title: "重置展开素材？",
+            description: "会删除当前素材源派生的素材和复刻节点；已连接到其他画布内容的节点会保留。",
+            confirmText: "重置素材",
+            tone: "danger",
+        });
+        if (accepted) onSourceReset(node);
+    };
 
     function openImageToolSettings() {
         onKeep(node!.id);
@@ -165,8 +190,8 @@ export function CanvasNodeHoverToolbar({
 
     const baseToolbarTools: ToolbarTool[] = [
         { id: "info", title: "查看节点信息", label: "信息", icon: <Info className="size-4" />, onClick: () => onInfo(node) },
-        { id: "delete", title: "移除节点", label: "删除", icon: <Trash2 className="size-4" />, onClick: () => onDelete(node), danger: true },
     ];
+    const deleteTool: ToolbarTool = { id: "delete", title: "移除节点", label: "删除", icon: <Trash2 className="size-4" />, onClick: () => onDelete(node), danger: true };
     const nodeToolbarTools: ToolbarTool[] = [
         ...(canRetry ? [{ id: "retry", title: "重新生成", label: "重试", icon: <RefreshCw className="size-4" />, onClick: () => onRetry(node) }] : []),
         ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
@@ -191,6 +216,18 @@ export function CanvasNodeHoverToolbar({
         ...(isText ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
         ...(isConfig ? [{ id: "config", title: "生成配置", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isSource ? [{ id: "sourcePanel", title: "打开素材源面板", label: "解析", icon: <Link2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
+        ...(hasSourceMaterial && !node.metadata?.sourceParsing ? [{
+            id: "sourceRemix",
+            title: sourceRemixStale ? "原素材已更新，复刻配图需要重新策划" : "交给 Agent 复刻：先组级策划再整组生成",
+            label: "复刻",
+            icon: (
+                <span className="flex items-center gap-1">
+                    <Sparkles className="size-4" />
+                    {sourceRemixStale ? <CircleAlert className="size-3" style={{ color: canvasStatusColors.loading }} /> : null}
+                </span>
+            ),
+            onClick: () => onSourceRemix(node),
+        }] : []),
         ...(isPublish ? [{ id: "publishPanel", title: "打开发布面板", label: "发布", icon: <Send className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
         ...(isText ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),
@@ -200,7 +237,7 @@ export function CanvasNodeHoverToolbar({
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
     ];
     const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
-    const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
+    const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools, deleteTool].filter((tool) => tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
 
     const closeImageToolSettings = () => {
         setImageToolSettingsOpen(false);
@@ -234,11 +271,11 @@ export function CanvasNodeHoverToolbar({
     return (
         <>
             <div
-                className="absolute flex flex-wrap items-center justify-center gap-x-2 overflow-visible rounded-xl border px-2 text-[13px] shadow-xl"
-                style={{ left, top, maxWidth: `min(${toolbarMaxWidth}px, calc(100vw - 32px))`, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, transform: `translate(-50%, -100%) scale(${toolbarScale})`, transformOrigin: "bottom center", zIndex: CANVAS_Z.hoverToolbar }}
+                className="absolute flex flex-wrap items-center justify-center gap-x-2 overflow-visible rounded-xl border px-2 text-[13px]"
+                style={{ left, top, maxWidth: `min(${toolbarMaxWidth}px, calc(100vw - 32px))`, background: theme.toolbar.panel, borderColor: theme.toolbar.border, boxShadow: theme.shadow.panel, color: theme.node.text, transform: `translate(-50%, -100%) scale(${toolbarScale})`, transformOrigin: "bottom center", zIndex: CANVAS_Z.hoverToolbar }}
                 onMouseEnter={() => onKeep(node.id)}
                 onMouseLeave={() => {
-                    if (!imageToolSettingsOpen) onLeave();
+                    if (!imageToolSettingsOpen && !sourceMenuOpen) onLeave();
                 }}
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
@@ -246,7 +283,48 @@ export function CanvasNodeHoverToolbar({
                 {toolbarTools.map((tool) => (
                     <ToolbarAction key={tool.id} {...tool} showLabel={showToolbarLabels} theme={theme} />
                 ))}
+                {hasSourceMaterial ? (
+                    <Dropdown
+                        trigger={["click"]}
+                        open={sourceMenuOpen}
+                        onOpenChange={(open) => {
+                            setSourceMenuOpen(open);
+                            if (open) onKeep(node.id);
+                            else onLeave();
+                        }}
+                        menu={{
+                            items: [
+                                {
+                                    key: "expand",
+                                    label: sourceExpanded ? (sourceExpandedNeedsSync ? "更新展开素材" : "已展开") : "展开素材",
+                                    disabled: sourceExpanded && !sourceExpandedNeedsSync,
+                                    onClick: () => onSourceExpand(node),
+                                },
+                                {
+                                    key: "reset",
+                                    label: "重置展开素材",
+                                    danger: true,
+                                    disabled: !sourceExpanded,
+                                    onClick: () => void resetSourceMaterials(),
+                                },
+                            ],
+                        }}
+                    >
+                        <button type="button" className="group relative flex h-12 items-center whitespace-nowrap" style={{ color: theme.node.text }} aria-label="素材操作">
+                            <span className="flex h-8 items-center rounded-lg transition group-hover:bg-foreground/10" style={{ ...(showToolbarLabels ? { gap: 8, paddingInline: 10 } : { justifyContent: "center", paddingInline: 8 }), ...(sourceMenuOpen ? { background: theme.toolbar.activeBg } : {}) }}>
+                                <Layers className="size-4" />
+                                {showToolbarLabels ? <span>素材</span> : null}
+                            </span>
+                        </button>
+                    </Dropdown>
+                ) : null}
                 {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showToolbarLabels} theme={theme} /> : null}
+                {!hasImage || quickImageToolIdSet.has("delete") ? (
+                    <>
+                        <span aria-hidden="true" className="mx-0.5 h-6 w-px shrink-0" style={{ background: theme.toolbar.border }} />
+                        <ToolbarAction {...deleteTool} showLabel={showToolbarLabels} theme={theme} />
+                    </>
+                ) : null}
                 <span aria-hidden="true" className="pointer-events-none absolute bottom-[-5px] left-1/2 size-2.5 -translate-x-1/2 rotate-45 border-b border-r" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }} />
             </div>
             {hasImage ? (

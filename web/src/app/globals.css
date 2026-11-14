@@ -1213,6 +1213,29 @@ html[data-announcement="visible"] {
     font-size: 13px;
 }
 
+/* 顶部导航下拉：短促淡入，避免逐项扫过时生硬 */
+.nav-panel-enter {
+    animation: nav-panel-in 120ms ease-out both;
+}
+
+@keyframes nav-panel-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-panel-enter {
+        animation: none;
+    }
+}
+
 /* 浮层里的输入控件：边框更清晰，和面板分离 */
 .ant-modal .ant-input,
 .ant-modal .ant-input-affix-wrapper,

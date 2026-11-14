@@ -21,8 +21,8 @@ export function CanvasBatchProgress({ state, onStop }: { state: CanvasBatchGener
             data-canvas-no-zoom
             role="status"
             aria-live="polite"
-            className="pointer-events-auto absolute left-1/2 canvas-floating-batch w-[min(440px,calc(100vw-32px))] -translate-x-1/2 rounded-xl border px-3 py-2 text-xs shadow-2xl backdrop-blur"
-            style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, zIndex: CANVAS_Z.menu }}
+            className="pointer-events-auto absolute left-1/2 canvas-floating-batch w-[min(440px,calc(100vw-32px))] -translate-x-1/2 rounded-xl border px-3 py-2 text-xs backdrop-blur"
+            style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, boxShadow: theme.shadow.panel, color: theme.node.text, zIndex: CANVAS_Z.menu }}
             onPointerDown={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
         >

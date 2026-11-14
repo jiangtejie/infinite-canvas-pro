@@ -7,7 +7,6 @@ import { canvasNodeTypeColors } from "../lib/canvas-palette";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
 import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
-import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 
 export function Minimap({ nodes, viewport, viewportSize, onViewportChange }: { nodes: CanvasNodeData[]; viewport: ViewportTransform; viewportSize: { width: number; height: number }; onViewportChange: (viewport: ViewportTransform) => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -87,6 +86,13 @@ export function Minimap({ nodes, viewport, viewportSize, onViewportChange }: { n
         };
     }, [toMinimap, viewport.k, viewport.x, viewport.y, viewportSize.height, viewportSize.width]);
 
+    const viewportWorld = {
+        x: -viewport.x / viewport.k,
+        y: -viewport.y / viewport.k,
+        w: viewportSize.width / viewport.k,
+        h: viewportSize.height / viewport.k,
+    };
+
     const updateViewportFromEvent = (event: React.PointerEvent) => {
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -100,7 +106,7 @@ export function Minimap({ nodes, viewport, viewportSize, onViewportChange }: { n
     };
 
     return (
-        <div className="absolute canvas-floating-minimap left-4 overflow-hidden rounded-xl border shadow-2xl backdrop-blur-md sm:left-5" style={{ width, height, background: theme.toolbar.panel, borderColor: theme.toolbar.border, zIndex: CANVAS_Z.toolbar }}>
+        <div className="absolute canvas-floating-minimap left-4 overflow-hidden rounded-xl border backdrop-blur-md sm:left-5" style={{ width, height, background: theme.toolbar.panel, borderColor: theme.toolbar.border, boxShadow: theme.shadow.panel, zIndex: CANVAS_Z.toolbar }}>
             <div
                 ref={containerRef}
                 className="relative h-full w-full cursor-crosshair"
@@ -118,7 +124,7 @@ export function Minimap({ nodes, viewport, viewportSize, onViewportChange }: { n
             >
                 {nodes.map((node) => {
                     const pos = toMinimap(node.position.x, node.position.y);
-                    const color = isCanvasImageNodeType(node.type) ? canvasNodeTypeColors.image : node.type === CanvasNodeType.Video ? canvasNodeTypeColors.video : node.type === CanvasNodeType.Audio ? canvasNodeTypeColors.audio : node.type === CanvasNodeType.Config ? canvasNodeTypeColors.config : theme.node.muted;
+                    const outside = node.position.x + node.width < viewportWorld.x || node.position.x > viewportWorld.x + viewportWorld.w || node.position.y + node.height < viewportWorld.y || node.position.y > viewportWorld.y + viewportWorld.h;
                     return (
                         <div
                             key={node.id}
@@ -128,8 +134,8 @@ export function Minimap({ nodes, viewport, viewportSize, onViewportChange }: { n
                                 top: pos.y,
                                 width: Math.max(node.width * scale, 2),
                                 height: Math.max(node.height * scale, 2),
-                                backgroundColor: color,
-                                opacity: 0.8,
+                                backgroundColor: canvasNodeTypeColors[node.type],
+                                opacity: node.type === CanvasNodeType.Group ? 0.35 : outside ? 0.3 : 0.8,
                             }}
                         />
                     );

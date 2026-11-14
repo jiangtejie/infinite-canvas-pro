@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { navigationSections, type NavigationToolSlug } from "@/constant/navigation-tools";
+import { navigationSections, navigationSectionTools, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { AnnouncementBanner } from "@/components/layout/announcement-banner";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
@@ -35,7 +35,7 @@ export function AppTopNav() {
     const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
     const slug = pathname.split("/").filter(Boolean)[0];
     const activeToolSlug = navigationSections
-        .flatMap((section) => ("children" in section ? section.children : [section]))
+        .flatMap(navigationSectionTools)
         .some((tool) => tool.slug === slug)
         ? (slug as NavigationToolSlug)
         : undefined;
@@ -136,7 +136,8 @@ export function AppTopNav() {
                                         }}
                                     />
                                 </span>
-                                <span className="text-[15px] font-semibold tracking-tight text-foreground">矩灵画布</span>
+                                <span className="hidden text-[15px] font-semibold tracking-tight text-foreground md:inline lg:hidden">矩灵</span>
+                                <span className="hidden text-[15px] font-semibold tracking-tight text-foreground lg:inline">矩灵画布</span>
                             </Link>
 
                             <span aria-hidden className="mx-5 hidden h-5 w-px bg-border md:block" />
@@ -151,11 +152,11 @@ export function AppTopNav() {
                                 <Menu className="size-5" />
                             </button>
 
-                            <nav ref={navRef} className="hidden h-full min-w-0 items-center gap-3 md:flex" aria-label="主站导航">
+                            <nav ref={navRef} className="hidden h-full min-w-0 items-center gap-2 md:flex lg:gap-3" aria-label="主站导航">
                                 {navigationSections.map((section, index) => {
-                                    if ("children" in section) {
+                                    if ("groups" in section) {
                                         const Icon = section.icon;
-                                        const sectionActive = section.children.some((child) => child.slug === activeToolSlug);
+                                        const sectionActive = navigationSectionTools(section).some((child) => child.slug === activeToolSlug);
                                         const isOpen = openSectionKey === section.label;
                                         const panelId = `nav-section-panel-${index}`;
                                         return (
@@ -185,7 +186,6 @@ export function AppTopNav() {
                                                 <button
                                                     ref={isOpen ? sectionTriggerRef : undefined}
                                                     type="button"
-                                                    aria-haspopup="true"
                                                     aria-expanded={isOpen}
                                                     aria-controls={isOpen ? panelId : undefined}
                                                     onClick={(event) => {
@@ -199,32 +199,42 @@ export function AppTopNav() {
                                                             : "text-acid-ink! after:bg-transparent hover:after:bg-acid/40",
                                                     )}
                                                 >
-                                                    <Icon className="size-4" />
+                                                    <Icon className="hidden size-4 lg:block" />
                                                     <span className="truncate">{section.label}</span>
                                                     <ChevronDown className={cn("size-3 shrink-0 transition-transform duration-200", isOpen && "rotate-180")} />
                                                 </button>
                                                 {isOpen ? (
-                                                    <div id={panelId} className="absolute left-0 top-full z-40 w-56 rounded-xl border border-border/80 bg-background/95 p-1.5 shadow-[0_28px_60px_-30px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
-                                                        {section.children.map((child) => {
-                                                            const ChildIcon = child.icon;
-                                                            const active = child.slug === activeToolSlug;
+                                                    <div id={panelId} className="nav-panel-enter absolute left-0 top-full z-40 w-[280px] rounded-xl border border-border/80 bg-background/95 p-1.5 shadow-[0_28px_60px_-30px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
+                                                        {section.groups.map((group, groupIndex) => {
+                                                            const groupActive = group.items.some((item) => item.slug === activeToolSlug);
                                                             return (
-                                                                <Link
-                                                                    key={child.slug}
-                                                                    href={`/${child.slug}`}
-                                                                    aria-current={active ? "page" : undefined}
-                                                                    onClick={closeSection}
-                                                                    className={cn(
-                                                                        "flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-[13px] transition-colors",
-                                                                        active
-                                                                            ? "bg-acid/[0.08]! font-medium text-acid-ink!"
-                                                                            : "text-acid-ink! hover:bg-acid/[0.08]!",
-                                                                    )}
-                                                                >
-                                                                    <ChildIcon className="size-4 shrink-0" />
-                                                                    <span className="min-w-0 flex-1 truncate">{child.label}</span>
-                                                                    {active ? <span aria-hidden className="size-1.5 shrink-0 bg-acid" /> : null}
-                                                                </Link>
+                                                                <div key={group.label || groupIndex} className={groupIndex ? "mt-1 border-t border-border/60 pt-1" : undefined}>
+                                                                    {group.label ? <p className={cn("px-2.5 pb-1 pt-1.5 font-mono text-[10px] tracking-[0.18em] uppercase", groupActive ? "text-acid-ink" : "text-muted-foreground/60")}>{group.label}</p> : null}
+                                                                    {group.items.map((child) => {
+                                                                        const ChildIcon = child.icon;
+                                                                        const active = child.slug === activeToolSlug;
+                                                                        return (
+                                                                            <Link
+                                                                                key={child.slug}
+                                                                                href={`/${child.slug}`}
+                                                                                aria-current={active ? "page" : undefined}
+                                                                                onClick={closeSection}
+                                                                                className={cn(
+                                                                                    "flex items-center gap-2.5 rounded-[6px] px-2 py-2 text-[13px] transition-colors",
+                                                                                    active
+                                                                                        ? "bg-acid/[0.08]! font-medium text-acid-ink!"
+                                                                                        : "text-acid-ink! hover:bg-acid/[0.08]!",
+                                                                                )}
+                                                                            >
+                                                                                <span className={cn("grid size-7 shrink-0 place-items-center rounded-[5px] border", active ? "border-acid/40 bg-acid/[0.08] text-acid-ink" : "border-border/60 bg-muted/40 text-acid-ink")}>
+                                                                                    <ChildIcon className="size-4" />
+                                                                                </span>
+                                                                                <span className="min-w-0 flex-1 truncate">{child.label}</span>
+                                                                                {active ? <span aria-hidden className="size-1.5 shrink-0 bg-acid" /> : null}
+                                                                            </Link>
+                                                                        );
+                                                                    })}
+                                                                </div>
                                                             );
                                                         })}
                                                     </div>
