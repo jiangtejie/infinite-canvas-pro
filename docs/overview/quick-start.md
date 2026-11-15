@@ -11,7 +11,7 @@ description: 用最少步骤把矩灵画布跑起来
 
 ```bash
 git clone git@github.com:jiangtejie/infinite-canvas-pro.git
-cd infinite-canvas
+cd infinite-canvas-pro
 cp .env.example .env
 docker compose up -d
 ```

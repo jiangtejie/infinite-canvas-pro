@@ -11,10 +11,18 @@ description: 画布本地存储、节点结构、媒体文件与清理机制
 
 画布项目以浏览器本地为主存储，登录后再同步一份到后端：
 
-- 画布项目 JSON：`localForage`，数据库名 `infinite-canvas`，storeName `app_state`，key 为 `infinite-canvas:canvas_store`。
-- 我的素材 JSON：`localForage`，数据库名 `infinite-canvas`，storeName `app_state`，key 为 `infinite-canvas:asset_store`。
+- 画布项目 JSON：`localForage`，数据库名 `infinite-canvas`，storeName `app_state`，基础键 `infinite-canvas:canvas_store`。
+- 我的素材 JSON：同一实例与 storeName，基础键 `infinite-canvas:asset_store`。
 - 图片 Blob：单独存到 `localForage` 实例，数据库名 `infinite-canvas`，storeName `image_files`。
 - 视频等媒体 Blob：单独存到 `localForage` 实例，数据库名 `infinite-canvas`，storeName `media_files`。
+
+本地业务数据按账号分区：实际键是 `基础键:<accountId>`，未登录统一落在 `:guest`。登录后读账号分区，分区还没有数据时接管游客分区（先写账号分区再清游客分区），保住「先本地创作、登录后同步」，也避免同一浏览器换账号后读到上一个账号的内容。键名集中定义在 `web/src/lib/storage-keys.ts`，分区读写在 `web/src/lib/account-storage.ts`。
+
+同一 `app_state` 下还有这些模块的基础键，媒体引用清理会一并扫描：
+
+- 影视项目 `infinite-canvas:film_store`、影视角色/场景库 `infinite-canvas:film_cast_store`
+- 漫画项目 `infinite-canvas:comic_store`、漫画角色/场景库 `infinite-canvas:comic_cast_store`
+- 营销资料 `infinite-canvas:marketing_store`
 
 画布 JSON 不直接长期保存大体积 base64 图片或视频。图片节点、视频节点、助手图片和素材媒体只保存展示 URL、`storageKey` 和元信息，真实 Blob 通过 `storageKey` 读取。
 
@@ -34,8 +42,14 @@ type CanvasProject = {
   connections: CanvasConnection[];
   chatSessions: CanvasAssistantSession[];
   activeChatId: string | null;
+  agentConfig: CanvasAgentConfig | null;
+  autoTitlePending: boolean;
+  pendingAgentRequest?: CanvasPendingAgentRequest;
   backgroundMode: "lines" | "dots" | "blank";
+  showImageInfo: boolean;
   viewport: { x: number; y: number; k: number };
+  sidePanel: CanvasSidePanelState;
+  agentPanel: CanvasSidePanelState;
 };
 ```
 
@@ -48,8 +62,13 @@ type CanvasProject = {
 - `connections`：节点连线列表。
 - `chatSessions`：右侧 Agent 会话。
 - `activeChatId`：当前选中的助手会话 ID。
+- `agentConfig`：本画布的 Agent 配置（模型、渠道、自动生成与确认开关等）。
+- `autoTitlePending`：是否还保留首次自动总结项目标题的机会；手动改名、导入项目或首次非主剧本写操作后置为 false。
+- `pendingAgentRequest`：从首页创作框带入画布、尚未执行的一次 Agent 请求。
 - `backgroundMode`：画布背景模式。
+- `showImageInfo`：是否显示节点图片信息。
 - `viewport`：视口变换，`x/y` 是屏幕平移，`k` 是缩放比例。
+- `sidePanel` / `agentPanel`：侧栏与助手面板的开合与宽度状态。
 
 ## 节点结构
 
@@ -58,7 +77,7 @@ type CanvasProject = {
 ```ts
 type CanvasNodeData = {
   id: string;
-  type: "image" | "panorama" | "text" | "config" | "video" | "audio" | "director" | "group";
+  type: "image" | "panorama" | "text" | "config" | "video" | "audio" | "director" | "group" | "source" | "publish" | "comic";
   title: string;
   position: { x: number; y: number };
   width: number;
@@ -70,13 +89,13 @@ type CanvasNodeData = {
 通用字段：
 
 - `id`：节点 ID。
-- `type`：节点类型，当前有图片、全景图、文本、生成配置、视频、音频、导演台、组八类。
+- `type`：节点类型，当前有图片、全景图、文本、生成配置、视频、音频、导演台、组、素材源、发布、漫画册十一类，枚举定义在 `CanvasNodeType`。
 - `title`：节点标题。
 - `position`：画布世界坐标，不是屏幕坐标。
 - `width` / `height`：画布世界坐标下的节点尺寸。
 - `metadata`：节点内容和业务状态。
 
-`metadata` 当前常用字段：
+`metadata` 当前常用字段（子集，完整定义以 `canvas/types.ts` 为准）：
 
 ```ts
 type CanvasNodeMetadata = {
@@ -103,6 +122,32 @@ type CanvasNodeMetadata = {
   mimeType?: string;
   bytes?: number;
   durationMs?: number;
+  cameraControl?: CameraControlOptions;
+  panoramaProjection?: "equirectangular";
+  directorProject?: unknown;
+  imageTaskId?: string;
+  videoTaskId?: string;
+  videoTaskVideoId?: string;
+  audioTaskId?: string;
+  sourceId?: string;
+  sourceTitle?: string;
+  sourceText?: string;
+  sourceTags?: string[];
+  sourceImages?: { url: string; storageKey?: string; width?: number; height?: number }[];
+  sourceExpanded?: boolean;
+  sourceExpandedSignature?: string;
+  sourceExpandedNodeSignatures?: Record<string, string>;
+  sourceMaterialRole?: "text";
+  comicBook?: CanvasComicBook;
+  remixRole?: "plan" | "copy" | "image" | "reference" | "publish";
+  remixRunId?: string;
+  remixRun?: RemixRun;
+  remixIndex?: number;
+  remixSourceId?: string;
+  marketingAssetId?: string;
+  publishSourceId?: string;
+  publishDraft?: CanvasPublishDraft;
+  publishRecord?: CanvasPublishRecord;
 };
 ```
 
@@ -117,6 +162,32 @@ type CanvasNodeMetadata = {
 - 导演台节点：`directorProject` 保存该节点独立的 3D 场景数据；机位截图列表只保存在当前浏览器，不随画布同步。
 - 组节点：作为容器节点使用，成员节点通过 `metadata.groupId` 指向组节点 ID。
 - 图片组节点：根节点用 `isBatchRoot/batchChildIds/primaryImageId/imageBatchExpanded` 记录批量生成结果；子图节点用 `batchRootId` 指回根节点。
+- 素材源节点：`sourceId/sourceTitle/sourceText/sourceTags/sourceImages` 保存解析结果；`sourceExpanded` 与 `sourceExpandedSignature/sourceExpandedNodeSignatures` 记录展开状态与来源/派生节点签名，用于同步对账和过期判定。展开出的素材文案节点用 `sourceMaterialRole: "text"` 标记为只读参考。
+- 发布节点：`publishDraft` 是当前草稿，`publishDraftSnapshot` 是签发时的草稿快照（用于判断二维码是否属于旧内容），`publishRecord/publishStatus/publishError` 保存签发结果与状态。复刻链路创建的发布节点把本次 runId 存进 `publishSourceId` 作为复用键，`remixSourceId` 指回原素材源节点。
+- 漫画册节点：`comicBook` 保存页面引用、封面、格式、阅读方向、贴字、导出预设与项目关联，结构见下。
+- 复刻运行：策划/文案/配图/参考/发布节点用 `remixRole` 区分角色，同一次复刻共享 `remixRunId`；`remixRun` 保存输入快照、绑定状态（`active` / `detached`）、策划与审批 key。配图节点用 `remixIndex/remixSourceId` 指回序号与对应原图，营销图片引用用 `marketingAssetId`。
+
+漫画册的 `comicBook` 结构：
+
+```ts
+type CanvasComicBook = {
+  pageNodeIds: string[];
+  coverNodeId?: string;
+  format: "page" | "strip";
+  direction: "rtl" | "ltr";
+  lettering?: Record<string, ComicLetterElement[]>;
+  exportPreset?: ComicExportPreset;
+  comicProjectId?: string;
+  /** 画布页面节点 id → 工作台页面 id，用于页序与贴字回写。 */
+  pageProjectIds?: Record<string, string>;
+};
+```
+
+- `pageNodeIds`：按页序引用画布图片节点，不为每页额外建连线；`coverNodeId` 是封面页。
+- `lettering`：键是页面图片节点 ID，值是该页气泡数组。气泡的 `x/y/width/fontSize` 都是相对页面宽高的 0–1 值（`fontSize` 相对页宽），另含 `kind`（speech/thought/caption/sfx）、`align`、`tail`、可选 `template`（oval/rounded/boxed/cloud/caption，未设置时按 kind 取默认）与 `tailX`（尾巴水平位置，相对气泡宽度 0–1）。
+- `exportPreset`：`pageSize`（fit/a4/b5）、`dpi`（150/300）、`pageNumbers`、`titlePage` 与 `titlePageText`；页面尺寸只影响 PDF。
+- `comicProjectId`：关联的本机漫画项目 ID。
+- `pageProjectIds`：画布页面节点 → 工作台页面的映射。发送、更新、关联项目同步与复制漫画册时都会维护，回写贴字与同章节页序依赖它；缺少映射的旧漫画册需先发送/更新一次。
 
 ## 连线结构
 
@@ -224,9 +295,9 @@ type UploadedImage = {
 图片不是在删除节点时立即按节点逐张删除，而是做引用清理：
 
 1. 删除节点、清空画布、删除画布、删除素材、删除助手会话时，会触发 `cleanupImages`。
-2. `cleanupImages` 会收集当前仍被画布项目、素材和额外传入数据引用的所有 `storageKey`。
+2. `cleanupImages` 通过 `services/storage-references.ts` 的 `collectStorageReferences` 收集仍被引用的存储键：画布项目、我的素材、Agent Skill、生图/视频生成历史（含数组里的裸 `video:`/`file:` 键）、影视项目、影视角色/场景库、其他账号分区，以及调用方额外传入的数据。
 3. `cleanupUnusedImages` 遍历 `image_files` 中的全部图片。
 4. 不在引用集合里的图片会被删除。
 5. 删除时会同时 `URL.revokeObjectURL`，并从内存缓存 `objectUrls` 移除。
 
-这套方式可以避免同一张图片被画布、素材或助手同时引用时误删。
+这套方式可以避免同一张图片被画布、素材、影视或助手同时引用时误删。注意当前收集范围不含漫画项目、漫画角色/场景库与营销资料：漫画参考图只被这些模块引用时仍可能被清理，营销资料另有删除素材时的引用检查。
