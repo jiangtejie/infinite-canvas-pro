@@ -1,13 +1,16 @@
 import { imageToDataUrl, uploadImage } from "@/services/image-storage";
 import type { ComicImageRef, ComicPage, ComicProject } from "../types";
+import { assertComicPageCompositionConfirmed } from "./comic-image-generation";
 import { comicPageCompositionSize, comicPanelRect } from "./comic-project";
 
 type ComicPageCompositionResult = {
     image: ComicImageRef;
     missing: number;
+    compositionContext?: ComicPage["compositionContext"];
 };
 
-export async function composeComicPage(project: ComicProject, page: ComicPage): Promise<ComicPageCompositionResult> {
+export async function composeComicPage(project: ComicProject, page: ComicPage, options: { confirmedPanelIds?: string[]; model?: string; size?: string } = {}): Promise<ComicPageCompositionResult> {
+    const compositionWarnings = assertComicPageCompositionConfirmed(project, page, options.confirmedPanelIds || [], { model: options.model, size: options.size });
     const { width, height } = comicPageCompositionSize(project.format);
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -45,9 +48,16 @@ export async function composeComicPage(project: ComicProject, page: ComicPage): 
         canvas.toBlob((value) => value ? resolve(value) : reject(new Error("整页导出失败")), "image/png");
     });
     const uploaded = await uploadImage(blob, { localOnly: true });
+    const hasWarnings = compositionWarnings.stalePanelIds.length || compositionWarnings.unrecordedPanelIds.length || compositionWarnings.incompletePanelIds.length;
     return {
         image: { url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width || width, height: uploaded.height || height },
         missing,
+        compositionContext: hasWarnings ? {
+            stalePanelIds: compositionWarnings.stalePanelIds,
+            unrecordedPanelIds: compositionWarnings.unrecordedPanelIds,
+            incompletePanelIds: compositionWarnings.incompletePanelIds,
+            confirmedAt: compositionWarnings.stalePanelIds.length || compositionWarnings.unrecordedPanelIds.length ? new Date().toISOString() : undefined,
+        } : undefined,
     };
 }
 

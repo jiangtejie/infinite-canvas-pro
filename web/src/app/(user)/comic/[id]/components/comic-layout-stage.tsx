@@ -6,13 +6,11 @@ import { Eye, FileText, Grid2x2, Layers, LayoutPanelTop, LoaderCircle, Plus, Row
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useModelConfig } from "@/hooks/use-model-config";
-import { resolveImageUrl } from "@/services/image-storage";
 import { requestImages } from "@/services/api/image/request";
 import type { SeedableImageConfig } from "@/services/api/image";
-import type { ReferenceImage } from "@/types/image";
 import { errorMessage } from "@/lib/utils";
 import type { ComicImageRef, ComicPanel, ComicPanelLayout, ComicPage, ComicProject } from "../../types";
-import { buildComicPanelPrompt, collectComicPanelReferences } from "../../utils/comic-image-generation";
+import { buildComicPanelGenerationContext, comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, currentComicPanelInputSignature, loadComicPanelReferences, resolveComicPanelImageState, type ComicPanelAnchor } from "../../utils/comic-image-generation";
 import { composeComicPage } from "../../utils/comic-page-composition";
 import { comicPanelRect, createComicPanel, equalGridLayouts, equalVerticalLayouts, resetComicReviewStatus, updateComicPage, updateComicPanel } from "../../utils/comic-project";
 import { ComicImage } from "./comic-image";
@@ -30,7 +28,7 @@ type DragState = {
 };
 
 export function ComicLayoutStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
-    const { message } = App.useApp();
+    const { message, modal } = App.useApp();
     const confirm = useConfirm();
     const resolveModelConfig = useModelConfig();
     const [generating, setGenerating] = useState(false);
@@ -50,7 +48,7 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
 
     const commitPanels = (panels: ComicPanel[], patch: Partial<ComicPage> = {}) => {
         if (!chapter || !page) return;
-        onChange(updateComicPage(project, chapter.id, page.id, { ...patch, panels, pageImage: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
+        onChange(updateComicPage(project, chapter.id, page.id, { ...patch, panels, pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
     };
 
     const addPanel = () => {
@@ -86,32 +84,39 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
         if (!accepted) return;
         setGenerating(true);
         let nextProject = project;
-        let anchor: ReferenceImage | null = null;
+        let anchor: ComicPanelAnchor | null = null;
+        const warnings = new Set<string>();
         const imageConfig = { ...config, count: "1" } as SeedableImageConfig;
         for (const [index, panel] of page.panels.entries()) {
             setProgress({ done: index, total: page.panels.length });
             try {
-                const references = await collectComicPanelReferences(nextProject, panel);
-                if (anchor) references.push(anchor);
-                const prompt = buildComicPanelPrompt(nextProject, page, panel);
-                const images = await requestImages(imageConfig, prompt, references);
+                const compiled = buildComicPanelGenerationContext(nextProject, page, panel, { anchor: anchor || undefined, model: imageConfig.model, size: imageConfig.size });
+                compiled.warnings.forEach((warning) => warnings.add(warning));
+                const loaded = await loadComicPanelReferences(compiled.referenceDescriptors);
+                loaded.missingReferenceIds.forEach((id) => warnings.add(`参考图读取失败：${id}`));
+                const images = await requestImages(imageConfig, compiled.prompt, loaded.references);
                 const generated = images[0];
                 if (!generated) throw new Error("AI 没有返回图片");
                 const image: ComicImageRef = { url: generated.dataUrl, storageKey: generated.storageKey, width: generated.width, height: generated.height };
-                nextProject = updateComicPanel(nextProject, chapter.id, page.id, panel.id, { image, imageError: undefined });
-                if (!anchor) {
-                    const dataUrl = await resolveImageUrl(generated.storageKey, generated.dataUrl).catch(() => generated.dataUrl);
-                    anchor = { id: `anchor-${panel.id}`, name: "anchor.png", type: "image/png", dataUrl, storageKey: generated.storageKey };
-                }
+                const context = createComicGenerationContext(compiled, loaded, { model: imageConfig.model, size: imageConfig.size });
+                nextProject = updateComicPanel(nextProject, chapter.id, page.id, panel.id, { image: createComicGeneratedPanelImage(image, context), imageError: undefined });
+                if (!anchor) anchor = { panelId: panel.id, inputSignature: compiled.inputSignature, image };
             } catch (error) {
                 nextProject = updateComicPanel(nextProject, chapter.id, page.id, panel.id, { imageError: errorMessage(error, "页格生成失败") });
             }
             onChange(nextProject);
         }
-        onChange(updateComicPage(nextProject, chapter.id, page.id, { pageImage: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
+        onChange(updateComicPage(nextProject, chapter.id, page.id, { pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
         setGenerating(false);
         setProgress(null);
+        if (warnings.size) modal.info({ title: "本次生成的参考图提示", content: <ul className="m-0 list-disc pl-5 text-xs leading-6">{Array.from(warnings).map((warning) => <li key={warning}>{warning}</li>)}</ul> });
         message.success("页格图生成完成，可逐格检查");
+    };
+
+    const panelImageState = (panel: ComicPanel) => {
+        if (!page) return null;
+        const config = resolveModelConfig("image");
+        return resolveComicPanelImageState(panel, currentComicPanelInputSignature(project, page, panel, { model: config?.model, size: config?.size }));
     };
 
     const composePage = async () => {
@@ -125,10 +130,22 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
         }
         setComposing(true);
         try {
-            const result = await composeComicPage(project, page);
-            onChange(updateComicPage(project, chapter.id, page.id, { pageImage: result.image, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
+            const config = resolveModelConfig("image");
+            const warnings = comicPageCompositionWarnings(project, page, { model: config?.model, size: config?.size });
+            const riskyPanelIds = [...warnings.stalePanelIds, ...warnings.unrecordedPanelIds];
+            if (riskyPanelIds.length) {
+                const acceptedStale = await confirm({
+                    title: "有页格与当前设定不一致",
+                    description: `${riskyPanelIds.length} 个页格使用的图已过期或缺少生成上下文。确认后仍会把它们合成进整页，成品会保留提示。`,
+                    confirmText: "仍然合成",
+                });
+                if (!acceptedStale) return;
+            }
+            const result = await composeComicPage(project, page, { confirmedPanelIds: riskyPanelIds, model: config?.model, size: config?.size });
+            onChange(updateComicPage(project, chapter.id, page.id, { pageImage: result.image, compositionContext: result.compositionContext, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
             setPagePreview(result.image);
-            if (result.missing) message.warning(`整页已合成，${result.missing} 个页格没有可用图片`);
+            if (warnings.incompletePanelIds.length) message.warning(`整页已合成，${warnings.incompletePanelIds.length} 个页格生成时参考图不完整`);
+            else if (result.missing) message.warning(`整页已合成，${result.missing} 个页格没有可用图片`);
             else message.success("整页已合成");
         } catch (error) {
             message.error(errorMessage(error, "合成整页失败"));
@@ -174,7 +191,7 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
         const target = pages.find((item) => item.page.id === drag.pageId)?.page;
         if (!target) return;
         const panels = target.panels.map((item) => item.id === drag.panelId ? { ...item, layout: current.rect } : item);
-        onChange(updateComicPage(project, drag.chapterId, drag.pageId, { panels, pageImage: undefined, reviewStatus: resetComicReviewStatus(target.reviewStatus) }));
+        onChange(updateComicPage(project, drag.chapterId, drag.pageId, { panels, pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(target.reviewStatus) }));
     };
 
     return (
@@ -214,10 +231,11 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
                                     const base = comicPanelRect(page, panel, index);
                                     const rect = preview?.panelId === panel.id ? preview.rect : base;
                                     const active = selectedPanelId === panel.id;
+                                    const imageState = panel.image ? panelImageState(panel) : null;
                                     return (
                                         <div key={panel.id} className="absolute cursor-move overflow-hidden border bg-muted/60 p-2 text-[10px] text-foreground" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.w * 100}%`, height: `${rect.h * 100}%`, borderColor: active ? "var(--acid)" : "var(--foreground)", outline: active ? "2px solid color-mix(in oklch, var(--acid) 45%, transparent)" : undefined }} onPointerDown={(event) => startDrag(event, panel, index, "move")} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
                                             {panel.image ? <ComicImage image={panel.image} className="pointer-events-none absolute inset-0 size-full object-cover" /> : null}
-                                            <div className="relative z-10 flex items-center justify-between gap-1"><span className="rounded px-1 font-mono font-semibold" style={{ background: "rgba(255,255,255,.82)" }}>#{index + 1}</span><LayoutPanelTop className="size-3 opacity-40" /></div>
+                                            <div className="relative z-10 flex items-center justify-between gap-1"><span className="rounded px-1 font-mono font-semibold" style={{ background: "rgba(255,255,255,.82)" }}>#{index + 1}</span>{imageState ? <span className={`rounded px-1 ${imageState === "current" ? "bg-emerald-50 text-emerald-700" : imageState === "incomplete" ? "bg-sky-50 text-sky-700" : "bg-amber-50 text-amber-700"}`}>{panelImageStateLabel(imageState)}</span> : null}<LayoutPanelTop className="size-3 opacity-40" /></div>
                                             {!panel.image ? <p className="relative z-10 mt-1 line-clamp-3 leading-4 text-muted-foreground">{panel.description || "未写画面描述"}</p> : null}
                                             {panel.imageError ? <p className="relative z-10 mt-1 line-clamp-2 rounded bg-white/80 px-1 leading-4 text-red-500">{panel.imageError}</p> : null}
                                             <span className="absolute bottom-0 right-0 z-20 size-3 cursor-nwse-resize border-l border-t bg-foreground/20" aria-label="缩放页格" onPointerDown={(event) => startDrag(event, panel, index, "resize")} />
@@ -233,8 +251,16 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
 
             <Modal open={Boolean(pagePreview)} title="成品页预览" footer={null} width="min(760px, 94vw)" centered destroyOnHidden onCancel={() => setPagePreview(null)}>
                 {pagePreview ? <div className="rounded-lg border border-border/70 bg-white p-2"><ComicImage image={pagePreview} className="mx-auto max-h-[72vh] max-w-full object-contain" /></div> : null}
+                {page?.compositionContext && (page.compositionContext.stalePanelIds.length || page.compositionContext.unrecordedPanelIds.length || page.compositionContext.incompletePanelIds.length) ? <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] leading-5 text-amber-700">成品包含旧上下文图：设定已变 {page.compositionContext.stalePanelIds.length} 格、未记录 {page.compositionContext.unrecordedPanelIds.length} 格、参考缺失 {page.compositionContext.incompletePanelIds.length} 格。</p> : null}
                 <p className="mt-2 text-center text-[11px] text-muted-foreground/60">这是页格拼合结果；修改页格、布局或页格图后需要重新合成。</p>
             </Modal>
         </div>
     );
+}
+
+function panelImageStateLabel(state: "unrecorded" | "stale" | "incomplete" | "current") {
+    if (state === "unrecorded") return "未记录";
+    if (state === "stale") return "设定已变";
+    if (state === "incomplete") return "参考缺失";
+    return "当前";
 }

@@ -1,5 +1,5 @@
 import { readOtherAccountStates } from "@/lib/account-storage";
-import { ASSET_STORE_KEY, CANVAS_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
+import { ASSET_STORE_KEY, CANVAS_STORE_KEY, COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
 
 type GenerationLog = {
     images?: Array<{ storageKey?: string } | null>;
@@ -33,24 +33,57 @@ export type StorageReferenceSources = {
     projects?: unknown;
     filmProjects?: unknown;
     filmCast?: unknown;
+    comicProjects?: unknown;
+    comicCast?: unknown;
     skills?: unknown;
     extra?: unknown;
     logKeys: string[];
     otherAccounts: unknown[];
 };
 
-/** 收集所有本地业务数据中引用到的媒体存储键；画布、影视、素材、Skills、生成历史和其他账号分区都算。 */
+export type StorageReferenceSourceInput = Omit<StorageReferenceSources, "logKeys" | "otherAccounts"> & {
+    logKeys: string[];
+    otherAccounts: unknown[];
+};
+
+export function buildStorageReferenceSources(input: StorageReferenceSourceInput): StorageReferenceSources {
+    return {
+        assets: input.assets,
+        projects: input.projects,
+        filmProjects: input.filmProjects,
+        filmCast: input.filmCast,
+        comicProjects: input.comicProjects,
+        comicCast: input.comicCast,
+        skills: input.skills,
+        extra: input.extra,
+        logKeys: input.logKeys,
+        otherAccounts: input.otherAccounts,
+    };
+}
+
+/** 收集所有本地业务数据中引用到的媒体存储键；画布、影视、漫画、素材、Skills、生成历史和其他账号分区都算。 */
 export async function collectStorageReferences({ assets, skills, extra }: { assets?: unknown; skills?: unknown; extra?: unknown } = {}): Promise<StorageReferenceSources> {
     const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
     const { useFilmStore } = await import("@/stores/use-film-store");
     const { useFilmCastStore } = await import("@/stores/use-film-cast-store");
-    await Promise.all([waitForHydration(useCanvasStore), waitForHydration(useFilmStore), waitForHydration(useFilmCastStore)]);
+    const { useComicStore } = await import("@/app/(user)/comic/stores/use-comic-store");
+    const { useComicCastStore } = await import("@/app/(user)/comic/stores/use-comic-cast-store");
+    await Promise.all([
+        waitForHydration(useCanvasStore),
+        waitForHydration(useFilmStore),
+        waitForHydration(useFilmCastStore),
+        waitForHydration(useComicStore),
+        waitForHydration(useComicCastStore),
+    ]);
     const cast = useFilmCastStore.getState();
-    return {
+    const comicCast = useComicCastStore.getState();
+    return buildStorageReferenceSources({
         assets,
         projects: useCanvasStore.getState().projects,
         filmProjects: useFilmStore.getState().projects,
         filmCast: { characters: cast.characters, locations: cast.locations },
+        comicProjects: useComicStore.getState().projects,
+        comicCast: { characters: comicCast.characters, locations: comicCast.locations },
         skills,
         extra,
         logKeys: await collectGenerationLogKeys(),
@@ -59,8 +92,10 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
             ...(await readOtherAccountStates(ASSET_STORE_KEY)),
             ...(await readOtherAccountStates(FILM_STORE_KEY)),
             ...(await readOtherAccountStates(FILM_CAST_STORE_KEY)),
+            ...(await readOtherAccountStates(COMIC_STORE_KEY)),
+            ...(await readOtherAccountStates(COMIC_CAST_STORE_KEY)),
         ],
-    };
+    });
 }
 
 async function collectGenerationLogKeys() {

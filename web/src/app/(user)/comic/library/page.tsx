@@ -1,22 +1,31 @@
 "use client";
 
-import { Button } from "antd";
-import { ArrowLeft, BookOpen, ImagePlus, Library, MapPin, Trash2, UserRound } from "lucide-react";
+import { useState } from "react";
+import { Button, Input, Modal } from "antd";
+import { ArrowLeft, BookOpen, ImagePlus, Library, MapPin, Pencil, Search, Trash2, UserRound } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ComicCharacterEditor } from "../components/comic-character-editor";
 import { useComicImageSrc } from "../hooks/use-comic-image-src";
 import { useComicCastStore } from "../stores/use-comic-cast-store";
-import type { ComicImageRef } from "../types";
+import type { ComicImageRef, ComicLibraryCharacter } from "../types";
 
 export default function ComicLibraryPage() {
     const confirm = useConfirm();
     const hydrated = useComicCastStore((state) => state.hydrated);
     const characters = useComicCastStore((state) => state.characters);
     const locations = useComicCastStore((state) => state.locations);
+    const updateCharacter = useComicCastStore((state) => state.updateCharacter);
     const removeCharacter = useComicCastStore((state) => state.removeCharacter);
     const removeLocation = useComicCastStore((state) => state.removeLocation);
+    const [query, setQuery] = useState("");
+    const [editing, setEditing] = useState<ComicLibraryCharacter | null>(null);
+    const keyword = query.trim().toLowerCase();
+    const filteredCharacters = keyword
+        ? characters.filter((item) => [item.name, item.role, item.visualIdentity.description, ...item.aliases].some((value) => value.toLowerCase().includes(keyword)))
+        : characters;
 
     const deleteCharacter = async (id: string, name: string) => {
         const accepted = await confirm({ title: `从库中删除「${name}」？`, description: "已导入到漫画项目里的副本不受影响。", confirmText: "从库中删除", tone: "danger" });
@@ -35,7 +44,7 @@ export default function ComicLibraryPage() {
                     title="角色与场景库"
                     description="漫画项目里点「存入库」的角色和场景会汇总到这里，可在任意项目设定里导入；导入和存入都是独立副本，删除库条目不影响项目。"
                     meta={<><span className="chip chip-acid">{characters.length} 个角色</span><span className="chip">{locations.length} 个场景</span></>}
-                    actions={<Button href="/comic" icon={<ArrowLeft className="size-4" />}>返回漫画工作台</Button>}
+                    actions={<div className="flex flex-wrap items-center gap-2"><Input allowClear className="!w-[220px]" prefix={<Search className="size-3.5 opacity-50" />} placeholder="搜索姓名、身份或外观" value={query} onChange={(event) => setQuery(event.target.value)} /><Button href="/comic" icon={<ArrowLeft className="size-4" />}>返回漫画工作台</Button></div>}
                 />
                 {!hydrated ? <LoadingState label="正在加载角色与场景库" /> : null}
                 {hydrated && !characters.length && !locations.length ? <EmptyState title="库还是空的" description="打开漫画项目的「设定」，编辑角色或场景后点卡片上的库图标存入。" icon={<Library className="size-6" />} action={<Button type="primary" href="/comic">去漫画工作台</Button>} /> : null}
@@ -44,20 +53,26 @@ export default function ComicLibraryPage() {
                     <section className="space-y-3">
                         <h2 className="flex items-center gap-2 text-sm font-semibold"><UserRound className="size-4 opacity-60" />角色库</h2>
                         <div className="grid gap-3 lg:grid-cols-2">
-                            {characters.map((item) => (
+                            {filteredCharacters.map((item) => (
                                 <article key={item.id} className="rounded-xl border border-border/70 bg-card/40 p-4">
                                     <div className="flex items-start gap-3">
-                                        <LibraryImage image={item.image} name={item.name} />
+                                        <LibraryImage image={item.references.primary} name={item.name} />
                                         <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2"><h3 className="min-w-0 flex-1 truncate text-base font-semibold">{item.name}</h3><Button type="text" size="small" danger className="!h-7 !w-7 !min-w-7 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="从库中删除角色" onClick={() => void deleteCharacter(item.id, item.name)} /></div>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="min-w-0 flex-1 truncate text-base font-semibold">{item.name}</h3>
+                                                <Button type="text" size="small" className="!h-7 !w-7 !min-w-7 !p-0" icon={<Pencil className="size-3.5" />} aria-label="编辑角色" onClick={() => setEditing(item)} />
+                                                <Button type="text" size="small" danger className="!h-7 !w-7 !min-w-7 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="从库中删除角色" onClick={() => void deleteCharacter(item.id, item.name)} />
+                                            </div>
                                             <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.role || "未填写身份"}</p>
-                                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.appearance || "未填写外观"}</p>
+                                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.visualIdentity.description || "未填写外观"}</p>
                                         </div>
                                     </div>
-                                    {item.wardrobe || item.personality ? <p className="mt-3 line-clamp-2 border-t border-border/60 pt-2 text-[11px] leading-5 text-muted-foreground">{[item.wardrobe, item.personality].filter(Boolean).join(" · ")}</p> : null}
+                                    {item.defaultLook.outfit || item.behavior.personality ? <p className="mt-3 line-clamp-2 border-t border-border/60 pt-2 text-[11px] leading-5 text-muted-foreground">{[item.defaultLook.outfit, item.behavior.personality].filter(Boolean).join(" · ")}</p> : null}
+                                    <p className="mt-2 text-[10px] text-muted-foreground/60">{item.variants.length} 个变体 · {[item.references.primary, item.references.face, item.references.fullBody].filter(Boolean).length} 张基础参考</p>
                                 </article>
                             ))}
                         </div>
+                        {!filteredCharacters.length ? <p className="m-0 rounded-lg border border-dashed border-border/70 px-4 py-8 text-center text-xs text-muted-foreground">没有匹配的角色</p> : null}
                     </section>
                 ) : null}
 
@@ -83,6 +98,18 @@ export default function ComicLibraryPage() {
 
                 <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60"><BookOpen className="size-3.5" />库与本机浏览器绑定；换设备或清缓存前请导出项目备份。</p>
             </div>
+
+            <Modal
+                open={Boolean(editing)}
+                title="编辑角色库条目"
+                width={860}
+                destroyOnHidden
+                onCancel={() => setEditing(null)}
+                footer={<div className="flex justify-end gap-2"><Button onClick={() => setEditing(null)}>取消</Button><Button type="primary" onClick={() => { if (!editing) return; updateCharacter(editing.id, editing); setEditing(null); }}>保存到库</Button></div>}
+            >
+                {editing ? <ComicCharacterEditor character={editing} onChange={(character) => setEditing({ ...character, createdAt: editing.createdAt })} /> : null}
+                <p className="mb-0 mt-3 text-[11px] leading-5 text-muted-foreground">只更新角色库条目；已经导入项目的角色副本不会跟着变化。</p>
+            </Modal>
         </main>
     );
 }

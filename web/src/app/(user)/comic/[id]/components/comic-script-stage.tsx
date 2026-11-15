@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, FileText, Plus, Sparkles, Trash2, X } from "lucide-react";
-import { App, Button, Input } from "antd";
+import { App, Button, Input, Select } from "antd";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
-import type { ComicProject } from "../../types";
+import type { ComicPanel, ComicPanelCharacterBinding, ComicProject } from "../../types";
 import { requestComicBreakdown } from "../../utils/comic-ai";
+import { removeComicPanelCharacterBinding, setComicPanelCharacterBindings, suggestLegacyPanelBindings } from "../../utils/comic-character-binding";
 import { createComicChapter, createComicPage, createComicPanel, moveComicPanel, resetComicReviewStatus, updateComicChapter, updateComicPage, updateComicPanel } from "../../utils/comic-project";
 
 export function ComicScriptStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
@@ -69,14 +70,20 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
 
     const patchPage = (patch: Partial<typeof page>) => {
         if (!chapter || !page) return;
-        onChange(updateComicPage(project, chapter.id, page.id, { ...patch, pageImage: patch.panels ? undefined : page.pageImage, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
+        const invalidatesComposition = Boolean(patch.panels) || patch.summary !== undefined;
+        onChange(updateComicPage(project, chapter.id, page.id, {
+            ...patch,
+            pageImage: invalidatesComposition ? undefined : page.pageImage,
+            compositionContext: invalidatesComposition ? undefined : page.compositionContext,
+            reviewStatus: resetComicReviewStatus(page.reviewStatus),
+        }));
     };
 
     const patchPanel = (panelId: string, patch: Partial<Parameters<typeof updateComicPanel>[4]>) => {
         if (!chapter || !page) return;
         const next = updateComicPanel(project, chapter.id, page.id, panelId, patch);
         const nextPage = next.chapters.find((item) => item.id === chapter.id)?.pages.find((item) => item.id === page.id);
-        onChange(updateComicPage(next, chapter.id, page.id, { pageImage: undefined, reviewStatus: resetComicReviewStatus(nextPage?.reviewStatus) }));
+        onChange(updateComicPage(next, chapter.id, page.id, { pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(nextPage?.reviewStatus) }));
     };
 
     const addPanel = () => {
@@ -93,6 +100,20 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
         if (!page) return;
         const next = moveComicPanel(page, panelId, offset);
         if (next !== page) patchPage({ panels: next.panels });
+    };
+
+    const commitBindings = (panel: ComicPanel, bindings: Array<{ characterId: string; variantId?: string }>) => {
+        if (!chapter || !page) return;
+        onChange(setComicPanelCharacterBindings(project, chapter.id, page.id, panel.id, bindings));
+    };
+
+    const removeBinding = (panel: ComicPanel, characterId: string) => {
+        if (!chapter || !page) return;
+        onChange(removeComicPanelCharacterBinding(project, chapter.id, page.id, panel.id, characterId));
+    };
+
+    const dismissSuggestion = (panel: ComicPanel, index: number) => {
+        patchPanel(panel.id, { characterSuggestions: (panel.characterSuggestions || []).filter((_, itemIndex) => itemIndex !== index) });
     };
 
     const breakChapterWithAi = async () => {
@@ -200,6 +221,7 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
                                             </div>
                                         </div>
                                     </div>
+                                    <PanelCastEditor project={project} panel={panel} onCommit={(bindings) => commitBindings(panel, bindings)} onRemove={(characterId) => removeBinding(panel, characterId)} onDismissSuggestion={(index) => dismissSuggestion(panel, index)} />
                                 </div>
                             ))}
                             {!panels.length ? <div className="rounded-lg border border-dashed border-border/70 p-6 text-center text-xs text-muted-foreground">这一页还没有格。<Button size="small" type="link" onClick={addPanel}>添加一格</Button></div> : null}
@@ -209,4 +231,94 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
             </section>
         </div>
     );
+}
+
+function PanelCastEditor({ project, panel, onCommit, onRemove, onDismissSuggestion }: {
+    project: ComicProject;
+    panel: ComicPanel;
+    onCommit: (bindings: Array<{ characterId: string; variantId?: string }>) => void;
+    onRemove: (characterId: string) => void;
+    onDismissSuggestion: (index: number) => void;
+}) {
+    const { message, modal } = App.useApp();
+    const bindings = panel.characterBindings;
+    const unusedCharacters = project.characters.filter((character) => !bindings.some((binding) => binding.characterId === character.id));
+    const toInput = (items: ComicPanelCharacterBinding[]) => items.map((binding) => ({ characterId: binding.characterId, variantId: binding.variantId }));
+    const suggestFromText = () => {
+        const suggestions = suggestLegacyPanelBindings(panel, project.characters);
+        if (!suggestions.length) return message.info("文字里没有找到唯一匹配的已登记角色");
+        modal.confirm({
+            title: "按当前文字建议绑定角色？",
+            content: `识别到：${suggestions.map((item) => item.characterNameSnapshot).join("、")}。只会添加唯一精确匹配，不会自动选择变体。`,
+            okText: "添加绑定",
+            onOk: () => onCommit([...toInput(bindings), ...suggestions.map((item) => ({ characterId: item.characterId }))]),
+        });
+    };
+    return (
+        <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">出场角色</span>
+                <div className="flex flex-wrap items-center gap-2">
+                    {project.characters.length ? <Button type="text" size="small" className="!h-7 !px-2 !text-[11px]" onClick={suggestFromText}>从文字建议</Button> : null}
+                    <Select
+                        size="small"
+                        className="!min-w-[180px]"
+                        placeholder={project.characters.length ? "添加出场角色" : "先在设定里添加角色"}
+                        value={undefined}
+                        options={unusedCharacters.map((character) => ({ value: character.id, label: character.role ? `${character.name} · ${character.role}` : character.name }))}
+                        disabled={!unusedCharacters.length}
+                        onChange={(characterId: string) => onCommit([...toInput(bindings), { characterId }])}
+                    />
+                </div>
+            </div>
+            {bindings.map((binding, index) => {
+                const character = project.characters.find((item) => item.id === binding.characterId);
+                const variants = character?.variants || [];
+                const characterOptions: Array<{ value: string; label: string; disabled?: boolean }> = project.characters
+                    .filter((item) => item.id === binding.characterId || !bindings.some((other) => other.characterId === item.id))
+                    .map((item) => ({ value: item.id, label: item.role ? `${item.name} · ${item.role}` : item.name }));
+                if (!character) characterOptions.push({ value: binding.characterId, label: `${binding.characterNameSnapshot || "已删除角色"}（已删除）`, disabled: true });
+                const variantOptions: Array<{ value: string; label: string; disabled?: boolean }> = variants.map((variant) => ({ value: variant.id, label: variant.name }));
+                if (binding.variantId && !variants.some((variant) => variant.id === binding.variantId)) {
+                    variantOptions.push({ value: binding.variantId, label: `${binding.variantNameSnapshot || binding.variantId}（已失效）`, disabled: true });
+                }
+                return (
+                    <div key={`${binding.characterId}-${binding.variantId || "base"}`} className="flex flex-wrap items-center gap-2">
+                        <Select
+                            size="small"
+                            className="!min-w-[160px]"
+                            value={binding.characterId}
+                            options={characterOptions}
+                            onChange={(characterId: string) => onCommit(bindings.map((item, itemIndex) => itemIndex === index ? { characterId } : { characterId: item.characterId, variantId: item.variantId }))}
+                        />
+                        <Select
+                            size="small"
+                            allowClear
+                            className="!min-w-[130px]"
+                            placeholder="基础造型"
+                            value={binding.variantId}
+                            options={variantOptions}
+                            disabled={!character}
+                            onChange={(variantId?: string) => onCommit(bindings.map((item, itemIndex) => itemIndex === index ? { characterId: item.characterId, variantId } : { characterId: item.characterId, variantId: item.variantId }))}
+                        />
+                        <Button type="text" size="small" danger className="!h-7 !px-2 !text-xs" onClick={() => onRemove(binding.characterId)}>移除</Button>
+                    </div>
+                );
+            })}
+            {(panel.characterSuggestions || []).map((suggestion, index) => (
+                <div key={`${suggestion.characterName}-${suggestion.variantName || ""}-${index}`} className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-border/70 px-2 py-1.5 text-[11px] text-muted-foreground">
+                    <span>待处理：{suggestion.characterName}{suggestion.variantName ? ` · ${suggestion.variantName}` : ""}</span>
+                    <span className="opacity-70">{suggestionReason(suggestion.reason)}</span>
+                    <Button type="text" size="small" className="!h-6 !px-1.5 !text-[11px]" onClick={() => onDismissSuggestion(index)}>忽略</Button>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function suggestionReason(reason: "unknown-character" | "ambiguous-character" | "unknown-variant" | "variant-owner-mismatch") {
+    if (reason === "ambiguous-character") return "名称有歧义，请手动选择角色";
+    if (reason === "unknown-variant") return "变体不存在，请手动选择";
+    if (reason === "variant-owner-mismatch") return "变体不属于该角色";
+    return "角色未登记，请手动选择";
 }

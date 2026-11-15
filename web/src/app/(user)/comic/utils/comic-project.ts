@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { ComicChapter, ComicCharacter, ComicLocation, ComicPanel, ComicPanelLayout, ComicPage, ComicProject, ComicReviewStatus } from "../types";
+import type { ComicChapter, ComicCharacter, ComicCharacterReference, ComicCharacterVariant, ComicImageRef, ComicLocation, ComicPanel, ComicPanelLayout, ComicPage, ComicProject, ComicReviewStatus } from "../types";
 
 type CreateComicProjectInput = {
     title: string;
@@ -11,8 +11,180 @@ type CreateComicProjectInput = {
     logline?: string;
 };
 
+export type LegacyComicCharacter = Partial<ComicCharacter> & {
+    appearance?: string;
+    personality?: string;
+    wardrobe?: string;
+    expressions?: string;
+    image?: ComicImageRef;
+};
+
+type LegacyComicPanel = Omit<Partial<ComicPanel>, "layout"> & {
+    layout?: Partial<ComicPanelLayout>;
+};
+
+type LegacyComicPage = Omit<Partial<ComicPage>, "panels"> & {
+    panels?: LegacyComicPanel[];
+};
+
+type LegacyComicChapter = Omit<Partial<ComicChapter>, "pages"> & {
+    pages?: LegacyComicPage[];
+};
+
+export type LegacyComicProject = Omit<Partial<ComicProject>, "chapters" | "characters" | "locations"> & {
+    chapters?: LegacyComicChapter[];
+    characters?: LegacyComicCharacter[];
+    locations?: Array<Partial<ComicLocation>>;
+};
+
+function stringList(value: unknown) {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function normalizeLayout(layout: Partial<ComicPanelLayout> | undefined): ComicPanelLayout | undefined {
+    if (!layout || ![layout.x, layout.y, layout.w, layout.h].every((value) => typeof value === "number" && Number.isFinite(value))) return undefined;
+    return {
+        x: Math.min(1, Math.max(0, layout.x as number)),
+        y: Math.min(1, Math.max(0, layout.y as number)),
+        w: Math.min(1, Math.max(0.05, layout.w as number)),
+        h: Math.min(1, Math.max(0.05, layout.h as number)),
+    };
+}
+
+function normalizeReference(reference: Partial<ComicCharacterReference> | undefined, fallbackId: string): ComicCharacterReference | undefined {
+    if (!reference || typeof reference.url !== "string" || !reference.url) return undefined;
+    return {
+        id: typeof reference.id === "string" && reference.id ? reference.id : fallbackId,
+        revision: Number.isFinite(reference.revision) ? Math.max(0, Math.trunc(reference.revision as number)) : 0,
+        url: reference.url,
+        storageKey: typeof reference.storageKey === "string" ? reference.storageKey : undefined,
+        width: Number.isFinite(reference.width) ? Number(reference.width) : undefined,
+        height: Number.isFinite(reference.height) ? Number(reference.height) : undefined,
+    };
+}
+
+export function normalizeComicCharacter(character: LegacyComicCharacter, fallbackId: string): ComicCharacter {
+    const id = character.id || fallbackId;
+    const base = createComicCharacter();
+    const variants: ComicCharacterVariant[] = (character.variants || []).map((variant, index) => {
+        const variantId = variant.id || `${id}:variant:${index}`;
+        const reference = variant.referenceImage;
+        return {
+            id: variantId,
+            name: variant.name || `变体 ${index + 1}`,
+            description: variant.description || "",
+            identityOverrides: variant.identityOverrides ? { ...variant.identityOverrides } : undefined,
+            outfitOverride: variant.outfitOverride || "",
+            paletteOverride: variant.paletteOverride || "",
+            propChanges: variant.propChanges || "",
+            stateDescription: variant.stateDescription || "",
+            referenceImage: normalizeReference(reference, `${variantId}:reference`),
+            createdAt: variant.createdAt || "",
+            updatedAt: variant.updatedAt || "",
+        };
+    });
+    return {
+        id,
+        name: character.name || base.name,
+        aliases: stringList(character.aliases),
+        role: character.role || "",
+        visualIdentity: {
+            description: character.visualIdentity?.description || character.appearance || "",
+            ageRange: character.visualIdentity?.ageRange || "",
+            bodyProportions: character.visualIdentity?.bodyProportions || "",
+            face: character.visualIdentity?.face || "",
+            hairstyle: character.visualIdentity?.hairstyle || "",
+            skinTone: character.visualIdentity?.skinTone || "",
+            signatureFeatures: character.visualIdentity?.signatureFeatures || "",
+        },
+        defaultLook: {
+            outfit: character.defaultLook?.outfit || character.wardrobe || "",
+            palette: character.defaultLook?.palette || "",
+            fixedProps: character.defaultLook?.fixedProps || "",
+        },
+        behavior: {
+            personality: character.behavior?.personality || character.personality || "",
+            speechStyle: character.behavior?.speechStyle || "",
+            expressionBaseline: character.behavior?.expressionBaseline || character.expressions || "",
+        },
+        constraints: {
+            mustKeep: stringList(character.constraints?.mustKeep),
+            forbidden: stringList(character.constraints?.forbidden),
+        },
+        notes: character.notes || "",
+        references: {
+            primary: normalizeReference(character.references?.primary || character.image, `${fallbackId}:primary`),
+            face: normalizeReference(character.references?.face, `${fallbackId}:face`),
+            fullBody: normalizeReference(character.references?.fullBody, `${fallbackId}:fullBody`),
+        },
+        variants,
+        sourceLibraryCharacterId: character.sourceLibraryCharacterId,
+    };
+}
+
+export function normalizeComicProject(project: LegacyComicProject, projectId: string): ComicProject {
+    if (!projectId) throw new Error("缺少漫画项目 ID");
+    const chapters: ComicChapter[] = (project.chapters || []).map((chapter, chapterIndex) => {
+        const chapterId = chapter.id || `legacy:${projectId}:chapter:${chapterIndex}`;
+        const pages: ComicPage[] = (chapter.pages || []).map((page, pageIndex) => {
+            const pageId = page.id || `legacy:${projectId}:chapter:${chapterIndex}:page:${pageIndex}`;
+            const panels: ComicPanel[] = (page.panels || []).map((panel, panelIndex) => ({
+                id: panel.id || `legacy:${projectId}:chapter:${chapterIndex}:page:${pageIndex}:panel:${panelIndex}`,
+                description: panel.description || "",
+                dialogue: panel.dialogue || "",
+                caption: panel.caption || "",
+                sfx: panel.sfx || "",
+                layout: normalizeLayout(panel.layout),
+                characterBindings: panel.characterBindings || [],
+                characterSuggestions: panel.characterSuggestions || [],
+                image: panel.image,
+                imageError: panel.imageError,
+            }));
+            return {
+                id: pageId,
+                title: page.title || `第 ${pageIndex + 1} 页`,
+                summary: page.summary || "",
+                panels,
+                reviewStatus: page.reviewStatus === "approved" || page.reviewStatus === "pending" || page.reviewStatus === "changes" ? page.reviewStatus : "draft",
+                reviewNotes: page.reviewNotes || "",
+                pageImage: page.pageImage,
+                compositionContext: page.compositionContext,
+            };
+        });
+        return { id: chapterId, title: chapter.title || `第 ${chapterIndex + 1} 章`, summary: chapter.summary || "", pages };
+    });
+    const characters = (project.characters || []).map((character, index) => normalizeComicCharacter(character, `legacy:${projectId}:character:${index}`));
+    const locations = (project.locations || []).map((location, index) => ({
+        id: location.id || `legacy:${projectId}:location:${index}`,
+        name: location.name || `场景 ${index + 1}`,
+        description: location.description || "",
+        atmosphere: location.atmosphere || "",
+        notes: location.notes || "",
+        image: location.image,
+    }));
+    return {
+        id: projectId,
+        title: project.title?.trim() || "未命名漫画",
+        status: project.status === "completed" ? "completed" : "draft",
+        stage: project.stage === "script" || project.stage === "cast" || project.stage === "layout" || project.stage === "review" ? project.stage : "concept",
+        genre: project.genre || "",
+        audience: project.audience || "",
+        format: project.format === "strip" ? "strip" : "page",
+        direction: project.direction === "ltr" ? "ltr" : "rtl",
+        targetPages: typeof project.targetPages === "number" && project.targetPages > 0 ? Math.round(project.targetPages) : undefined,
+        logline: project.logline || "",
+        synopsis: project.synopsis || "",
+        styleGuide: project.styleGuide || "",
+        chapters,
+        characters,
+        locations,
+        createdAt: project.createdAt || "",
+        updatedAt: project.updatedAt || "",
+    };
+}
+
 export function createComicPanel(): ComicPanel {
-    return { id: nanoid(), description: "", dialogue: "", caption: "", sfx: "" };
+    return { id: nanoid(), description: "", dialogue: "", caption: "", sfx: "", characterBindings: [], characterSuggestions: [] };
 }
 
 export function createComicPage(index = 1): ComicPage {
@@ -24,7 +196,34 @@ export function createComicChapter(index = 1): ComicChapter {
 }
 
 export function createComicCharacter(index = 1): ComicCharacter {
-    return { id: nanoid(), name: `角色 ${index}`, role: "", appearance: "", personality: "", wardrobe: "", expressions: "", notes: "" };
+    return {
+        id: nanoid(),
+        name: `角色 ${index}`,
+        aliases: [],
+        role: "",
+        visualIdentity: { description: "", ageRange: "", bodyProportions: "", face: "", hairstyle: "", skinTone: "", signatureFeatures: "" },
+        defaultLook: { outfit: "", palette: "", fixedProps: "" },
+        behavior: { personality: "", speechStyle: "", expressionBaseline: "" },
+        constraints: { mustKeep: [], forbidden: [] },
+        notes: "",
+        references: {},
+        variants: [],
+    };
+}
+
+export function createComicCharacterVariant(index = 1): ComicCharacterVariant {
+    const now = new Date().toISOString();
+    return {
+        id: nanoid(),
+        name: `变体 ${index}`,
+        description: "",
+        outfitOverride: "",
+        paletteOverride: "",
+        propChanges: "",
+        stateDescription: "",
+        createdAt: now,
+        updatedAt: now,
+    };
 }
 
 export function createComicLocation(index = 1): ComicLocation {
@@ -148,6 +347,26 @@ export function updateComicPanel(project: ComicProject, chapterId: string, pageI
     };
 }
 
+export function invalidateComicPageCompositions(project: ComicProject): ComicProject {
+    return {
+        ...project,
+        chapters: project.chapters.map((chapter) => ({
+            ...chapter,
+            pages: chapter.pages.map((page) => page.pageImage || page.compositionContext ? { ...page, pageImage: undefined, compositionContext: undefined } : page),
+        })),
+    };
+}
+
+export function invalidateComicPagesForCharacter(project: ComicProject, characterId: string): ComicProject {
+    return {
+        ...project,
+        chapters: project.chapters.map((chapter) => ({
+            ...chapter,
+            pages: chapter.pages.map((page) => page.panels.some((panel) => panel.characterBindings.some((binding) => binding.characterId === characterId)) ? { ...page, pageImage: undefined, compositionContext: undefined } : page),
+        })),
+    };
+}
+
 export function moveComicPanel(page: ComicPage, panelId: string, offset: number): ComicPage {
     const fromIndex = page.panels.findIndex((panel) => panel.id === panelId);
     const toIndex = fromIndex + offset;
@@ -163,61 +382,10 @@ export function serializeComicProject(project: ComicProject) {
 }
 
 export function parseComicProjectBackup(text: string): ComicProject {
-    const data = JSON.parse(text) as { project?: Partial<ComicProject> } | null;
+    const data = JSON.parse(text) as { project?: LegacyComicProject } | null;
     const source = data?.project;
     if (!source || typeof source.title !== "string" || !Array.isArray(source.chapters)) throw new Error("不是有效的漫画项目备份");
     const now = new Date().toISOString();
-    return {
-        ...createComicProject({ title: source.title, genre: source.genre, audience: source.audience, format: source.format, direction: source.direction, logline: source.logline }),
-        ...source,
-        id: source.id || nanoid(),
-        status: source.status === "completed" ? "completed" : "draft",
-        stage: source.stage === "script" ? "script" : source.stage === "cast" ? "cast" : source.stage === "layout" ? "layout" : source.stage === "review" ? "review" : "concept",
-        chapters: source.chapters.map((chapter, chapterIndex) => ({
-            id: chapter.id || nanoid(),
-            title: chapter.title || `第 ${chapterIndex + 1} 章`,
-            summary: chapter.summary || "",
-            pages: (chapter.pages || []).map((page, pageIndex) => ({
-                id: page.id || nanoid(),
-                title: page.title || `第 ${pageIndex + 1} 页`,
-                summary: page.summary || "",
-                panels: (page.panels || []).map((panel) => ({
-                    id: panel.id || nanoid(),
-                    description: panel.description || "",
-                    dialogue: panel.dialogue || "",
-                    caption: panel.caption || "",
-                    sfx: panel.sfx || "",
-                    layout: panel.layout && [panel.layout.x, panel.layout.y, panel.layout.w, panel.layout.h].every(Number.isFinite)
-                        ? { x: Math.min(1, Math.max(0, panel.layout.x)), y: Math.min(1, Math.max(0, panel.layout.y)), w: Math.min(1, Math.max(0.05, panel.layout.w)), h: Math.min(1, Math.max(0.05, panel.layout.h)) }
-                        : undefined,
-                    image: panel.image,
-                    imageError: panel.imageError,
-                })),
-                reviewStatus: page.reviewStatus === "approved" || page.reviewStatus === "pending" || page.reviewStatus === "changes" ? page.reviewStatus : "draft",
-                reviewNotes: page.reviewNotes || "",
-                pageImage: page.pageImage,
-            })),
-        })),
-        characters: (source.characters || []).map((character, index) => ({
-            id: character.id || nanoid(),
-            name: character.name || `角色 ${index + 1}`,
-            role: character.role || "",
-            appearance: character.appearance || "",
-            personality: character.personality || "",
-            wardrobe: character.wardrobe || "",
-            expressions: character.expressions || "",
-            notes: character.notes || "",
-            image: character.image,
-        })),
-        locations: (source.locations || []).map((location, index) => ({
-            id: location.id || nanoid(),
-            name: location.name || `场景 ${index + 1}`,
-            description: location.description || "",
-            atmosphere: location.atmosphere || "",
-            notes: location.notes || "",
-            image: location.image,
-        })),
-        createdAt: source.createdAt || now,
-        updatedAt: now,
-    };
+    const projectId = source.id || nanoid();
+    return normalizeComicProject({ ...source, createdAt: source.createdAt || now, updatedAt: now }, projectId);
 }

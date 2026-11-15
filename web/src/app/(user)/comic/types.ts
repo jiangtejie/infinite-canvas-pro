@@ -17,16 +17,61 @@ export type ComicImageRef = {
     height?: number;
 };
 
+export type ComicCharacterReference = ComicImageRef & {
+    id: string;
+    revision: number;
+};
+
+export type ComicCharacterVariant = {
+    id: string;
+    name: string;
+    description: string;
+    identityOverrides?: Partial<ComicCharacter["visualIdentity"]>;
+    outfitOverride?: string;
+    paletteOverride?: string;
+    propChanges?: string;
+    stateDescription?: string;
+    referenceImage?: ComicCharacterReference;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export type ComicCharacter = {
     id: string;
     name: string;
+    aliases: string[];
     role: string;
-    appearance: string;
-    personality: string;
-    wardrobe: string;
-    expressions: string;
+    visualIdentity: {
+        description: string;
+        ageRange: string;
+        bodyProportions: string;
+        face: string;
+        hairstyle: string;
+        skinTone: string;
+        signatureFeatures: string;
+    };
+    defaultLook: {
+        outfit: string;
+        palette: string;
+        fixedProps: string;
+    };
+    behavior: {
+        personality: string;
+        speechStyle: string;
+        expressionBaseline: string;
+    };
+    constraints: {
+        mustKeep: string[];
+        forbidden: string[];
+    };
     notes: string;
-    image?: ComicImageRef;
+    references: {
+        primary?: ComicCharacterReference;
+        face?: ComicCharacterReference;
+        fullBody?: ComicCharacterReference;
+    };
+    variants: ComicCharacterVariant[];
+    sourceLibraryCharacterId?: string;
 };
 
 export type ComicLocation = {
@@ -41,6 +86,41 @@ export type ComicLocation = {
 export type ComicLibraryCharacter = ComicCharacter & { createdAt: string };
 export type ComicLibraryLocation = ComicLocation & { createdAt: string };
 
+export type ComicPanelCharacterBinding = {
+    characterId: string;
+    variantId?: string;
+    source: "manual" | "ai";
+    characterNameSnapshot: string;
+    variantNameSnapshot?: string;
+};
+
+export type ComicPanelCharacterSuggestion = {
+    characterName: string;
+    variantName?: string;
+    reason: "unknown-character" | "ambiguous-character" | "unknown-variant" | "variant-owner-mismatch";
+};
+
+export type ComicGenerationReference = {
+    id: string;
+    revision: string;
+    role: "character-primary" | "character-face" | "character-full-body" | "character-variant" | "location" | "panel-anchor";
+};
+
+export type ComicGenerationContext = {
+    inputSignature: string;
+    compilerVersion: string;
+    prompt: string;
+    references: ComicGenerationReference[];
+    missingReferenceIds: string[];
+    model?: string;
+    size?: string;
+    createdAt: string;
+};
+
+export type ComicGeneratedPanelImage = ComicImageRef & {
+    generationContext?: ComicGenerationContext;
+};
+
 export type ComicPanel = {
     id: string;
     description: string;
@@ -48,7 +128,9 @@ export type ComicPanel = {
     caption: string;
     sfx: string;
     layout?: ComicPanelLayout;
-    image?: ComicImageRef;
+    characterBindings: ComicPanelCharacterBinding[];
+    characterSuggestions?: ComicPanelCharacterSuggestion[];
+    image?: ComicGeneratedPanelImage;
     imageError?: string;
 };
 
@@ -60,6 +142,12 @@ export type ComicPage = {
     reviewStatus: ComicReviewStatus;
     reviewNotes: string;
     pageImage?: ComicImageRef;
+    compositionContext?: {
+        stalePanelIds: string[];
+        unrecordedPanelIds: string[];
+        incompletePanelIds: string[];
+        confirmedAt?: string;
+    };
 };
 
 export type ComicChapter = {

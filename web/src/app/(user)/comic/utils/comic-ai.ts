@@ -4,7 +4,8 @@ import { nanoid } from "nanoid";
 import { cleanAiJsonText } from "@/lib/ai-json";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
-import type { ComicPage, ComicProject } from "../types";
+import type { ComicCharacter, ComicPage, ComicProject } from "../types";
+import { resolveComicCharacterSuggestion } from "./comic-character-binding";
 
 type ComicConceptSuggestion = Pick<ComicProject, "genre" | "audience" | "logline" | "synopsis" | "styleGuide"> & { targetPages?: number };
 
@@ -20,11 +21,13 @@ const CONCEPT_PROMPT = `你是一名资深漫画编辑和原作。根据用户�
 
 const BREAKDOWN_PROMPT = `你是一名专业漫画分镜师。把用户给出的章节拆成可直接作画的页和格。
 只输出一个 JSON 对象，不要 Markdown、不要解释，结构：
-{"pages":[{"title":"第 N 页","summary":"本页叙事动作","panels":[{"description":"画面描述：景别、机位、角色动作、背景、关键道具","dialogue":"角色：台词；多句用换行","caption":"旁白/内心独白，可为空","sfx":"拟声词，可为空"}]}]}
+{"pages":[{"title":"第 N 页","summary":"本页叙事动作","panels":[{"description":"画面描述：景别、机位、角色动作、背景、关键道具","dialogue":"角色：台词；多句用换行","caption":"旁白/内心独白，可为空","sfx":"拟声词，可为空","characters":[{"name":"已登记角色名或别名","variant":"可选变体名"}]}]}]}
 要求：
 - 每页 2-6 格，页数按章节信息合理拆分；
 - 只可视化已有叙事信息，不擅自增加关键剧情；
 - 画面描述具体到构图和动作，对白保持角色口吻；
+- characters 只能引用角色设定里已列出的姓名、别名和变体名，不要创造新角色或变体；
+- 不确定出场角色时可以省略 characters；
 - 不要写页格编号之外的解释。`;
 
 export async function requestComicConcept(config: AiConfig, project: ComicProject, instruction = "", signal?: AbortSignal): Promise<ComicConceptSuggestion> {
@@ -42,7 +45,7 @@ export async function requestComicConcept(config: AiConfig, project: ComicProjec
 }
 
 export async function requestComicBreakdown(config: AiConfig, project: ComicProject, chapterTitle: string, chapterSummary: string, signal?: AbortSignal): Promise<ComicPage[]> {
-    const cast = (project.characters || []).map((character) => `${character.name}｜${character.role || "未定角色"}｜外观：${character.appearance || "未填"}｜性格：${character.personality || "未填"}｜服装：${character.wardrobe || "未填"}`).join("\n");
+    const cast = (project.characters || []).map((character) => `${character.name}｜${character.role || "未定角色"}｜外观：${character.visualIdentity.description || "未填"}｜性格：${character.behavior.personality || "未填"}｜服装：${character.defaultLook.outfit || "未填"}`).join("\n");
     const scenes = (project.locations || []).map((location) => `${location.name}｜${location.description || "未填空间结构"}｜气氛：${location.atmosphere || "未填"}`).join("\n");
     const content = [
         `作品名：${project.title}`,
@@ -57,7 +60,7 @@ export async function requestComicBreakdown(config: AiConfig, project: ComicProj
         `成品形态：${project.format === "strip" ? "条漫" : "页漫"}；阅读方向：${project.direction === "rtl" ? "右→左" : "左→右"}`,
     ].filter(Boolean).join("\n");
     const turn = await requestCanvasAgentTurn({ config, systemPrompt: BREAKDOWN_PROMPT, messages: [{ role: "user", content }], tools: [], toolMode: "prompt-json", signal });
-    return parseComicBreakdown(turn.content);
+    return parseComicBreakdown(turn.content, project.characters || []);
 }
 
 export function parseComicConcept(content: string): ComicConceptSuggestion {
@@ -76,7 +79,7 @@ export function parseComicConcept(content: string): ComicConceptSuggestion {
     return suggestion;
 }
 
-export function parseComicBreakdown(content: string): ComicPage[] {
+export function parseComicBreakdown(content: string, projectCharacters: ComicCharacter[] = []): ComicPage[] {
     const value = parseJson(content);
     if (!record(value) || !Array.isArray(value.pages) || !value.pages.length) throw new Error("AI 返回的页格格式不正确");
     if (value.pages.length > 80) throw new Error("AI 返回页数过多，请缩小章节范围");
@@ -91,12 +94,28 @@ export function parseComicBreakdown(content: string): ComicPage[] {
             reviewNotes: "",
             panels: rawPage.panels.map((rawPanel) => {
                 if (!record(rawPanel)) throw new Error(`第 ${index + 1} 页存在无效页格`);
+                const characterBindings: ComicPage["panels"][number]["characterBindings"] = [];
+                const characterSuggestions: ComicPage["panels"][number]["characterSuggestions"] = [];
+                const rawCharacters = Array.isArray(rawPanel.characters) ? rawPanel.characters : [];
+                for (const rawCharacter of rawCharacters) {
+                    if (!record(rawCharacter)) continue;
+                    const name = text(rawCharacter.name, 100);
+                    if (!name) continue;
+                    const resolved = resolveComicCharacterSuggestion(projectCharacters, name, text(rawCharacter.variant, 100));
+                    if (resolved.binding) {
+                        const duplicate = characterBindings.some((binding) => binding.characterId === resolved.binding!.characterId && binding.variantId === resolved.binding!.variantId);
+                        if (!duplicate) characterBindings.push(resolved.binding);
+                    }
+                    if (resolved.suggestion) characterSuggestions.push(resolved.suggestion);
+                }
                 return {
                     id: nanoid(),
                     description: text(rawPanel.description, 2000),
                     dialogue: text(rawPanel.dialogue, 2000),
                     caption: text(rawPanel.caption, 1000),
                     sfx: text(rawPanel.sfx, 200),
+                    characterBindings,
+                    characterSuggestions,
                 };
             }),
         };

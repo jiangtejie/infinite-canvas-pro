@@ -1,7 +1,45 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { comicComposedPageCount, comicPageCompositionSize, comicPageIssues, comicPanelRect, comicReviewProgress, comicStats, createComicCharacter, createComicLocation, createComicPanel, createComicPage, createComicProject, equalGridLayouts, equalVerticalLayouts, moveComicPanel, parseComicProjectBackup, resetComicReviewStatus, serializeComicProject, updateComicChapter, updateComicPage, updateComicPanel } from "./comic-project";
+import { comicComposedPageCount, comicPageCompositionSize, comicPageIssues, comicPanelRect, comicReviewProgress, comicStats, createComicCharacter, createComicLocation, createComicPanel, createComicPage, createComicProject, equalGridLayouts, equalVerticalLayouts, invalidateComicPageCompositions, invalidateComicPagesForCharacter, moveComicPanel, normalizeComicCharacter, normalizeComicProject, parseComicProjectBackup, resetComicReviewStatus, serializeComicProject, updateComicChapter, updateComicPage, updateComicPanel } from "./comic-project";
+
+test("legacy character and panel data normalize deterministically", () => {
+    const legacy = {
+        title: "旧项目",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        chapters: [{ title: "第一章", pages: [{ title: "第一页", panels: [{ description: "林夏走进教室" }] }] }],
+        characters: [{ name: "林夏", appearance: "短发，校服", personality: "冷静", wardrobe: "校服", expressions: "克制", notes: "怕水", image: { url: "blob:a", storageKey: "image:a" } }],
+        locations: [],
+    };
+    const once = normalizeComicProject(legacy, "project-1");
+    const twice = normalizeComicProject(once, "project-1");
+    assert.deepEqual(twice, once);
+    assert.equal(once.characters[0]?.visualIdentity.description, "短发，校服");
+    assert.equal(once.characters[0]?.defaultLook.outfit, "校服");
+    assert.equal(once.characters[0]?.behavior.personality, "冷静");
+    assert.equal(once.characters[0]?.behavior.expressionBaseline, "克制");
+    assert.equal(once.characters[0]?.references.primary?.id, "legacy:project-1:character:0:primary");
+    assert.equal(once.characters[0]?.references.primary?.revision, 0);
+    assert.equal(once.characters[0]?.references.primary?.storageKey, "image:a");
+    assert.deepEqual(once.chapters[0]?.pages[0]?.panels[0]?.characterBindings, []);
+    assert.equal(once.chapters[0]?.pages[0]?.panels[0]?.image, undefined);
+});
+
+test("legacy library characters normalize without inventing bindings", () => {
+    const normalized = normalizeComicCharacter({ name: "阿明", wardrobe: "夹克", image: { url: "blob:b" } }, "legacy:cast:0");
+    assert.equal(normalized.defaultLook.outfit, "夹克");
+    assert.equal(normalized.references.primary?.id, "legacy:cast:0:primary");
+    assert.deepEqual(normalized.variants, []);
+});
+
+test("new characters and panels start with explicit empty consistency collections", () => {
+    const character = createComicCharacter(1);
+    assert.deepEqual(character.aliases, []);
+    assert.deepEqual(character.references, {});
+    assert.deepEqual(character.variants, []);
+    assert.deepEqual(createComicPanel().characterBindings, []);
+    assert.deepEqual(createComicPanel().characterSuggestions, []);
+});
 
 test("a new comic project starts with one chapter, one page and one panel", () => {
     const project = createComicProject({ title: "桂林两天", genre: "都市", format: "page", direction: "rtl" });
@@ -73,13 +111,13 @@ test("character and location sheets survive backup round trip", () => {
     const project = createComicProject({ title: "设定" });
     const character = createComicCharacter(1);
     character.name = "林夏";
-    character.appearance = "短发，校服";
+    character.visualIdentity.description = "短发，校服";
     const location = createComicLocation(1);
     location.name = "旧校舍";
     const withCast = { ...project, characters: [character], locations: [location] };
     const restored = parseComicProjectBackup(serializeComicProject(withCast));
     assert.equal(restored.characters[0]?.name, "林夏");
-    assert.equal(restored.characters[0]?.appearance, "短发，校服");
+    assert.equal(restored.characters[0]?.visualIdentity.description, "短发，校服");
     assert.equal(restored.locations[0]?.name, "旧校舍");
 });
 
@@ -90,6 +128,78 @@ test("backup round trip keeps chapters, pages and panels; invalid data is reject
     assert.deepEqual(comicStats(restored), comicStats(project));
     assert.throws(() => parseComicProjectBackup("{}"), /不是有效的漫画项目备份/);
     assert.throws(() => parseComicProjectBackup("null"), /不是有效的漫画项目备份/);
+});
+
+test("character consistency data survives backup round trip", () => {
+    const project = createComicProject({ title: "角色备份" });
+    const character = createComicCharacter(1);
+    character.id = "character-1";
+    character.name = "林夏";
+    character.aliases = ["小夏"];
+    character.references.primary = { id: "character-1:primary", revision: 2, url: "blob:portrait", storageKey: "image:portrait" };
+    character.variants = [{
+        id: "variant-1",
+        name: "校服",
+        description: "故事前期",
+        outfitOverride: "白衬衫与藏青百褶裙",
+        referenceImage: { id: "variant-1:reference", revision: 1, url: "blob:uniform", storageKey: "image:uniform" },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+    }];
+    project.characters = [character];
+    const page = project.chapters[0]!.pages[0]!;
+    const panel = page.panels[0]!;
+    panel.characterBindings = [{ characterId: "character-1", variantId: "variant-1", source: "manual", characterNameSnapshot: "林夏", variantNameSnapshot: "校服" }];
+    panel.characterSuggestions = [{ characterName: "陌生人", reason: "unknown-character" }];
+    panel.image = {
+        url: "blob:panel",
+        storageKey: "image:panel",
+        generationContext: {
+            inputSignature: "signature-1",
+            compilerVersion: "1",
+            prompt: "画面",
+            references: [{ id: "character-1:primary", revision: "2", role: "character-primary" }],
+            missingReferenceIds: [],
+            model: "image-model",
+            size: "1k",
+            createdAt: "2026-01-01T00:00:00.000Z",
+        },
+    };
+    page.pageImage = { url: "blob:page", storageKey: "image:page" };
+    page.compositionContext = { stalePanelIds: [], unrecordedPanelIds: [], incompletePanelIds: [], confirmedAt: "2026-01-01T00:00:00.000Z" };
+    const restored = parseComicProjectBackup(serializeComicProject(project));
+    assert.equal(restored.characters[0]?.references.primary?.id, "character-1:primary");
+    assert.equal(restored.characters[0]?.references.primary?.revision, 2);
+    assert.equal(restored.characters[0]?.variants[0]?.outfitOverride, "白衬衫与藏青百褶裙");
+    assert.equal(restored.characters[0]?.variants[0]?.referenceImage?.storageKey, "image:uniform");
+    assert.deepEqual(restored.chapters[0]?.pages[0]?.panels[0]?.characterBindings, panel.characterBindings);
+    assert.deepEqual(restored.chapters[0]?.pages[0]?.panels[0]?.characterSuggestions, panel.characterSuggestions);
+    assert.deepEqual(restored.chapters[0]?.pages[0]?.panels[0]?.image?.generationContext, panel.image.generationContext);
+    assert.deepEqual(restored.chapters[0]?.pages[0]?.compositionContext, page.compositionContext);
+    assert.equal(restored.chapters[0]?.pages[0]?.pageImage?.storageKey, "image:page");
+});
+
+test("character invalidation clears only affected page compositions and keeps panel art", () => {
+    const project = createComicProject({ title: "失效" });
+    const character = createComicCharacter(1);
+    character.id = "c1";
+    project.characters = [character];
+    const pageOne = project.chapters[0]!.pages[0]!;
+    pageOne.panels[0]!.characterBindings = [{ characterId: "c1", source: "manual", characterNameSnapshot: "林夏" }];
+    pageOne.panels[0]!.image = { url: "blob:keep" };
+    pageOne.pageImage = { url: "blob:page1" };
+    pageOne.compositionContext = { stalePanelIds: [], unrecordedPanelIds: [], incompletePanelIds: [] };
+    const pageTwo = createComicPage(2);
+    pageTwo.pageImage = { url: "blob:page2" };
+    pageTwo.compositionContext = { stalePanelIds: [], unrecordedPanelIds: [], incompletePanelIds: [] };
+    project.chapters[0]!.pages.push(pageTwo);
+    const targeted = invalidateComicPagesForCharacter(project, "c1");
+    assert.equal(targeted.chapters[0]?.pages[0]?.pageImage, undefined);
+    assert.equal(targeted.chapters[0]?.pages[0]?.compositionContext, undefined);
+    assert.equal(targeted.chapters[0]?.pages[0]?.panels[0]?.image?.url, "blob:keep");
+    assert.equal(targeted.chapters[0]?.pages[1]?.pageImage?.url, "blob:page2");
+    const all = invalidateComicPageCompositions(project);
+    assert.equal(all.chapters[0]?.pages[1]?.pageImage, undefined);
 });
 
 test("composed page image survives backup and uses format-specific canvas size", () => {

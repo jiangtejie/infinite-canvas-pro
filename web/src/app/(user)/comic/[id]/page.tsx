@@ -39,7 +39,10 @@ export default function ComicWorkspacePage() {
     };
     const patchConcept = (patch: Partial<ComicProject>) => {
         const formatChanged = patch.format && patch.format !== project.format;
-        updateProject(project.id, formatChanged ? { ...patch, chapters: project.chapters.map((chapter) => ({ ...chapter, pages: chapter.pages.map((item) => ({ ...item, pageImage: undefined })) })) } : patch);
+        const invalidatesComposition = formatChanged || patch.styleGuide !== undefined;
+        updateProject(project.id, invalidatesComposition
+            ? { ...patch, chapters: project.chapters.map((chapter) => ({ ...chapter, pages: chapter.pages.map((item) => ({ ...item, pageImage: undefined, compositionContext: undefined })) })) }
+            : patch);
     };
 
     return (
