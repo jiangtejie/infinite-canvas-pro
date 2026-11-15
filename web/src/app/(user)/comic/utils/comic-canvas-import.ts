@@ -4,6 +4,7 @@ import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "@/a
 import { fitNodeSize } from "@/app/(user)/canvas/utils/canvas-node-size";
 import type { ComicImageRef, ComicPage, ComicProject } from "../types";
 import { comicPageCompositionSize } from "./comic-project";
+import { mapComicBookPagesToProjectPages } from "@/app/(user)/canvas/utils/comic-book-project-link";
 
 const PAGE_MAX_WIDTH = 300;
 const PAGE_MAX_HEIGHT = 420;
@@ -46,7 +47,7 @@ export function buildComicCanvasImport(project: ComicProject, existingNodes: Can
             format: project.format,
             direction: project.direction,
             comicProjectId: project.id,
-            pageProjectIds: Object.fromEntries(pageNodes.map((node, index) => [node.id, pages[index]!.id])),
+            pageProjectIds: mapComicBookPagesToProjectPages(pageNodes.map((node) => node.id), pages),
         },
     };
     return {
@@ -67,7 +68,6 @@ export function buildComicCanvasUpdate(project: ComicProject, existingNodes: Can
     const replacements = new Map<string, CanvasNodeData>();
     const created: CanvasNodeData[] = [];
     const pageNodeIds: string[] = [];
-    const pageProjectIds: Record<string, string> = {};
     const overflowOrigin = importOrigin(existingNodes);
 
     pages.forEach((page, index) => {
@@ -75,16 +75,15 @@ export function buildComicCanvasUpdate(project: ComicProject, existingNodes: Can
         if (oldNode?.type === CanvasNodeType.Image) {
             replacements.set(oldNode.id, updatePageNode(oldNode, page, project));
             pageNodeIds.push(oldNode.id);
-            pageProjectIds[oldNode.id] = page.id;
             return;
         }
         const node = createPageNode(page, project, overflowOrigin, created.length, 4);
         created.push(node);
         pageNodeIds.push(node.id);
-        pageProjectIds[node.id] = page.id;
     });
 
     const ids = Array.from(new Set(pageNodeIds));
+    const pageProjectIds = mapComicBookPagesToProjectPages(ids, pages);
     const oldCoverIndex = book?.coverNodeId ? oldPageIds.indexOf(book.coverNodeId) : -1;
     const coverNodeId = oldCoverIndex >= 0 ? ids[oldCoverIndex] || ids[0] : ids[0];
     const lettering = book?.lettering

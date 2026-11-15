@@ -42,6 +42,9 @@ export type CanvasStageModel = {
     theme: CanvasTheme;
     nodes: CanvasNodeData[];
     selectedNodeIds: Set<string>;
+    selectedImageCount: number;
+    focusNode: (nodeId: string) => void;
+    openComicProject: (projectId: string) => void;
     selectOnly: (nodeId: string) => void;
     handleUploadRequest: (nodeId?: string, position?: Position) => void;
     containerRef: RefObject<HTMLDivElement | null>;
@@ -101,6 +104,7 @@ export type CanvasStageModel = {
     setNodeImageSettingsOpen: Dispatch<SetStateAction<boolean>>;
     openOverlay: (overlay: CanvasOverlay) => void;
     togglePromptOverlay: (nodeId: string) => void;
+    addSelectedComicPages: (nodeId: string) => void;
     nodesRef: RefObject<CanvasNodeData[]>;
     handleNodePointerDown: (event: React.PointerEvent, nodeId: string) => void;
     nodeDraggingRef: RefObject<boolean>;
@@ -138,6 +142,9 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         theme,
         nodes,
         selectedNodeIds,
+        selectedImageCount,
+        focusNode,
+        openComicProject,
         selectOnly,
         handleUploadRequest,
         containerRef,
@@ -197,6 +204,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         setNodeImageSettingsOpen,
         openOverlay,
         togglePromptOverlay,
+        addSelectedComicPages,
         nodesRef,
         handleNodePointerDown,
         nodeDraggingRef,
@@ -373,8 +381,16 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 ) : contentNode.type === CanvasNodeType.Comic ? (
                                     <CanvasComicBookNodeCard
                                         node={contentNode}
-                                        pages={(contentNode.metadata?.comicBook?.pageNodeIds || []).map((id) => nodes.find((node) => node.id === id)).filter((node): node is CanvasNodeData => Boolean(node?.metadata?.content))}
-                                        onOpen={() => openOverlay({ kind: "comic", nodeId: contentNode.id })}
+                                        nodes={nodes}
+                                        selectedImageCount={selectedImageCount}
+
+                                        onOpenBook={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "preview" })}
+                                        onEnterLettering={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "lettering" })}
+                                        onFocusPage={focusNode}
+                                        onAddSelectedPages={() => addSelectedComicPages(contentNode.id)}
+                                        onOpenProject={openComicProject}
+                                        onHandleMissingPages={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "manage" })}
+                                        onAssociateProject={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "associate" })}
                                     />
                                 ) : contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
                                     <CanvasRemixPlanNodeCard
