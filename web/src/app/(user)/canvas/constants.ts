@@ -20,6 +20,7 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Group]: { width: 760, height: 480, title: "组" },
     [CanvasNodeType.Source]: { width: 520, height: 380, title: "素材源" },
     [CanvasNodeType.Publish]: { width: 520, height: 380, title: "发布" },
+    [CanvasNodeType.Comic]: { width: 360, height: 320, title: "漫画册" },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
@@ -62,6 +63,10 @@ export const NODE_SPECS = {
     [CanvasNodeType.Publish]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Publish],
         metadata: { status: "idle", publishStatus: "idle" },
+    },
+    [CanvasNodeType.Comic]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.Comic],
+        metadata: { status: "idle", comicBook: { pageNodeIds: [], format: "page", direction: "rtl" } },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;
 

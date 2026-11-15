@@ -230,8 +230,6 @@ export const LENS_PROFILES: LensProfile[] = [
 export const FOCAL_LENGTHS = [14, 18, 24, 35, 40, 50, 65, 85, 100, 135, 200] as const;
 export const APERTURES = [1.2, 1.4, 1.8, 2, 2.8, 4, 5.6, 8, 11, 16] as const;
 
-export type FocalLengthValue = (typeof FOCAL_LENGTHS)[number];
-export type ApertureValue = (typeof APERTURES)[number];
 
 /** Short Chinese labels and tooltip snippets for focal lengths. */
 export const FOCAL_LENGTH_META: Record<number, { zhName: string; description: string; useCase: string }> = {

@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils";
-
 export const FILM_SHOT_TYPE_OPTIONS = [
     { value: "ELS", label: "大远景" },
     { value: "LS", label: "远景" },
@@ -38,8 +36,4 @@ export function filmShotTypeCodeFromLabel(label?: string) {
     if (!text) return "";
     if (SHOT_TYPE_LABELS.has(text.toUpperCase())) return text.toUpperCase();
     return SHOT_TYPE_ALIASES[text] || text;
-}
-
-export function FilmShotTypeTag({ value, className }: { value?: string; className?: string }) {
-    return <span className={cn("font-mono text-[9px] tracking-wide text-muted-foreground/60", className)}>{filmShotTypeLabel(value)}</span>;
 }

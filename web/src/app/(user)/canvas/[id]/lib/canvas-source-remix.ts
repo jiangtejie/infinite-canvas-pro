@@ -1,3 +1,4 @@
+import { cleanAiJsonText } from "@/lib/ai-json";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import type { RemixInput, RemixRun, SourceRemixPlan } from "../../remix-types";
@@ -130,7 +131,7 @@ function strings(value: unknown, name: string, empty = false): string[] {
 }
 export async function parseSourceRemixPlan(raw: string, input: RemixInput): Promise<SourceRemixPlan> {
     const { jsonrepair } = await import("jsonrepair");
-    const value: unknown = JSON.parse(jsonrepair(raw.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "")));
+    const value: unknown = JSON.parse(jsonrepair(cleanAiJsonText(raw)));
     return validateSourceRemixPlan(value, input);
 }
 export function validateSourceRemixPlan(value: unknown, input: RemixInput): SourceRemixPlan {

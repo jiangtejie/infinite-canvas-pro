@@ -128,11 +128,3 @@ export function collectFilmVariableUsage(project: Pick<FilmProject, "episodes" |
     return [...usages.values()];
 }
 
-export function variableLabel(variable?: FilmInteractiveVariable) {
-    return variable ? variable.name : "未选择变量";
-}
-
-/** 用于分支面板展示变量当前值摘要。 */
-export function describeFilmVariables(project: Pick<FilmProject, "interactiveVariables">, values: Record<string, string>) {
-    return (project.interactiveVariables || []).map((variable) => variable.name + "=" + (values[variable.id] ?? variable.initialValue ?? ""));
-}

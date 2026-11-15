@@ -20,7 +20,48 @@ export enum CanvasNodeType {
     Group = "group",
     Source = "source",
     Publish = "publish",
+    Comic = "comic",
 }
+
+export type ComicLetterKind = "speech" | "thought" | "caption" | "sfx";
+export type ComicLetterTemplate = "oval" | "rounded" | "boxed" | "cloud" | "caption";
+
+export type ComicLetterElement = {
+    id: string;
+    kind: ComicLetterKind;
+    text: string;
+    /** 以下均为相对页面宽高的 0-1 值；fontSize 相对页宽。 */
+    x: number;
+    y: number;
+    width: number;
+    fontSize: number;
+    align: "left" | "center" | "right";
+    tail: "none" | "left" | "right";
+    /** 气泡模板；未设置时按 kind 取默认。 */
+    template?: ComicLetterTemplate;
+    /** 尾巴水平位置，相对气泡宽度 0-1。 */
+    tailX?: number;
+};
+
+export type ComicExportPreset = {
+    pageSize: "fit" | "a4" | "b5";
+    dpi: 150 | 300;
+    pageNumbers: boolean;
+    titlePage: boolean;
+    titlePageText?: string;
+};
+
+export type CanvasComicBook = {
+    pageNodeIds: string[];
+    coverNodeId?: string;
+    format: "page" | "strip";
+    direction: "rtl" | "ltr";
+    lettering?: Record<string, ComicLetterElement[]>;
+    exportPreset?: ComicExportPreset;
+    comicProjectId?: string;
+    /** 画布页面节点 id → 工作台页面 id，用于页序与贴字回写。 */
+    pageProjectIds?: Record<string, string>;
+};
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "stopping" | "stopped" | "error";
 export type CanvasGenerationMode = "text" | "image" | "video" | "audio";
@@ -153,6 +194,7 @@ export type CanvasNodeMetadata = {
     sourceExpandedSignature?: string;
     sourceExpandedNodeSignatures?: Record<string, string>;
     sourceMaterialRole?: "text";
+    comicBook?: CanvasComicBook;
     remixRole?: import("./remix-types").RemixNodeRole;
     remixRunId?: string;
     remixRun?: import("./remix-types").RemixRun;

@@ -1,6 +1,7 @@
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
+import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
 import type { FilmAsset, FilmProject, FilmScriptAnalysis, FilmScriptCharacterAnalysis, FilmScriptRelationshipAnalysis, FilmScriptSceneAnalysis, FilmScriptSceneRelationship } from "@/lib/film/types";
 import type { FilmScriptDocument } from "@/lib/film/film-script-import";
 
@@ -121,10 +122,8 @@ export async function requestFilmScriptAnalysis(config: AiConfig, document: Film
 }
 
 export function parseSceneSemanticPayload(content: string): FilmSceneSemanticPayload {
-    const text = (content || "").trim().replace(/^\`\`\`(?:json)?/i, "").replace(/\`\`\`$/, "").trim();
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    const body = start >= 0 && end > start ? text.slice(start, end + 1) : text;
+    const text = cleanAiJsonText(content);
+    const body = extractAiJsonBlock(text, "object") || text;
     let parsed: unknown;
     try {
         parsed = JSON.parse(body);

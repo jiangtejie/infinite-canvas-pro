@@ -1,3 +1,4 @@
+import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmContinuitySheet, FilmEpisode, FilmShot } from "@/lib/film/types";
@@ -90,10 +91,8 @@ export async function requestFilmContinuity(config: AiConfig, episode: FilmEpiso
 }
 
 export function parseFilmContinuitySheets(content: string): FilmContinuitySheet[] {
-    const text = (content || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    const start = text.indexOf("[");
-    const end = text.lastIndexOf("]");
-    const body = start >= 0 && end > start ? text.slice(start, end + 1) : text;
+    const text = cleanAiJsonText(content);
+    const body = extractAiJsonBlock(text, "array") || text;
     let parsed: unknown;
     try {
         parsed = JSON.parse(body);

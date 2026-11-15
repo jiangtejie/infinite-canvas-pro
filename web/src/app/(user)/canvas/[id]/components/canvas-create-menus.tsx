@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Globe2, ImageIcon, Images, Layers3, Link2, List, Music2, Send, Settings2, Upload, Video } from "lucide-react";
+import { BookOpen, Globe2, ImageIcon, Images, Layers3, Link2, List, Music2, Send, Settings2, Upload, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -124,6 +124,7 @@ export function NodeCreateMenu({
                 <ConnectionCreateOption theme={theme} icon={<Settings2 className="size-5" />} title="配置节点" description="模型、尺寸、数量和输入顺序" onClick={() => onCreate(CanvasNodeType.Config)} />
                 <ConnectionCreateOption theme={theme} icon={<Link2 className="size-5" />} title="素材源" description="抖音图文解析" onClick={() => onCreate(CanvasNodeType.Source)} />
                 <ConnectionCreateOption theme={theme} icon={<Send className="size-5" />} title="发布" description="抖音图文扫码发布" onClick={() => onCreate(CanvasNodeType.Publish)} />
+                <ConnectionCreateOption theme={theme} icon={<BookOpen className="size-5" />} title="漫画册" description="收集图片、翻书预览与导出" onClick={() => onCreate(CanvasNodeType.Comic)} />
                 <div className="mb-2 mt-3 flex items-center justify-between px-1">
                     <span className="text-sm font-medium" style={{ color: theme.node.muted }}>添加资源</span>
                 </div>

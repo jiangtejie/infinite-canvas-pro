@@ -53,14 +53,6 @@ export async function measureUserStorageProvider(token: string, provider: UserSt
     return apiPost<StorageCapacityResult>("/api/v1/storage/measure", { provider: toProviderPayload(provider) }, token);
 }
 
-export async function fetchUserImageHistory<T>(token: string) {
-    return apiGet<T>("/api/v1/user-data/image-history", undefined, token);
-}
-
-export async function syncUserImageHistory<T>(token: string, data: T) {
-    return apiPost<T>("/api/v1/user-data/image-history", { data }, token);
-}
-
 export async function fetchUserAssetData<T>(token: string) {
     return apiGet<T>("/api/v1/user-data/assets", undefined, token);
 }

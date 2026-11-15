@@ -3,6 +3,7 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     History,
+    BookOpen,
     Bot,
     Clapperboard,
     Copy,
@@ -82,6 +83,7 @@ const ASSISTANT_NODE_TYPE_META = {
     [CanvasNodeType.Group]: { Icon: Group, label: "组" },
     [CanvasNodeType.Source]: { Icon: Link2, label: "素材源" },
     [CanvasNodeType.Publish]: { Icon: Send, label: "发布" },
+    [CanvasNodeType.Comic]: { Icon: BookOpen, label: "漫画册" },
 };
 const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
     success: canvasStatusColors.success,

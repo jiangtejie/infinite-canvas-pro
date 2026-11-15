@@ -1,3 +1,4 @@
+import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmProject, FilmStructureBeat, FilmStructurePlan, FilmStructureScene } from "@/lib/film/types";
@@ -76,12 +77,10 @@ export function parseFilmStructurePlan(content: string, project: FilmProject): F
 }
 
 export function parseFilmStructureScenes(content: string): FilmStructureScene[] {
-    const text = (content || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    const start = text.indexOf("[");
-    const end = text.lastIndexOf("]");
+    const text = cleanAiJsonText(content);
     let parsed: unknown;
     try {
-        parsed = JSON.parse(start >= 0 && end > start ? text.slice(start, end + 1) : text);
+        parsed = JSON.parse(extractAiJsonBlock(text, "array") || text);
     } catch {
         throw new Error("AI 返回的结构计划不是有效 JSON");
     }

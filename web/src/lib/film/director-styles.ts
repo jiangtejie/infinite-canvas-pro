@@ -195,12 +195,6 @@ export function directorStyleLabel(id?: string) {
     return directorStyleFor(id)?.name || "";
 }
 
-/** 风格编译成可直接拼进图片 prompt 的文本。 */
-export function directorStyleImageText(style?: DirectorStyle) {
-    if (!style) return "";
-    return [style.prompts.imageSuffix, style.visual.palette, style.visual.lighting].filter(Boolean).join("，");
-}
-
 /** 给已有镜头 prompt 补风格；已包含时原样返回。 */
 export function appendDirectorStyleToPrompt(prompt: string, style?: DirectorStyle) {
     if (!style || !prompt.trim()) return prompt;

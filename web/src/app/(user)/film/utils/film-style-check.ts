@@ -180,6 +180,3 @@ export function checkShotStyle(shot: FilmShot, style?: DirectorStyle): FilmStyle
     return issues;
 }
 
-export function styleIssuesForShot(report: FilmStyleReport, shotId: string) {
-    return report.issues.filter((issue) => issue.shotId === shotId);
-}

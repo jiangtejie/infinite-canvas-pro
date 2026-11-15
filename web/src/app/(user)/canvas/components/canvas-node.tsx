@@ -410,7 +410,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         event.stopPropagation();
                         return;
                     }
-                    if (data.type === CanvasNodeType.Source || data.type === CanvasNodeType.Publish || data.metadata?.remixRole === "plan") {
+                    if (data.type === CanvasNodeType.Source || data.type === CanvasNodeType.Publish || data.type === CanvasNodeType.Comic || data.metadata?.remixRole === "plan") {
                         event.preventDefault();
                         event.stopPropagation();
                         onOpenPanel?.(data);
@@ -528,7 +528,7 @@ function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Group) return null;
     const isPlanNode = props.node.metadata?.remixRole === "plan";
     const isMaterialText = props.node.metadata?.sourceMaterialRole === "text" || props.node.id.endsWith("-material-text");
-    if ((isPlanNode || isMaterialText || props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director || props.node.type === CanvasNodeType.Source || props.node.type === CanvasNodeType.Publish) && props.renderNodeContent) return props.renderNodeContent(props.node);
+    if ((isPlanNode || isMaterialText || props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director || props.node.type === CanvasNodeType.Source || props.node.type === CanvasNodeType.Publish || props.node.type === CanvasNodeType.Comic) && props.renderNodeContent) return props.renderNodeContent(props.node);
     if (props.isBatchRoot) return props.node.type === CanvasNodeType.Panorama ? <PanoramaNodeContent {...props} /> : <ImageNodeContent {...props} />;
     if (props.node.metadata?.status === "stopped") return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: props.theme.node.muted }}>
@@ -553,6 +553,7 @@ const nodeContentRenderers = {
     [CanvasNodeType.Director]: EmptyImageContent,
     [CanvasNodeType.Source]: EmptyImageContent,
     [CanvasNodeType.Publish]: EmptyImageContent,
+    [CanvasNodeType.Comic]: EmptyImageContent,
 } satisfies Partial<Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>>;
 
 function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "node" | "theme" | "now">) {

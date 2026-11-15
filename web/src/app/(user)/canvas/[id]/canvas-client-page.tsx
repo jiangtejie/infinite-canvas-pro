@@ -54,6 +54,7 @@ import { type CanvasVideoFrameOption } from "../components/canvas-node-prompt-pa
 import type { CanvasVideoResourceOption } from "../components/canvas-video-settings-popover";
 import { type CanvasAlignKind } from "../components/canvas-toolbar";
 import { CanvasRefreshShell } from "./components/canvas-refresh-shell";
+import { CanvasComicBookOverlay } from "../components/canvas-comic-book-overlay";
 import { CANVAS_ASSET_DRAG_TYPE } from "../components/canvas-side-panel";
 import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, useCanvasStore } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
@@ -72,6 +73,7 @@ export type CanvasOverlay =
     | { kind: "upscale"; nodeId: string }
     | { kind: "angle"; nodeId: string }
     | { kind: "preview"; nodeId: string }
+    | { kind: "comic"; nodeId: string }
     | { kind: "referencePicker"; nodeId: string };
 
 export default function CanvasPage() {
@@ -601,7 +603,10 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const angleNode = activeOverlay?.kind === "angle" ? overlayNode : null;
     const contextMenuNode = contextMenu?.type === "node" ? nodeById.get(contextMenu.nodeId) || null : null;
     const previewNode = activeOverlay?.kind === "preview" ? overlayNode : null;
+    const comicNode = activeOverlay?.kind === "comic" ? overlayNode : null;
     const openDirectorNode = activeOverlay?.kind === "director" ? overlayNode : null;
+    const selectedImageNodes = useMemo(() => nodes.filter((node) => selectedNodeIds.has(node.id) && isCanvasImageNodeType(node.type) && Boolean(node.metadata?.content)), [nodes, selectedNodeIds]);
+    const canCreateComic = selectedImageNodes.length >= 2;
     const hasMultipleSelectedNodes = selectedNodeIds.size > 1;
     const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
     const contextMenuBusy = contextMenuNode?.metadata?.status === "loading" || contextMenuNode?.metadata?.status === "stopping";
@@ -765,10 +770,25 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setNodes((prev) => [...prev, newNode]);
             selectOnly(newNode.id);
             setSelectedConnectionId(null);
-            if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) openOverlay({ kind: "prompt", nodeId: newNode.id });
+            if (type === CanvasNodeType.Comic) openOverlay({ kind: "comic", nodeId: newNode.id });
+            else if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) openOverlay({ kind: "prompt", nodeId: newNode.id });
         },
         [effectiveConfig.audioWorkflowRef, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.imageWorkflowRef, effectiveConfig.model, effectiveConfig.size, effectiveConfig.videoWorkflowRef, getCanvasCenter, openOverlay, selectOnly, setSelectedConnectionId],
     );
+
+    const createComicFromSelection = useCallback(() => {
+        const selected = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id) && isCanvasImageNodeType(node.type) && node.metadata?.content);
+        if (selected.length < 2) return;
+        const ordered = [...selected].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
+        const maxX = Math.max(...ordered.map((node) => node.position.x + node.width));
+        const minY = Math.min(...ordered.map((node) => node.position.y));
+        const maxY = Math.max(...ordered.map((node) => node.position.y + node.height));
+        const comic = createCanvasNode(CanvasNodeType.Comic, { x: maxX + 260, y: (minY + maxY) / 2 }, { comicBook: { pageNodeIds: ordered.map((node) => node.id), format: "page", direction: "rtl" } });
+        setNodes((prev) => [...prev, comic]);
+        selectOnly(comic.id);
+        setSelectedConnectionId(null);
+        openOverlay({ kind: "comic", nodeId: comic.id });
+    }, [nodesRef, openOverlay, selectOnly, selectedNodeIdsRef, setNodes, setSelectedConnectionId]);
 
     const deleteNodes = useCallback(
         (ids: Set<string>) => {
@@ -1975,6 +1995,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             handleImageInputChange,
             batchState, canBatchGenerate: batchTargetCount > 0,
             onBatchGenerate: handleBatchGenerateSelected, onStopBatch: handleStopBatch,
+            canCreateComic, createComicFromSelection,
         },
         dialogs: {
             handleAssetInsert, currentProject, setDeleteProjectConfirmOpen, setClearConfirmOpen,
@@ -2009,7 +2030,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         },
     };
 
-    return <><CanvasWorkspace model={workspace} />{setupDialog}</>;
+    return <>
+        <CanvasWorkspace model={workspace} />
+        {setupDialog}
+        {comicNode ? <CanvasComicBookOverlay node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onClose={closeOverlay} /> : null}
+    </>;
 }
 
 async function hydrateCanvasImages(nodes: CanvasNodeData[]) {

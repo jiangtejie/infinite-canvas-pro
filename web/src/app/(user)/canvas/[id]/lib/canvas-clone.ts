@@ -34,9 +34,32 @@ export function cloneCanvasNodes(nodes: CanvasNodeData[], { offset, rename = cop
             metadata: cloneNodeMetadata(node),
         };
     });
-    if (!remapGroupIds) return { nodes: cloned, idMap };
+    const remapped = cloned.map((node) => {
+        if (node.type !== CanvasNodeType.Comic || !node.metadata?.comicBook) return node;
+        const book = node.metadata.comicBook;
+        const lettering = book.lettering
+            ? Object.fromEntries(Object.entries(book.lettering).map(([pageId, elements]) => [idMap.get(pageId) || pageId, elements]))
+            : undefined;
+        const pageProjectIds = book.pageProjectIds
+            ? Object.fromEntries(Object.entries(book.pageProjectIds).map(([pageId, projectPageId]) => [idMap.get(pageId) || pageId, projectPageId]))
+            : undefined;
+        return {
+            ...node,
+            metadata: {
+                ...node.metadata,
+                comicBook: {
+                    ...book,
+                    pageNodeIds: book.pageNodeIds.map((pageId) => idMap.get(pageId) || pageId),
+                    coverNodeId: book.coverNodeId ? idMap.get(book.coverNodeId) || book.coverNodeId : undefined,
+                    lettering,
+                    pageProjectIds,
+                },
+            },
+        };
+    });
+    if (!remapGroupIds) return { nodes: remapped, idMap };
     return {
-        nodes: cloned.map((node) => {
+        nodes: remapped.map((node) => {
             const groupId = node.metadata?.groupId;
             const nextGroupId = groupId ? idMap.get(groupId) : undefined;
             if (!groupId || nextGroupId) return nextGroupId ? { ...node, metadata: { ...node.metadata, groupId: nextGroupId } } : node;

@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from "@/services/api/request";
+import { apiGet, apiPost } from "@/services/api/request";
 
 export async function fetchVideoGenerationLogs<T>(token: string) {
     return apiGet<T[]>("/api/v1/generation-logs/videos", undefined, token);
@@ -6,10 +6,6 @@ export async function fetchVideoGenerationLogs<T>(token: string) {
 
 export async function saveVideoGenerationLogs<T>(token: string, logs: T[]) {
     return apiPost<T[]>("/api/v1/generation-logs/videos", { logs }, token);
-}
-
-export async function deleteVideoGenerationLog(token: string, id: string) {
-    return apiDelete<{ deleted: boolean }>(`/api/v1/generation-logs/videos/${encodeURIComponent(id)}`, token);
 }
 
 export async function deleteVideoGenerationLogs(token: string, ids: string[]) {

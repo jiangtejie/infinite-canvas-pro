@@ -14,6 +14,7 @@ import { CanvasConfigNodePanel } from "../../components/canvas-config-node-panel
 import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-panel";
 import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card";
 import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
+import { CanvasComicBookNodeCard } from "../../components/canvas-comic-book-node-card";
 import { CanvasMaterialTextCard } from "../../components/canvas-material-text-card";
 import { CanvasRemixPlanNodeCard } from "../../components/canvas-remix-plan-node-card";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
@@ -369,6 +370,12 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             renderNodeContent={(contentNode) =>
                                 contentNode.metadata?.sourceMaterialRole === "text" || contentNode.id.endsWith("-material-text") ? (
                                     <CanvasMaterialTextCard node={contentNode} />
+                                ) : contentNode.type === CanvasNodeType.Comic ? (
+                                    <CanvasComicBookNodeCard
+                                        node={contentNode}
+                                        pages={(contentNode.metadata?.comicBook?.pageNodeIds || []).map((id) => nodes.find((node) => node.id === id)).filter((node): node is CanvasNodeData => Boolean(node?.metadata?.content))}
+                                        onOpen={() => openOverlay({ kind: "comic", nodeId: contentNode.id })}
+                                    />
                                 ) : contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
                                     <CanvasRemixPlanNodeCard
                                         node={contentNode}
@@ -444,7 +451,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 event.stopPropagation();
                                 setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
                             }}
-                            onOpenPanel={(node) => openOverlay({ kind: "prompt", nodeId: node.id })}
+                            onOpenPanel={(node) => openOverlay(node.type === CanvasNodeType.Comic ? { kind: "comic", nodeId: node.id } : { kind: "prompt", nodeId: node.id })}
                         />
                     ))}
 

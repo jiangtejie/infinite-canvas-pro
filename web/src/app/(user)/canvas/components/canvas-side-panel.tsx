@@ -60,6 +60,7 @@ const NODE_TYPE_ICON = {
     [CanvasNodeType.Group]: Group,
     [CanvasNodeType.Source]: Link2,
     [CanvasNodeType.Publish]: Send,
+    [CanvasNodeType.Comic]: BookOpen,
 };
 
 const NODE_TYPE_LABEL = {
@@ -73,6 +74,7 @@ const NODE_TYPE_LABEL = {
     [CanvasNodeType.Group]: "组",
     [CanvasNodeType.Source]: "素材源",
     [CanvasNodeType.Publish]: "发布",
+    [CanvasNodeType.Comic]: "漫画册",
 };
 
 const NODE_FILTER_OPTIONS = [
@@ -87,6 +89,7 @@ const NODE_FILTER_OPTIONS = [
     { label: "组", value: CanvasNodeType.Group },
     { label: "素材源", value: CanvasNodeType.Source },
     { label: "发布", value: CanvasNodeType.Publish },
+    { label: "漫画册", value: CanvasNodeType.Comic },
 ];
 
 const ASSET_TYPE_OPTIONS = [

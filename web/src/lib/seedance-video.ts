@@ -1,6 +1,5 @@
 import type { AiConfig } from "@/stores/use-config-store";
-import type { ReferenceImage } from "@/types/image";
-import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
+import type { ReferenceVideo } from "@/types/media";
 
 export const SEEDANCE_REFERENCE_LIMITS = {
     images: 10,
@@ -38,8 +37,6 @@ export const seedanceRatioOptions = [
     { value: "21:9", label: "宽银幕" },
     { value: "adaptive", label: "自适应" },
 ] as const;
-
-export const seedanceDurationOptions = [-1, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30] as const;
 
 const seedancePixels = {
     "480p": {
@@ -155,17 +152,6 @@ export function seedanceReferenceLabel(kind: "image" | "video" | "audio", index:
     if (kind === "image") return `图片${index + 1}`;
     if (kind === "video") return `视频${index + 1}`;
     return `音频${index + 1}`;
-}
-
-export function buildSeedancePromptText(prompt: string, images: ReferenceImage[], videos: ReferenceVideo[], audios: ReferenceAudio[]) {
-    const labels = [
-        ...images.map((_, index) => seedanceReferenceLabel("image", index)),
-        ...videos.map((_, index) => seedanceReferenceLabel("video", index)),
-        ...audios.map((_, index) => seedanceReferenceLabel("audio", index)),
-    ];
-    const text = prompt.trim();
-    if (!labels.length) return text;
-    return `参考素材编号：${labels.join("、")}。请按这些编号理解提示词中的图片、视频和音频引用。\n\n${text}`;
 }
 
 export function seedanceVideoReferenceError(videos: ReferenceVideo[], limits = SEEDANCE_REFERENCE_LIMITS) {

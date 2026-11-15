@@ -107,6 +107,8 @@ export type CanvasStageOverlaysModel = {
     canBatchGenerate: boolean;
     onBatchGenerate: () => void;
     onStopBatch: () => void;
+    canCreateComic: boolean;
+    createComicFromSelection: () => void;
 };
 
 /**
@@ -195,6 +197,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         canBatchGenerate,
         onBatchGenerate,
         onStopBatch,
+        canCreateComic,
+        createComicFromSelection,
     } = model;
 
     const remixRun = toolbarNode?.metadata?.remixRole === "plan" ? toolbarNode.metadata.remixRun : undefined;
@@ -291,6 +295,9 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onBatchGenerate={onBatchGenerate}
                     canBatchGenerate={canBatchGenerate}
                     batchGenerating={batchState.running}
+                    canCreateComic={canCreateComic}
+                    onCreateComic={createComicFromSelection}
+                    onAddComic={() => createNode(CanvasNodeType.Comic)}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
                     onUpload={() => handleUploadRequest()}

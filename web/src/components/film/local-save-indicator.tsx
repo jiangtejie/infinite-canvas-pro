@@ -12,7 +12,7 @@ const LABEL: Record<SaveStatus, string> = {
     error: "保存失败",
 };
 
-/** 影视 / 剧本共用的保存状态提示，并明示数据只在本机。 */
+/** 影视 / 剧本 / 漫画共用的保存状态提示，并明示数据只在本机。 */
 export function LocalSaveIndicator({ className, compact = false }: { className?: string; compact?: boolean }) {
     const status = useSaveStatusStore((state) => state.status);
     const Icon = status === "saving" ? Loader2 : status === "error" ? AlertTriangle : Check;

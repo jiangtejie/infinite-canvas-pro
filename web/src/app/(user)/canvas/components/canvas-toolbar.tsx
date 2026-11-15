@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch, Tooltip } from "antd";
-import { AlignCenterHorizontal, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Plus, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
+import { AlignCenterHorizontal, BookOpen, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Plus, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
 
 import { CANVAS_SHORTCUT_LABELS } from "../utils/canvas-shortcuts";
 
@@ -37,6 +37,7 @@ export function CanvasToolbar({
     onAddConfig,
     onAddSource,
     onAddPublish,
+    onAddComic,
     onBatchGenerate,
     canBatchGenerate,
     batchGenerating,
@@ -55,6 +56,8 @@ export function CanvasToolbar({
     onAlign,
     onGroup,
     onUngroup,
+    canCreateComic,
+    onCreateComic,
 }: {
     selectedCount: number;
     canvasTool: "select" | "pan";
@@ -71,6 +74,7 @@ export function CanvasToolbar({
     onAddConfig: () => void;
     onAddSource: () => void;
     onAddPublish: () => void;
+    onAddComic: () => void;
     onBatchGenerate: () => void;
     canBatchGenerate: boolean;
     batchGenerating: boolean;
@@ -89,6 +93,8 @@ export function CanvasToolbar({
     onAlign: (kind: CanvasAlignKind) => void;
     onGroup: () => void;
     onUngroup: () => void;
+    canCreateComic: boolean;
+    onCreateComic: () => void;
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
@@ -119,6 +125,7 @@ export function CanvasToolbar({
         { key: "config", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: onAddConfig },
         { key: "source", label: "素材源", icon: <Link2 className="size-4" />, onClick: onAddSource },
         { key: "publish", label: "发布", icon: <Send className="size-4" />, onClick: onAddPublish },
+        { key: "comic", label: "漫画册", icon: <BookOpen className="size-4" />, onClick: onAddComic },
     ];
     const menuWidth = openMenu === "appearance" ? APPEARANCE_WIDTH : openMenu === "align" ? ALIGN_WIDTH : DOCK_MENU_WIDTH;
     const alignOptions: { key: CanvasAlignKind; label: string }[] = [
@@ -202,6 +209,11 @@ export function CanvasToolbar({
                 {selectedCount > 0 || selectedHasGroup ? <>
                     <Divider theme={theme} />
                     <span className="hidden px-1 text-xs tabular-nums opacity-70 sm:inline">{selectedCount} 项</span>
+                    {canCreateComic ? (
+                        <Tooltip title="把选中的图片合集为漫画册" placement="top">
+                            <Button type="text" aria-label="合集为漫画册" className="!h-10 !min-w-10 !px-2" style={{ color: theme.toolbar.item }} icon={<BookOpen className="size-4.5" />} onClick={onCreateComic}>合集</Button>
+                        </Tooltip>
+                    ) : null}
                     {selectedCount > 1 || selectedHasGroup ? (
                         <Tooltip title="对齐 / 分组" placement="top">
                             <Button data-canvas-dock-trigger type="text" aria-label="对齐与分组" aria-haspopup="menu" aria-expanded={openMenu === "align"} className="!size-10 !min-w-10 !p-0" style={openMenu === "align" ? activeStyle : { color: theme.toolbar.item }} icon={<AlignCenterHorizontal className="size-4.5" />} onClick={(event) => toggleMenu("align", event)} />

@@ -98,13 +98,6 @@ export function removeFilmShot(episodes: FilmEpisode[], shotId: string): FilmEpi
     }));
 }
 
-export function updateFilmScene(episodes: FilmEpisode[], sceneId: string, patch: Partial<FilmScene>): FilmEpisode[] {
-    return episodes.map((episode) => ({
-        ...episode,
-        scenes: episode.scenes.map((scene) => scene.id === sceneId ? { ...scene, ...patch } : scene),
-    }));
-}
-
 export function removeFilmScene(episodes: FilmEpisode[], sceneId: string): FilmEpisode[] {
     return episodes.map((episode) => ({ ...episode, scenes: episode.scenes.filter((scene) => scene.id !== sceneId) }));
 }

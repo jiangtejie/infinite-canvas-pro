@@ -29,13 +29,6 @@ export function assistantReferenceContentFromNode(node: CanvasNodeData): Partial
     return null;
 }
 
-export function buildCanvasResourceReferences(nodes: CanvasNodeData[], connections: CanvasConnection[], contextNodeId?: string | null) {
-    const contextNodes = contextNodeId ? getMentionResourceNodes(contextNodeId, nodes, connections) : [];
-    const globalReferences = labelResourceNodes(nodes.filter(isCanvasReferenceNode), false);
-    const activeByNodeId = new Map(labelResourceNodes(contextNodes, true).map((reference) => [reference.nodeId, reference]));
-    return globalReferences.map((reference) => activeByNodeId.get(reference.nodeId) || reference);
-}
-
 export function buildAllCanvasResourceReferences(nodes: CanvasNodeData[]) {
     return labelResourceNodes(nodes.filter(isCanvasReferenceNode), true);
 }

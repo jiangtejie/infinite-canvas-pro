@@ -16,4 +16,5 @@ export const canvasNodeTypeColors = {
     publish: "#14b8a6",
     group: "#a8a29e",
     director: "#fbbf24",
+    comic: "#e11d48",
 } as const;

@@ -117,10 +117,6 @@ export function createPublishRecord(input: PublishInput) {
     return apiPost<{ record: PublishRecord }>("/api/v1/publish/records", input, publishToken());
 }
 
-export function getPublishRecord(id: string) {
-    return apiGet<{ record: PublishRecord }>(`/api/v1/publish/records/${encodeURIComponent(id)}`, undefined, publishToken());
-}
-
 export function confirmPublishRecord(id: string, publishedUrl: string) {
     return apiPost<{ record: PublishRecord }>(`/api/v1/publish/records/${encodeURIComponent(id)}/confirm`, { publishedUrl }, publishToken());
 }

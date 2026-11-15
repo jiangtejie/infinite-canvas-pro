@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 
+import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
 import { isCanvasAgentContextLimitError, requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmEpisode, FilmScene, FilmStructurePlan } from "@/lib/film/types";
@@ -158,10 +159,8 @@ function buildSystemPrompt(options: FilmParseOptions) {
 }
 
 export function parseFilmAiShotRows(content: string): FilmAiShotRow[] {
-    const text = (content || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    const start = text.indexOf("[");
-    const end = text.lastIndexOf("]");
-    const body = start >= 0 && end > start ? text.slice(start, end + 1) : text;
+    const text = cleanAiJsonText(content);
+    const body = extractAiJsonBlock(text, "array") || text;
     let parsed: unknown;
     try {
         parsed = JSON.parse(body);

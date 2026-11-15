@@ -43,10 +43,6 @@ export function characterMasterImages(asset: FilmAsset): FilmImageRef[] {
     return [];
 }
 
-export function characterPartImages(profile: FilmCharacterProfile | undefined, key: FilmCharacterPartKey): FilmImageRef[] {
-    return profile?.parts[key]?.images || [];
-}
-
 /** 全参考顺序：面部优先，然后是全身、上身等，道具最后。 */
 export function characterReferenceImages(asset: FilmAsset, options: { includeMaster?: boolean; excludePart?: FilmCharacterPartKey } = {}): FilmImageRef[] {
     const profile = asset.character;

@@ -8,7 +8,6 @@ export const SCRIPT_FORMAT_OPTIONS: Array<{ value: ScriptFormat; label: string }
     { value: "short", label: "短剧" },
 ];
 
-export const SCRIPT_TIME_OPTIONS = ["日", "夜", "清晨", "黄昏", "深夜"];
 
 export function createScriptProject(input: { title: string; format?: ScriptFormat; genre?: string; logline?: string }): ScriptProject {
     const now = new Date().toISOString();

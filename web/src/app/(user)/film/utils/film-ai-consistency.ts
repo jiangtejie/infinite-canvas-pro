@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 
+import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmConsistencyIssue, FilmConsistencyReview, FilmProject } from "@/lib/film/types";
@@ -71,13 +72,11 @@ function buildConsistencyContext(project: FilmProject) {
 }
 
 export function parseFilmConsistencyReview(content: string, project: FilmProject): FilmConsistencyReview {
-    const text = (content || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start < 0 || end <= start) throw new Error("AI 一致性检查结果不是有效 JSON");
+    const body = extractAiJsonBlock(cleanAiJsonText(content), "object");
+    if (!body) throw new Error("AI 一致性检查结果不是有效 JSON");
     let parsed: unknown;
     try {
-        parsed = JSON.parse(text.slice(start, end + 1));
+        parsed = JSON.parse(body);
     } catch {
         throw new Error("AI 一致性检查结果不是有效 JSON");
     }
