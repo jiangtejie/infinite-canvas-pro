@@ -9,7 +9,7 @@ type Phase = "typing" | "deleting";
 /**
  * 逐字打字效果。传字符串只打一次，传数组会打字、停留、删除后循环下一条。
  * 用最长的一条做不可见占位，避免逐字和切换时布局跳动。
- * 开启“减少动态效果”时保留打字但放慢速度，并去掉光标闪烁。
+ * 开启“减少动态效果”时直接显示第一条静态文案。
  */
 export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400, startDelay = 200, className }: {
     text: string | string[];
@@ -35,14 +35,12 @@ export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400
         return () => query.removeEventListener("change", onChange);
     }, []);
 
-    const typingSpeed = reduced ? 110 : speed;
-    const removalSpeed = reduced ? 70 : deleteSpeed;
-
     useEffect(() => {
+        if (reduced) return undefined;
         const chars = Array.from(phrases[phraseIndex] || "");
         if (phase === "typing") {
             if (count < chars.length) {
-                const timer = window.setTimeout(() => setCount((value) => value + 1), count === 0 ? (phraseIndex === 0 ? startDelay : 0) : typingSpeed);
+                const timer = window.setTimeout(() => setCount((value) => value + 1), count === 0 ? (phraseIndex === 0 ? startDelay : 0) : speed);
                 return () => window.clearTimeout(timer);
             }
             if (!looping) return undefined;
@@ -50,7 +48,7 @@ export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400
             return () => window.clearTimeout(timer);
         }
         if (count > 0) {
-            const timer = window.setTimeout(() => setCount((value) => value - 1), removalSpeed);
+            const timer = window.setTimeout(() => setCount((value) => value - 1), deleteSpeed);
             return () => window.clearTimeout(timer);
         }
         const timer = window.setTimeout(() => {
@@ -58,11 +56,10 @@ export function TypewriterText({ text, speed = 62, deleteSpeed = 26, hold = 2400
             setPhase("typing");
         }, 80);
         return () => window.clearTimeout(timer);
-    }, [count, hold, looping, phase, phraseIndex, phrases, removalSpeed, startDelay, typingSpeed]);
+    }, [count, deleteSpeed, hold, looping, phase, phraseIndex, phrases, reduced, speed, startDelay]);
 
-
-    const visible = Array.from(phrases[phraseIndex] || "").slice(0, count).join("");
-    const finished = !looping && count >= Array.from(phrases[0] || "").length;
+    const visible = reduced ? phrases[0] || "" : Array.from(phrases[phraseIndex] || "").slice(0, count).join("");
+    const finished = reduced || (!looping && count >= Array.from(phrases[0] || "").length);
 
     return (
         <span className={cn("relative inline-block max-w-full align-bottom pr-1.5", className)}>

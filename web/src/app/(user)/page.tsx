@@ -56,6 +56,8 @@ const HOME_TOOL_COPY: Record<string, string> = {
     workflows: "固定提示词与参数沉淀成模板，批量复用。",
     prompts: "按标题、分类与标签检索灵感，随时收藏。",
     assets: "文本、图片、视频与音频统一归档引用。",
+    comic: "从故事企划、角色设定到分格画面，逐步完成漫画。",
+    marketing: "整理品牌、门店与商品资料，为内容创作提供依据。",
     film: "剧本、角色、分镜与成片，项目制影视创作台。",
     script: "从想法到分场、人物和对白，先写出一版可拍的剧本。",
 };
@@ -240,41 +242,21 @@ export default function IndexPage() {
                             </button>
                         ))}
                     </div>
-                    <p className="mt-6 font-mono text-[10px] tracking-[0.18em] text-muted-foreground/80 uppercase">输入即创建画布 · 支持 @ 引用素材</p>
+                    <p className="mt-6 font-mono text-[10px] tracking-[0.18em] text-muted-foreground/80">发送后进入画布继续创作 · 支持 @ 引用素材</p>
+                    {hydrated && recentProjects.length ? (
+                        <div className="mt-5 flex w-full max-w-[860px] min-w-0 items-center gap-2 sm:gap-3" role="group" aria-label="继续最近画布">
+                            <span className="shrink-0 text-xs text-muted-foreground">继续创作</span>
+                            <Link href={`/canvas/${recentProjects[0].id}`} className="group flex min-w-0 flex-1 items-center gap-2 truncate text-sm font-medium text-foreground hover:text-acid">
+                                <Maximize2 className="size-4 shrink-0 text-muted-foreground group-hover:text-acid" aria-hidden />
+                                <span className="truncate">{recentProjects[0].title || "未命名画布"}</span>
+                                <span className="hidden shrink-0 text-xs font-normal text-muted-foreground sm:inline">{formatRecentTime(recentProjects[0].updatedAt)}</span>
+                                <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground/50 group-hover:text-acid" aria-hidden />
+                            </Link>
+                            <Button size="small" href="/canvas">全部画布</Button>
+                        </div>
+                    ) : null}
                     <input ref={uploadInputRef} hidden type="file" accept="image/*,video/*,audio/*" onChange={onUploadInputChange} />
                 </section>
-
-                {hydrated && recentProjects.length ? (
-                    <section className="relative mt-10 sm:mt-14" aria-labelledby="home-recent-title">
-                        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                            <div>
-                                <span className="eyebrow">继续创作</span>
-                                <h2 id="home-recent-title" className="mt-4 text-2xl font-semibold tracking-[-0.02em] text-foreground sm:text-[28px]">最近画布</h2>
-                            </div>
-                            <Button href="/canvas" icon={<ArrowRight className="size-4" />} iconPlacement="end">全部画布</Button>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            {recentProjects.map((project) => (
-                                <Link
-                                    key={project.id}
-                                    href={`/canvas/${project.id}`}
-                                    className="punk-card brackets enter-up group relative flex min-h-[104px] flex-col justify-between gap-4 overflow-hidden rounded-xl border border-border bg-card/60 p-5"
-                                >
-                                    <span className="grid size-9 shrink-0 place-items-center rounded-[6px] border border-border bg-background text-foreground/70 transition-colors group-hover:border-acid/45 group-hover:text-acid">
-                                        <Maximize2 className="size-4" />
-                                    </span>
-                                    <span className="min-w-0">
-                                        <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                                            <span className="line-clamp-1">{project.title || "未命名画布"}</span>
-                                            <ArrowUpRight className="size-3.5 shrink-0 -translate-y-px text-muted-foreground/0 transition group-hover:text-acid" aria-hidden />
-                                        </span>
-                                        <span className="mt-1.5 block text-xs text-muted-foreground">{project.nodes.length} 个节点 · {formatRecentTime(project.updatedAt)} 更新</span>
-                                    </span>
-                                </Link>
-                            ))}
-                        </div>
-                    </section>
-                ) : null}
 
                 <section className="relative mt-16 sm:mt-20" aria-labelledby="home-tools-title">
                     <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
