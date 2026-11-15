@@ -60,9 +60,11 @@ test("preserves missing comic page slots in book order", () => {
 
 test("keeps project-link state independent from missing page slots", () => {
     const node = comicNode(["gone"]);
-    node.metadata!.comicBook!.comicProjectId = "remote-project";
-    const slots = resolveComicPageSlots({ pageNodeIds: node.metadata.comicBook.pageNodeIds, nodes: [] });
-    const project = resolveComicProjectLinkState({ projectId: node.metadata.comicBook.comicProjectId, projects: [], projectsHydrated: true });
+    const metadata = node.metadata!;
+    const book = metadata.comicBook!;
+    book.comicProjectId = "remote-project";
+    const slots = resolveComicPageSlots({ pageNodeIds: book.pageNodeIds, nodes: [] });
+    const project = resolveComicProjectLinkState({ projectId: book.comicProjectId, projects: [], projectsHydrated: true });
 
     assert.equal(project.kind, "project-missing");
     assert.deepEqual(slots.missingPageIds, ["gone"]);

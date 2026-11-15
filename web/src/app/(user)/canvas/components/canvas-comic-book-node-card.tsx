@@ -30,7 +30,9 @@ export function CanvasComicBookNodeCard({ node, nodes, selectedImageCount, onOpe
     const projectsHydrated = useComicStore((state) => state.hydrated);
     const state = resolveCanvasComicBookState({ node, nodes, projects, projectsHydrated, selectedImageCount });
     const book = node.metadata?.comicBook;
-    const cover = state.pageSlots.find((slot) => slot.kind === "available" && slot.page.id === book?.coverNodeId)?.page || state.validPages[0];
+    const linkedProjectId = state.project.kind === "linked" ? state.project.project.id : "";
+    const coverSlot = state.pageSlots.find((slot) => slot.kind === "available" && slot.page.id === book?.coverNodeId);
+    const cover = coverSlot?.kind === "available" ? coverSlot.page : state.validPages[0];
     const previewSlots = state.pageSlots.slice(0, 3);
     const statusLabel = state.project.kind === "loading"
         ? "正在读取项目…"
@@ -53,11 +55,11 @@ export function CanvasComicBookNodeCard({ node, nodes, selectedImageCount, onOpe
         : state.primaryAction === "handle-missing-pages"
             ? onHandleMissingPages
             : state.primaryAction === "continue-layout" || state.primaryAction === "continue-review"
-                ? () => state.project.kind === "linked" && onOpenProject(state.project.project.id)
+                ? () => { if (linkedProjectId) onOpenProject(linkedProjectId); }
                 : onOpenBook;
     const menuItems = [
         state.project.kind === "linked"
-            ? { key: "project", label: state.project.progress.stage === "layout" ? "打开漫画项目" : "查看漫画项目", onClick: () => onOpenProject(state.project.project.id) }
+            ? { key: "project", label: state.project.progress.stage === "layout" ? "打开漫画项目" : "查看漫画项目", onClick: () => { if (linkedProjectId) onOpenProject(linkedProjectId); } }
             : { key: "associate", label: state.project.kind === "project-missing" ? "重新关联项目" : "关联漫画项目", onClick: onAssociateProject },
         ...(state.primaryAction !== "open-book" ? [{ key: "book", label: "打开漫画册", onClick: onOpenBook }] : []),
         ...(state.validPages.length ? [{ key: "lettering", label: "直接贴字", onClick: onEnterLettering }] : []),
