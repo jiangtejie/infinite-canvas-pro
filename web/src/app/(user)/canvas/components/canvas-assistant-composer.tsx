@@ -159,7 +159,7 @@ export function CanvasAssistantComposer({
                     <div className="flex shrink-0 items-center gap-1">
                         <button
                             type="button"
-                            className="grid size-8 shrink-0 place-items-center rounded-full border transition-colors hover:opacity-90 active:scale-95"
+                            className="grid size-10 shrink-0 place-items-center rounded-full border transition-colors hover:opacity-90 active:scale-95"
                             style={{
                                 borderColor: reasoningEnabled ? "color-mix(in oklab, var(--acid) 45%, transparent)" : "color-mix(in oklab, var(--acid) 22%, transparent)",
                                 backgroundColor: reasoningEnabled ? "color-mix(in oklab, var(--acid) 12%, transparent)" : "transparent",
