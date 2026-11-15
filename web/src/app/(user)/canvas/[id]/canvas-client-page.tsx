@@ -15,6 +15,7 @@ import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { fitNodeSize } from "../utils/canvas-node-size";
+import { expandComicBookPageRelations } from "../utils/comic-book-relations";
 import { captureVideoFrame, type VideoFramePosition } from "../utils/canvas-video-frame";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import { GROUP_PADDING, getNodeBounds } from "../utils/canvas-group";
@@ -73,7 +74,7 @@ export type CanvasOverlay =
     | { kind: "upscale"; nodeId: string }
     | { kind: "angle"; nodeId: string }
     | { kind: "preview"; nodeId: string }
-    | { kind: "comic"; nodeId: string }
+    | { kind: "comic"; nodeId: string; mode?: "preview" | "lettering" | "manage" | "associate" }
     | { kind: "referencePicker"; nodeId: string };
 
 export default function CanvasPage() {
@@ -606,7 +607,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const comicNode = activeOverlay?.kind === "comic" ? overlayNode : null;
     const openDirectorNode = activeOverlay?.kind === "director" ? overlayNode : null;
     const selectedImageNodes = useMemo(() => nodes.filter((node) => selectedNodeIds.has(node.id) && isCanvasImageNodeType(node.type) && Boolean(node.metadata?.content)), [nodes, selectedNodeIds]);
-    const canCreateComic = selectedImageNodes.length >= 2;
+    const selectedImageCount = selectedImageNodes.length;
+    const canCreateComic = selectedImageCount >= 2;
     const hasMultipleSelectedNodes = selectedNodeIds.size > 1;
     const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
     const contextMenuBusy = contextMenuNode?.metadata?.status === "loading" || contextMenuNode?.metadata?.status === "stopping";
@@ -645,18 +647,18 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         const nodeIds = new Set<string>();
         const connectionIds = new Set<string>();
 
-        if (!activeNodeId) return { nodeIds, connectionIds };
+        if (activeNodeId) {
+            nodeIds.add(activeNodeId);
+            connections.forEach((connection) => {
+                if (connection.fromNodeId !== activeNodeId && connection.toNodeId !== activeNodeId) return;
+                connectionIds.add(connection.id);
+                nodeIds.add(connection.fromNodeId);
+                nodeIds.add(connection.toNodeId);
+            });
+        }
 
-        nodeIds.add(activeNodeId);
-        connections.forEach((connection) => {
-            if (connection.fromNodeId !== activeNodeId && connection.toNodeId !== activeNodeId) return;
-            connectionIds.add(connection.id);
-            nodeIds.add(connection.fromNodeId);
-            nodeIds.add(connection.toNodeId);
-        });
-
-        return { nodeIds, connectionIds };
-    }, [activeNodeId, connections]);
+        return expandComicBookPageRelations({ activeNodeId, nodes, baseNodeIds: nodeIds, baseConnectionIds: connectionIds });
+    }, [activeNodeId, connections, nodes]);
 
     const configInputsById = useMemo(() => {
         const map = new Map<string, NodeGenerationInput[]>();
@@ -787,8 +789,22 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         setNodes((prev) => [...prev, comic]);
         selectOnly(comic.id);
         setSelectedConnectionId(null);
-        openOverlay({ kind: "comic", nodeId: comic.id });
+        openOverlay({ kind: "comic", nodeId: comic.id, mode: "preview" });
     }, [nodesRef, openOverlay, selectOnly, selectedNodeIdsRef, setNodes, setSelectedConnectionId]);
+
+    const addSelectedComicPages = useCallback((comicNodeId: string) => {
+        const comicNode = nodesRef.current.find((node) => node.id === comicNodeId);
+        if (!comicNode?.metadata?.comicBook) return;
+        const selectedImages = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id) && isCanvasImageNodeType(node.type) && Boolean(node.metadata?.content));
+        const existing = new Set(comicNode.metadata.comicBook.pageNodeIds);
+        const additions = selectedImages.filter((node) => !existing.has(node.id));
+        if (!additions.length) return void message.info("没有可加入的新图片");
+        const pageNodeIds = [...comicNode.metadata.comicBook.pageNodeIds, ...additions.map((node) => node.id)];
+        setNodes((prev) => prev.map((node) => node.id === comicNodeId ? { ...node, metadata: { ...node.metadata, comicBook: { ...comicNode.metadata!.comicBook!, pageNodeIds, coverNodeId: comicNode.metadata!.comicBook!.coverNodeId || additions[0]!.id } } } : node));
+        selectOnly(comicNodeId);
+        setSelectedConnectionId(null);
+        message.success(`已加入 ${additions.length} 张图片`);
+    }, [message, nodesRef, selectOnly, selectedNodeIdsRef, setNodes, setSelectedConnectionId]);
 
     const deleteNodes = useCallback(
         (ids: Set<string>) => {
@@ -1921,8 +1937,9 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     if (!projectLoaded) return <CanvasRefreshShell />;
     const workspace: CanvasWorkspaceModel = {
         stage: {
-            theme, nodes, selectedNodeIds, handleUploadRequest,
-            selectOnly,
+            theme, nodes, selectedNodeIds, selectedImageCount, focusNode,
+            openComicProject: (comicProjectId: string) => router.push(`/comic/${comicProjectId}`),
+            addSelectedComicPages, handleUploadRequest, selectOnly,
             containerRef, viewport, canvasTool, backgroundMode,
             alignmentGuides, focusAnimationRef, viewportRef, setViewport,
             setContextMenu, referencePickerNodeId, handleCanvasPointerDown, deselectCanvas,
@@ -2033,7 +2050,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     return <>
         <CanvasWorkspace model={workspace} />
         {setupDialog}
-        {comicNode ? <CanvasComicBookOverlay node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onClose={closeOverlay} /> : null}
+        {comicNode ? <CanvasComicBookOverlay key={`${comicNode.id}:${activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"}`} node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} initialMode={activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onClose={closeOverlay} /> : null}
     </>;
 }
 
