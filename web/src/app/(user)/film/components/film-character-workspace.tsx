@@ -10,13 +10,13 @@ import { useDownloadFile } from "@/hooks/use-download-file";
 import { cn } from "@/lib/utils";
 import styles from "./film-character.module.css";
 import { uploadImage } from "@/services/image-storage";
-import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmImageRef, FilmProject } from "@/lib/film/types";
+import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmCharacterState, FilmImageRef, FilmProject } from "@/lib/film/types";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { useFilmCharacterImage } from "../hooks/use-film-character-image";
 import { useElapsedSeconds } from "../hooks/use-elapsed-seconds";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
 import { addFilmAsset, importFilmAsset, removeFilmAsset } from "../utils/film-edits";
-import { CHARACTER_PART_DEFINITIONS, characterCardSignature, characterMasterImages, characterProgress, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel } from "../utils/film-character";
+import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, createCharacterState, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel, isCharacterCardStale } from "../utils/film-character";
 import type { CharacterCardOptions } from "../utils/film-character-card";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
 
@@ -25,7 +25,7 @@ type FilmCharacterWorkspaceProps = {
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
 };
 
-type UploadTarget = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | null;
+type UploadTarget = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | { kind: "state"; stateId: string } | null;
 
 export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
     const { message } = App.useApp();
@@ -63,7 +63,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
     const masterImages = selected ? characterMasterImages(selected) : [];
     const partImages = part?.images || [];
     const cardImage = selected?.character?.card;
-    const cardStale = Boolean(cardImage && profile?.cardSignature && selected && profile.cardSignature !== characterCardSignature(selected));
+    const cardStale = selected ? isCharacterCardStale(selected) : false;
     const previewImages = previewMode === "master" ? masterImages : partImages;
     const masterPreview = masterImages.find((image) => image.id === masterPreviewId) || masterImages[masterImages.length - 1];
     const previewImage = previewMode === "master" ? masterPreview : previewImages[previewImages.length - 1];
@@ -96,6 +96,27 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                 ...asset,
                 character: { ...nextProfile, parts: { ...nextProfile.parts, [key]: { ...nextProfile.parts[key], ...patch } } },
             };
+        });
+    };
+
+    const updateState = (stateId: string, patch: Partial<FilmCharacterState>) => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            return { ...asset, character: { ...nextProfile, states: nextProfile.states.map((state) => state.id === stateId ? { ...state, ...patch } : state) } };
+        });
+    };
+
+    const addState = () => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            return { ...asset, character: { ...nextProfile, states: [...nextProfile.states, createCharacterState(nextProfile.states.length + 1)] } };
+        });
+    };
+
+    const removeState = (stateId: string) => {
+        patchCharacter((asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            return { ...asset, character: { ...nextProfile, states: nextProfile.states.filter((state) => state.id !== stateId) } };
         });
     };
 
@@ -168,9 +189,11 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                 const key = uploadTarget.key;
                 const currentImages = ensureCharacterProfile(selected).parts[key].images;
                 updatePart(key, { images: [...currentImages, image] });
-            } else {
+            } else if (uploadTarget.kind === "prop") {
                 const prop = ensureCharacterProfile(selected).props.find((item) => item.id === uploadTarget.propId);
                 if (prop) updateProp(prop.id, { images: [...prop.images, image] });
+            } else {
+                updateState(uploadTarget.stateId, { referenceImage: image });
             }
         } catch {
             message.error("图片上传失败");
@@ -276,6 +299,33 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                 );
                             })}
                         </div>
+
+                        {selected ? (
+                            <div className="mt-3 grid gap-1.5 rounded-md border border-border/50 bg-background/25 p-2">
+                                <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/60 uppercase">别名</span>
+                                <Input size="small" value={selected.aliases.join("，")} placeholder="使用逗号分隔" onChange={(event) => updateCharacter({ aliases: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
+                            </div>
+                        ) : null}
+                        <div className="mt-4 flex items-center gap-2">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">造型状态</span>
+                            <Button size="small" type="text" icon={<Plus className="size-3.5" />} onClick={addState} disabled={!selected} aria-label="添加造型状态" />
+                        </div>
+                        {selected ? ensureCharacterProfile(selected).states.map((state) => (
+                            <div key={state.id} className="mt-2 grid gap-1.5 rounded-md border border-border/60 bg-background/30 p-2">
+                                <div className="flex items-center gap-1.5">
+                                    <Input size="small" value={state.name} placeholder="状态名称" onChange={(event) => updateState(state.id, { name: event.target.value })} />
+                                    <Button type="text" size="small" danger className="!h-7 !w-7 !min-w-7 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="删除造型状态" onClick={() => removeState(state.id)} />
+                                </div>
+                                <Input size="small" value={state.outfit} placeholder="服装" onChange={(event) => updateState(state.id, { outfit: event.target.value })} />
+                                <Input size="small" value={state.physicalCondition} placeholder="身体状态" onChange={(event) => updateState(state.id, { physicalCondition: event.target.value })} />
+                                <Input size="small" value={state.description} placeholder="状态说明" onChange={(event) => updateState(state.id, { description: event.target.value })} />
+                                <Input size="small" value={state.heldProps.join("，")} placeholder="持有道具，用逗号分隔" onChange={(event) => updateState(state.id, { heldProps: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
+                                <div className="flex items-center gap-2">
+                                    {state.referenceImage ? <FilmImageThumbnail url={state.referenceImage.url} storageKey={state.referenceImage.storageKey} alt={`${state.name}参考图`} className="size-10 rounded border border-border/60" /> : <span className="grid size-10 place-items-center rounded border border-dashed border-border/60 text-muted-foreground/50"><ImagePlus className="size-3.5" /></span>}
+                                    <Button size="small" type="text" icon={<Upload className="size-3.5" />} onClick={() => triggerUpload({ kind: "state", stateId: state.id })}>状态参考</Button>
+                                </div>
+                            </div>
+                        )) : null}
 
                         <div className="mt-4 flex items-center gap-2">
                             <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">道具 / 饰品</span>

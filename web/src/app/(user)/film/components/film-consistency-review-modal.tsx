@@ -39,14 +39,14 @@ export function FilmConsistencyReviewModal({ open, review, reviewing, onClose, o
             {!review ? (
                 <div className="grid place-items-center gap-2 py-12 text-center">
                     <div className="grid size-12 place-items-center rounded-xl border border-dashed border-acid/30 bg-acid/[0.03] text-acid/70"><ShieldCheck className="size-5" /></div>
-                    <p className="text-sm font-medium text-foreground">检查结构覆盖、连续性与风格漂移</p>
-                    <p className="max-w-md text-xs leading-6 text-muted-foreground">一致性代理会对照结构计划和导演风格，指出具体哪场哪镜有问题；结果同时会合并进预演问题列表。</p>
+                    <p className="text-sm font-medium text-foreground">检查结构覆盖、角色身份/造型、连续性与风格漂移</p>
+                    <p className="max-w-md text-xs leading-6 text-muted-foreground">一致性代理会对照结构计划、角色绑定与导演风格，检查身份/造型状态是否跨镜承接，指出具体哪场哪镜有问题；结果同时会合并进预演问题列表。</p>
                 </div>
             ) : (
                 <div className="grid gap-3">
                     {review.summary ? <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-[11px] leading-5 text-foreground/80">{review.summary}</p> : null}
                     {!issues.length ? (
-                        <div className="flex items-center gap-2 rounded-lg border border-acid/30 bg-acid/[0.04] px-3 py-3 text-xs text-acid"><CheckCircle2 className="size-4" />没有发现结构、连续性或风格问题。</div>
+                        <div className="flex items-center gap-2 rounded-lg border border-acid/30 bg-acid/[0.04] px-3 py-3 text-xs text-acid"><CheckCircle2 className="size-4" />没有发现结构、角色造型、连续性或风格问题。</div>
                     ) : (
                         <div className="grid gap-2">
                             {issues.map((issue) => {

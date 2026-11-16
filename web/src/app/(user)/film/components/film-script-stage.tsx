@@ -354,6 +354,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         const parts = [`${mode === "append" ? "已追加" : "已覆盖"} ${flattenFilmShots(parsed).length} 个分镜`];
         if (bound.boundCharacters) parts.push(`绑定 ${bound.boundCharacters} 个镜头角色`);
         if (bound.boundLocations) parts.push(`绑定 ${bound.boundLocations} 个场景`);
+        if (bound.suggestedCharacters) parts.push(`${bound.suggestedCharacters} 个镜头有同名角色待确认`);
         message.success(parts.join("，"));
     };
 
@@ -367,12 +368,16 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
 
     const autoBind = () => {
         const result = bindFilmCast(episodes, project.characters || [], project.locations || []);
-        if (!result.boundCharacters && !result.boundLocations) {
+        if (!result.boundCharacters && !result.boundLocations && !result.suggestedCharacters) {
             message.info("没有匹配到角色或场景名称，先补全资产名称再试");
             return;
         }
         onUpdate({ episodes: result.episodes });
-        message.success(`已绑定 ${result.boundCharacters} 个镜头角色、${result.boundLocations} 个场景`);
+        const parts = [];
+        if (result.boundCharacters) parts.push(`绑定 ${result.boundCharacters} 个镜头角色`);
+        if (result.boundLocations) parts.push(`绑定 ${result.boundLocations} 个场景`);
+        if (result.suggestedCharacters) parts.push(`${result.suggestedCharacters} 个镜头有同名角色待确认`);
+        message.success(parts.join("，"));
     };
 
     const undoParse = async () => {

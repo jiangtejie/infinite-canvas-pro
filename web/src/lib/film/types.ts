@@ -28,9 +28,20 @@ export type FilmCharacterProp = {
     locked: boolean;
 };
 
+export type FilmCharacterState = {
+    id: string;
+    name: string;
+    description: string;
+    outfit: string;
+    physicalCondition: string;
+    heldProps: string[];
+    referenceImage?: FilmImageRef;
+};
+
 export type FilmCharacterProfile = {
     parts: Record<FilmCharacterPartKey, FilmCharacterPart>;
     props: FilmCharacterProp[];
+    states: FilmCharacterState[];
     masterViews: FilmImageRef[];
     masterLocked: boolean;
     card?: FilmImageRef;
@@ -38,6 +49,69 @@ export type FilmCharacterProfile = {
 };
 
 export type FilmVideoMode = "reference" | "frames";
+
+export type FilmShotCharacterBinding = {
+    characterId: string;
+    stateId?: string;
+    source: "manual" | "ai";
+    characterNameSnapshot: string;
+    stateNameSnapshot?: string;
+    continuity: {
+        outfit?: string;
+        physicalCondition?: string;
+        heldProps?: string[];
+        emotion?: string;
+        intentionalChange?: string;
+    };
+};
+
+/** 自动绑定留下的歧义角色名：同名角色无法判断归属，等用户确认。 */
+export type FilmShotCharacterSuggestion = {
+    characterName: string;
+};
+
+export type FilmGenerationReferenceRole =
+    | "character-package"
+    | "character-state"
+    | "character-detail"
+    | "location"
+    | "previous-shot"
+    | "anchor-shot"
+    | "storyboard"
+    | "first-frame"
+    | "last-frame";
+
+export type FilmGenerationReference = {
+    id: string;
+    revision: string;
+    role: FilmGenerationReferenceRole;
+    characterId?: string;
+    label: string;
+    image: FilmImageRef;
+};
+
+export type FilmCharacterGenerationSnapshot = {
+    characterId: string;
+    characterName: string;
+    characterSignature: string;
+    stateId?: string;
+    stateName?: string;
+    prompt: string;
+    references: FilmGenerationReference[];
+};
+
+export type FilmGenerationContext = {
+    inputSignature: string;
+    compilerVersion: string;
+    prompt: string;
+    characters: FilmCharacterGenerationSnapshot[];
+    references: FilmGenerationReference[];
+    missingReferenceIds: string[];
+    warnings: string[];
+    previousShotId?: string;
+    anchorShotId?: string;
+    createdAt: string;
+};
 
 export type FilmVideoSegment = {
     id: string;
@@ -78,6 +152,7 @@ export type FilmShotTask = {
     taskId?: string;
     videoId?: string;
     startedAt: number;
+    generationContext?: FilmGenerationContext;
 };
 
 /** 角色 / 场景资产的设定图任务，记录回写目标（概念图 / 视图 / 部位 / 全身合成 / 角色卡）。 */
@@ -94,6 +169,7 @@ export type FilmMediaVersion = {
     url: string;
     storageKey?: string;
     createdAt: string;
+    generationContext?: FilmGenerationContext;
 };
 
 export type FilmScriptCharacterAnalysis = {
@@ -268,7 +344,8 @@ export type FilmShot = {
     colorTone?: string;
     lens?: string;
     transition?: string;
-    characterIds?: string[];
+    characterBindings: FilmShotCharacterBinding[];
+    characterSuggestions?: FilmShotCharacterSuggestion[];
     locationId?: string;
     videoMode?: FilmVideoMode;
     firstFrame?: FilmFrameSource;
@@ -312,6 +389,7 @@ export type FilmAssetView = {
 export type FilmAsset = {
     id: string;
     name: string;
+    aliases: string[];
     description: string;
     visualPrompt: string;
     imageUrl?: string;
@@ -319,6 +397,7 @@ export type FilmAsset = {
     status: FilmAssetStatus;
     errorMessage?: string;
     views?: FilmAssetView[];
+    sourceLibraryAssetId?: string;
     character?: FilmCharacterProfile;
     pendingTask?: FilmAssetTask;
     createdAt: string;

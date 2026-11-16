@@ -289,6 +289,7 @@ export function buildScriptAnalysisAssets(project: FilmProject, analysis: FilmSc
         characters.push({
             id: nanoid(),
             name: character.name,
+            aliases: character.aliases || [],
             description: [character.role, character.description].filter(Boolean).join("："),
             visualPrompt: "",
             status: "idle",
@@ -301,7 +302,7 @@ export function buildScriptAnalysisAssets(project: FilmProject, analysis: FilmSc
         const key = normalizeEntityKey(name);
         if (!key || existingLocations.has(key)) continue;
         existingLocations.add(key);
-        locations.push({ id: nanoid(), name: name.trim(), description: "由剧本解析生成", visualPrompt: "", status: "idle", createdAt } satisfies FilmAsset);
+        locations.push({ id: nanoid(), name: name.trim(), aliases: [], description: "由剧本解析生成", visualPrompt: "", status: "idle", createdAt } satisfies FilmAsset);
     }
     return { characters, locations };
 }

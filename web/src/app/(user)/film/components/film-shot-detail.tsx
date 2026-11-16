@@ -6,9 +6,9 @@ import { App, AutoComplete, Button, Image, Input, InputNumber, Select, Spin } fr
 
 import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
-import type { FilmContinuitySheet, FilmProject, FilmShot, FilmShotBranch } from "@/lib/film/types";
+import type { FilmContinuitySheet, FilmProject, FilmShot, FilmShotBranch, FilmShotCharacterBinding } from "@/lib/film/types";
+import { setFilmShotCharacterBindings } from "../utils/film-cast-bind";
 import { appendDirectorStyleToPrompt, directorStyleFor } from "@/lib/film/director-styles";
-import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { checkShotStyle } from "../utils/film-style-check";
@@ -22,6 +22,8 @@ import { FILM_CAMERA_MOVEMENT_OPTIONS, FILM_SHOT_TYPE_OPTIONS } from "../utils/f
 import { FILM_CONTINUITY_FIELDS } from "../utils/film-continuity-sheet";
 import { FilmImageThumbnail } from "./film-asset-thumbnail";
 import { FilmShotVideoPanel } from "./film-shot-video-panel";
+import { FilmGenerationInfo, FilmMediaStateBadge, FilmMediaStateDot } from "./film-media-context";
+import { useFilmShotGeneration } from "../hooks/use-film-shot-generation";
 import { WorkbenchCreditHint } from "@/components/workbench/credit-hint";
 import { useEffectiveConfig } from "@/stores/use-config-store";
 
@@ -50,7 +52,6 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
     const locations = project.locations || [];
     const variables = project.interactiveVariables || [];
     const aspect = project.aspect;
-    const styleText = resolveFilmStyleText(project);
     const directorStyle = directorStyleFor(project.directorStyleId);
     const sceneTargets = useMemo(() => filmSceneOptions(project.episodes), [project.episodes]);
     const branchTargets = useMemo(() => flattenFilmShots(project.episodes).filter((item) => item.id !== shot.id).map((item) => ({ id: item.id, label: item.shotNo + " · " + (item.description || "未填写画面") })), [project.episodes, shot.id]);
@@ -59,6 +60,9 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
     const canMoveDown = Boolean(position && position.shotIndex < position.sceneShotCount - 1);
     const frameStyle = { aspectRatio: aspect ? filmAspectCssRatio(aspect) : "16 / 9" };
     const styleIssues = checkShotStyle(shot, directorStyle);
+    const imageGeneration = useFilmShotGeneration(project, shot, "image");
+    const currentImageVersion = (shot.imageVersions || []).find((version) => version.url === shot.imageUrl);
+    const currentImageState = currentImageVersion ? imageGeneration.stateForVersion(currentImageVersion) : "unrecorded";
     const onChange = (patch: Partial<FilmShot>) => onUpdate({ episodes: updateFilmShot(project.episodes, shot.id, patch) });
     const moveShot = (direction: "up" | "down") => onUpdate({ episodes: moveFilmShot(project.episodes, shot.id, direction === "up" ? -1 : 1) });
     const moveShotToScene = (sceneId: string) => {
@@ -66,6 +70,19 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
         onUpdate({ episodes: moveFilmShotToScene(project.episodes, shot.id, sceneId) });
     };
     const deleteShot = () => onUpdate({ episodes: removeFilmShot(project.episodes, shot.id) });
+    const updateCharacterBindings = (bindings: Array<{ characterId: string; stateId?: string; continuity?: FilmShotCharacterBinding["continuity"] }>) => {
+        const next = setFilmShotCharacterBindings(shot, bindings, characters);
+        onChange({ characterBindings: next.characterBindings, characterSuggestions: next.characterSuggestions });
+    };
+    const bindingInputs = () => shot.characterBindings.map(({ characterId, stateId, continuity }) => ({ characterId, stateId, continuity }));
+    const bindingsWith = (characterId: string, patch: Partial<Pick<FilmShotCharacterBinding, "stateId" | "continuity">>) => bindingInputs().map((item) => item.characterId === characterId ? { ...item, ...patch } : item);
+    const setBindingContinuity = (binding: FilmShotCharacterBinding, patch: Partial<FilmShotCharacterBinding["continuity"]>) => {
+        updateCharacterBindings(bindingsWith(binding.characterId, { continuity: { ...binding.continuity, ...patch } }));
+    };
+    const dismissSuggestion = (characterName: string) => {
+        const rest = (shot.characterSuggestions || []).filter((item) => item.characterName !== characterName);
+        onChange({ characterSuggestions: rest.length ? rest : undefined });
+    };
     const applyStylePrompt = () => {
         if (!directorStyle) return;
         onUpdate({ episodes: updateFilmShot(project.episodes, shot.id, { prompt: appendDirectorStyleToPrompt(shot.prompt, directorStyle) }) });
@@ -161,14 +178,59 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                             <div className="grid gap-1">
                                 <span className="text-[11px] text-muted-foreground/70">出场角色</span>
                                 <Select
-                                    mode="multiple"
                                     size="small"
                                     allowClear
-                                    placeholder="选择角色，生成时作为参考图"
-                                    value={shot.characterIds ?? []}
-                                    options={characters.map((character) => ({ value: character.id, label: character.name }))}
-                                    onChange={(value: string[]) => onChange({ characterIds: value })}
+                                    placeholder="添加出场角色"
+                                    value={undefined}
+                                    options={characters.filter((character) => !shot.characterBindings.some((binding) => binding.characterId === character.id)).map((character) => ({ value: character.id, label: character.name }))}
+                                    onChange={(characterId: string) => updateCharacterBindings([...bindingInputs(), { characterId }])}
                                 />
+                                {shot.characterBindings.map((binding) => {
+                                    const character = characters.find((item) => item.id === binding.characterId);
+                                    const stateOptions = character?.character?.states || [];
+                                    return (
+                                        <div key={binding.characterId} className="grid gap-1 rounded-md border border-border/40 p-2">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="min-w-24 text-[11px]">{character?.name || `${binding.characterNameSnapshot}（已删除）`}</span>
+                                                <Select
+                                                    size="small"
+                                                    allowClear
+                                                    className="min-w-36 flex-1"
+                                                    placeholder="基础造型"
+                                                    value={binding.stateId}
+                                                    disabled={!character}
+                                                    options={stateOptions.map((state) => ({ value: state.id, label: state.name }))}
+                                                    onChange={(stateId?: string) => updateCharacterBindings(bindingsWith(binding.characterId, { stateId }))}
+                                                />
+                                                <Button size="small" type="text" danger onClick={() => updateCharacterBindings(bindingInputs().filter((item) => item.characterId !== binding.characterId))}>移除</Button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-1">
+                                                <Input size="small" placeholder="服装变化" value={binding.continuity.outfit || ""} onChange={(event) => setBindingContinuity(binding, { outfit: event.target.value })} />
+                                                <Input size="small" placeholder="身体状态" value={binding.continuity.physicalCondition || ""} onChange={(event) => setBindingContinuity(binding, { physicalCondition: event.target.value })} />
+                                                <Input size="small" placeholder="情绪" value={binding.continuity.emotion || ""} onChange={(event) => setBindingContinuity(binding, { emotion: event.target.value })} />
+                                                <Input size="small" placeholder="持有道具（逗号分隔）" value={(binding.continuity.heldProps || []).join("，")} onChange={(event) => setBindingContinuity(binding, { heldProps: event.target.value.split(/[,，]/).map((item) => item.trim()).filter(Boolean) })} />
+                                            </div>
+                                            <Input size="small" placeholder="刻意变化（说明本镜与上一镜不同的原因）" value={binding.continuity.intentionalChange || ""} onChange={(event) => setBindingContinuity(binding, { intentionalChange: event.target.value })} />
+                                        </div>
+                                    );
+                                })}
+                                {(shot.characterSuggestions || []).map((suggestion) => {
+                                    const candidates = characters.filter((character) => [character.name, ...character.aliases].some((name) => name.normalize("NFKC").trim() === suggestion.characterName.normalize("NFKC").trim()));
+                                    return (
+                                        <div key={suggestion.characterName} className="flex flex-wrap items-center gap-2">
+                                            <span className="text-[11px] text-amber-600">待确认：{suggestion.characterName}（同名角色）</span>
+                                            <Select
+                                                size="small"
+                                                className="min-w-32 flex-1"
+                                                placeholder="选择角色"
+                                                value={undefined}
+                                                options={candidates.map((character) => ({ value: character.id, label: character.description ? `${character.name} · ${character.description}` : character.name }))}
+                                                onChange={(characterId: string) => updateCharacterBindings([...bindingInputs(), { characterId }])}
+                                            />
+                                            <Button size="small" type="text" onClick={() => dismissSuggestion(suggestion.characterName)}>忽略</Button>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         ) : null}
                         {locations.length ? (
@@ -219,7 +281,10 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                 {tab === "image" && onGenerate ? (
                     <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
                         <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜图</span>
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜图</span>
+                                {shot.imageUrl ? <FilmMediaStateBadge state={currentImageState} /> : null}
+                            </div>
                             <Button type={shot.imageUrl ? "default" : "primary"} size="small" loading={generating} icon={<ImagePlus className="size-3.5" />} onClick={onGenerate}>
                                 {shot.imageUrl ? "重新生成" : "生成分镜图"}
                             </Button>
@@ -270,6 +335,7 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                                                 >
                                                     <FilmImageThumbnail url={version.url} storageKey={version.storageKey} className="h-12 w-full" />
                                                     <span className="absolute left-0.5 top-0.5 rounded bg-background/80 px-1 font-mono text-[8px] text-foreground/80">v{index + 1}</span>
+                                                    <span className="absolute right-1 top-1"><FilmMediaStateDot state={imageGeneration.stateForVersion(version)} /></span>
                                                     {current ? <span className="absolute bottom-0 right-0 rounded-tl bg-acid px-1 font-mono text-[8px] text-background">当前</span> : null}
                                                 </button>
                                                 {!current ? (
@@ -288,6 +354,7 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                                 </div>
                             </div>
                         ) : null}
+                        {shot.imageUrl ? <FilmGenerationInfo context={currentImageVersion?.generationContext} /> : null}
                     </div>
                 ) : null}
                 {tab === "performance" ? (
@@ -353,15 +420,12 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                 {tab === "video" && onGenerateVideo ? (
                     <FilmShotVideoPanel
                         shot={shot}
+                        project={project}
                         onChange={onChange}
                         onGenerate={onGenerateVideo}
                         onStop={onStopVideo}
                         generating={Boolean(generatingVideo)}
                         progress={videoProgress ?? 0}
-                        aspect={aspect}
-                        styleText={styleText}
-                        characters={characters}
-                        locations={locations}
                     />
                 ) : null}
                 {tab === "basic" ? (

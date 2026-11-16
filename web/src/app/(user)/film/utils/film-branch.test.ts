@@ -5,7 +5,7 @@ import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { branchTargetIndex, buildFilmBranchGraph, buildFilmBranchPaths, collectFilmBranches, findUnreachableShots } from "./film-branch";
 
 function makeShot(id: string, patch: Partial<FilmShot> = {}): FilmShot {
-    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", ...patch };
+    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], ...patch };
 }
 
 function makeProject(shots: FilmShot[]): FilmProject {

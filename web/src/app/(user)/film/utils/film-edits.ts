@@ -33,6 +33,7 @@ export function addFilmShot(episodes: FilmEpisode[], sceneId: string): FilmEpiso
                     dialogue: "",
                     audio: "",
                     prompt: "",
+                    characterBindings: [],
                 }],
             };
         }),
@@ -108,6 +109,7 @@ export function addFilmAsset(assets: FilmAsset[], kind: FilmAssetKind): FilmAsse
         {
             id: nanoid(),
             name: kind === "character" ? `角色 ${assets.length + 1}` : `场景 ${assets.length + 1}`,
+            aliases: [],
             description: "",
             visualPrompt: "",
             status: "idle",
@@ -118,7 +120,7 @@ export function addFilmAsset(assets: FilmAsset[], kind: FilmAssetKind): FilmAsse
 }
 
 export function importFilmAsset(assets: FilmAsset[], asset: FilmAsset): FilmAsset[] {
-    return [...assets, { ...asset, id: nanoid(), createdAt: new Date().toISOString() }];
+    return [...assets, { ...structuredClone(asset), id: nanoid(), sourceLibraryAssetId: asset.id, createdAt: new Date().toISOString() }];
 }
 
 export function updateFilmAsset(assets: FilmAsset[], id: string, patch: Partial<FilmAsset>): FilmAsset[] {

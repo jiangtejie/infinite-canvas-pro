@@ -63,7 +63,7 @@ export function useFilmTaskRecovery(
             if (isFilmImageTaskDone(task.status)) {
                 const imageUrl = task.image_url || task.image_urls?.[0] || task.url || "";
                 if (!imageUrl) throw new Error("任务完成但没有返回图片");
-                patchShot(shot.id, { ...withImageVersion(shot, imageUrl, task.storageKey || ""), pendingTask: undefined });
+                patchShot(shot.id, { ...withImageVersion(shot, imageUrl, task.storageKey || "", pending.generationContext), pendingTask: undefined });
                 message.success(`已恢复分镜图生成：${shot.shotNo}`);
                 return;
             }
@@ -81,7 +81,7 @@ export function useFilmTaskRecovery(
                 const result = await pollFilmVideoTask(config, pending);
                 if (cancelled) return;
                 const latest = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) || shot;
-                patchShot(shot.id, { ...withVideoVersion(latest, result.videoUrl, result.storageKey), pendingTask: undefined });
+                patchShot(shot.id, { ...withVideoVersion(latest, result.videoUrl, result.storageKey, pending.generationContext), pendingTask: undefined });
                 message.success(`已恢复分镜视频生成：${shot.shotNo}`);
             } catch (error) {
                 if (error instanceof FilmVideoStoppedError) {

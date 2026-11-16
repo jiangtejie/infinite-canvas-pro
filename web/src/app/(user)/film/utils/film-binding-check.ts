@@ -1,4 +1,5 @@
 import type { FilmAsset, FilmEpisode } from "@/lib/film/types";
+import { findFilmCharacterState } from "./film-character";
 
 export type FilmBindingIssue = {
     id: string;
@@ -34,17 +35,28 @@ export function checkFilmBindingIssues(episodes: FilmEpisode[], characters: Film
             const sceneLocation = namedLocations.find((asset) => scene.name.includes(asset.name.trim()));
 
             for (const shot of scene.shots) {
-                const text = `${shot.description} ${shot.dialogue}`;
+                const text = `${shot.description} ${shot.dialogue}`.normalize("NFKC");
                 for (const character of namedCharacters) {
-                    const name = character.name.trim();
-                    if (!text.includes(name)) continue;
-                    if ((shot.characterIds || []).includes(character.id)) continue;
-                    push({
-                        id: `character-${character.id}-${shot.id}`,
-                        level: "warning",
-                        message: `${sceneLabel}：镜头 ${shot.shotNo} 提到「${name}」但未绑定角色`,
-                        shotId: shot.id,
-                    });
+                    const names = [character.name, ...character.aliases].map((name) => name.normalize("NFKC").trim()).filter(Boolean);
+                    const matchedName = names.find((name) => text.includes(name));
+                    if (matchedName && !shot.characterBindings.some((binding) => binding.characterId === character.id)) {
+                        push({
+                            id: `character-${character.id}-${shot.id}`,
+                            level: "warning",
+                            message: `${sceneLabel}：镜头 ${shot.shotNo} 提到「${matchedName}」但未绑定角色`,
+                            shotId: shot.id,
+                        });
+                    }
+                }
+                for (const binding of shot.characterBindings) {
+                    const character = characters.find((asset) => asset.id === binding.characterId);
+                    if (!character) {
+                        push({ id: `missing-character-${binding.characterId}-${shot.id}`, level: "warning", message: `${sceneLabel}：镜头 ${shot.shotNo} 绑定的角色「${binding.characterNameSnapshot}」已删除`, shotId: shot.id });
+                        continue;
+                    }
+                    if (binding.stateId && !findFilmCharacterState(character, binding.stateId)) {
+                        push({ id: `missing-state-${binding.characterId}-${binding.stateId}-${shot.id}`, level: "warning", message: `${sceneLabel}：镜头 ${shot.shotNo} 绑定的状态「${binding.stateNameSnapshot || binding.stateId}」已失效`, shotId: shot.id });
+                    }
                 }
                 if (sceneLocation && shot.locationId && shot.locationId !== sceneLocation.id) {
                     push({

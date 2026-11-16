@@ -3,20 +3,16 @@
 import { useRef, useState } from "react";
 import { App } from "antd";
 
-import { imageToDataUrl } from "@/services/image-storage";
 import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
-import type { ReferenceImage } from "@/types/image";
-import type { FilmFrameSource, FilmProject, FilmShot, FilmShotTask } from "@/lib/film/types";
+import type { VideoReferenceInput } from "@/services/api/video";
+import type { FilmGenerationContext, FilmProject, FilmShot, FilmShotTask } from "@/lib/film/types";
 import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { withVideoVersion } from "../utils/film-versions";
-import { resolveFilmStyleText } from "@/lib/film/film-styles";
-import { collectFilmShotReferences } from "../utils/film-references";
-import { compressFilmReference } from "../utils/film-image-compress";
-import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from "../utils/film-video-segments";
-import { formatFilmContinuityPrompt } from "../utils/film-continuity-sheet";
+import { buildFilmShotGenerationContext } from "../utils/film-shot-generation";
+import { loadFilmShotGenerationReferences } from "../utils/film-references";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "../utils/film-video-limits";
-import { filmShotTypeLabel } from "../utils/film-shot-types";
+import { previousFilmShot } from "../utils/film-continuity-sheet";
 import { FilmVideoStoppedError, startFilmVideoTask, stopFilmVideoTask } from "../utils/film-video-task";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
@@ -25,7 +21,7 @@ export type FilmVideoBatchProgress = { done: number; total: number };
 
 type ShotVideoHandlers = {
     signal?: AbortSignal;
-    onTask?: (task: FilmShotTask) => void;
+    onTask?: (task: FilmShotTask, generationContext: FilmGenerationContext) => void;
 };
 
 function friendlyVideoError(error: unknown) {
@@ -34,18 +30,6 @@ function friendlyVideoError(error: unknown) {
         return `${message}。请在 AI 配置里使用该渠道「视频模型目录」中的完整模型 ID（通常是带厂商前缀的 ID），不要填简写或显示名。`;
     }
     return message;
-}
-
-async function frameToReference(frame: FilmFrameSource | undefined, name: string): Promise<ReferenceImage | null> {
-    if (!frame || (!frame.url && !frame.storageKey)) return null;
-    try {
-        const dataUrl = await imageToDataUrl({ url: frame.url, storageKey: frame.storageKey });
-        if (!dataUrl) return null;
-        const compressed = await compressFilmReference(dataUrl);
-        return { id: name, name: `${name}.jpg`, type: compressed.startsWith("data:image/jpeg") ? "image/jpeg" : "image/png", dataUrl: compressed, storageKey: frame.storageKey };
-    } catch {
-        return null;
-    }
 }
 
 export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void) {
@@ -79,52 +63,39 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     };
 
     const runShotVideo = async (current: FilmProject, config: AiConfig, shot: FilmShot, handlers: ShotVideoHandlers = {}) => {
-        const shotConfig: AiConfig = { ...config, videoSeconds: String(clampFilmVideoDuration(shot.duration, config.model || config.videoModel || "")), ...(shot.negativePrompt ? { videoNegativePrompt: shot.negativePrompt } : {}) };
         const model = config.model || config.videoModel || "";
         const mode = shot.videoMode === "frames" ? "frames" : "reference";
-        const segments = shot.videoSegments?.length ? shot.videoSegments : createDefaultSegments(shot.duration);
-        const validation = validateSegments(segments, shot.duration);
-        if (validation) throw new Error(validation);
-        if (!(shot.prompt || shot.description).trim() && !segments.some((segment) => segment.prompt.trim())) {
-            throw new Error("先填写画面描述或分段提示词");
-        }
+        const hasText = (shot.prompt || shot.description).trim() || (shot.videoSegments || []).some((segment) => segment.prompt.trim());
+        if (!hasText) throw new Error("先填写画面描述或分段提示词");
+        const shotConfig: AiConfig = { ...config, videoSeconds: String(clampFilmVideoDuration(shot.duration, model)), ...(shot.negativePrompt ? { videoNegativePrompt: shot.negativePrompt } : {}) };
 
-        let input: { references?: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null } = {};
-        let hints = "";
+        const context = buildFilmShotGenerationContext(current, shot, {
+            medium: "video",
+            maxReferences: filmVideoReferenceLimit(model),
+            videoMode: mode,
+            includeStoryboard: mode === "reference",
+            previousShot: mode === "reference" ? previousFilmShot(current.episodes || [], shot.id) : undefined,
+        });
+        const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
+        const generationContext = { ...context, missingReferenceIds };
+
+        let input: VideoReferenceInput;
         if (mode === "frames") {
-            const firstFrame = await frameToReference(shot.firstFrame, `${shot.id}-first`);
+            const firstFrame = images.find((image) => image.id === `${shot.id}-first`) ?? null;
             if (!firstFrame) throw new Error("首尾帧模式需要先选择首帧");
-            const lastFrame = await frameToReference(shot.lastFrame, `${shot.id}-last`);
+            const lastFrame = images.find((image) => image.id === `${shot.id}-last`) ?? null;
             input = { firstFrame, lastFrame };
         } else {
-            const collected = await collectFilmShotReferences(current, shot, { includeStoryboard: true });
-            input = { references: collected.references.slice(0, filmVideoReferenceLimit(model)) };
-            hints = collected.hints;
+            input = { references: images };
         }
 
-        const continuityText = shot.continuity ? formatFilmContinuityPrompt(shot.continuity) : "";
-        const composedPrompt = composeFilmVideoPrompt({
-            segments,
-            shotTypeLabel: filmShotTypeLabel(shot.shotType),
-            cameraMovement: shot.cameraMovement || "",
-            description: shot.description || "",
-            videoPrompt: shot.videoPrompt || "",
-            styleText: resolveFilmStyleText(current),
-            performance: shot.performance,
-            soundDesign: shot.soundDesign,
-            mode,
-            hasFirstFrame: mode === "frames" && Boolean(shot.firstFrame),
-            hints,
-        });
-        const prompt = continuityText ? `${continuityText}\n\n${composedPrompt}` : composedPrompt;
-
         setProgress(0);
-        const result = await startFilmVideoTask(shotConfig, prompt, input, {
+        const result = await startFilmVideoTask(shotConfig, generationContext.prompt, input, {
             signal: handlers.signal,
             onProgress: (value) => setProgress(Math.max(0, Math.min(100, Math.round(value)))),
-            onTask: (task) => handlers.onTask?.(task),
+            onTask: (task) => handlers.onTask?.(task, generationContext),
         });
-        return result;
+        return { ...result, generationContext };
     };
 
     const clearPendingTask = (shotId: string) => {
@@ -159,16 +130,16 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
         setGeneratingShotId(shot.id);
         message.info("已提交视频生成，等待模型返回…");
         try {
-            const { videoUrl, storageKey } = await runShotVideo(current, config, shot, {
+            const { videoUrl, storageKey, generationContext } = await runShotVideo(current, config, shot, {
                 signal: controller.signal,
-                onTask: (task) => {
+                onTask: (task, context) => {
                     currentTaskRef.current = task;
-                    onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: task }) });
+                    onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { ...task, generationContext: context } }) });
                 },
             });
             const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
             onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey), pendingTask: undefined }),
+                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey, generationContext), pendingTask: undefined }),
             });
             message.success("分镜视频已生成");
         } catch (error) {
@@ -220,16 +191,16 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                 const controller = new AbortController();
                 controllerRef.current = controller;
                 try {
-                    const { videoUrl, storageKey } = await runShotVideo(projectRef.current || current, config, shot, {
+                    const { videoUrl, storageKey, generationContext } = await runShotVideo(projectRef.current || current, config, shot, {
                         signal: controller.signal,
-                        onTask: (task) => {
+                        onTask: (task, context) => {
                             currentTaskRef.current = task;
-                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: task }) });
+                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { ...task, generationContext: context } }) });
                         },
                     });
                     const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
                     onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey), pendingTask: undefined }),
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey, generationContext), pendingTask: undefined }),
                     });
                     succeeded += 1;
                 } catch (error) {

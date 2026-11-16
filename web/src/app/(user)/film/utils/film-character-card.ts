@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 
 import { resolveImageUrl, uploadImage } from "@/services/image-storage";
 import type { FilmAsset, FilmImageRef } from "@/lib/film/types";
-import { characterCardSignature, characterMasterImages, ensureCharacterProfile } from "./film-character";
+import { characterMasterImages, ensureCharacterProfile, filmCharacterSignature } from "./film-character";
 
 const CARD_WIDTH = 1400;
 const CARD_HEIGHT = 1600;
@@ -100,7 +100,7 @@ export async function composeCharacterCard(asset: FilmAsset, options: CharacterC
     if (!blob) throw new Error("角色卡导出失败");
     const uploaded = await uploadImage(blob, { localOnly: true });
     const card: FilmImageRef = { id: nanoid(), url: uploaded.url, storageKey: uploaded.storageKey, source: "generated", createdAt: new Date().toISOString() };
-    return { card, signature: characterCardSignature(asset) };
+    return { card, signature: filmCharacterSignature(asset) };
 }
 
 async function loadImage(ref: FilmImageRef): Promise<HTMLImageElement | null> {

@@ -301,5 +301,6 @@ function createImportedShot(description: string, sceneIndex: number, shotIndex: 
         dialogue: "",
         audio: "",
         prompt: "",
+        characterBindings: [],
     };
 }

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyFilmContinuity, applyFilmContinuityChecks, formatFilmContinuityPrompt, parseFilmContinuitySheets, previousFilmShot } from "./film-continuity-sheet";
-import type { FilmContinuitySheet, FilmEpisode } from "@/lib/film/types";
+import { applyFilmContinuity, applyFilmContinuityChecks, formatFilmBindingContinuity, formatFilmContinuityPrompt, parseFilmContinuitySheets, previousFilmShot } from "./film-continuity-sheet";
+import type { FilmContinuitySheet, FilmEpisode, FilmShotCharacterBinding } from "@/lib/film/types";
 
 const sheet = (shotNo: string, overrides: Partial<FilmContinuitySheet> = {}): FilmContinuitySheet => ({
     shotNo,
@@ -32,8 +32,8 @@ const episode = (): FilmEpisode => ({
             time: "白天",
             mood: "",
             shots: [
-                { id: "s1", shotNo: "01", shotType: "MS", cameraMovement: "", duration: 4, description: "钓鱼", dialogue: "", audio: "", prompt: "" },
-                { id: "s2", shotNo: "02", shotType: "CU", cameraMovement: "", duration: 3, description: "鱼的近景", dialogue: "", audio: "", prompt: "" },
+                { id: "s1", shotNo: "01", shotType: "MS", cameraMovement: "", duration: 4, description: "钓鱼", dialogue: "", audio: "", prompt: "", characterBindings: [] },
+                { id: "s2", shotNo: "02", shotType: "CU", cameraMovement: "", duration: 3, description: "鱼的近景", dialogue: "", audio: "", prompt: "", characterBindings: [] },
             ],
         },
     ],
@@ -87,4 +87,23 @@ test("上一镜按同集顺序查找", () => {
     const result = previousFilmShot([episode()], "s2");
     assert.equal(result?.shotNo, "01");
     assert.equal(previousFilmShot([episode()], "s1"), undefined);
+});
+
+const binding = (overrides: Partial<FilmShotCharacterBinding> = {}): FilmShotCharacterBinding => ({ characterId: "c1", source: "manual", characterNameSnapshot: "沈星晴", continuity: {}, ...overrides });
+
+test("绑定连续性按具名状态输出，未声明变化时承接上一镜", () => {
+    const previous = binding({ stateNameSnapshot: "受伤", continuity: { outfit: "破损外套", heldProps: ["鱼"] } });
+    const text = formatFilmBindingContinuity(binding({ stateNameSnapshot: "受伤" }), previous);
+    assert.match(text, /沈星晴（受伤）/);
+    assert.match(text, /承接上一镜/);
+    assert.match(text, /破损外套/);
+    assert.match(text, /鱼/);
+});
+
+test("声明刻意变化时允许与上一镜不同", () => {
+    const current = binding({ continuity: { intentionalChange: "换上了干外套", outfit: "干外套" } });
+    const text = formatFilmBindingContinuity(current, binding({ continuity: { outfit: "破损外套" } }));
+    assert.match(text, /刻意变化/);
+    assert.match(text, /换上了干外套/);
+    assert.match(text, /允许与上一镜不同/);
 });

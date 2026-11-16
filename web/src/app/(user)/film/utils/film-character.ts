@@ -1,4 +1,4 @@
-import type { FilmAsset, FilmCharacterPart, FilmCharacterPartKey, FilmCharacterProfile, FilmImageRef, FilmShot } from "@/lib/film/types";
+import type { FilmAsset, FilmCharacterPart, FilmCharacterPartKey, FilmCharacterProfile, FilmCharacterState, FilmImageRef, FilmShot } from "@/lib/film/types";
 
 export const CHARACTER_PART_DEFINITIONS: Array<{ key: FilmCharacterPartKey; label: string; hint: string }> = [
     { key: "face", label: "面部", hint: "人脸三视图、妆容" },
@@ -22,6 +22,7 @@ export function createEmptyCharacterProfile(): FilmCharacterProfile {
             limbs: createEmptyCharacterPart(),
         },
         props: [],
+        states: [],
         masterViews: [],
         masterLocked: false,
     };
@@ -29,6 +30,36 @@ export function createEmptyCharacterProfile(): FilmCharacterProfile {
 
 export function ensureCharacterProfile(asset: FilmAsset): FilmCharacterProfile {
     return asset.character ?? createEmptyCharacterProfile();
+}
+
+export function createCharacterState(index = 1): FilmCharacterState {
+    return { id: crypto.randomUUID(), name: `状态 ${index}`, description: "", outfit: "", physicalCondition: "", heldProps: [] };
+}
+
+export function findFilmCharacterState(asset: FilmAsset, stateId?: string): FilmCharacterState | undefined {
+    if (!stateId) return undefined;
+    return asset.character?.states.find((state) => state.id === stateId);
+}
+
+export function filmCharacterSignature(asset: FilmAsset): string {
+    const profile = ensureCharacterProfile(asset);
+    return JSON.stringify({
+        name: asset.name,
+        aliases: asset.aliases,
+        description: asset.description,
+        visualPrompt: asset.visualPrompt,
+        parts: CHARACTER_PART_DEFINITIONS.map(({ key }) => ({
+            key,
+            prompt: profile.parts[key].prompt,
+            notes: profile.parts[key].notes,
+            locked: profile.parts[key].locked,
+            images: profile.parts[key].images.map((image) => image.id),
+        })),
+        props: profile.props.map((prop) => ({ id: prop.id, name: prop.name, type: prop.type, description: prop.description, locked: prop.locked, images: prop.images.map((image) => image.id) })),
+        states: profile.states.map((state) => ({ ...state, referenceImage: state.referenceImage ? { id: state.referenceImage.id } : undefined })),
+        masterLocked: profile.masterLocked,
+        masterViews: profile.masterViews.map((image) => image.id),
+    });
 }
 
 export function characterPartLabel(key: FilmCharacterPartKey) {
@@ -60,28 +91,37 @@ export function characterReferenceImages(asset: FilmAsset, options: { includeMas
 const CLOSEUP_RE = /CU|ECU|MCU|特写|近景|面部|脸/i;
 const DETAIL_RE = /手部|拳头|武器|道具|饰品|剑|刀|枪|脚部|鞋子/i;
 
-/** 分镜引用：默认一张角色卡或全身图，特写/手部戏再追加一张部位参考，最多 2 张。 */
-export function characterShotReferenceImages(asset: FilmAsset, shot: Pick<FilmShot, "shotType" | "description" | "dialogue">): FilmImageRef[] {
-    const profile = asset.character;
-    const card = profile?.card;
-    const refs: FilmImageRef[] = card ? [card] : characterMasterImages(asset);
-    const text = `${shot.shotType || ""} ${shot.description || ""} ${shot.dialogue || ""}`;
-    if (CLOSEUP_RE.test(text) && profile?.parts.face.images.length) {
-        refs.push(profile.parts.face.images[profile.parts.face.images.length - 1]);
-    } else if (DETAIL_RE.test(text) && profile) {
-        const detail = [...profile.parts.limbs.images, ...profile.props.flatMap((prop) => prop.images)].slice(-1);
-        refs.push(...detail);
-    }
-    return refs.slice(0, 2);
+/** 身份包参考：优先角色卡，否则最后一张全身合成图；每个角色在镜头参考里至少占一张。 */
+export function characterPackageImage(asset: FilmAsset): FilmImageRef | undefined {
+    const card = asset.character?.card;
+    if (card) return card;
+    return characterMasterImages(asset).slice(-1)[0];
 }
 
-/** 角色卡内容签名，用于判断部位/合成图变化后角色卡是否过期。 */
-export function characterCardSignature(asset: FilmAsset): string {
-    const profile = ensureCharacterProfile(asset);
-    const master = characterMasterImages(asset).map((image) => image.id).join(",");
-    const parts = CHARACTER_PART_DEFINITIONS.map((part) => profile.parts[part.key].images.map((image) => image.id).join(",")).join(";");
-    const props = profile.props.flatMap((prop) => prop.images.map((image) => image.id)).join(",");
-    return [master, parts, props].join("|");
+/** 景别驱动的细节参考：特写取面部，手部/道具戏取四肢或道具图。 */
+export function characterDetailImage(asset: FilmAsset, shot: Pick<FilmShot, "shotType" | "description" | "dialogue">): FilmImageRef | undefined {
+    const profile = asset.character;
+    if (!profile) return undefined;
+    const text = `${shot.shotType || ""} ${shot.description || ""} ${shot.dialogue || ""}`;
+    if (CLOSEUP_RE.test(text) && profile.parts.face.images.length) return profile.parts.face.images.slice(-1)[0];
+    if (DETAIL_RE.test(text)) return [...profile.parts.limbs.images, ...profile.props.flatMap((prop) => prop.images)].slice(-1)[0];
+    return undefined;
+}
+
+/** 角色卡是否过期：与角色设定签名同源，文字或图片设定变化都需要重新拼图。 */
+export function isCharacterCardStale(asset: FilmAsset): boolean {
+    const profile = asset.character;
+    return Boolean(profile?.card && profile.cardSignature && profile.cardSignature !== filmCharacterSignature(asset));
+}
+
+/** 设定签名的 8 位短摘要（FNV-1a），仅用于 UI 对比版本设定，非安全用途。 */
+export function filmSignatureDigest(signature: string): string {
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < signature.length; index++) {
+        hash ^= signature.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(16).padStart(8, "0");
 }
 
 export function characterProgress(asset: FilmAsset) {

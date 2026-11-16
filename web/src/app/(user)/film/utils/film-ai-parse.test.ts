@@ -38,7 +38,7 @@ test("长剧本按集/场标题切块", () => {
 });
 
 test("分块结果按集和场合并", () => {
-    const shot = (shotNo: string) => ({ id: `shot-${shotNo}`, shotNo, shotType: "", cameraMovement: "", duration: 5, description: "画面", dialogue: "", audio: "", prompt: "" });
+    const shot = (shotNo: string) => ({ id: `shot-${shotNo}`, shotNo, shotType: "", cameraMovement: "", duration: 5, description: "画面", dialogue: "", audio: "", prompt: "", characterBindings: [] });
     const first: FilmEpisode[] = [{ id: "e1", title: "第1集", scenes: [{ id: "s1", name: "1-1 海边", location: "", time: "", mood: "", shots: [shot("01")] }] }];
     const second: FilmEpisode[] = [{ id: "e2", title: "第1集", scenes: [{ id: "s2", name: "1-1 海边", location: "", time: "", mood: "", shots: [shot("02")] }] }];
     mergeFilmEpisodes(first, second);

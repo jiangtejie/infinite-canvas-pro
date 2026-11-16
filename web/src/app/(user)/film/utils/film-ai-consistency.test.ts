@@ -3,10 +3,10 @@ import test from "node:test";
 
 import type { FilmProject, FilmShot } from "@/lib/film/types";
 
-import { parseFilmConsistencyReview } from "./film-ai-consistency";
+import { buildFilmConsistencyContext, parseFilmConsistencyReview } from "./film-ai-consistency";
 
 function makeShot(id: string, shotNo: string, patch: Partial<FilmShot> = {}): FilmShot {
-    return { id, shotNo, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", ...patch };
+    return { id, shotNo, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], ...patch };
 }
 
 function makeProject(): FilmProject {
@@ -92,4 +92,18 @@ test("缺少 message 的条目丢弃，summary 缺省为 undefined", () => {
     assert.equal(review.issues.length, 1);
     assert.equal(review.issues[0].message, "有效问题");
     assert.equal(review.summary, undefined);
+});
+
+test("审阅上下文包含镜头角色绑定、别名、状态与签名", () => {
+    const project = makeProject();
+    project.characters = [{ id: "c1", name: "沈星晴", aliases: ["小沈"], description: "红色短发", visualPrompt: "", status: "ready", createdAt: "" }];
+    project.episodes[0].scenes[0].shots[0].characterBindings = [{ characterId: "c1", source: "manual", characterNameSnapshot: "沈星晴", continuity: { outfit: "湿外套", emotion: "克制" } }];
+    const context = JSON.parse(buildFilmConsistencyContext(project));
+    const shot = context.episodes[0].scenes[0].shots[0];
+    assert.equal(shot.characters[0].characterId, "c1");
+    assert.equal(shot.characters[0].name, "沈星晴");
+    assert.deepEqual(shot.characters[0].aliases, ["小沈"]);
+    assert.ok(shot.characters[0].signature.length > 0);
+    assert.equal(shot.characters[0].continuity.outfit, "湿外套");
+    assert.equal(shot.characters[0].continuity.emotion, "克制");
 });

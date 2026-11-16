@@ -4,19 +4,17 @@ import { useRef, useState } from "react";
 import { App } from "antd";
 
 import type { SeedableImageConfig } from "@/services/api/image";
-import { imageToDataUrl } from "@/services/image-storage";
 import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
-import type { ReferenceImage } from "@/types/image";
 import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
 import { runImageTask, stopFilmImageTask } from "../utils/film-image-task";
 import { withImageVersion } from "../utils/film-versions";
 import { normalizeFilmAspect } from "@/lib/film/film-aspects";
-import { resolveFilmStyleText } from "@/lib/film/film-styles";
-import { collectFilmShotReferences } from "../utils/film-references";
 import { selectFilmBatchShots } from "../utils/film-batch";
-import { formatFilmContinuityPrompt, previousFilmShot } from "../utils/film-continuity-sheet";
+import { previousFilmShot } from "../utils/film-continuity-sheet";
+import { buildFilmShotGenerationContext, FILM_IMAGE_REFERENCE_LIMIT } from "../utils/film-shot-generation";
+import { loadFilmShotGenerationReferences } from "../utils/film-references";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
 
@@ -47,37 +45,6 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         return config ? { ...config, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig : null;
     };
 
-    const buildShotPrompt = async (current: FilmProject, shot: FilmShot, extraReferences: ReferenceImage[] = [], anchor?: ReferenceImage | null) => {
-        const promptText = (shot.prompt || shot.description).trim();
-        const { references, hints } = await collectFilmShotReferences(current, shot);
-        const styleText = resolveFilmStyleText(current);
-        const continuityText = shot.continuity ? formatFilmContinuityPrompt(shot.continuity) : "";
-        const prompt = [
-            continuityText,
-            styleText ? `${promptText}\n\n视觉风格：${styleText}` : promptText,
-            hints ? `参考角色与场景：${hints}` : "",
-            extraReferences.length ? "参考图中的上一镜画面用于衔接本镜，保持人物位置、道具状态和环境光线一致。" : "",
-            anchor ? "与参考图中的锚点帧保持相同的色调、光线、材质与画风，角色和场景设定不要改变。" : "",
-        ].filter(Boolean).join("\n\n");
-        const merged = [...references.slice(0, 4), ...extraReferences].slice(0, 5);
-        return { prompt, references: anchor ? [...merged, anchor].slice(0, 6) : merged };
-    };
-
-    const previousReference = async (current: FilmProject, shot: FilmShot) => {
-        const previous = previousFilmShot(current.episodes || [], shot.id);
-        if (!previous?.imageUrl) return null;
-        return imageReference(previous.imageUrl, previous.storageKey, `prev-${previous.id}`);
-    };
-
-    const imageReference = async (imageUrl: string, storageKey: string | undefined, id: string): Promise<ReferenceImage | null> => {
-        try {
-            const dataUrl = await imageToDataUrl({ url: imageUrl, storageKey });
-            return dataUrl ? { id, name: `${id}.png`, type: "image/png", dataUrl, storageKey } : null;
-        } catch {
-            return null;
-        }
-    };
-
     const generate = async (shot: FilmShot) => {
         const current = projectRef.current;
         if (!current || busy) return;
@@ -89,14 +56,19 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         if (!config) return;
         setGeneratingShotId(shot.id);
         try {
-            const previous = await previousReference(current, shot);
-            const { prompt, references } = await buildShotPrompt(current, shot, previous ? [previous] : []);
-            const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id, {
-                onTask: (task) => onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now() } }) }),
+            const context = buildFilmShotGenerationContext(current, shot, {
+                medium: "image",
+                maxReferences: FILM_IMAGE_REFERENCE_LIMIT,
+                previousShot: previousFilmShot(current.episodes || [], shot.id),
+            });
+            const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
+            const generationContext = { ...context, missingReferenceIds };
+            const { imageUrl, storageKey } = await runImageTask(config, generationContext.prompt, images, shot.id, {
+                onTask: (task) => onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now(), generationContext } }) }),
             });
             const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
             onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey), pendingTask: undefined }),
+                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey, generationContext), pendingTask: undefined }),
             });
             message.success("分镜图已生成");
         } catch (error) {
@@ -117,10 +89,7 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         }
         const config = buildImageConfig(current);
         if (!config) return;
-        const anchorShot = options.anchorShotId ? targets.find((shot) => shot.id === options.anchorShotId) : pending[0];
-        let anchorReference = anchorShot?.imageUrl
-            ? await imageReference(anchorShot.imageUrl, anchorShot.storageKey, `anchor-${anchorShot.id}`)
-            : null;
+        const anchorShotId = options.anchorShotId || pending[0].id;
         stopBatchRef.current = false;
         let failed = 0;
         let succeeded = 0;
@@ -138,22 +107,27 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
                 batchControllerRef.current = controller;
                 batchTaskIdRef.current = "";
                 try {
-                    const isAnchor = shot.id === anchorShot?.id;
                     const latestProject = projectRef.current || current;
-                    const previous = await previousReference(latestProject, shot);
-                    const { prompt, references } = await buildShotPrompt(latestProject, shot, previous ? [previous] : [], isAnchor ? null : anchorReference);
-                    const { imageUrl, storageKey } = await runImageTask(config, prompt, references, shot.id, {
+                    const flat = flattenFilmShots(latestProject.episodes || []);
+                    const context = buildFilmShotGenerationContext(latestProject, shot, {
+                        medium: "image",
+                        maxReferences: FILM_IMAGE_REFERENCE_LIMIT,
+                        previousShot: previousFilmShot(latestProject.episodes || [], shot.id),
+                        anchorShot: shot.id === anchorShotId ? undefined : flat.find((item) => item.id === anchorShotId),
+                    });
+                    const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
+                    const generationContext = { ...context, missingReferenceIds };
+                    const { imageUrl, storageKey } = await runImageTask(config, generationContext.prompt, images, shot.id, {
                         signal: controller.signal,
                         onTask: (task) => {
                             batchTaskIdRef.current = task.id;
-                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now() } }) });
+                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now(), generationContext } }) });
                         },
                     });
-                    const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
+                    const latestShot = flat.find((item) => item.id === shot.id) ?? shot;
                     onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey), pendingTask: undefined }),
+                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey, generationContext), pendingTask: undefined }),
                     });
-                    if (isAnchor) anchorReference = await imageReference(imageUrl, storageKey, `anchor-${shot.id}`);
                     succeeded += 1;
                 } catch (error) {
                     if (stopBatchRef.current) {
@@ -202,4 +176,3 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
 
     return { generatingShotId, batchProgress, generate, generateBatch, stopBatch };
 }
-

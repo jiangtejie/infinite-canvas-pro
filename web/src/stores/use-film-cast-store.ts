@@ -1,10 +1,10 @@
-import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { persist, type StorageValue } from "zustand/middleware";
 
 import { createDebouncedJSONStorage } from "@/lib/persisted-store";
 import { FILM_CAST_STORE_KEY } from "@/lib/storage-keys";
 import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
+import { importFilmAsset } from "@/app/(user)/film/utils/film-edits";
 
 type FilmCastStore = {
     hydrated: boolean;
@@ -26,7 +26,8 @@ export const useFilmCastStore = create<FilmCastStore>()(
             locations: [],
             markHydrated: () => set({ hydrated: true }),
             addAsset: (kind, asset) => set((state) => {
-                const next: FilmAsset = { ...asset, id: nanoid(), createdAt: new Date().toISOString() };
+                const current = kind === "character" ? state.characters : state.locations;
+                const next = importFilmAsset(current, asset)[current.length];
                 return kind === "character"
                     ? { characters: [next, ...state.characters] }
                     : { locations: [next, ...state.locations] };

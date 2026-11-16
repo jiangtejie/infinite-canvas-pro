@@ -5,7 +5,7 @@ import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { buildFilmAnimatic, formatAnimaticDuration } from "./film-animatic";
 
 function makeShot(id: string, patch: Partial<FilmShot> = {}): FilmShot {
-    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "画面", dialogue: "", audio: "", prompt: "电影感", ...patch };
+    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "画面", dialogue: "", audio: "", prompt: "电影感", characterBindings: [], ...patch };
 }
 
 function makeProject(shots: FilmShot[], patch: Partial<FilmProject> = {}): FilmProject {

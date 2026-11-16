@@ -8,28 +8,30 @@ import { useCopyText } from "@/hooks/use-copy-text";
 import { cn } from "@/lib/utils";
 import { uploadImage } from "@/services/image-storage";
 import { resolveModelForCapability, useEffectiveConfig } from "@/stores/use-config-store";
-import type { FilmAsset, FilmFrameSource, FilmShot, FilmVideoSegment } from "@/lib/film/types";
+import type { FilmFrameSource, FilmProject, FilmShot, FilmVideoSegment } from "@/lib/film/types";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
+import { useFilmShotGeneration } from "../hooks/use-film-shot-generation";
 import { WorkbenchCreditHint } from "@/components/workbench/credit-hint";
 import { filmAspectCssRatio } from "@/lib/film/film-aspects";
-import { composeFilmVideoPrompt, createDefaultSegments, mergeVideoSegmentWithPrevious, removeVideoSegment, splitVideoSegment, validateSegments } from "../utils/film-video-segments";
+import { createDefaultSegments, mergeVideoSegmentWithPrevious, removeVideoSegment, splitVideoSegment, validateSegments } from "../utils/film-video-segments";
 import { clampFilmVideoDuration, filmVideoLimits, filmVideoReferenceLimit } from "../utils/film-video-limits";
 import { FilmImageThumbnail } from "./film-asset-thumbnail";
+import { FilmGenerationInfo, FilmMediaStateBadge, FilmMediaStateDot } from "./film-media-context";
 
 type FilmShotVideoPanelProps = {
     shot: FilmShot;
+    project: FilmProject;
     onChange: (patch: Partial<FilmShot>) => void;
     onGenerate: () => void;
     onStop?: () => void;
     generating: boolean;
     progress: number;
-    aspect?: string;
-    styleText: string;
-    characters: FilmAsset[];
-    locations: FilmAsset[];
 };
 
-export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generating, progress, aspect, styleText, characters, locations }: FilmShotVideoPanelProps) {
+export function FilmShotVideoPanel({ shot, project, onChange, onGenerate, onStop, generating, progress }: FilmShotVideoPanelProps) {
+    const aspect = project.aspect;
+    const characters = project.characters || [];
+    const locations = project.locations || [];
     const filmConfig = useEffectiveConfig();
     const { message } = App.useApp();
     const copyText = useCopyText();
@@ -55,21 +57,16 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generat
     const generateBlockReason = segmentError
         || frameError
         || (durationIssue ? `镜头时长 ${shot.duration}s 超出${limits.label}范围（${limits.min}-${limits.max}s），请先调整时长` : "");
-    const characterNames = (shot.characterIds || []).map((id) => characters.find((asset) => asset.id === id)?.name).filter((name): name is string => Boolean(name));
+    const characterNames = shot.characterBindings.map((binding) => {
+        const character = characters.find((asset) => asset.id === binding.characterId);
+        return character ? `${character.name}${binding.stateNameSnapshot ? ` · ${binding.stateNameSnapshot}` : ""}` : binding.characterNameSnapshot;
+    });
     const locationName = locations.find((asset) => asset.id === shot.locationId)?.name || "";
 
-    const composedPrompt = composeFilmVideoPrompt({
-        segments,
-        shotTypeLabel: shot.shotType || "",
-        cameraMovement: shot.cameraMovement || "",
-        description: shot.description || "",
-        videoPrompt: shot.videoPrompt || "",
-        styleText,
-        performance: shot.performance,
-        soundDesign: shot.soundDesign,
-        mode,
-        hasFirstFrame: mode === "frames" && Boolean(shot.firstFrame),
-    });
+    const { context, stateForVersion } = useFilmShotGeneration(project, shot, "video");
+    const composedPrompt = context?.prompt || "";
+    const currentVideoVersion = (shot.videoVersions || []).find((version) => version.url === shot.videoUrl);
+    const currentVideoState = currentVideoVersion ? stateForVersion(currentVideoVersion) : "unrecorded";
 
     const updateSegments = (next: FilmVideoSegment[]) => onChange({ videoSegments: next });
 
@@ -257,13 +254,16 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generat
 
             <details className="rounded-lg border border-border/60 bg-background/30 p-3">
                 <summary className="cursor-pointer font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">最终提示词（自动拼装）</summary>
-                <pre className="thin-scrollbar mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-[11px] leading-5 text-foreground/75">{composedPrompt}</pre>
+                <pre className="thin-scrollbar mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-[11px] leading-5 text-foreground/75">{composedPrompt || "补全画面描述与分段后显示最终提示词"}</pre>
                 <Button size="small" className="mt-2" onClick={() => copyText(composedPrompt, "提示词已复制")}>复制提示词</Button>
             </details>
 
             <div className="sticky bottom-0 z-10 grid gap-2 rounded-lg border border-border/60 bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur [@media(pointer:coarse)]:[&_.ant-btn]:min-h-9">
                 <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜视频</span>
+                    <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">分镜视频</span>
+                        {shot.videoUrl ? <FilmMediaStateBadge state={currentVideoState} /> : null}
+                    </div>
                     <Button
                         type={shot.videoUrl ? "default" : "primary"}
                         size="small"
@@ -322,8 +322,9 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generat
                                         type="button"
                                         title={`第 ${index + 1} 版 · ${version.createdAt ? new Date(version.createdAt).toLocaleTimeString("zh-CN", { hour12: false }) : ""}`}
                                         onClick={() => onChange({ videoUrl: version.url, videoStorageKey: version.storageKey || "", errorMessage: "" })}
-                                        className={cn("px-1.5 py-0.5 font-mono text-[9px] transition-colors", current ? "text-acid" : "text-muted-foreground/70 hover:text-foreground")}
+                                        className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 font-mono text-[9px] transition-colors", current ? "text-acid" : "text-muted-foreground/70 hover:text-foreground")}
                                     >
+                                        <FilmMediaStateDot state={stateForVersion(version)} />
                                         v{index + 1}
                                     </button>
                                 </span>
@@ -331,6 +332,7 @@ export function FilmShotVideoPanel({ shot, onChange, onGenerate, onStop, generat
                         })}
                     </div>
                 ) : null}
+                {shot.videoUrl ? <FilmGenerationInfo context={currentVideoVersion?.generationContext} /> : null}
             </div>
         </div>
     );

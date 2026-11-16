@@ -7,15 +7,18 @@ import type { FilmConsistencyIssue, FilmConsistencyReview, FilmProject } from "@
 import { directorStyleFor } from "@/lib/film/director-styles";
 import { scriptTextHash } from "@/lib/film/film-script-import";
 import { structurePlanPromptContext } from "./film-ai-structure";
+import { filmCharacterSignature, findFilmCharacterState } from "./film-character";
 
 const MAX_CONTEXT_SHOTS = 160;
 
 const CONSISTENCY_PROMPT = `你是影视项目的一致性监理（script supervisor + continuity editor），只做审片式检查，不重写剧本。
+每个镜头的 characters 字段给出出场角色绑定：角色 ID、显示名与别名、造型状态、设定签名，以及镜头级服装/身体/持有道具/情绪变化（continuity）。请据此逐镜检查。
 检查范围：
 1. 结构覆盖：结构计划里每场的 beats / coverage 是否在镜头里体现，缺了哪类镜头或信息点；
-2. 连续性：轴线、景别跳跃、道具/服装/时间/天气/角色状态前后矛盾，台词与画面动作冲突；
-3. 风格漂移：景别、运镜、构图、色彩是否偏离导演风格语法；
-4. 绑定：角色/场景引用与台词、画面描述不一致。
+2. 身份与造型漂移：同一角色跨镜长相/发型/身份是否改变；服装、身体状态、持有道具是否承接上一镜——镜头 continuity.intentionalChange 声明了刻意变化时允许该差异，否则要求连续；
+3. 连续性：轴线、景别跳跃、道具/场景/时间/天气前后矛盾，台词与画面动作冲突；
+4. 风格漂移：景别、运镜、构图、色彩是否偏离导演风格语法；
+5. 绑定：镜头出场角色/状态绑定与台词、画面描述不一致，提到角色但未绑定。
 不要重复机械检查（总时长、镜头数量、单镜成场）——这些由预演层负责。
 只输出 JSON 对象，不要 Markdown、不要解释：
 {"summary":"一句话整体判断","issues":[{"level":"error|warning|info","category":"structure|continuity|style|binding","message":"具体到哪场哪镜、哪里矛盾","suggestion":"可执行的修正方向","shotNo":"01","scene":"1-1 街道"}]}
@@ -25,15 +28,17 @@ export async function requestFilmConsistencyReview(config: AiConfig, project: Fi
     const turn = await requestCanvasAgentTurn({
         config,
         systemPrompt: CONSISTENCY_PROMPT,
-        messages: [{ role: "user", content: buildConsistencyContext(project) }],
+        messages: [{ role: "user", content: buildFilmConsistencyContext(project) }],
         tools: [],
         toolMode: "prompt-json",
     });
     return parseFilmConsistencyReview(turn.content, project);
 }
 
-function buildConsistencyContext(project: FilmProject) {
+export function buildFilmConsistencyContext(project: FilmProject) {
     const style = directorStyleFor(project.directorStyleId);
+    const characterById = new Map((project.characters || []).map((asset) => [asset.id, asset]));
+    const locationById = new Map((project.locations || []).map((asset) => [asset.id, asset]));
     let shotCount = 0;
     const episodes = (project.episodes || []).slice(0, 60).map((episode) => ({
         episode: episode.title,
@@ -53,6 +58,19 @@ function buildConsistencyContext(project: FilmProject) {
                     dialogue: (shot.dialogue || "").slice(0, 120),
                     audio: (shot.audio || "").slice(0, 80),
                     prompt: (shot.prompt || "").slice(0, 120),
+                    characters: shot.characterBindings.map((binding) => {
+                        const asset = characterById.get(binding.characterId);
+                        const state = asset ? findFilmCharacterState(asset, binding.stateId) : undefined;
+                        return {
+                            characterId: binding.characterId,
+                            name: asset?.name || binding.characterNameSnapshot,
+                            aliases: asset?.aliases || [],
+                            state: state?.name || binding.stateNameSnapshot || "",
+                            signature: asset ? filmCharacterSignature(asset) : "",
+                            continuity: binding.continuity,
+                        };
+                    }),
+                    location: shot.locationId ? locationById.get(shot.locationId)?.name || "" : "",
                     continuityCheck: shot.continuityCheck,
                     performance: shot.performance,
                     soundDesign: shot.soundDesign,

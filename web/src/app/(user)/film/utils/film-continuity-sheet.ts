@@ -1,7 +1,7 @@
 import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
-import type { FilmContinuitySheet, FilmEpisode, FilmShot } from "@/lib/film/types";
+import type { FilmContinuitySheet, FilmEpisode, FilmShot, FilmShotCharacterBinding } from "@/lib/film/types";
 import { flattenFilmShots } from "./parse-script";
 
 const SYSTEM_PROMPT = `你是一名影视场记（continuity supervisor），负责把隐含的连续性显式化、把导演意图约束化。
@@ -73,7 +73,7 @@ function buildFilmContinuityInput(episode: FilmEpisode) {
             description: shot.description,
             dialogue: shot.dialogue,
             prompt: shot.prompt,
-            characterIds: shot.characterIds || [],
+            characterBindings: shot.characterBindings.map((binding) => ({ characterId: binding.characterId, stateId: binding.stateId || "", characterName: binding.characterNameSnapshot, stateName: binding.stateNameSnapshot || "", continuity: binding.continuity })),
             locationId: shot.locationId || "",
         })),
     };
@@ -183,4 +183,26 @@ export function previousFilmShot(episodes: FilmEpisode[], shotId: string): FilmS
     const shots = flattenFilmShots(episodes);
     const index = shots.findIndex((shot) => shot.id === shotId);
     return index > 0 ? shots[index - 1] : undefined;
+}
+
+/** 按绑定角色输出具名状态与镜头级变化；未声明刻意变化时要求承接上一镜，声明时允许本镜差异。 */
+export function formatFilmBindingContinuity(binding: FilmShotCharacterBinding, previousBinding?: FilmShotCharacterBinding): string {
+    const label = `${binding.characterNameSnapshot}${binding.stateNameSnapshot ? `（${binding.stateNameSnapshot}）` : ""}`;
+    const continuity = binding.continuity;
+    const changes = [
+        continuity.outfit && `服装 ${continuity.outfit}`,
+        continuity.physicalCondition && `身体 ${continuity.physicalCondition}`,
+        continuity.emotion && `情绪 ${continuity.emotion}`,
+        continuity.heldProps?.length && `持有 ${continuity.heldProps.join("、")}`,
+    ].filter(Boolean).join("；");
+    if (continuity.intentionalChange) {
+        return `${label} 本镜刻意变化：${continuity.intentionalChange}${changes ? `（${changes}）` : ""}，允许与上一镜不同。`;
+    }
+    const previous = previousBinding?.continuity;
+    const inherited = previous ? [
+        previous.outfit && `服装 ${previous.outfit}`,
+        previous.physicalCondition && `身体 ${previous.physicalCondition}`,
+        previous.heldProps?.length && `持有 ${previous.heldProps.join("、")}`,
+    ].filter(Boolean).join("；") : "";
+    return `${label} 承接上一镜${inherited ? `（${inherited}）` : ""}，保持造型与道具连续${changes ? `；本镜 ${changes}` : ""}。`;
 }

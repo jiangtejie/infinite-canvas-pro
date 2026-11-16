@@ -13,7 +13,7 @@ function makeProject(shots: FilmShot[], variables: FilmProject["interactiveVaria
 }
 
 function shot(id: string, branch?: FilmShotBranch): FilmShot {
-    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", branches: branch ? [branch] : undefined };
+    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], branches: branch ? [branch] : undefined };
 }
 
 const variables = [
