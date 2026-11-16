@@ -16,7 +16,7 @@ import { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
 import { readAxiosError, stringifyLogPayload, summarizeVideoRequestBody, withoutVideoModel, writeVideoAICallLog } from "./client";
 import { cacheProtectedGeminiVideo, cacheProtectedVideo, syncGeneratedVideo } from "./media";
-import { aiVideoPollUrl, createVideoRequestBody, elementReferenceToInputUrl, isGrok2APIVideoConfig, miniMaxApiUrl, publicHttpUrl, videoChannelProtocol, videoPollId } from "./payload";
+import { aiVideoPollUrl, createVideoRequestBody, elementReferenceToInputUrl, isGrok2APIVideoConfig, isTeamoVideoConfig, miniMaxApiUrl, publicHttpUrl, videoChannelProtocol, videoPollId } from "./payload";
 import { isCompletedVideoStatus, isFailedVideoStatus, normalizeVideoResponse, unwrapVideoResponse, unwrapVideoResponseForConfig } from "./response";
 import { VIDEO_POLL_INTERVAL_MS, VideoRequestError } from "./types";
 import type { ApiVideoEnvelope, ApiVideoResponse, CreatedVideoGenerationTask, VideoGenerationResult, VideoProgressHandler, VideoReferenceInput, VideoResponse, VideoTaskCreateOptions } from "./types";
@@ -43,11 +43,13 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
         const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
         const directProvider = !accountProxy ? directAIProviderForConfig(config) : null;
         const channel = localChannelForActiveModel(config);
-        const createUrl = !accountProxy && isGeminiConfig(config, model)
-            ? geminiActionUrl(channel?.baseUrl || config.baseUrl, model, "predictLongRunning")
-            : !accountProxy && isMiniMaxH3Config(config, model)
-                ? miniMaxApiUrl(config, "/v2/video_generation")
-                : aiApiUrl(config, !accountProxy && (isGrok2APIVideoConfig(config, model) || isCogVideoX3Model(model)) ? "/videos/generations" : "/videos");
+        const createUrl = !accountProxy && isTeamoVideoConfig(config)
+            ? aiApiUrl(config, "/videos")
+            : !accountProxy && isGeminiConfig(config, model)
+                ? geminiActionUrl(channel?.baseUrl || config.baseUrl, model, "predictLongRunning")
+                : !accountProxy && isMiniMaxH3Config(config, model)
+                    ? miniMaxApiUrl(config, "/v2/video_generation")
+                    : aiApiUrl(config, !accountProxy && (isGrok2APIVideoConfig(config, model) || isCogVideoX3Model(model)) ? "/videos/generations" : "/videos");
         const requestBody = !accountProxy && isGeminiConfig(config, model) ? withoutVideoModel(body) : body;
         if (typeof window !== "undefined") {
             console.info("[video] 发起视频任务", {

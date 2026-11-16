@@ -3,6 +3,14 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## TeamoRouter 视频 API 适配（OpenAI-Videos 适配器）
+
+- 视频渠道 Base URL 含 `teamorouter.ai` 时改走独立适配器（`payload/teamo.ts`，Adapter/Strategy 沿用现有 per-provider 模式）：`POST /v1/videos` 只发 `model/prompt/seconds/size/input_reference`，不再误用 Gemini Veo 或 openai-cloud 的 `content[]/ratio/resolution` 参数；`size` 由画幅+清晰度映射为偶数 WIDTHxHEIGHT，`seconds` 收敛为整数秒。
+- 轮询走 `/v1/videos/{id}`；完成后复用既有 `object:"video"` 缓存链路经 `/v1/videos/{id}/content` 下载并入库，得到可播放地址。
+- 模型目录：TeamoRouter 的 Gemini 协议渠道在视频能力下按通用名称匹配（seedance/minimax 等可见），不再仅 `veo-`，避免 `videoModel` 被重置为错误兜底导致 "Unknown video model"。
+- 验证：新增 7 条适配器测试，全量 Bun 494 条 / 86 文件通过，typecheck、改动范围 lint 0 warning。
+- 未实测：真实 TeamoRouter 账号（需余额）下的创建/轮询/下载与扣费；首尾帧模式当前仅送首帧（`input_reference`），尾帧与多参考属 TeamoRouter 扩展未接入；登录态走后端代理的 TeamoRouter 视频未适配（当前仅本地直连生效）。
+
 ## 影视角色跨分镜一致性（绑定 + 统一生成上下文）
 
 - 影视角色工作台新增「造型状态」列表：每个角色可加多个具名状态（名称、适用说明、服装、身体状态、持有道具、单张状态参考图），并支持角色别名；角色卡过期判定改用统一角色设定签名，文字或图片设定变化都会提示需重新拼图。

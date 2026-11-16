@@ -5,6 +5,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { accountLocalStorage } from "@/lib/account-storage";
+import { isTeamorouterBaseUrl } from "@/lib/gemini";
 import { directAIProviderForProtocol, isWorkflowProtocol, type DirectAIProvider, type ModelChannelProtocol } from "@/lib/model-channel";
 import type { WorkflowRef, WorkflowSummary } from "@/lib/workflow-channel";
 import { apiGet } from "@/services/api/request";
@@ -366,9 +367,14 @@ export function filterModelsByCapability(models: string[], capability?: ModelCap
     return capability ? models.filter((model) => modelMatchesCapability(model, capability, protocol, modelCapabilities)) : models;
 }
 
-export function filterChannelModelsByCapability(channels: Array<{ protocol?: LocalModelChannel["protocol"]; models: string[]; modelCapabilities?: ModelCapabilities }>, capability: ModelCapability, allowedModels?: string[]) {
+export function filterChannelModelsByCapability(channels: Array<{ protocol?: LocalModelChannel["protocol"]; baseUrl?: string; models: string[]; modelCapabilities?: ModelCapabilities }>, capability: ModelCapability, allowedModels?: string[]) {
     const allowed = allowedModels ? new Set(allowedModels) : null;
-    return normalizeModelList(channels.flatMap((channel) => isWorkflowProtocol(channel.protocol || "") ? [] : filterModelsByCapability(channel.models, capability, channel.protocol || "", channel.modelCapabilities))).filter((model) => !allowed || allowed.has(model));
+    return normalizeModelList(channels.flatMap((channel) => {
+        if (isWorkflowProtocol(channel.protocol || "")) return [];
+        // TeamoRouter 的 Gemini 协议渠道同时提供 OpenAI-Videos 视频模型，按通用名称匹配而非仅 veo。
+        const protocol = channel.baseUrl && isTeamorouterBaseUrl(channel.baseUrl) ? "openai" : channel.protocol || "";
+        return filterModelsByCapability(channel.models, capability, protocol, channel.modelCapabilities);
+    })).filter((model) => !allowed || allowed.has(model));
 }
 
 export function selectableModelsByCapability(config: AiConfig, capability?: ModelCapability) {

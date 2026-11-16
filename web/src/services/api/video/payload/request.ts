@@ -18,11 +18,13 @@ import { createGrok2APIVideoRequestBody, isGrok2APIVideoConfig, normalizeGrokVid
 import { isAPIMartKlingMotionControlVideoConfig, isAPIMartKlingV26VideoConfig, isAPIMartKlingV3VideoConfig, isKIEKlingMotionControlVideoConfig, normalizeAPIMartKlingMotionControlMode, normalizeCharacterOrientation, normalizeKIEKlingElementList, normalizeKIEKlingMultiPrompt, normalizeKlingElementList, normalizeKlingMultiPrompt, normalizeKlingShotType, normalizeKlingV26AspectRatio, normalizeKlingV26Duration, normalizeKlingV26Mode, normalizeKlingV3Duration, normalizeKlingV3Mode } from "./kling";
 import { createMiniMaxH3VideoRequestBody, miniMaxApiUrl } from "./minimax";
 import { createOpenAICloudVideoRequestBody } from "./openai";
+import { createTeamoVideoRequestBody, isTeamoVideoConfig } from "./teamo";
 import { imageReferenceToFormValue, imageToAgnesReference, mediaReferenceToFormValue, normalizeVideoResolution, normalizeVideoSize, videoChannelProtocol } from "./shared";
 
 
 
 export function aiVideoPollUrl(config: AiConfig, model: string, id: string) {
+    if (isTeamoVideoConfig(config)) return aiApiUrl(config, `/videos/${encodeURIComponent(id)}`);
     if (!usesAccountProxy(config) && isGeminiConfig(config, model)) {
         const channel = localChannelForActiveModel(config);
         return geminiOperationUrl(channel?.baseUrl || config.baseUrl, id);
@@ -64,6 +66,7 @@ export async function createVideoRequestBody(config: AiConfig, model: string, pr
         };
     }
     const tokenDance = videoChannelProtocol(config, model) === "tokendance";
+    if (isTeamoVideoConfig(config)) return createTeamoVideoRequestBody(config, model, prompt, input);
     if (config.channelMode === "remote" && videoChannelProtocol(config, model) === "openai") return createOpenAICloudVideoRequestBody(config, model, prompt, input);
     if (videoChannelProtocol(config, model) === "ark") return createArkSeedanceVideoRequestBody(config, model, prompt, input);
     const size = normalizeVideoSize(config.size);

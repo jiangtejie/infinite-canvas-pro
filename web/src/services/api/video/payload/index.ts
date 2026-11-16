@@ -3,3 +3,4 @@ export { miniMaxApiUrl } from "./minimax";
 export { isGrok2APIVideoConfig } from "./grok";
 export { publicHttpUrl, videoChannelProtocol } from "./shared";
 export { elementReferenceToInputUrl } from "./kling";
+export { isTeamoVideoConfig, createTeamoVideoRequestBody, teamoVideoSize, teamoVideoSeconds } from "./teamo";
