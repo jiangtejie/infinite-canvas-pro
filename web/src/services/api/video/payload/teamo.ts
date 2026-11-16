@@ -1,4 +1,5 @@
 import { isTeamorouterBaseUrl } from "@/lib/gemini";
+import { normalizeSeedanceRatio } from "@/lib/seedance-video";
 import { imageToDataUrl } from "@/services/image-storage";
 import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import type { VideoReferenceInput } from "../types";
@@ -28,8 +29,30 @@ export function teamoVideoSize(config: AiConfig) {
     return w >= h ? `${even((base * w) / h)}x${base}` : `${base}x${even((base * h) / w)}`;
 }
 
+function isMiniMaxModel(model: string) {
+    return model.toLowerCase().includes("minimax-h3");
+}
+
+/** MiniMax 只接受目录分辨率（H3 Max 仅 768p，H3 为 768p/2k），不能发 Seedance 像素 size。 */
+function miniMaxResolution(config: AiConfig, model: string) {
+    if (model.toLowerCase().includes("-max")) return "768p";
+    const normalized = normalizeVideoResolution(config.vquality);
+    return normalized === "2k" || normalized === "4k" ? "2k" : "768p";
+}
+
+function miniMaxSeconds(config: AiConfig) {
+    return String(Math.max(4, Math.min(15, Math.round(Number(config.videoSeconds) || 5))));
+}
+
+function miniMaxAspectRatio(config: AiConfig) {
+    const ratio = normalizeSeedanceRatio(config.size);
+    return ratio === "adaptive" ? "16:9" : ratio;
+}
+
 export async function createTeamoVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
-    const body: Record<string, unknown> = { model, prompt, seconds: teamoVideoSeconds(config), size: teamoVideoSize(config) };
+    const body: Record<string, unknown> = isMiniMaxModel(model)
+        ? { model, prompt, seconds: miniMaxSeconds(config), resolution: miniMaxResolution(config, model), aspect_ratio: miniMaxAspectRatio(config) }
+        : { model, prompt, seconds: teamoVideoSeconds(config), size: teamoVideoSize(config) };
     const reference = input.firstFrame || input.references[0];
     if (reference) {
         const dataUrl = reference.dataUrl || (await imageToDataUrl(reference));
