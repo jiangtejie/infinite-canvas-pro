@@ -3,7 +3,7 @@ import { normalizeSeedanceRatio } from "@/lib/seedance-video";
 import { imageToDataUrl } from "@/services/image-storage";
 import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import type { VideoReferenceInput } from "../types";
-import { normalizeVideoResolution } from "./shared";
+import { normalizeVideoResolution, publicHttpUrl } from "./shared";
 
 /** TeamoRouter 视频走 OpenAI-Videos 契约（/v1/videos），而非其 Gemini 原生图片接口。 */
 export function isTeamoVideoConfig(config: AiConfig) {
@@ -15,7 +15,7 @@ export function isTeamoVideoConfig(config: AiConfig) {
 }
 
 export function teamoVideoSeconds(config: AiConfig) {
-    return String(Math.max(1, Math.min(30, Math.round(Number(config.videoSeconds) || 4))));
+    return String(Math.max(4, Math.min(30, Math.round(Number(config.videoSeconds) || 4))));
 }
 
 /** TeamoRouter size 必须是 WIDTHxHEIGHT；把画幅+清晰度映射为偶数分辨率。 */
@@ -33,11 +33,11 @@ function isMiniMaxModel(model: string) {
     return model.toLowerCase().includes("minimax-h3");
 }
 
-/** MiniMax 只接受目录分辨率（H3 Max 仅 768p，H3 为 768p/2k），不能发 Seedance 像素 size。 */
+/** MiniMax 分辨率标签大小写敏感（H3 为 768P/2k，Max 仅 768p）。默认省略 resolution 用目录默认值，仅非 Max 选 2k/4k 时发 2k。 */
 function miniMaxResolution(config: AiConfig, model: string) {
-    if (model.toLowerCase().includes("-max")) return "768p";
+    if (model.toLowerCase().includes("-max")) return "";
     const normalized = normalizeVideoResolution(config.vquality);
-    return normalized === "2k" || normalized === "4k" ? "2k" : "768p";
+    return normalized === "2k" || normalized === "4k" ? "2k" : "";
 }
 
 function miniMaxSeconds(config: AiConfig) {
@@ -51,12 +51,18 @@ function miniMaxAspectRatio(config: AiConfig) {
 
 export async function createTeamoVideoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
     const body: Record<string, unknown> = isMiniMaxModel(model)
-        ? { model, prompt, seconds: miniMaxSeconds(config), resolution: miniMaxResolution(config, model), aspect_ratio: miniMaxAspectRatio(config) }
+        ? { model, prompt, seconds: miniMaxSeconds(config), aspect_ratio: miniMaxAspectRatio(config) }
         : { model, prompt, seconds: teamoVideoSeconds(config), size: teamoVideoSize(config) };
+    if (isMiniMaxModel(model)) {
+        const resolution = miniMaxResolution(config, model);
+        if (resolution) body.resolution = resolution;
+    }
     const reference = input.firstFrame || input.references[0];
     if (reference) {
-        const dataUrl = reference.dataUrl || (await imageToDataUrl(reference));
-        if (dataUrl) body.input_reference = { image_url: dataUrl };
+        // 上游只收 base64 data URL 或公网 HTTPS；blob/本地地址必须转成 base64。
+        const direct = reference.dataUrl?.startsWith("data:") ? reference.dataUrl : publicHttpUrl(reference.url) || publicHttpUrl(reference.dataUrl);
+        const imageUrl = direct || (await imageToDataUrl(reference));
+        if (imageUrl) body.input_reference = { image_url: imageUrl };
     }
     return body;
 }

@@ -128,6 +128,7 @@ test("TeamoRouter 尺寸映射为 WIDTHxHEIGHT", () => {
 test("TeamoRouter 时长为整数秒并收敛范围", () => {
     assert.equal(teamoVideoSeconds(config({ videoSeconds: "5" })), "5");
     assert.equal(teamoVideoSeconds(config({ videoSeconds: "0" })), "4");
+    assert.equal(teamoVideoSeconds(config({ videoSeconds: "3" })), "4");
     assert.equal(teamoVideoSeconds(config({ videoSeconds: "99" })), "30");
 });
 
@@ -139,10 +140,10 @@ test("TeamoRouter 请求体只含 OpenAI-Videos 标准字段", async () => {
     assert.equal(body.size, "1280x720");
 });
 
-test("TeamoRouter MiniMax 发 resolution+aspect_ratio 而非 Seedance 像素 size", async () => {
+test("TeamoRouter MiniMax 发 aspect_ratio、默认不发 resolution（目录大小写敏感）", async () => {
     const max = await createTeamoVideoRequestBody(config({ vquality: "480", size: "864x496", videoSeconds: "5" }), "minimax-h3-max-text-to-video", "p", emptyInput);
     assert.equal(max.size, undefined);
-    assert.equal(max.resolution, "768p");
+    assert.equal(max.resolution, undefined);
     assert.equal(max.aspect_ratio, "16:9");
     assert.equal(max.seconds, "5");
     const h3 = await createTeamoVideoRequestBody(config({ vquality: "2k", size: "9:16", videoSeconds: "30" }), "minimax-h3-text-to-video", "p", emptyInput);
@@ -151,7 +152,10 @@ test("TeamoRouter MiniMax 发 resolution+aspect_ratio 而非 Seedance 像素 siz
     assert.equal(h3.aspect_ratio, "9:16");
     assert.equal(h3.seconds, "15");
     const h3Low = await createTeamoVideoRequestBody(config({ vquality: "480", size: "16:9" }), "minimax-h3-image-to-video", "p", emptyInput);
-    assert.equal(h3Low.resolution, "768p");
+    assert.equal(h3Low.resolution, undefined);
+    assert.equal(h3Low.aspect_ratio, "16:9");
+    const max2k = await createTeamoVideoRequestBody(config({ vquality: "2k", size: "16:9" }), "minimax-h3-max-text-to-video", "p", emptyInput);
+    assert.equal(max2k.resolution, undefined);
 });
 
 test("TeamoRouter 参考图走 input_reference.image_url", async () => {
