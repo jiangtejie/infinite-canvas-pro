@@ -106,6 +106,28 @@ var builtinAIProtocols = []aiProtocolAdapter{
 		},
 	},
 	{
+		// TeamoRouter 的 Gemini 协议渠道视频走 OpenAI-Videos（/v1/videos），优先于 Gemini Veo 适配。
+		id: "model:teamorouter-video",
+		path: func(channel model.ModelChannel, _ string, path string) (string, bool) {
+			if !service.IsTeamorouterBaseURL(channel.BaseURL) || !strings.HasPrefix(path, "/videos") {
+				return path, false
+			}
+			return path, true
+		},
+		prepare: func(input aiProtocolRequest) (aiProtocolRequest, bool, error) {
+			if input.mode == aiProtocolVideoRequest && service.IsTeamorouterBaseURL(input.channel.BaseURL) {
+				return input, true, nil
+			}
+			return input, false, nil
+		},
+		videoResponse: func(payload []byte, _ *http.Request, channel model.ModelChannel, _ string, _ bool) ([]byte, bool) {
+			if service.IsTeamorouterBaseURL(channel.BaseURL) {
+				return payload, true
+			}
+			return nil, false
+		},
+	},
+	{
 		id:           service.ModelChannelProtocolGemini,
 		videoContent: serveGeminiVideoTaskContent,
 		path: func(channel model.ModelChannel, modelName string, path string) (string, bool) {

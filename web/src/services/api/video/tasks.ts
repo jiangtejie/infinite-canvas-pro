@@ -31,26 +31,28 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 }
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] | VideoReferenceInput = [], onProgress?: VideoProgressHandler, options?: string | VideoTaskCreateOptions): Promise<CreatedVideoGenerationTask> {
-    const model = config.model || config.videoModel;
+    const model = config.videoModel || config.model;
     const systemPrompt = (config.systemPrompts.video || config.systemPrompt).trim();
-    const translation = await findParameterTranslation({...config,model});
-    if (translation) return createTranslatedVideoTask({...config,model},translation,systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,normalizeVideoReferenceInput(references),normalizeVideoTaskCreateOptions(options),onProgress);
-    const body = await createVideoRequestBody(config, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references));
+    const requestConfig = { ...config, model };
+    const translation = await findParameterTranslation(requestConfig);
+    if (translation) return createTranslatedVideoTask(requestConfig,translation,systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt,normalizeVideoReferenceInput(references),normalizeVideoTaskCreateOptions(options),onProgress);
+    const body = await createVideoRequestBody(requestConfig, model, systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt, normalizeVideoReferenceInput(references));
     const startedAt = Date.now();
     try {
         const createOptions = normalizeVideoTaskCreateOptions(options);
-        const accountProxy = usesAccountProxy(config);
-        const headers = { ...aiHeaders(config), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
-        const directProvider = !accountProxy ? directAIProviderForConfig(config) : null;
-        const channel = localChannelForActiveModel(config);
-        const createUrl = !accountProxy && isTeamoVideoConfig(config)
-            ? aiApiUrl(config, "/videos")
-            : !accountProxy && isGeminiConfig(config, model)
+        const accountProxy = usesAccountProxy(requestConfig);
+        const headers = { ...aiHeaders(requestConfig), ...(accountProxy && createOptions.clientTaskId ? { "X-Client-Video-Task-ID": createOptions.clientTaskId } : {}), ...(accountProxy && createOptions.source ? { "X-Video-Task-Source": createOptions.source } : {}), ...(accountProxy && createOptions.sourceId ? { "X-Video-Task-Source-ID": createOptions.sourceId } : {}) };
+        const teamoVideo = isTeamoVideoConfig(requestConfig);
+        const directProvider = !accountProxy && !teamoVideo ? directAIProviderForConfig(requestConfig) : null;
+        const channel = localChannelForActiveModel(requestConfig);
+        const createUrl = teamoVideo
+            ? aiApiUrl(requestConfig, "/videos")
+            : !accountProxy && isGeminiConfig(requestConfig, model)
                 ? geminiActionUrl(channel?.baseUrl || config.baseUrl, model, "predictLongRunning")
                 : !accountProxy && isMiniMaxH3Config(config, model)
                     ? miniMaxApiUrl(config, "/v2/video_generation")
                     : aiApiUrl(config, !accountProxy && (isGrok2APIVideoConfig(config, model) || isCogVideoX3Model(model)) ? "/videos/generations" : "/videos");
-        const requestBody = !accountProxy && isGeminiConfig(config, model) ? withoutVideoModel(body) : body;
+        const requestBody = !teamoVideo && !accountProxy && isGeminiConfig(requestConfig, model) ? withoutVideoModel(body) : body;
         if (typeof window !== "undefined") {
             console.info("[video] 发起视频任务", {
                 model,
@@ -191,15 +193,16 @@ function sleepWithSignal(ms: number, signal?: AbortSignal) {
 }
 
 export async function pollCreatedVideoGenerationTask(config: AiConfig, task: VideoResponse, { startedAt = Date.now(), requestBody, initialDelayMs = 0, onProgress, onPoll, signal }: { startedAt?: number; requestBody?: unknown; initialDelayMs?: number; onProgress?: VideoProgressHandler; onPoll?: (task: VideoResponse) => void; signal?: AbortSignal } = {}) {
-    const model = config.model || config.videoModel;
+    const model = config.videoModel || config.model;
+    const requestConfig = { ...config, model };
     const pollId = videoPollId(model, task);
     if (!pollId) throw new VideoRequestError("视频接口没有返回任务 ID", task);
-    const directProvider = !usesAccountProxy(config) ? directAIProviderForConfig(config) : null;
+    const directProvider = !usesAccountProxy(requestConfig) && !isTeamoVideoConfig(requestConfig) ? directAIProviderForConfig(requestConfig) : null;
     const directPoll = directProvider && !task.parameter_translation ? (await import("@/services/api/direct-ai")).pollDirectVideoTask : null;
     let currentTask = task;
-    const pollOnce = task.translationSnapshot ? async () => { currentTask = await pollLocalTranslatedVideo(config,currentTask,signal); return currentTask; } : task.parameter_translation && isCompletedVideoStatus(task.status) ? async () => task : directProvider && directPoll
-        ? () => directPoll(config, directProvider, pollId, signal)
-        : async () => unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: aiHeaders(config), params: usesAccountProxy(config) ? { model } : undefined, signal })).data);
+    const pollOnce = task.translationSnapshot ? async () => { currentTask = await pollLocalTranslatedVideo(requestConfig,currentTask,signal); return currentTask; } : task.parameter_translation && isCompletedVideoStatus(task.status) ? async () => task : directProvider && directPoll
+        ? () => directPoll(requestConfig, directProvider, pollId, signal)
+        : async () => unwrapVideoResponseForConfig(requestConfig, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(requestConfig, model, pollId), { headers: aiHeaders(requestConfig), params: usesAccountProxy(requestConfig) ? { model } : undefined, signal })).data);
     let completed: VideoResponse | null = null;
     try {
         signal?.throwIfAborted();
@@ -207,7 +210,7 @@ export async function pollCreatedVideoGenerationTask(config: AiConfig, task: Vid
         for (; ;) {
             signal?.throwIfAborted();
             const polled: VideoResponse = await pollOnce();
-            const video = polled.parameter_translation ? await syncGeneratedVideo(polled, config, true) : await cacheProtectedVideo(config, model, await cacheProtectedGeminiVideo(config, model, polled));
+            const video = polled.parameter_translation ? await syncGeneratedVideo(polled, requestConfig, true) : await cacheProtectedVideo(requestConfig, model, await cacheProtectedGeminiVideo(requestConfig, model, polled));
             onPoll?.(video);
             if (isFailedVideoStatus(video.status)) throw new VideoRequestError(video.error?.message || "视频生成失败", video);
             if (typeof video.progress === "number") onProgress?.(video.progress, video);
@@ -220,27 +223,28 @@ export async function pollCreatedVideoGenerationTask(config: AiConfig, task: Vid
         const videoUrl = completed?.video_url || completed?.url || "";
         if (!videoUrl) throw new VideoRequestError("视频生成完成但没有返回视频地址", completed);
         const result = buildVideoGenerationResult(completed, videoUrl, Date.now() - startedAt);
-        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, 200, stringifyLogPayload(requestBody ? summarizeVideoRequestBody(requestBody) : { taskId: pollId }), stringifyLogPayload({ task: completed, video: result }), "");
-        refreshRemoteUser(config);
+        void writeVideoAICallLog(requestConfig, model, "/videos", "POST", startedAt, 200, stringifyLogPayload(requestBody ? summarizeVideoRequestBody(requestBody) : { taskId: pollId }), stringifyLogPayload({ task: completed, video: result }), "");
+        refreshRemoteUser(requestConfig);
         return result;
     } catch (error) {
         if (signal?.aborted) throw signal.reason ?? error;
         const { message, detail } = readAxiosError(error, "视频生成失败");
-        void writeVideoAICallLog(config, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(requestBody ? summarizeVideoRequestBody(requestBody) : { taskId: pollId }), stringifyLogPayload(detail), message);
+        void writeVideoAICallLog(requestConfig, model, "/videos", "POST", startedAt, axios.isAxiosError(error) ? error.response?.status || 0 : 0, stringifyLogPayload(requestBody ? summarizeVideoRequestBody(requestBody) : { taskId: pollId }), stringifyLogPayload(detail), message);
         throw new VideoRequestError(message, detail);
     }
 }
 
 export async function pollVideoGenerationTaskStatus(config: AiConfig, task: VideoResponse, signal?: AbortSignal) {
     if (task.translationSnapshot) return syncGeneratedVideo(await pollLocalTranslatedVideo(config,task,signal),config,true);
-    const model = config.model || config.videoModel;
+    const model = config.videoModel || config.model;
+    const requestConfig = { ...config, model };
     const pollId = videoPollId(model, task);
     if (!pollId) throw new VideoRequestError("视频接口没有返回任务 ID", task);
-    const directProvider = !usesAccountProxy(config) ? directAIProviderForConfig(config) : null;
+    const directProvider = !usesAccountProxy(requestConfig) && !isTeamoVideoConfig(requestConfig) ? directAIProviderForConfig(requestConfig) : null;
     const result: VideoResponse = directProvider && !task.parameter_translation
-        ? await (await import("@/services/api/direct-ai")).pollDirectVideoTask(config, directProvider, pollId, signal)
-        : unwrapVideoResponseForConfig(config, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(config, model, pollId), { headers: aiHeaders(config), params: usesAccountProxy(config) ? { model } : undefined, signal })).data);
-    return syncGeneratedVideo(result.parameter_translation ? result : await cacheProtectedGeminiVideo(config, model, await cacheProtectedVideo(config, model, result)), config, true);
+        ? await (await import("@/services/api/direct-ai")).pollDirectVideoTask(requestConfig, directProvider, pollId, signal)
+        : unwrapVideoResponseForConfig(requestConfig, model, (await axios.get<ApiVideoResponse>(aiVideoPollUrl(requestConfig, model, pollId), { headers: aiHeaders(requestConfig), params: usesAccountProxy(requestConfig) ? { model } : undefined, signal })).data);
+    return syncGeneratedVideo(result.parameter_translation ? result : await cacheProtectedGeminiVideo(requestConfig, model, await cacheProtectedVideo(requestConfig, model, result)), requestConfig, true);
 }
 
 export async function listVideoGenerationTasks(config: AiConfig) {

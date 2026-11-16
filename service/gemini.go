@@ -36,6 +36,16 @@ func GeminiOperationPath(operation string) string {
 
 func BuildGeminiChannelURL(channel model.ModelChannel, path string) string {
 	baseURL := strings.TrimRight(strings.TrimSpace(channel.BaseURL), "/")
+	if IsTeamorouterBaseURL(baseURL) {
+		lowerBaseURL := strings.ToLower(baseURL)
+		for _, suffix := range []string{"/v1beta", "/v1"} {
+			if strings.HasSuffix(lowerBaseURL, suffix) {
+				baseURL = baseURL[:len(baseURL)-len(suffix)]
+				break
+			}
+		}
+		return baseURL + "/v1" + path
+	}
 	if strings.HasSuffix(strings.ToLower(baseURL), "/v1beta") {
 		baseURL = baseURL[:len(baseURL)-len("/v1beta")]
 	}

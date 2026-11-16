@@ -942,40 +942,55 @@ func fetchGeminiAdminChannelModels(channel model.ModelChannel) ([]string, error)
 }
 
 func fetchTeamorouterAdminChannelModels(channel model.ModelChannel) ([]string, error) {
-	request, err := http.NewRequest(http.MethodGet, BuildGeminiChannelURL(channel, "/v1/models"), nil)
-	if err != nil {
-		return nil, err
-	}
-	SetModelChannelAuthHeader(request, channel)
-	response, err := adminModelHTTPClient.Do(request)
-	if err != nil {
-		return nil, safeMessageError{message: "读取模型失败：上游接口无响应或网络不可达"}
-	}
-	defer response.Body.Close()
-	body := readAdminModelTestBody(response.Body)
-	if response.StatusCode >= http.StatusBadRequest {
-		return nil, readAdminChannelError(body, response.StatusCode, "读取模型失败")
-	}
-	var payload struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-	if json.Unmarshal(body, &payload) != nil {
-		return nil, safeMessageError{message: "读取模型失败：上游响应无法解析"}
-	}
-	result := make([]string, 0, len(payload.Data))
-	for _, item := range payload.Data {
-		name := strings.TrimSpace(item.ID)
-		if name != "" && !strings.Contains(strings.ToLower(name), "embed") {
-			result = append(result, name)
+	models := []string{}
+	videoModels := map[string]bool{}
+	for _, query := range []string{"", "?type=video"} {
+		request, err := http.NewRequest(http.MethodGet, BuildModelChannelURL(channel, "/models"+query), nil)
+		if err != nil {
+			return nil, err
+		}
+		SetModelChannelAuthHeader(request, channel)
+		response, err := adminModelHTTPClient.Do(request)
+		if err != nil {
+			return nil, safeMessageError{message: "读取模型失败：上游接口无响应或网络不可达"}
+		}
+		body := readAdminModelTestBody(response.Body)
+		response.Body.Close()
+		if response.StatusCode >= http.StatusBadRequest {
+			return nil, readAdminChannelError(body, response.StatusCode, "读取模型失败")
+		}
+		var payload struct {
+			Data []struct {
+				ID        string `json:"id"`
+				ModelSpec struct {
+					Offline bool `json:"offline"`
+				} `json:"model_spec"`
+			} `json:"data"`
+		}
+		if json.Unmarshal(body, &payload) != nil {
+			return nil, safeMessageError{message: "读取模型失败：上游响应无法解析"}
+		}
+		for _, item := range payload.Data {
+			name := strings.TrimSpace(item.ID)
+			if name == "" || strings.Contains(strings.ToLower(name), "embed") || query != "" && item.ModelSpec.Offline {
+				continue
+			}
+			if query != "" {
+				videoModels[name] = true
+			} else if !isVideoModelName(name) {
+				models = append(models, name)
+			}
 		}
 	}
-	sort.Strings(result)
-	if len(result) == 0 {
+	for name := range videoModels {
+		models = append(models, name)
+	}
+	models = uniqueModelNames(models)
+	sort.Strings(models)
+	if len(models) == 0 {
 		return nil, safeMessageError{message: "TeamoRouter 模型列表为空"}
 	}
-	return result, nil
+	return models, nil
 }
 
 func testGeminiChannelModel(channel model.ModelChannel, modelName string) (string, error) {

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import axios from "axios";
+import localforage from "localforage";
+import { mediaStore } from "@/services/file-storage";
+import { createVideoGenerationTask, pollCreatedVideoGenerationTask } from "../tasks";
+import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
 import type { AiConfig } from "@/stores/use-config-store";
 import { filterChannelModelsByCapability } from "@/stores/use-config-store";
 import { createTeamoVideoRequestBody, isTeamoVideoConfig, teamoVideoSeconds, teamoVideoSize } from "./teamo";
@@ -26,6 +31,91 @@ test("识别 TeamoRouter 视频渠道，排除 Google 与普通 OpenAI", () => {
     assert.equal(isTeamoVideoConfig(config()), true);
     assert.equal(isTeamoVideoConfig(config({ baseUrl: "https://generativelanguage.googleapis.com" })), false);
     assert.equal(isTeamoVideoConfig(config({ baseUrl: "https://api.openai.com" })), false);
+});
+
+test("TeamoRouter 云端渠道按选中的公开渠道识别", async () => {
+    const remote = config({
+        channelMode: "remote",
+        baseUrl: "https://api.openai.com",
+        activeChannelId: "teamo",
+        videoChannelId: "teamo",
+        publicChannels: [
+            { id: "other", protocol: "openai", baseUrl: "https://api.openai.com", models: [config().model] },
+            { id: "teamo", protocol: "openai", baseUrl: "https://api.teamorouter.ai/v1", models: [config().model] },
+        ],
+    });
+    assert.equal(isTeamoVideoConfig(remote), true);
+    assert.deepEqual(await createVideoRequestBody(remote, remote.model, "p", emptyInput), {
+        model: remote.model, prompt: "p", seconds: "5", size: "1280x720",
+    });
+    assert.equal(isTeamoVideoConfig({ ...remote, activeChannelId: "other", videoChannelId: "other" }), false);
+});
+
+test("TeamoRouter Gemini 渠道直连创建保留必填 model", async () => {
+    const originalAdapter = axios.defaults.adapter;
+    const originalAccounts = useChannelTranslationStore.getState().accounts;
+    useChannelTranslationStore.setState({ accounts: { guest: {} } });
+    let sent: { url?: string; body?: Record<string, unknown> } = {};
+    axios.defaults.adapter = async (request) => {
+        sent = { url: request.url, body: JSON.parse(request.data) };
+        return { data: { id: "video_1", object: "video", status: "queued" }, status: 200, statusText: "OK", headers: {}, config: request };
+    };
+    try {
+        const local = config({ systemPrompts: { image: "", video: "", text: "", workflow: "", workflowAgent: "" }, systemPrompt: "", localChannels: [{ id: "teamo", protocol: "gemini", name: "teamo", baseUrl: "https://api.teamorouter.ai", apiKey: "unused", models: [config().model] }] });
+        await createVideoGenerationTask(local, "p");
+        assert.equal(sent.url, "https://api.teamorouter.ai/v1/videos");
+        assert.equal(sent.body?.model, local.model);
+    } finally {
+        axios.defaults.adapter = originalAdapter;
+        useChannelTranslationStore.setState({ accounts: originalAccounts });
+    }
+});
+
+test("TeamoRouter Gemini 渠道按视频模型轮询和下载", async () => {
+    const originalAdapter = axios.defaults.adapter;
+    const originalFetch = globalThis.fetch;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const originalDocument = globalThis.document;
+    const requests: Array<{ url?: string; params?: Record<string, unknown> }> = [];
+    await localforage.defineDriver({
+        _driver: "teamo-test-memory",
+        _initStorage: () => Promise.resolve(),
+        _support: () => Promise.resolve(true),
+        clear: () => Promise.resolve(),
+        getItem: () => Promise.resolve(null),
+        setItem: () => Promise.resolve(),
+        removeItem: () => Promise.resolve(),
+        key: () => Promise.resolve(""),
+        keys: () => Promise.resolve([]),
+        length: () => Promise.resolve(0),
+        iterate: () => Promise.resolve(),
+    });
+    await mediaStore.setDriver("teamo-test-memory");
+    (mediaStore as unknown as { _driverSet: Promise<unknown> })._driverSet = Promise.resolve();
+    URL.createObjectURL = () => "blob:teamo-test";
+    URL.revokeObjectURL = () => {};
+    globalThis.document = { createElement: () => ({ set src(_value: string) { queueMicrotask(() => this.onerror?.()); }, onerror: null as null | (() => void), onloadedmetadata: null, videoWidth: 0, videoHeight: 0 }) } as unknown as Document;
+    axios.defaults.adapter = async (request) => {
+        requests.push({ url: request.url, params: request.params });
+        return { data: { id: "video_1", object: "video", status: "completed" }, status: 200, statusText: "OK", headers: {}, config: request };
+    };
+    globalThis.fetch = async (input) => {
+        requests.push({ url: String(input) });
+        return new Response(new Uint8Array([0, 0, 0, 24]), { status: 200, headers: { "Content-Type": "video/mp4" } });
+    };
+    try {
+        const local = config({ model: "gemini-3.1-flash-image", videoModel: config().model, localChannels: [{ id: "teamo", protocol: "gemini", name: "teamo", baseUrl: "https://api.teamorouter.ai", apiKey: "unused", models: [config().model] }] });
+        await pollCreatedVideoGenerationTask(local, { id: "video_1", task_id: "video_1", object: "video", status: "queued" }, { initialDelayMs: 0 });
+        assert.equal(requests[0]?.url, "https://api.teamorouter.ai/v1/videos/video_1");
+        assert.equal(requests[1]?.url, "https://api.teamorouter.ai/v1/videos/video_1/content?model=seedance-2-0-mini-text-to-video-basic");
+    } finally {
+        axios.defaults.adapter = originalAdapter;
+        globalThis.fetch = originalFetch;
+        URL.createObjectURL = originalCreateObjectURL;
+        URL.revokeObjectURL = originalRevokeObjectURL;
+        globalThis.document = originalDocument;
+    }
 });
 
 test("TeamoRouter 尺寸映射为 WIDTHxHEIGHT", () => {

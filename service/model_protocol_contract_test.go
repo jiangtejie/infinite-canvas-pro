@@ -87,6 +87,40 @@ func TestModelProtocolGeminiDiscoveryContract(t *testing.T) {
 	}
 }
 
+func TestTeamorouterDiscoveryUsesVideoCatalogue(t *testing.T) {
+	for _, protocol := range []string{"openai", "gemini"} {
+		t.Run(protocol, func(t *testing.T) {
+			calls := 0
+			stubProtocolAdminHTTP(t, func(request *http.Request) (*http.Response, error) {
+				calls++
+				if request.URL.Path != "/v1/models" || request.Header.Get("Authorization") != "Bearer test-key" {
+					t.Errorf("unexpected catalogue request: %s %v", request.URL, request.Header)
+				}
+				if request.URL.Query().Get("type") == "video" {
+					return protocolAdminResponse(`{"data":[{"id":"seedance-2-0-text-to-video-basic","model_spec":{"offline":false}}]}`), nil
+				}
+				return protocolAdminResponse(`{"data":[{"id":"deepseek-flash"},{"id":"gpt-image-2"},{"id":"seedance-2.0"},{"id":"MiniMax-H3"}]}`), nil
+			})
+			got, err := AdminChannelModels(nil, model.ModelChannel{Protocol: protocol, BaseURL: "https://api.teamorouter.ai/v1", APIKey: "test-key"})
+			want := []string{"deepseek-flash", "gpt-image-2", "seedance-2-0-text-to-video-basic"}
+			if err != nil || !reflect.DeepEqual(got, want) || calls != 2 {
+				t.Fatalf("got %v, %v, %d calls; want %v, 2 calls", got, err, calls, want)
+			}
+		})
+	}
+}
+
+func TestTeamorouterGeminiVideoURLUsesV1(t *testing.T) {
+	for _, baseURL := range []string{"https://api.teamorouter.ai", "https://api.teamorouter.ai/v1", "https://api.teamorouter.ai/v1beta"} {
+		for _, path := range []string{"/videos", "/videos/vid_1", "/videos/vid_1/content"} {
+			got := BuildModelChannelURL(model.ModelChannel{Protocol: "gemini", BaseURL: baseURL}, path)
+			if want := "https://api.teamorouter.ai/v1" + path; got != want {
+				t.Errorf("BuildModelChannelURL(%q, %q) = %q, want %q", baseURL, path, got, want)
+			}
+		}
+	}
+}
+
 func TestModelProtocolConfigTestsDoNotGenerate(t *testing.T) {
 	stubProtocolAdminHTTP(t, func(*http.Request) (*http.Response, error) {
 		t.Error("configuration-only test performed an upstream generation")

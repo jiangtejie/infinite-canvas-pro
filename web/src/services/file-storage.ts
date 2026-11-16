@@ -11,7 +11,8 @@ import { useUserStore } from "@/stores/use-user-store";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
 
-const store = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
+export const mediaStore = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
+const store = mediaStore;
 const objectUrls = new Map<string, string>();
 let storageConfigPromise: Promise<StorageConfig> | null = null;
 

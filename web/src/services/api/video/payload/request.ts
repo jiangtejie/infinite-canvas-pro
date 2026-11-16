@@ -24,7 +24,7 @@ import { imageReferenceToFormValue, imageToAgnesReference, mediaReferenceToFormV
 
 
 export function aiVideoPollUrl(config: AiConfig, model: string, id: string) {
-    if (isTeamoVideoConfig(config)) return aiApiUrl(config, `/videos/${encodeURIComponent(id)}`);
+    if (isTeamoVideoConfig({ ...config, model })) return aiApiUrl(config, `/videos/${encodeURIComponent(id)}`);
     if (!usesAccountProxy(config) && isGeminiConfig(config, model)) {
         const channel = localChannelForActiveModel(config);
         return geminiOperationUrl(channel?.baseUrl || config.baseUrl, id);

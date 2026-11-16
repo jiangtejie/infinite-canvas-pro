@@ -1,4 +1,5 @@
 import { geminiDirectHeaders, isGeminiConfig } from "@/lib/gemini";
+import { isTeamoVideoConfig } from "./payload/teamo";
 import { uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { autoSyncToCloud } from "@/services/image-storage";
 import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
@@ -15,14 +16,15 @@ function videoSyncKey(config: AiConfig, task: VideoResponse) {
 }
 
 export async function syncGeneratedVideo(task: VideoResponse, config: AiConfig, contentResolved = false): Promise<VideoResponse> {
+    const model = config.videoModel || config.model;
+    const requestConfig = { ...config, model };
     const url = task.video_url || task.url || "";
     if (task.storageKey || isFailedVideoStatus(task.status) || (!isCompletedVideoStatus(task.status) && !url)) return task;
-    if (task.parameter_translation && !url) return cacheProtectedVideo(config, config.model || config.videoModel, task);
+    if (task.parameter_translation && !url) return cacheProtectedVideo(requestConfig, model, task);
     const media = task.parameter_translation && url.startsWith("data:video/")
-        ? await uploadMediaFile(url, "generated-video", `video:${videoSyncKey(config, task)}`)
-        : await autoSyncToCloud(`video:${videoSyncKey(config, task)}`, async () => {
-            const model = config.model || config.videoModel;
-            const cached = contentResolved ? task : await cacheProtectedGeminiVideo(config, model, await cacheProtectedVideo(config, model, task));
+        ? await uploadMediaFile(url, "generated-video", `video:${videoSyncKey(requestConfig, task)}`)
+        : await autoSyncToCloud(`video:${videoSyncKey(requestConfig, task)}`, async () => {
+            const cached = contentResolved ? task : await cacheProtectedGeminiVideo(requestConfig, model, await cacheProtectedVideo(requestConfig, model, task));
             if (cached.storageKey) return { url: cached.video_url || cached.url || url, storageKey: cached.storageKey };
             return url ? uploadRemoteMediaToServer(url, "video") : null;
         });
@@ -30,12 +32,13 @@ export async function syncGeneratedVideo(task: VideoResponse, config: AiConfig, 
 }
 
 export async function cacheProtectedVideo(config: AiConfig, model: string, task: VideoResponse, contentRequest?: RequestInit, contentResponse?: Response) {
+    const requestConfig = { ...config, model };
     const url = task.video_url || task.url || "";
     const needsTaskContent = !url && ("object" in task && task.object === "video");
     const needsContentURL = /\/videos\/[^/?]+\/content(?:[?#]|$)/.test(contentRequest ? new URL(url).pathname : url);
     if (!isCompletedVideoStatus(task.status) || task.storageKey || (!needsTaskContent && !needsContentURL)) return task;
     const taskId = task.task_id || task.id || task.video_id || "";
-    const response = contentResponse ?? await fetch(contentRequest ? url : `${aiApiUrl(config, `/videos/${encodeURIComponent(taskId)}/content`)}?model=${encodeURIComponent(model)}`, contentRequest || { headers: aiHeaders(config) });
+    const response = contentResponse ?? await fetch(contentRequest ? url : `${aiApiUrl(requestConfig, `/videos/${encodeURIComponent(taskId)}/content`)}?model=${encodeURIComponent(model)}`, contentRequest || { headers: aiHeaders(requestConfig) });
     if (!response.ok) throw new VideoRequestError(`视频内容下载失败：${response.status}`, task);
     const blob = await response.blob();
     const translatedContent = task.parameter_translation && !url;
@@ -45,12 +48,13 @@ export async function cacheProtectedVideo(config: AiConfig, model: string, task:
 }
 
 export async function cacheProtectedGeminiVideo(config: AiConfig, model: string, task: VideoResponse) {
+    const requestConfig = { ...config, model };
     const url = task.video_url || task.url || "";
-    if (!isGeminiConfig(config, model) || !isCompletedVideoStatus(task.status) || task.storageKey || !url) return task;
+    if (isTeamoVideoConfig(requestConfig) || !isGeminiConfig(requestConfig, model) || !isCompletedVideoStatus(task.status) || task.storageKey || !url) return task;
     const localTaskId = task.id || task.task_id || "";
     const response = await fetch(
-        usesAccountProxy(config) ? `${aiApiUrl(config, `/videos/${encodeURIComponent(localTaskId)}/content`)}?model=${encodeURIComponent(model)}` : url,
-        { headers: usesAccountProxy(config) ? aiHeaders(config) : geminiDirectHeaders(config) },
+        usesAccountProxy(requestConfig) ? `${aiApiUrl(requestConfig, `/videos/${encodeURIComponent(localTaskId)}/content`)}?model=${encodeURIComponent(model)}` : url,
+        { headers: usesAccountProxy(requestConfig) ? aiHeaders(requestConfig) : geminiDirectHeaders(requestConfig) },
     );
     if (!response.ok) throw new VideoRequestError(`视频内容下载失败：${response.status}`, task);
     const media = await uploadMediaFile(await response.blob(), "generated-video", `video-content:${videoSyncKey(config, task)}`);

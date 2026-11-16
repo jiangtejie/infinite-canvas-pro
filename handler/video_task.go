@@ -274,6 +274,10 @@ func serveGeminiVideoTaskContent(w http.ResponseWriter, r *http.Request, id stri
 	} else {
 		channel, err = service.SelectModelChannelForModel(task.Model, task.ChannelID, false)
 	}
+	// TeamoRouter 视频内容走标准 /videos/{id}/content 代理，不按 Gemini Veo 任务地址下载。
+	if err == nil && service.IsTeamorouterBaseURL(channel.BaseURL) {
+		return false
+	}
 	translatedContent := task.ParameterTranslationSnapshot != "" && task.VideoURL == "" && service.IsCompletedVideoTaskStatus(task.Status)
 	if err != nil || (!service.IsGeminiChannel(channel) && !translatedContent) {
 		return false

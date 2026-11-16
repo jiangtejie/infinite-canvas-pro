@@ -8,8 +8,12 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 视频渠道 Base URL 含 `teamorouter.ai` 时改走独立适配器（`payload/teamo.ts`，Adapter/Strategy 沿用现有 per-provider 模式）：`POST /v1/videos` 只发 `model/prompt/seconds/size/input_reference`，不再误用 Gemini Veo 或 openai-cloud 的 `content[]/ratio/resolution` 参数；`size` 由画幅+清晰度映射为偶数 WIDTHxHEIGHT，`seconds` 收敛为整数秒。
 - 轮询走 `/v1/videos/{id}`；完成后复用既有 `object:"video"` 缓存链路经 `/v1/videos/{id}/content` 下载并入库，得到可播放地址。
 - 模型目录：TeamoRouter 的 Gemini 协议渠道在视频能力下按通用名称匹配（seedance/minimax 等可见），不再仅 `veo-`，避免 `videoModel` 被重置为错误兜底导致 "Unknown video model"。
-- 验证：新增 7 条适配器测试，全量 Bun 494 条 / 86 文件通过，typecheck、改动范围 lint 0 warning。
-- 未实测：真实 TeamoRouter 账号（需余额）下的创建/轮询/下载与扣费；首尾帧模式当前仅送首帧（`input_reference`），尾帧与多参考属 TeamoRouter 扩展未接入；登录态走后端代理的 TeamoRouter 视频未适配（当前仅本地直连生效）。
+- 后端代理同步适配：handler 协议注册表新增 `model:teamorouter-video` 适配器（优先于 Gemini），`/videos` 系列路径保持 OpenAI-Videos、请求体不被 Gemini 剥离/改写、响应原样透传、内容走标准 `/videos/{id}/content` 代理；登录态/云端代理路径同样生效。3 条 Go 适配器测试通过，后端已重启。
+- 云端渠道识别修复：`isTeamoVideoConfig` 改为按 `channelIdForActiveModel` 选中的公开渠道 Base URL 判断（此前只查本地渠道，云端 TeamoRouter 落入通用 OpenAI 分支）；创建/轮询/下载统一使用 `videoModel || model`，避免文本模型抢占视频模型导致 Gemini 分支误判与下载 `model` 参数错误。
+- 模型目录修复：后端 `fetchTeamorouterAdminChannelModels` 合并 `/v1/models` 与 `/v1/models?type=video`，过滤 `model_spec.offline` 与旧别名（seedance-2.0 等），仅保留目录真实 ID；Gemini 协议 TeamoRouter 的 URL 构造统一补 `/v1`（含 `/v1beta` 归一），不再重复或丢失版本前缀。本地直连 `fetchTeamorouterModels` 同步合并视频目录，任意协议均生效。
+- 验证：前端 TeamoRouter 适配器 10 条 + 图片 payload 6 条回归通过；后端 `TestTeamorouterDiscoveryUsesVideoCatalogue` / `TestTeamorouterGeminiVideoURLUsesV1` 通过。
+- 待配置更新：当前云端渠道仍保存旧视频型号（`seedance-2.0` / `seedance-2.0-mini` / `seedance-2.5` / `MiniMax-H3`）与默认 `seedance-2.0`，需管理员登录后在后台「拉取模型列表」替换为目录 ID（文生 `seedance-2-0-text-to-video-basic`、图生 `seedance-2-0-image-to-video-basic`、参考生 `seedance-2-0-reference-to-video-basic` 等），并同步默认视频模型与可用模型列表。本轮管理接口 401，未改动云端配置。
+- 未实测：真实 TeamoRouter 账号（需余额）下的创建/轮询/下载与扣费；首尾帧模式当前仅送首帧（`input_reference`），尾帧与多参考属 TeamoRouter 扩展未接入；云端配置替换后的端到端生成。
 
 ## 影视角色跨分镜一致性（绑定 + 统一生成上下文）
 

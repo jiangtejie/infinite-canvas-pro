@@ -1,12 +1,15 @@
 import { isTeamorouterBaseUrl } from "@/lib/gemini";
 import { imageToDataUrl } from "@/services/image-storage";
-import { localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
+import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import type { VideoReferenceInput } from "../types";
 import { normalizeVideoResolution } from "./shared";
 
 /** TeamoRouter 视频走 OpenAI-Videos 契约（/v1/videos），而非其 Gemini 原生图片接口。 */
 export function isTeamoVideoConfig(config: AiConfig) {
-    const channel = localChannelForActiveModel(config);
+    const channelId = channelIdForActiveModel(config);
+    const channel = config.channelMode === "remote"
+        ? config.publicChannels.find((item) => item.id === channelId)
+        : localChannelForActiveModel(config);
     return isTeamorouterBaseUrl(channel?.baseUrl || config.baseUrl || "");
 }
 

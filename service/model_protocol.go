@@ -58,6 +58,10 @@ func init() {
 	gemini.models = fetchGeminiAdminChannelModels
 	gemini.testModel = testGeminiChannelModel
 	modelProtocolRegistry[ModelChannelProtocolGemini] = gemini
+	teamorouter := compatible
+	teamorouter.buildURL = BuildGeminiChannelURL
+	teamorouter.models = fetchTeamorouterAdminChannelModels
+	modelProtocolRegistry["model:teamorouter"] = teamorouter
 
 	minimax := compatible
 	minimax.buildURL = func(channel model.ModelChannel, path string) string {
@@ -131,6 +135,7 @@ func init() {
 
 // 发现模型、配置测试与生成的命中规则不同，分别保留原有优先级。
 var modelDiscoveryRules = []modelProtocolRule{
+	{"model:teamorouter", func(channel model.ModelChannel, _ string) bool { return IsTeamorouterBaseURL(channel.BaseURL) }},
 	{ModelChannelProtocolAutoDL, func(channel model.ModelChannel, _ string) bool { return IsAutoDLChannel(channel) }},
 	{ModelChannelProtocolMidjourney, func(channel model.ModelChannel, _ string) bool { return IsMidjourneyChannel(channel) }},
 	{ModelChannelProtocolGemini, func(channel model.ModelChannel, _ string) bool { return IsGeminiChannel(channel) }},
@@ -158,6 +163,9 @@ var modelGenerationTestRules = []modelProtocolRule{
 }
 
 func modelProtocolForChannel(channel model.ModelChannel) modelProtocolAdapter {
+	if IsTeamorouterBaseURL(channel.BaseURL) {
+		return modelProtocolRegistry["model:teamorouter"]
+	}
 	protocol := strings.TrimSpace(channel.Protocol)
 	if adapter, ok := modelProtocolRegistry[protocol]; ok {
 		return adapter

@@ -202,7 +202,7 @@ async function createCanvasImageTaskRequest(config: SeedableImageConfig, prompt:
 export async function fetchImageModels(config: AiConfig) {
     if (config.channelMode === "remote") return config.models;
     const channel = localChannelForActiveModel(config);
-    if (channel?.protocol === "gemini" && isTeamorouterBaseUrl(channel.baseUrl)) return fetchTeamorouterModels(channel.baseUrl, channel.apiKey);
+    if (channel && isTeamorouterBaseUrl(channel.baseUrl)) return fetchTeamorouterModels(channel.baseUrl, channel.apiKey);
     if (channel?.protocol === "gemini") return fetchGeminiModels(channel.baseUrl, channel.apiKey);
     if (channel?.protocol === "autodl") return (await fetchAutoDLWorkflows(channel.baseUrl)).map((workflow) => workflow.uuid);
     if (isMiniMaxChannel(channel)) return [...miniMaxModels];
@@ -244,16 +244,20 @@ export async function fetchImageModels(config: AiConfig) {
 }
 
 async function fetchTeamorouterModels(baseUrl: string, apiKey: string) {
-    const response = await axios.get<{ data?: Array<{ id?: string }>; error?: { message?: string } }>(buildApiUrl(baseUrl, "/models"), {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        timeout: IMAGE_REQUEST_TIMEOUT_SECONDS * 1000,
-    });
-    const models = (response.data.data || [])
-        .map((item) => item.id || "")
-        .filter((name) => name && !/embed|embedding/i.test(name))
-        .sort((a, b) => a.localeCompare(b));
-    if (!models.length) throw new Error("TeamoRouter 模型列表为空");
-    return models;
+    const headers = { Authorization: `Bearer ${apiKey}` };
+    const timeout = IMAGE_REQUEST_TIMEOUT_SECONDS * 1000;
+    const [general, video] = await Promise.all([
+        axios.get<{ data?: Array<{ id?: string }> }>(buildApiUrl(baseUrl, "/models"), { headers, timeout }),
+        axios.get<{ data?: Array<{ id?: string; model_spec?: { offline?: boolean } }> }>(buildApiUrl(baseUrl, "/models?type=video"), { headers, timeout }),
+    ]);
+    const videoIds = new Set((video.data.data || []).filter((item) => item.id && !item.model_spec?.offline).map((item) => item.id!));
+    const models = [
+        ...(general.data.data || []).map((item) => item.id || "").filter((name) => name && !/embed|embedding/i.test(name) && !/seedance|minimax-h3|video/i.test(name)),
+        ...videoIds,
+    ];
+    const unique = Array.from(new Set(models)).sort((a, b) => a.localeCompare(b));
+    if (!unique.length) throw new Error("TeamoRouter 模型列表为空");
+    return unique;
 }
 
 async function fetchGeminiModels(baseUrl: string, apiKey: string) {
