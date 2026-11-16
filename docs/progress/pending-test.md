@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 管理后台设置页自动保存（算力点编辑标脏）
+
+- 修复「模型 / 工作流算力点」表格编辑后保存条仍显示「已保存」、保存按钮禁用的问题：单价 / 分辨率 / 添加 / 删除走 `setModelCost` 等编程式 `form.setFieldValue`，不触发 `onValuesChange`，此前未标脏导致无法手动保存、刷新即丢失。现在四个编辑入口均补 `markDirty("public")`。
+- 浏览器已实测（默认 dev 管理员登录）：改单价后保存条变「有未保存的修改」且保存可用，点击保存成功落库；提示词等直接编辑字段标脏不受影响；权限开关自动保存仍正常。测试写入的单价 / 提示词 / 注册开关均已还原。
+- 未写自动化回归（React + antd 表单交互），以浏览器实测为准。
+
 ## TeamoRouter 视频 API 适配（OpenAI-Videos 适配器）
 
 - 视频渠道 Base URL 含 `teamorouter.ai` 时改走独立适配器（`payload/teamo.ts`，Adapter/Strategy 沿用现有 per-provider 模式）：`POST /v1/videos` 只发 `model/prompt/seconds/size/input_reference`，不再误用 Gemini Veo 或 openai-cloud 的 `content[]/ratio/resolution` 参数；`size` 由画幅+清晰度映射为偶数 WIDTHxHEIGHT，`seconds` 收敛为整数秒。

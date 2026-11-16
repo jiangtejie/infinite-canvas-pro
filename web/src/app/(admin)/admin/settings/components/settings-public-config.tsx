@@ -10,7 +10,7 @@ import type { AdminSettingsController } from "../use-admin-settings";
 import { AdminSettingsSection, AdminSettingsSwitchRow } from "./settings-section";
 
 export function AdminSettingsPublicConfig({ settings }: { settings: AdminSettingsController }) {
-    const { form, channelModels, publicModelLabel, channelWorkflows, publicModels, modelCosts, setModelCosts, orderedPublicModels, publicVideoModels, publicWorkflows, channels } = settings;
+    const { form, channelModels, publicModelLabel, channelWorkflows, publicModels, modelCosts, setModelCosts, orderedPublicModels, publicVideoModels, publicWorkflows, channels, markDirty } = settings;
     return (
         <Form form={form} layout="vertical" initialValues={emptySettings} requiredMark={false} onValuesChange={(changedValues) => { settings.markDirty("public"); if (isPermissionChange(changedValues)) settings.autoSavePermissions(); }}>
             <Flex vertical gap={16}>
@@ -101,14 +101,14 @@ export function AdminSettingsPublicConfig({ settings }: { settings: AdminSetting
                                             placeholder="选择分辨率"
                                             value={(item as { resolution?: string }).resolution || undefined}
                                             options={videoResolutionOptions.map((option) => ({ ...option, disabled: option.value !== (item as { resolution?: string }).resolution && modelCosts.some((cost) => cost.model === item.model && cost.resolution === option.value) }))}
-                                            onChange={(resolution) => setModelCost(form, setModelCosts, item.model, item.credits, resolution, (item as { resolution?: string }).resolution)}
+                                            onChange={(resolution) => { setModelCost(form, setModelCosts, item.model, item.credits, resolution, (item as { resolution?: string }).resolution); markDirty("public"); }}
                                         />
-                                        <Button danger type="text" icon={<DeleteOutlined />} onClick={() => removeModelCost(form, setModelCosts, item.model, (item as { resolution?: string }).resolution || "")} />
+                                        <Button danger type="text" icon={<DeleteOutlined />} onClick={() => { removeModelCost(form, setModelCosts, item.model, (item as { resolution?: string }).resolution || ""); markDirty("public"); }} />
                                     </div>
                                 ) : item.kind === "add" ? (
                                     <div className="flex items-center gap-2">
                                         <span>└─</span>
-                                        <Button type="link" className="!px-0" icon={<PlusOutlined />} disabled={videoResolutionOptions.every((option) => modelCosts.some((cost) => cost.model === item.model && cost.resolution === option.value))} onClick={() => addModelResolutionCost(form, setModelCosts, item.model)}>
+                                        <Button type="link" className="!px-0" icon={<PlusOutlined />} disabled={videoResolutionOptions.every((option) => modelCosts.some((cost) => cost.model === item.model && cost.resolution === option.value))} onClick={() => { addModelResolutionCost(form, setModelCosts, item.model); markDirty("public"); }}>
                                             添加分辨率
                                         </Button>
                                     </div>
@@ -128,7 +128,7 @@ export function AdminSettingsPublicConfig({ settings }: { settings: AdminSetting
                                 render: (_, item) => (
                                     item.kind === "add" ? null : (
                                         <Space.Compact className="!w-full">
-                                            <InputNumber min={0} step={0.01} precision={2} className="!w-full" value={(item as { credits: number }).credits} onChange={(value) => setModelCost(form, setModelCosts, item.model, Number(value) || 0, (item as { resolution?: string }).resolution || "", (item as { resolution?: string }).resolution || "")} />
+                                            <InputNumber min={0} step={0.01} precision={2} className="!w-full" value={(item as { credits: number }).credits} onChange={(value) => { setModelCost(form, setModelCosts, item.model, Number(value) || 0, (item as { resolution?: string }).resolution || "", (item as { resolution?: string }).resolution || ""); markDirty("public"); }} />
                                             <span className="flex h-8 items-center rounded-r-md border border-l-0 border-border bg-muted px-3 text-sm text-muted-foreground">
                                                 点
                                             </span>
