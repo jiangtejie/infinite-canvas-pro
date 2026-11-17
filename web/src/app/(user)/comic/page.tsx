@@ -14,7 +14,7 @@ import { useDownloadFile } from "@/hooks/use-download-file";
 import { errorMessage } from "@/lib/utils";
 import { useComicStore } from "./stores/use-comic-store";
 import type { ComicDirection, ComicFormat, ComicProject } from "./types";
-import { comicStats, parseComicProjectBackup, serializeComicProject } from "./utils/comic-project";
+import { comicStageLabel, comicStats, parseComicProjectBackup, serializeComicProject } from "./utils/comic-project";
 
 const FORMAT_OPTIONS: { value: ComicFormat; label: string }[] = [
     { value: "page", label: "页漫" },
@@ -25,8 +25,6 @@ const DIRECTION_OPTIONS: { value: ComicDirection; label: string }[] = [
     { value: "rtl", label: "右 → 左" },
     { value: "ltr", label: "左 → 右" },
 ];
-
-const stageLabel = (project: ComicProject) => project.stage === "script" ? "剧本" : project.stage === "layout" ? "页布局" : project.stage === "review" ? "审稿" : project.stage === "cast" ? "设定" : "企划";
 
 export default function ComicListPage() {
     const router = useRouter();
@@ -146,7 +144,7 @@ export default function ComicListPage() {
                                     <div className="relative h-28 overflow-hidden border-b border-border/60 bg-background/40">
                                         <span aria-hidden className="absolute font-mono font-bold tabular-nums" style={{ right: -6, top: -30, fontSize: 108, lineHeight: 1, color: "color-mix(in oklch, var(--foreground) 5%, transparent)" }}>{String(index + 1).padStart(2, "0")}</span>
                                         <div className="absolute left-4 top-4 grid size-10 place-items-center rounded-lg border border-border/70 bg-card/80 text-foreground/60"><BookOpen className="size-[18px]" /></div>
-                                        <span className="chip chip-acid absolute bottom-3 left-4">{stageLabel(project)}</span>
+                                        <span className="chip chip-acid absolute bottom-3 left-4">{comicStageLabel(project.stage)}</span>
                                         <span className="chip absolute bottom-3 right-3">{project.format === "strip" ? "条漫" : "页漫"} · {project.direction === "rtl" ? "右→左" : "左→右"}</span>
                                     </div>
                                     <div className="p-5">

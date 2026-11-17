@@ -26,7 +26,6 @@ const quickQualityOptions = [
 
 export function ImageWorkbenchPanel({
     layout,
-    currentLayout,
     prompt,
     references,
     config,
@@ -50,7 +49,6 @@ export function ImageWorkbenchPanel({
     uploadingCount,
 }: {
     layout: WorkbenchLayout;
-    currentLayout: WorkbenchLayout;
     prompt: string;
     references: ReferenceImage[];
     config: AiConfig;
@@ -156,7 +154,7 @@ export function ImageWorkbenchPanel({
     return (
         <WorkbenchSidePanel
             title="生图工作台"
-            currentLayout={currentLayout}
+            currentLayout={layout}
             onLayoutChange={onLayoutChange}
             canGenerate={canGenerate}
             onGenerate={onGenerate}

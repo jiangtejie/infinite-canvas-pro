@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
-import { App, Button, Input, InputNumber, Modal, Select } from "antd";
+import { App, Button, Input, Modal } from "antd";
 import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
@@ -13,20 +13,15 @@ import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useDownloadFile } from "@/hooks/use-download-file";
 import { useFilmStore } from "@/stores/use-film-store";
 import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
+import { FilmProjectSettingsFields } from "./components/film-project-settings-fields";
 import type { FilmAspect, FilmProject, FilmStylePresetId } from "@/lib/film/types";
-import { DEFAULT_FILM_ASPECT, FILM_ASPECT_OPTIONS, filmAspectLabel } from "@/lib/film/film-aspects";
-import { DEFAULT_DIRECTOR_STYLE_ID, DIRECTOR_STYLES, directorStyleLabel } from "@/lib/film/director-styles";
-import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel } from "@/lib/film/film-styles";
+import { DEFAULT_FILM_ASPECT, filmAspectLabel } from "@/lib/film/film-aspects";
+import { DEFAULT_DIRECTOR_STYLE_ID, directorStyleLabel } from "@/lib/film/director-styles";
+import { DEFAULT_FILM_STYLE, filmStyleLabel } from "@/lib/film/film-styles";
 import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
+import { filmStageLabel } from "@/lib/film/film-stages";
 import { errorMessage } from "@/lib/utils";
-
-const STAGE_LABEL: Record<FilmProject["stage"], string> = {
-    script: "剧本",
-    cast: "角色与场景",
-    storyboard: "导演台",
-    edit: "剪辑",
-};
 
 export default function FilmListPage() {
     const router = useRouter();
@@ -218,7 +213,7 @@ export default function FilmListPage() {
                                             <div className="absolute left-4 top-4 grid size-10 place-items-center rounded-lg border border-border/70 bg-card/80 text-foreground/60 backdrop-blur-sm transition-colors duration-300 group-hover:border-acid/40 group-hover:text-acid/80">
                                                 <Clapperboard className="size-[18px]" />
                                             </div>
-                                            <span className="chip chip-acid absolute bottom-3 left-4 inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{STAGE_LABEL[project.stage]}</span>
+                                            <span className="chip chip-acid absolute bottom-3 left-4 inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{filmStageLabel(project.stage)}</span>
                                             {project.stylePreset && project.stylePreset !== "custom" ? (
                                                 <span className="chip absolute bottom-3 right-3 max-w-[45%] truncate">{filmStyleLabel(project.stylePreset)}</span>
                                             ) : project.visualStyle ? (
@@ -302,34 +297,16 @@ export default function FilmListPage() {
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">项目名称</span>
                         <Input autoFocus value={title} placeholder="例如：灌篮少女" onChange={(event) => setTitle(event.target.value)} onPressEnter={create} />
                     </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">画面画幅</span>
-                        <Select value={aspect} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspect(value)} />
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视觉风格预设</span>
-                        <Select
-                            value={stylePreset}
-                            options={FILM_STYLE_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
-                            onChange={(value: FilmStylePresetId) => setStylePreset(value)}
-                        />
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">风格补充（可选）</span>
-                        <Input value={visualStyle} placeholder="例如：低饱和、冷色调、颗粒感" onChange={(event) => setVisualStyle(event.target.value)} />
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">导演风格</span>
-                        <Select
-                            value={directorStyleId}
-                            options={DIRECTOR_STYLES.map((style) => ({ value: style.id, label: `${style.name} · ${style.tagline}` }))}
-                            onChange={(value: string) => setDirectorStyleId(value)}
-                        />
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">目标时长（可选）</span>
-                        <InputNumber className="!w-full" min={1} max={7200} placeholder="成片目标秒数，例如 180" addonAfter="秒" value={targetDuration} onChange={(value) => setTargetDuration(typeof value === "number" ? value : undefined)} />
-                    </label>
+                    <FilmProjectSettingsFields
+                        value={{ aspect, stylePreset, visualStyle, directorStyleId, targetDuration }}
+                        onChange={(patch) => {
+                            if (patch.aspect !== undefined) setAspect(patch.aspect);
+                            if (patch.stylePreset !== undefined) setStylePreset(patch.stylePreset);
+                            if (patch.visualStyle !== undefined) setVisualStyle(patch.visualStyle);
+                            if (patch.directorStyleId !== undefined) setDirectorStyleId(patch.directorStyleId);
+                            if ("targetDuration" in patch) setTargetDuration(patch.targetDuration);
+                        }}
+                    />
                 </div>
             </Modal>
         </div>

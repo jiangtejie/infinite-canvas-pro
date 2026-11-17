@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Input, InputNumber, Modal, Select } from "antd";
+import { Modal } from "antd";
 import { ArrowLeft } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
@@ -15,22 +15,17 @@ import { FilmCastStage } from "../components/film-cast-stage";
 import { FilmEditStage } from "../components/film-edit-stage";
 import { FilmScriptStage } from "../components/film-script-stage";
 import { FilmStoryboardStage } from "../components/film-storyboard-stage";
+import { FilmProjectSettingsFields } from "../components/film-project-settings-fields";
 import { useFilmAssetImage } from "../hooks/use-film-asset-image";
 import { useFilmShotImage } from "../hooks/use-film-shot-image";
 import { useFilmShotVideo } from "../hooks/use-film-shot-video";
 import { useFilmTaskRecovery } from "../hooks/use-film-task-recovery";
 import { useFilmStore } from "@/stores/use-film-store";
 import type { FilmAspect, FilmStage, FilmStylePresetId } from "@/lib/film/types";
-import { DEFAULT_DIRECTOR_STYLE_ID, DIRECTOR_STYLES, directorStyleLabel } from "@/lib/film/director-styles";
-import { FILM_ASPECT_OPTIONS, filmAspectLabel, normalizeFilmAspect } from "@/lib/film/film-aspects";
-import { DEFAULT_FILM_STYLE, FILM_STYLE_PRESETS, filmStyleLabel, normalizeFilmStylePreset } from "@/lib/film/film-styles";
-
-const STAGES: Array<{ key: FilmStage; label: string }> = [
-    { key: "script", label: "剧本" },
-    { key: "cast", label: "角色与场景" },
-    { key: "storyboard", label: "导演台" },
-    { key: "edit", label: "剪辑" },
-];
+import { DEFAULT_DIRECTOR_STYLE_ID, directorStyleLabel } from "@/lib/film/director-styles";
+import { filmAspectLabel, normalizeFilmAspect } from "@/lib/film/film-aspects";
+import { DEFAULT_FILM_STYLE, filmStyleLabel, normalizeFilmStylePreset } from "@/lib/film/film-styles";
+import { FILM_STAGES } from "@/lib/film/film-stages";
 
 export default function FilmProjectPage() {
     const params = useParams<{ id: string }>();
@@ -97,7 +92,7 @@ export default function FilmProjectPage() {
                         <h1 className="truncate text-[15px] font-semibold tracking-tight text-foreground">{project.title}</h1>
                     </div>
                     <nav className="ml-3 hidden h-16 items-center gap-1 sm:flex" aria-label="影视阶段">
-                        {STAGES.map((item, index) => (
+                        {FILM_STAGES.map((item, index) => (
                             <button
                                 key={item.key}
                                 type="button"
@@ -137,7 +132,7 @@ export default function FilmProjectPage() {
                     </span>
                 </div>
                 <div className="relative z-10 flex gap-1 overflow-x-auto border-t border-border/50 px-4 sm:hidden">
-                    {STAGES.map((item) => (
+                    {FILM_STAGES.map((item) => (
                         <button key={item.key} type="button" onClick={() => switchStage(item.key)} className={cn("relative px-3 py-2 text-xs [@media(pointer:coarse)]:py-2.5", currentStage === item.key ? "text-acid" : "text-muted-foreground")}>
                             {item.label}
                         </button>
@@ -221,36 +216,16 @@ export default function FilmProjectPage() {
             >
                 <div className="grid gap-3 py-2">
                     <p className="text-xs leading-6 text-muted-foreground">画幅、视觉风格与导演风格只影响之后的生成和预演校验，已经生成的结果不会自动重做。</p>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">画幅</span>
-                        <Select value={normalizeFilmAspect(aspectDraft)} options={FILM_ASPECT_OPTIONS} onChange={(value: FilmAspect) => setAspectDraft(value)} />
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视觉风格预设</span>
-                        <Select
-                            value={normalizeFilmStylePreset(stylePresetDraft)}
-                            options={FILM_STYLE_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
-                            onChange={(value: FilmStylePresetId) => setStylePresetDraft(value)}
-                        />
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">风格补充</span>
-                        <Input value={visualStyleDraft} placeholder="例如：低饱和、冷色调、颗粒感" onChange={(event) => setVisualStyleDraft(event.target.value)} />
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">导演风格</span>
-                        <Select
-                            value={directorStyleIdDraft}
-                            options={DIRECTOR_STYLES.map((style) => ({ value: style.id, label: `${style.name} · ${style.tagline}` }))}
-                            onChange={(value: string) => setDirectorStyleIdDraft(value)}
-                        />
-                        <span className="text-[11px] leading-5 text-muted-foreground/60">{DIRECTOR_STYLES.find((style) => style.id === directorStyleIdDraft)?.description || ""}</span>
-                    </label>
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">目标时长（可选）</span>
-                        <InputNumber className="!w-full" min={1} max={7200} placeholder="成片目标秒数，例如 180" addonAfter="秒" value={targetDurationDraft} onChange={(value) => setTargetDurationDraft(typeof value === "number" ? value : undefined)} />
-                        <span className="text-[11px] leading-5 text-muted-foreground/60">用于预演校验总时长偏差；留空表示不校验。</span>
-                    </label>
+                    <FilmProjectSettingsFields
+                        value={{ aspect: aspectDraft, stylePreset: stylePresetDraft, visualStyle: visualStyleDraft, directorStyleId: directorStyleIdDraft, targetDuration: targetDurationDraft }}
+                        onChange={(patch) => {
+                            if (patch.aspect !== undefined) setAspectDraft(patch.aspect);
+                            if (patch.stylePreset !== undefined) setStylePresetDraft(patch.stylePreset);
+                            if (patch.visualStyle !== undefined) setVisualStyleDraft(patch.visualStyle);
+                            if (patch.directorStyleId !== undefined) setDirectorStyleIdDraft(patch.directorStyleId);
+                            if ("targetDuration" in patch) setTargetDurationDraft(patch.targetDuration);
+                        }}
+                    />
                 </div>
             </Modal>
         </div>

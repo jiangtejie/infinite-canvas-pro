@@ -1,14 +1,10 @@
 import { dataUrlToFile } from "@/lib/image-utils";
 import { resolveMediaUrl } from "@/services/file-storage";
 import { imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
-import { channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
 import { ReferenceImage } from "@/types/image";
 import { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
-
-export function videoChannelProtocol(config: AiConfig, model: string) {
-    return channelProtocolForConfig({ ...config, model, videoModel: model });
-}
+export { videoChannelProtocol } from "@/services/api/protocols/kling-models";
 
 async function imageReferenceToFile(image: ReferenceImage) {
     return dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) });

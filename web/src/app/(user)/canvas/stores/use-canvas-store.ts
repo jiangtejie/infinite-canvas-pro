@@ -481,6 +481,14 @@ export const useCanvasStore = create<CanvasStore>()(
     ),
 );
 
+/** 生成不与现有项目撞名的默认标题；删除项目后新建也不会复用旧编号。 */
+export function nextCanvasProjectTitle() {
+    const titles = new Set(useCanvasStore.getState().projects.map((project) => project.title));
+    let title = "矩灵画布";
+    for (let i = 1; titles.has(title); i++) title = `矩灵画布 ${i}`;
+    return title;
+}
+
 export function mergeCanvasProjects(
     remoteProjects: CanvasProject[],
     localProjects: CanvasProject[],

@@ -1,7 +1,6 @@
-import { isWorkflowProtocol } from "@/lib/model-channel";
 import { seedanceRatioOptions } from "@/lib/seedance-video";
 import { modelKey } from "@/lib/video-model-capabilities";
-import { channelIdForActiveModel, channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
+import { channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
 
 export const klingV26ModeOptions = [
     { value: "std", title: "标准模式", desc: "(720P 无声)" },
@@ -26,12 +25,21 @@ export const grokVideoModeOptions = [
     { value: "spicy", title: "Spicy" },
 ] as const;
 
+/** 视频渠道协议：与请求 payload 层同一口径，按给定模型作用域解析。 */
+export function videoChannelProtocol(config: AiConfig, model: string) {
+    return channelProtocolForConfig({ ...config, model, videoModel: model });
+}
+
 export function isAPIMartKlingV26Config(config: AiConfig, modelName: string) {
-    return isAPIMartKlingConfig(config, modelName, "kling-v2-6");
+    return isProviderKlingConfig(config, modelName, "kling-v2-6", "apimart");
 }
 
 export function isAPIMartKlingV3Config(config: AiConfig, modelName: string) {
-    return isAPIMartKlingConfig(config, modelName, "kling-v3");
+    return isProviderKlingConfig(config, modelName, "kling-v3", "apimart");
+}
+
+export function isKlingV3Config(config: AiConfig, modelName: string) {
+    return isAPIMartKlingV3Config(config, modelName) || isKIEKlingV3Config(config, modelName);
 }
 
 export function isAPIMartKlingMotionControlConfig(config: AiConfig, modelName: string) {
@@ -53,23 +61,10 @@ export function isKIEKlingMotionControlConfig(config: AiConfig, modelName: strin
     return isProviderKlingConfig(config, modelName, "kling-2-6-motion-control", "kie") || isProviderKlingConfig(config, modelName, "kling-3-0-motion-control", "kie");
 }
 
-function isAPIMartKlingConfig(config: AiConfig, modelName: string, key: string) {
-    return isProviderKlingConfig(config, modelName, key, "apimart");
-}
-
-function isProviderKlingConfig(config: AiConfig, modelName: string, key: string, provider: string) {
+/** Kling 判定唯一口径：归一化型号精确匹配 + 渠道 protocol 字段，不做名称/备注文本猜测。 */
+export function isProviderKlingConfig(config: AiConfig, modelName: string, key: string, provider: string) {
     const model = modelName || config.model || config.videoModel;
-    if (modelKey(model) !== key) return false;
-    const scopedConfig = { ...config, model, videoModel: model };
-    const channelId = channelIdForActiveModel(scopedConfig);
-    const channels = config.channelMode === "remote"
-        ? config.publicChannels
-        : config.localChannels.filter((item) => !isWorkflowProtocol(item.protocol || ""));
-    const preferredChannelId = config.videoChannelId || channelId;
-    const channel = channels.find((item) => (item?.id || "") === preferredChannelId) || channels.find((item) => (item?.id || "") === channelId) || channels[0];
-    const record = channel as { id?: string; name?: string; baseUrl?: string; remark?: string } | undefined;
-    const text = [record?.id, record?.name, record?.baseUrl, record?.remark].filter(Boolean).join(" ").toLowerCase();
-    return text.includes(provider);
+    return modelKey(model) === key && videoChannelProtocol(config, model) === provider;
 }
 
 export function normalizeKlingV26Ratio(value: string) {

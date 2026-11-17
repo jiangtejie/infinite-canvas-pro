@@ -1,5 +1,5 @@
 import { Plus, BookOpen, ClipboardPaste, FolderPlus, Music2, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
-import { App, Button, Input, Switch, Tag } from "antd";
+import { Button, Input, Switch, Tag } from "antd";
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { ModelPicker } from "@/components/model-picker";
@@ -11,6 +11,7 @@ import type { ReferenceImage } from "@/types/image";
 import { defaultKlingElementList, defaultKlingMultiPrompts, normalizeKlingElementList, normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount, type AssetPickerTarget, type UpdateAiConfig } from "../history";
 import { klingModeOptions, klingRatioOptions, klingSecondsOptions, klingV3DefaultSeconds, klingV3SecondsRange } from "@/components/workbench/kling-parameter-options";
 import { ReferenceOrderButtons } from "./reference-strips";
+import { usePasteClipboardText } from "@/hooks/use-paste-clipboard-text";
 
 const TEXT = {
     prompt: "提示词",
@@ -134,7 +135,7 @@ export function KlingV26WorkbenchPanel({
     onMoveElementReference: (elementIndex: number, index: number, offset: number) => void;
     onGenerate: () => void;
 }) {
-    const { message } = App.useApp();
+    const pasteClipboardText = usePasteClipboardText();
     const mode = isKlingV3 && config.videoMode === "4k" ? "4k" : config.videoMode === "pro" ? "pro" : "std";
     const seconds = isKlingV3 ? String(config.videoSeconds ?? "") : normalizeKlingV26Seconds(config.videoSeconds);
     const ratio = normalizeKlingV26Ratio(config.size);
@@ -206,33 +207,9 @@ export function KlingV26WorkbenchPanel({
         updateElementList(elementList.filter((_, itemIndex) => itemIndex !== index));
     };
 
-    const pasteMultiPrompt = async (index: number) => {
-        try {
-            const text = (await navigator.clipboard.readText()).trim();
-            if (!text) {
-                message.error("剪切板里没有可读取的文本");
-                return;
-            }
-            updateMultiPrompt(index, { prompt: text });
-            message.success("已读取剪切板文本");
-        } catch {
-            message.error("剪切板里没有可读取的文本");
-        }
-    };
+    const pasteMultiPrompt = (index: number) => pasteClipboardText((text) => updateMultiPrompt(index, { prompt: text }));
 
-    const pasteNegativePrompt = async () => {
-        try {
-            const text = (await navigator.clipboard.readText()).trim();
-            if (!text) {
-                message.error("剪切板里没有可读取的文本");
-                return;
-            }
-            onNegativePromptChange(text);
-            message.success("已读取剪切板文本");
-        } catch {
-            message.error("剪切板里没有可读取的文本");
-        }
-    };
+    const pasteNegativePrompt = () => pasteClipboardText(onNegativePromptChange);
 
     return (
         <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:min-h-0">

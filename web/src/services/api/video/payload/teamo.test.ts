@@ -10,7 +10,7 @@ import type { AiConfig } from "@/stores/use-config-store";
 import { filterChannelModelsByCapability } from "@/stores/use-config-store";
 import { createTeamoVideoRequestBody, isTeamoVideoConfig, teamoVideoSeconds, teamoVideoSize } from "./teamo";
 import { aiVideoPollUrl, createVideoRequestBody } from "./request";
-import type { VideoReferenceInput } from "../types";
+import type { VideoReferenceInput, VideoResponse } from "../types";
 
 const config = (overrides: Partial<AiConfig> = {}): AiConfig => ({
     channelMode: "local",
@@ -90,7 +90,7 @@ test("TeamoRouter Gemini 渠道按视频模型轮询和下载", async () => {
         keys: () => Promise.resolve([]),
         length: () => Promise.resolve(0),
         iterate: () => Promise.resolve(),
-    });
+    } as unknown as Parameters<typeof localforage.defineDriver>[0]);
     await mediaStore.setDriver("teamo-test-memory");
     (mediaStore as unknown as { _driverSet: Promise<unknown> })._driverSet = Promise.resolve();
     URL.createObjectURL = () => "blob:teamo-test";
@@ -106,7 +106,7 @@ test("TeamoRouter Gemini 渠道按视频模型轮询和下载", async () => {
     };
     try {
         const local = config({ model: "gemini-3.1-flash-image", videoModel: config().model, localChannels: [{ id: "teamo", protocol: "gemini", name: "teamo", baseUrl: "https://api.teamorouter.ai", apiKey: "unused", models: [config().model] }] });
-        await pollCreatedVideoGenerationTask(local, { id: "video_1", task_id: "video_1", object: "video", status: "queued" }, { initialDelayMs: 0 });
+        await pollCreatedVideoGenerationTask(local, { id: "video_1", task_id: "video_1", object: "video", status: "queued" } as VideoResponse, { initialDelayMs: 0 });
         assert.equal(requests[0]?.url, "https://api.teamorouter.ai/v1/videos/video_1");
         assert.equal(requests[1]?.url, "https://api.teamorouter.ai/v1/videos/video_1/content?model=seedance-2-0-mini-text-to-video-basic");
     } finally {

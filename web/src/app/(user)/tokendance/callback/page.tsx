@@ -4,11 +4,11 @@ import { App, Button, Result, Spin } from "antd";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import type { TokenDanceOAuthState } from "@/lib/tokendance-oauth";
+import { exchangeTokenDanceCode, type TokenDanceOAuthState } from "@/lib/tokendance-oauth";
 import { fetchUserConfig, syncUserModelConfig } from "@/services/api/user-config";
 import { normalizeLocalChannels, useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, safeInternalRedirect } from "@/lib/utils";
 
 export default function TokenDanceCallbackPage() {
     const { message } = App.useApp();
@@ -35,33 +35,9 @@ export default function TokenDanceCallbackPage() {
                     throw new Error("授权信息不完整，请重新登录");
                 }
 
-                const returnTo = typeof state.returnTo === "string"
-                    ? state.returnTo.replace(/[\t\n\r]/g, "")
-                    : "/";
-                const safeReturnTo = returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.startsWith("/\\")
-                    ? returnTo
-                    : "/";
+                const safeReturnTo = safeInternalRedirect(state.returnTo);
 
-                const response = await fetch("https://tokendance.space/portal/api/v1/auth/keys", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        code,
-                        code_verifier: state.verifier,
-                        code_challenge_method: "S256",
-                    }),
-                });
-                const data = await response.json().catch(() => ({})) as {
-                    key?: string;
-                    message?: string;
-                    error?: string;
-                };
-
-                if (!response.ok || typeof data.key !== "string" || !data.key.trim()) {
-                    throw new Error(data.message || data.error || "TokenDance 授权失败");
-                }
-
-                const key = data.key.trim();
+                const key = await exchangeTokenDanceCode(code, state.verifier);
 
                 if (state.target === "admin") {
                     if (!state.draft || typeof state.draft !== "object") {

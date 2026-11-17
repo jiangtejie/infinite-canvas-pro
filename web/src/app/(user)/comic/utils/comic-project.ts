@@ -261,6 +261,12 @@ export function comicStats(project: ComicProject) {
     };
 }
 
+export const COMIC_STAGE_LABELS: Record<ComicProject["stage"], string> = { concept: "企划", cast: "设定", script: "剧本", layout: "页布局", review: "审稿" };
+
+export function comicStageLabel(stage: ComicProject["stage"]) {
+    return COMIC_STAGE_LABELS[stage];
+}
+
 type ComicPageIssue = { level: "error" | "warning"; message: string };
 
 export function comicPageCompositionSize(format: ComicProject["format"]) {

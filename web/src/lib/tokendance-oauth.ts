@@ -41,3 +41,17 @@ export async function startTokenDanceOAuth(context: TokenDanceOAuthContext) {
     authUrl.searchParams.set("key_name", "Infinite Canvas");
     window.location.assign(authUrl);
 }
+
+/** 用授权码换取 API Key；失败时抛出带服务端文案的错误。 */
+export async function exchangeTokenDanceCode(code: string, verifier: string): Promise<string> {
+    const response = await fetch("https://tokendance.space/portal/api/v1/auth/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, code_verifier: verifier, code_challenge_method: "S256" }),
+    });
+    const data = await response.json().catch(() => ({})) as { key?: string; message?: string; error?: string };
+    if (!response.ok || typeof data.key !== "string" || !data.key.trim()) {
+        throw new Error(data.message || data.error || "TokenDance 授权失败");
+    }
+    return data.key.trim();
+}

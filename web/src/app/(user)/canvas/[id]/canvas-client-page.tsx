@@ -57,11 +57,12 @@ import { type CanvasAlignKind } from "../components/canvas-toolbar";
 import { CanvasRefreshShell } from "./components/canvas-refresh-shell";
 import { CanvasComicBookOverlay } from "../components/canvas-comic-book-overlay";
 import { CANVAS_ASSET_DRAG_TYPE } from "../components/canvas-side-panel";
-import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, useCanvasStore } from "../stores/use-canvas-store";
+import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, nextCanvasProjectTitle, useCanvasStore } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { buildNodeMentionReferences, isCanvasReferenceNode } from "../utils/canvas-resource-references";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
+import { isStorageNotConfiguredError } from "@/services/storage-errors";
 
 export type CanvasOverlay =
     | { kind: "prompt"; nodeId: string }
@@ -1013,7 +1014,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
 
     const createAndOpenProject = useCallback(() => {
-        const id = createProject(`矩灵画布 ${useCanvasStore.getState().projects.length + 1}`);
+        const id = createProject(nextCanvasProjectTitle());
         router.push(`/canvas/${id}`);
     }, [createProject, router]);
 
@@ -1488,16 +1489,19 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         [message, openOverlay, selectOnly, setSelectedConnectionId, setContextMenu],
     );
 
-    const uploadNodeMediaToCloud = useCallback(async (node: CanvasNodeData) => {
-        if ((node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Audio) || !node.metadata?.content || node.metadata.storageKey?.startsWith("server:") || uploadingMediaNodeIdsRef.current.has(node.id)) return;
-        uploadingMediaNodeIdsRef.current.add(node.id);
-        const isAudio = node.type === CanvasNodeType.Audio;
-        const mediaName = isAudio ? "音频" : "视频";
+    const uploadNodeToCloud = useCallback(async (node: CanvasNodeData) => {
+        const isImage = isCanvasImageNodeType(node.type);
+        const isMedia = node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio;
+        if ((!isImage && !isMedia) || !node.metadata?.content || node.metadata.storageKey?.startsWith("server:")) return;
+        const uploading = isImage ? uploadingImageNodeIdsRef.current : uploadingMediaNodeIdsRef.current;
+        if (uploading.has(node.id)) return;
+        uploading.add(node.id);
+        const mediaName = isImage ? "图片" : node.type === CanvasNodeType.Audio ? "音频" : "视频";
         const hideLoading = message.loading(`正在上传${mediaName}至云存储...`, 0);
         try {
-            const mediaUrl = await resolveMediaUrl(node.metadata.storageKey, node.metadata.content);
-            const filename = `canvas-${node.type}-${node.id}.${isAudio ? audioExtension(node.metadata.mimeType) : "mp4"}`;
-            const uploaded = await uploadRemoteMediaToServer(mediaUrl, filename);
+            const uploaded = isImage
+                ? await uploadRemoteImageToServer(await resolveImageUrl(node.metadata.storageKey, node.metadata.content), "canvas-image-" + node.id + ".png")
+                : await uploadRemoteMediaToServer(await resolveMediaUrl(node.metadata.storageKey, node.metadata.content), `canvas-${node.type}-${node.id}.${node.type === CanvasNodeType.Audio ? audioExtension(node.metadata.mimeType) : "mp4"}`);
             setNodes((nodes) => nodes.some((item) => item.id === node.id && item.metadata?.content === node.metadata?.content && item.metadata?.storageKey === node.metadata?.storageKey) ? nodes.map((item) => (item.id === node.id ? {
                 ...item,
                 metadata: {
@@ -1510,59 +1514,23 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                     naturalHeight: uploaded.height || item.metadata?.naturalHeight,
                 },
             } : item)) : nodes);
+            if (isImage) {
+                setChatSessions((sessions) => syncAssistantReferences(sessions, [{
+                    ...node,
+                    metadata: {
+                        ...node.metadata,
+                        content: uploaded.url,
+                        storageKey: uploaded.storageKey,
+                        mimeType: uploaded.mimeType,
+                    },
+                }], false, node));
+            }
             message.success(`${mediaName}已上传至云存储`);
         } catch (error) {
-            const errorMessage = toErrorMessage(error, "");
-            if (errorMessage.includes("服务端对象存储未启用") || errorMessage.includes("用户对象存储配置不完整")) {
-                message.error("未添加云存储");
-            } else {
-                message.error(errorMessage || `${mediaName}上传失败`);
-            }
+            message.error(isStorageNotConfiguredError(error) ? "未添加云存储" : toErrorMessage(error, `${mediaName}上传失败`));
         } finally {
             hideLoading();
-            uploadingMediaNodeIdsRef.current.delete(node.id);
-        }
-    }, [message]);
-
-    const uploadNodeImageToCloud = useCallback(async (node: CanvasNodeData) => {
-        if (!isCanvasImageNodeType(node.type) || !node.metadata?.content || node.metadata.storageKey?.startsWith("server:") || uploadingImageNodeIdsRef.current.has(node.id)) return;
-        uploadingImageNodeIdsRef.current.add(node.id);
-        const hideLoading = message.loading("正在上传图片至云存储...", 0);
-        try {
-            const imageUrl = await resolveImageUrl(node.metadata.storageKey, node.metadata.content);
-            const uploaded = await uploadRemoteImageToServer(imageUrl, "canvas-image-" + node.id + ".png");
-            setNodes((nodes) => nodes.some((item) => item.id === node.id && item.metadata?.content === node.metadata?.content && item.metadata?.storageKey === node.metadata?.storageKey) ? nodes.map((item) => (item.id === node.id ? {
-                ...item,
-                metadata: {
-                    ...item.metadata,
-                    content: uploaded.url,
-                    storageKey: uploaded.storageKey,
-                    bytes: uploaded.bytes,
-                    mimeType: uploaded.mimeType,
-                    naturalWidth: uploaded.width || item.metadata?.naturalWidth,
-                    naturalHeight: uploaded.height || item.metadata?.naturalHeight,
-                },
-            } : item)) : nodes);
-            setChatSessions((sessions) => syncAssistantReferences(sessions, [{
-                ...node,
-                metadata: {
-                    ...node.metadata,
-                    content: uploaded.url,
-                    storageKey: uploaded.storageKey,
-                    mimeType: uploaded.mimeType,
-                },
-            }], false, node));
-            message.success("图片已上传至云存储");
-        } catch (error) {
-            const errorMessage = toErrorMessage(error, "");
-            if (errorMessage.includes("服务端对象存储未启用") || errorMessage.includes("用户对象存储配置不完整")) {
-                message.error("未添加云存储");
-            } else {
-                message.error(errorMessage || "图片上传失败");
-            }
-        } finally {
-            hideLoading();
-            uploadingImageNodeIdsRef.current.delete(node.id);
+            uploading.delete(node.id);
         }
     }, [message]);
 
@@ -2000,7 +1968,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 if (result.blocked) message.warning(`已清理 ${result.removed || 0} 个素材节点，${result.blocked} 个已连接下游所以保留`);
                 else message.success(`已清理 ${result.removed || 0} 个素材节点`);
             },
-            downloadNodeImage, saveNodeAsset, uploadNodeMediaToCloud, uploadNodeImageToCloud,
+            downloadNodeImage, saveNodeAsset, uploadNodeToCloud,
             effectiveConfig, setMaskEditModel, setMaskEditChannelId, createImageReversePromptNodes,
             toggleNodeFreeResize, deleteNodes, alignSelectedNodes, groupSelectedNodes,
             ungroupSelected, duplicateSelectedNodes, setCanvasTool, setBackgroundMode,

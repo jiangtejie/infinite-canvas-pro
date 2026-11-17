@@ -2,13 +2,13 @@
 
 import { ArrowRight, ArrowUpRight, Clapperboard, ExternalLink, ImageIcon, Maximize2, PenLine } from "lucide-react";
 import Link from "next/link";
-import { type CSSProperties, type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Image, Tag } from "antd";
 import { nanoid } from "nanoid";
 import { useRouter } from "next/navigation";
 
 import { navigationTools } from "@/constant/navigation-tools";
-import { EmptyState } from "@/components/ui/state-panel";
+import { EmptyState, ErrorState } from "@/components/ui/state-panel";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
 import { TypewriterText } from "@/components/ui/typewriter-text";
 import { PunkAura } from "@/components/ui/punk-aura";
@@ -18,7 +18,7 @@ import { uploadImage } from "@/services/image-storage";
 import { useEffectiveConfig } from "@/stores/use-config-store";
 import { AssetPickerModal } from "./canvas/components/asset-picker-modal";
 import { CanvasAssistantComposer } from "./canvas/components/canvas-assistant-composer";
-import { useCanvasStore } from "./canvas/stores/use-canvas-store";
+import { useCanvasStore, nextCanvasProjectTitle } from "./canvas/stores/use-canvas-store";
 import { canvasResourceLabel } from "./canvas/utils/canvas-resource-references";
 import { HomeBannerCarousel, type HomeBanner } from "./home-banner-carousel";
 import {
@@ -105,7 +105,8 @@ export default function IndexPage() {
     const pendingAssetCountsRef = useRef<Record<InsertAssetPayload["kind"], number>>({ text: 0, image: 0, video: 0, audio: 0 });
     const recentProjects = useMemo(() => [...projects].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, 3), [projects]);
 
-    useEffect(() => {
+    const loadPromptShowcase = useCallback(() => {
+        setPromptShowcaseStatus("loading");
         void fetchPrompts({ pageSize: 12 })
             .then((data) => {
                 setPromptShowcase(data.items);
@@ -113,6 +114,10 @@ export default function IndexPage() {
             })
             .catch(() => setPromptShowcaseStatus("error"));
     }, []);
+
+    useEffect(() => {
+        loadPromptShowcase();
+    }, [loadPromptShowcase]);
 
     const addPendingAsset = (payload: InsertAssetPayload) => {
         const asset = toPendingAgentAsset(payload, canvasResourceLabel(payload.kind, pendingAssetCountsRef.current[payload.kind]++));
@@ -151,10 +156,7 @@ export default function IndexPage() {
             return;
         }
         setSubmitting(true);
-        const titles = new Set(useCanvasStore.getState().projects.map(({ title }) => title));
-        let title = "矩灵画布";
-        for (let i = 1; titles.has(title); i++) title = `矩灵画布 ${i}`;
-        const projectId = createProject(title, {
+        const projectId = createProject(nextCanvasProjectTitle(), {
             agentConfig,
             pendingAgentRequest: { prompt: text, assets: pendingAssets.filter((asset) => referenceIds.includes(asset.nodeId)), skills: selectedSkills },
         });
@@ -363,7 +365,9 @@ export default function IndexPage() {
                             description="去提示词库挑几条灵感，收藏后就会出现在这里。"
                             action={<Button href="/prompts">浏览提示词库</Button>}
                         />
-                    ) : null}
+                    ) : (
+                        <ErrorState className="rounded-xl border border-dashed border-border bg-card/40 py-14" description="提示词加载失败，请稍后重试。" onRetry={loadPromptShowcase} />
+                    )}
                 </section>
             </div>
             <AssetPickerModal

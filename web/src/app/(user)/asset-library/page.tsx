@@ -44,57 +44,23 @@ export default function AssetLibraryPage() {
     };
 
     const saveToMyAssets = async (asset: AssetLibraryItem) => {
+        const alreadySaved = () => useAssetStore.getState().assets.some((item) => item.metadata?.source === "asset-library" && item.metadata.assetId === asset.id);
+        const base = { title: asset.title, coverUrl: asset.coverUrl, tags: asset.tags, category: asset.category, source: "素材库", metadata: { source: "asset-library", assetId: asset.id } };
         try {
-            if (useAssetStore.getState().assets.some((item) => item.metadata?.source === "asset-library" && item.metadata.assetId === asset.id)) return void message.info("该素材已在我的素材中");
+            if (alreadySaved()) return void message.info("该素材已在我的素材中");
             if (asset.type === "image") {
                 const blob = await (await fetch(getProxyUrl(asset.url))).blob();
                 const bitmap = await createImageBitmap(blob);
                 const { width, height } = bitmap;
                 bitmap.close();
-                if (useAssetStore.getState().assets.some((item) => item.metadata?.source === "asset-library" && item.metadata.assetId === asset.id)) return void message.info("该素材已在我的素材中");
-                addAsset({
-                    kind: "image",
-                    title: asset.title,
-                    coverUrl: asset.coverUrl,
-                    tags: asset.tags,
-                    category: asset.category,
-                    source: "素材库",
-                    data: { dataUrl: asset.url, width, height, bytes: blob.size, mimeType: blob.type || "image/*" },
-                    metadata: { source: "asset-library", assetId: asset.id },
-                });
+                if (alreadySaved()) return void message.info("该素材已在我的素材中");
+                addAsset({ ...base, kind: "image", data: { dataUrl: asset.url, width, height, bytes: blob.size, mimeType: blob.type || "image/*" } });
             } else if (asset.type === "video") {
-                addAsset({
-                    kind: "video",
-                    title: asset.title,
-                    coverUrl: asset.coverUrl,
-                    tags: asset.tags,
-                    category: asset.category,
-                    source: "素材库",
-                    data: { url: asset.url, width: 0, height: 0, bytes: 0, mimeType: "video/mp4" },
-                    metadata: { source: "asset-library", assetId: asset.id },
-                });
+                addAsset({ ...base, kind: "video", data: { url: asset.url, width: 0, height: 0, bytes: 0, mimeType: "video/mp4" } });
             } else if (asset.type === "audio") {
-                addAsset({
-                    kind: "audio",
-                    title: asset.title,
-                    coverUrl: asset.coverUrl,
-                    tags: asset.tags,
-                    category: asset.category,
-                    source: "素材库",
-                    data: { url: asset.url, mimeType: "audio/mpeg" },
-                    metadata: { source: "asset-library", assetId: asset.id },
-                });
+                addAsset({ ...base, kind: "audio", data: { url: asset.url, mimeType: "audio/mpeg" } });
             } else {
-                addAsset({
-                    kind: "text",
-                    title: asset.title,
-                    coverUrl: asset.coverUrl,
-                    tags: asset.tags,
-                    category: asset.category,
-                    source: "素材库",
-                    data: { content: asset.content },
-                    metadata: { source: "asset-library", assetId: asset.id },
-                });
+                addAsset({ ...base, kind: "text", data: { content: asset.content } });
             }
             message.success("已加入我的素材");
         } catch {

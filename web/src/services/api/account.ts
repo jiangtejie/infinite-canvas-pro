@@ -2,6 +2,13 @@ import { apiGet, apiPost } from "./request";
 import type { AuthUser } from "./auth";
 
 export type CreditLog = { id: string; type: string; amount: number; balance: number; remark: string; createdAt: string };
+
+export const CREDIT_TYPE_LABELS: Record<string, string> = {
+    admin_adjust: "后台调整",
+    ai_consume: "AI 消耗",
+    ai_refund: "失败返还",
+    recharge: "充值",
+};
 export type RechargePackage = { id: string; name: string; amountFen: number; credits: number; bonus: number };
 export type RechargeOrder = { id: string; orderNo: string; packageName: string; amountFen: number; credits: number; status: string; codeUrl?: string; expiresAt: string; createdAt: string };
 export type InvoiceRequest = { id: string; orderNo: string; title: string; taxNumber: string; email: string; status: string; createdAt: string };

@@ -11,7 +11,7 @@ import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useDownloadFile } from "@/hooks/use-download-file";
 import type { ComicProject } from "../types";
 import { useComicStore } from "../stores/use-comic-store";
-import { comicStats, serializeComicProject } from "../utils/comic-project";
+import { COMIC_STAGE_LABELS, comicStageLabel, comicStats, serializeComicProject } from "../utils/comic-project";
 import { ComicCanvasSyncDialog } from "./components/comic-canvas-sync-dialog";
 import { ComicCastStage } from "./components/comic-cast-stage";
 import { ComicConceptStage } from "./components/comic-concept-stage";
@@ -55,7 +55,7 @@ export default function ComicWorkspacePage() {
                     description={project.logline || "从企划开始，把章节、页和格拆到可以作画的粒度。"}
                     meta={
                         <>
-                            <span className="chip chip-acid inline-flex items-center gap-1.5"><BookOpen className="size-3" />{project.stage === "script" ? "剧本" : project.stage === "layout" ? "页布局" : project.stage === "cast" ? "设定" : project.stage === "review" ? "审稿" : "企划"}</span>
+                            <span className="chip chip-acid inline-flex items-center gap-1.5"><BookOpen className="size-3" />{comicStageLabel(project.stage)}</span>
                             <span className="chip">{project.format === "strip" ? "条漫" : "页漫"} · {project.direction === "rtl" ? "右→左" : "左→右"}</span>
                             <span className="chip">{stats.chapters} 章 · {stats.pages} 页 · {stats.panels} 格</span>
                             <span className="chip">{(project.characters || []).length} 角色 · {(project.locations || []).length} 场景</span>
@@ -66,7 +66,7 @@ export default function ComicWorkspacePage() {
                 />
 
                 <div className="flex items-center justify-between gap-3">
-                    <Segmented value={project.stage} options={[{ label: "企划", value: "concept" }, { label: "设定", value: "cast" }, { label: "剧本", value: "script" }, { label: "页布局", value: "layout" }, { label: "审稿", value: "review" }]} onChange={(stage) => updateProject(project.id, { stage: stage as typeof project.stage })} />
+                    <Segmented value={project.stage} options={(Object.entries(COMIC_STAGE_LABELS) as Array<[typeof project.stage, string]>).map(([value, label]) => ({ label, value }))} onChange={(stage) => updateProject(project.id, { stage: stage as typeof project.stage })} />
                     <span className="text-[11px] text-muted-foreground/60">编辑页格、布局或重新出图会自动退回草稿；贴字与成品导出统一在画布漫画册。</span>
                 </div>
 

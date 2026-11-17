@@ -9,17 +9,11 @@ import type { ReactNode } from "react";
 
 import { cn, errorMessage } from "@/lib/utils";
 import { fetchAdminOverview } from "@/services/api/admin";
+import { CREDIT_TYPE_LABELS } from "@/services/api/account";
 import { useUserStore } from "@/stores/use-user-store";
 
 import { AdminPageHeader } from "./components/admin-page-header";
 import { OverviewPanel, OverviewStatCard, OverviewTrendChart } from "./components/overview/overview-widgets";
-
-const creditTypeLabels: Record<string, string> = {
-    admin_adjust: "后台调整",
-    ai_consume: "模型消费",
-    ai_refund: "失败返还",
-    recharge: "充值",
-};
 
 const quickLinks = [
     { href: "/admin/users", label: "用户管理" },
@@ -181,7 +175,7 @@ export default function AdminOverviewPage() {
                                     <div className="min-w-0">
                                         <p className="truncate text-[12px] font-medium text-foreground">{log.userDisplayName || "未知用户"}</p>
                                         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                                            {formatTime(log.createdAt)} · {creditTypeLabels[log.type] || log.type}
+                                            {formatTime(log.createdAt)} · {CREDIT_TYPE_LABELS[log.type] || log.type}
                                         </p>
                                     </div>
                                     <div className="shrink-0 text-right">

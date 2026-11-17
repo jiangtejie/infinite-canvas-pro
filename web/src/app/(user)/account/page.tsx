@@ -5,12 +5,13 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CreditCard, FileText, LockKeyhole, ReceiptText, Wallet } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn, errorMessage } from "@/lib/utils";
 import { useUserStore } from "@/stores/use-user-store";
 import {
     changeAccountPassword,
     createInvoice,
     createRechargeOrder,
+    CREDIT_TYPE_LABELS,
     fetchAccountProfile,
     fetchCreditLogs,
     fetchInvoices,
@@ -68,7 +69,7 @@ export default function AccountPage() {
                 setLogTotal(ls.total);
                 setInvoices(inv);
             })
-            .catch((error) => message.error(error.message));
+            .catch((error) => message.error(errorMessage(error, "账户信息加载失败")));
     }, [message, setSession, token]);
 
     useEffect(() => {
@@ -114,7 +115,7 @@ export default function AccountPage() {
             setSession(token, await updateAccountProfile(values, token));
             message.success("资料已保存");
         } catch (error) {
-            message.error((error as Error).message);
+            message.error(errorMessage(error, "资料保存失败"));
         } finally {
             setSaving(false);
         }
@@ -128,7 +129,7 @@ export default function AccountPage() {
             message.success("密码已修改，请重新登录");
             router.replace("/login?redirect=%2Faccount");
         } catch (error) {
-            message.error((error as Error).message);
+            message.error(errorMessage(error, "密码修改失败"));
         } finally {
             setSaving(false);
         }
@@ -138,7 +139,7 @@ export default function AccountPage() {
         try {
             setActiveOrder(await createRechargeOrder(pkg.id, token));
         } catch (error) {
-            message.error((error as Error).message);
+            message.error(errorMessage(error, "创建充值订单失败"));
         }
     }
 
@@ -148,7 +149,7 @@ export default function AccountPage() {
             setInvoices((old) => [item, ...old]);
             message.success("开票申请已提交");
         } catch (error) {
-            message.error((error as Error).message);
+            message.error(errorMessage(error, "开票申请提交失败"));
         }
     }
 
@@ -159,7 +160,7 @@ export default function AccountPage() {
             setOrderTotal(result.total);
             setOrderPage(page);
         } catch (error) {
-            message.error((error as Error).message);
+            message.error(errorMessage(error, "读取充值订单失败"));
         }
     }
 
@@ -170,7 +171,7 @@ export default function AccountPage() {
             setLogTotal(result.total);
             setLogPage(page);
         } catch (error) {
-            message.error((error as Error).message);
+            message.error(errorMessage(error, "读取积分流水失败"));
         }
     }
 
@@ -347,8 +348,8 @@ export default function AccountPage() {
                                 pagination={{ current: logPage, pageSize: PAGE_SIZE, total: logTotal, showSizeChanger: false, hideOnSinglePage: true, onChange: (page) => void loadLogs(page) }}
                                 locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无积分流水" /> }}
                                 columns={[
-                                    { title: "类型", dataIndex: "type", align: "center", render: (value: string) => ({ recharge: "充值", ai_consume: "AI 消耗", ai_refund: "AI 退款", admin_adjust: "管理员调整" })[value] || value },
-                                    { title: "变动", dataIndex: "amount", align: "right", render: (value: number) => <span className={cn("tabular-nums", value > 0 ? "text-emerald-500" : "text-rose-500")}>{value > 0 ? "+" : ""}{value}</span> },
+                                    { title: "类型", dataIndex: "type", align: "center", render: (value: string) => CREDIT_TYPE_LABELS[value] || value },
+                                    { title: "变动", dataIndex: "amount", align: "right", render: (value: number) => <span className={cn("tabular-nums", value > 0 ? "text-[var(--acid-ink)]" : "text-[var(--hot)]")}>{value > 0 ? "+" : ""}{value}</span> },
                                     { title: "余额", dataIndex: "balance", align: "right", render: (value: number) => <span className="tabular-nums">{value}</span> },
                                     { title: "说明", dataIndex: "remark" },
                                     { title: "时间", dataIndex: "createdAt" },

@@ -68,8 +68,7 @@ export type CanvasStageOverlaysModel = {
     extractAudio: (node: CanvasNodeData, trim?: { start: number; end: number; }) => Promise<string | undefined>;
     downloadNodeImage: (node: CanvasNodeData) => void;
     saveNodeAsset: (node: CanvasNodeData) => Promise<boolean | undefined>;
-    uploadNodeMediaToCloud: (node: CanvasNodeData) => Promise<void>;
-    uploadNodeImageToCloud: (node: CanvasNodeData) => Promise<void>;
+    uploadNodeToCloud: (node: CanvasNodeData) => Promise<void>;
     effectiveConfig: AiConfig;
     setMaskEditModel: Dispatch<SetStateAction<string>>;
     setMaskEditChannelId: Dispatch<SetStateAction<string>>;
@@ -158,8 +157,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         extractAudio,
         downloadNodeImage,
         saveNodeAsset,
-        uploadNodeMediaToCloud,
-        uploadNodeImageToCloud,
+        uploadNodeToCloud,
         effectiveConfig,
         setMaskEditModel,
         setMaskEditChannelId,
@@ -238,8 +236,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onTrimAudio={(node) => openOverlay({ kind: "audioTrim", nodeId: node.id })}
                     onDownload={downloadNodeImage}
                     onSaveAsset={(node) => void saveNodeAsset(node)}
-                    onUploadMediaToCloud={(node) => void uploadNodeMediaToCloud(node)}
-                    onUploadImageToCloud={(node) => void uploadNodeImageToCloud(node)}
+                    onUploadMediaToCloud={(node) => void uploadNodeToCloud(node)}
+                    onUploadImageToCloud={(node) => void uploadNodeToCloud(node)}
                     onMaskEdit={(node) => {
                         const nodeConfig = buildGenerationConfig(effectiveConfig, node, "image");
                         setMaskEditModel(nodeConfig.model);

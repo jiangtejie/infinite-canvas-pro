@@ -9,23 +9,13 @@ import { Suspense, useEffect, useState } from "react";
 import { PunkAura } from "@/components/ui/punk-aura";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
-import { errorMessage } from "@/lib/utils";
+import { errorMessage, safeInternalRedirect } from "@/lib/utils";
 
 type LoginFormValues = {
     username: string;
     password: string;
     confirmPassword?: string;
 };
-
-// 仅放行站内相对路径，拦截开放重定向。浏览器会忽略 URL 中的 Tab/换行/回车，并把
-// //host 或 /\host 解析为协议相对的跨站地址，因此先剥离控制字符，再拒绝 // 与 /\ 前缀。
-function safeRedirect(value: string | null): string {
-    const cleaned = (value ?? "").replace(/[\t\n\r]/g, "");
-    if (!cleaned.startsWith("/") || cleaned.startsWith("//") || cleaned.startsWith("/\\")) {
-        return "/";
-    }
-    return cleaned;
-}
 
 export default function LoginPage() {
     return (
@@ -46,7 +36,7 @@ function LoginContent() {
     const isReady = useUserStore((state) => state.isReady);
     const allowRegister = useConfigStore((state) => state.publicSettings?.auth?.allowRegister !== false);
     const [mode, setMode] = useState<"login" | "register">("login");
-    const redirect = safeRedirect(searchParams.get("redirect"));
+    const redirect = safeInternalRedirect(searchParams.get("redirect"));
 
     useEffect(() => {
         if (!allowRegister && mode === "register") setMode("login");

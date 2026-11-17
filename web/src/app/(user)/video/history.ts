@@ -12,14 +12,13 @@ import { VideoRequestError } from "@/services/api/video";
 import { resolveImageUrl } from "@/services/image-storage";
 import { resolveMediaUrl } from "@/services/file-storage";
 import type { AiConfig } from "@/stores/use-config-store";
-import { normalizeLocalChannels } from "@/stores/use-config-store";
 import type { WorkflowRef } from "@/lib/workflow-channel";
 import { parseWorkflowRef } from "@/lib/workflow-channel";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { nanoid } from "nanoid";
 import { isRetryableWorkflowError } from "@/services/api/workflow-generation";
-import { modelKey } from "@/lib/video-model-capabilities";
+import { isAPIMartKlingV26Config, isAPIMartKlingV3Config, normalizeKlingV26Ratio } from "@/services/api/protocols/kling-models";
 import { normalizeVideoResolutionValue } from "@/components/video-settings-panel";
 
 import { createErrorDetail, errorMessage, formatLogTime, isClientTaskId, isCompletedTaskStatus, isFailedTaskStatus, isRecoverableTask, mergeNormalizedLogs, normalizeLogsSafely as normalizeMediaLogsSafely, parseTaskTimestampValue, readStoredValues, resolveChannelId, sortByNewest, taskChannelId, uniqueStrings, updateResult, updateResultsByMatch } from "@/lib/generation-history";
@@ -121,11 +120,6 @@ export function createResultFromLog(log: GenerationLog, status: GenerationResult
         errorDetail: log.errorDetail,
         lastPolledAt: log.lastPolledAt,
     };
-}
-
-export async function copyPrompt(text: string, success: (content: string) => void) {
-    await navigator.clipboard.writeText(text);
-    success("提示词已复制");
 }
 
 export async function replaceStoredVideoHistory(logs: GenerationLog[]) {
@@ -779,25 +773,7 @@ export function resolveVideoChannelId(config: AiConfig, model: string, ...prefer
     return resolveChannelId(config, model, ...preferredIds);
 }
 
-export function isAPIMartKlingV26Config(config: AiConfig, model: string) {
-    return isAPIMartKlingModelConfig(config, model, "kling-v2-6");
-}
-
-export function isAPIMartKlingV3Config(config: AiConfig, model: string) {
-    return isAPIMartKlingModelConfig(config, model, "kling-v3");
-}
-
-export function isKlingV3Config(config: AiConfig, model: string) {
-    return isAPIMartKlingV3Config(config, model) || isKIEKlingV3Config(config, model);
-}
-
-export function isAPIMartKlingMotionControlConfig(config: AiConfig, model: string) {
-    return isAPIMartKlingModelConfig(config, model, "kling-v2-6-motion-control");
-}
-
-export function isKIEKlingMotionControlConfig(config: AiConfig, model: string) {
-    return isKIEKlingModelConfig(config, model, "kling-2-6-motion-control") || isKIEKlingModelConfig(config, model, "kling-3-0-motion-control");
-}
+export { isAPIMartKlingV26Config, isAPIMartKlingV3Config, isKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, normalizeKlingV26Ratio, videoChannelProtocol } from "@/services/api/protocols/kling-models";
 
 export function resolveKlingWorkbenchConfig(config: AiConfig, model: string): { provider: "apimart" | "kie"; variant: "v26" | "v3" } | null {
     if (isAPIMartKlingV26Config(config, model)) return { provider: "apimart", variant: "v26" };
@@ -806,32 +782,10 @@ export function resolveKlingWorkbenchConfig(config: AiConfig, model: string): { 
     return null;
 }
 
-export function isAPIMartKlingModelConfig(config: AiConfig, model: string, key: string) {
-    return modelKey(model) === key && videoChannelProtocol(config, model) === "apimart";
-}
-
-export function isKIEKlingModelConfig(config: AiConfig, model: string, key: string) {
-    return modelKey(model) === key && videoChannelProtocol(config, model) === "kie";
-}
-
-export function videoChannelProtocol(config: AiConfig, model: string) {
-    const channelId = resolveVideoChannelId(config, model, config.videoChannelId, config.activeChannelId);
-    const channels = config.channelMode === "remote" ? config.publicChannels : normalizeLocalChannels(config);
-    const channel = channels.find((item) => (item.id || "") === channelId && (item.models || []).includes(model)) || channels.find((item) => (item.models || []).includes(model)) || channels.find((item) => (item.id || "") === channelId);
-    return channel?.protocol || "openai";
-}
-
 export const characterOrientationOptions = [{ value: "image", label: "图片" }, { value: "video", label: "视频" }];
 
 export function normalizeCharacterOrientation(value: string | undefined) {
     return value === "image" ? "image" : "video";
-}
-
-export function normalizeKlingV26Ratio(value: string) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (["9:16", "720x1280", "1080x1920"].includes(normalized)) return "9:16";
-    if (["1:1", "1024x1024", "1080x1080"].includes(normalized)) return "1:1";
-    return "16:9";
 }
 
 export function defaultKlingElementList(): VideoElementItem[] {

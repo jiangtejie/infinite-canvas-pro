@@ -132,6 +132,11 @@ export function taskChannelId(task?: { userChannelId?: string; channelId?: strin
     return task?.userChannelId || task?.channelId || "";
 }
 
+/** 是否走后端任务：远程渠道一律走后端，本地渠道登录后也走后端。 */
+export function usesBackendTasks(config: AiConfig, token: string) {
+    return config.channelMode === "remote" || (config.channelMode === "local" && Boolean(token));
+}
+
 /** 渠道解析：优先使用历史 / 任务记录的渠道，其次找第一个包含该模型的渠道。 */
 export function resolveChannelId(config: AiConfig, model: string, ...preferredIds: Array<string | undefined>) {
     const channels = config.channelMode === "remote"

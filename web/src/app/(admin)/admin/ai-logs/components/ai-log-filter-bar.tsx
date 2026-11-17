@@ -1,10 +1,8 @@
 "use client";
 
-import { SearchOutlined } from "@ant-design/icons";
-import { Button, Input, Switch } from "antd";
-import { useEffect, useState } from "react";
+import { Switch } from "antd";
 
-import { AdminToolbar } from "../../components/admin-toolbar";
+import { AdminFilterBar } from "../../components/admin-filter-bar";
 
 export function AiLogFilterBar({
     keyword,
@@ -21,10 +19,13 @@ export function AiLogFilterBar({
     savingLocalDirectReport: boolean;
     onToggleLocalDirectReport: (checked: boolean) => void;
 }) {
-    const [keywordText, setKeywordText] = useState(keyword);
-    useEffect(() => setKeywordText(keyword), [keyword]);
     return (
-        <AdminToolbar
+        <AdminFilterBar
+            keyword={keyword}
+            inputClassName="w-full sm:w-[360px]"
+            placeholder="搜索用户、模型、渠道、接口或错误"
+            onSearch={onSearch}
+            onReset={onReset}
             actions={
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>本地直连日志</span>
@@ -32,26 +33,6 @@ export function AiLogFilterBar({
                     <span className="min-w-10 text-foreground">{localDirectReportEnabled ? "上报中" : "未上报"}</span>
                 </div>
             }
-        >
-            <div className="w-full sm:w-[360px]">
-                <Input.Search
-                    value={keywordText}
-                    placeholder="搜索用户、模型、渠道、接口或错误"
-                    allowClear
-                    enterButton={<SearchOutlined />}
-                    onSearch={() => onSearch(keywordText)}
-                    onChange={(event) => setKeywordText(event.target.value)}
-                />
-            </div>
-            <Button
-                type="text"
-                onClick={() => {
-                    setKeywordText("");
-                    onReset();
-                }}
-            >
-                重置
-            </Button>
-        </AdminToolbar>
+        />
     );
 }

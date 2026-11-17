@@ -10,6 +10,7 @@ import { collectImageStorageKeys } from "@/lib/storage-reference-keys";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
 import { comfyOutputStorageKey } from "@/services/api/workflow-generation";
+import { StorageNotConfiguredError } from "@/services/storage-errors";
 import { useUserStore } from "@/stores/use-user-store";
 import { errorMessage } from "@/lib/utils";
 
@@ -400,7 +401,7 @@ export async function uploadRemoteImageToServer(url: string, filename: string): 
     const blob = await response.blob();
     const config = await loadStorageConfig();
     const userProvider = config.allowUserProvider ? loadUserStorageProvider() : null;
-    if (!canUseGlobalStorage(config) && !userProvider) throw new Error("服务端对象存储未启用");
+    if (!canUseGlobalStorage(config) && !userProvider) throw new StorageNotConfiguredError();
     const token = useUserStore.getState().token;
     if (userProvider?.type === "webdav") {
         const directUpload = await uploadWebDAVImageDirect(blob, filename || `image-${nanoid()}.${imageExtension(blob.type)}`, userProvider);

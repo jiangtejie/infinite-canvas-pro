@@ -1,10 +1,8 @@
 "use client";
 
-import { SearchOutlined } from "@ant-design/icons";
-import { Button, Input, Select } from "antd";
-import { useEffect, useState } from "react";
+import { Select } from "antd";
 
-import { AdminToolbar } from "../../components/admin-toolbar";
+import { AdminFilterBar } from "../../components/admin-filter-bar";
 
 const statusOptions = [
     { label: "全部状态", value: "" },
@@ -25,30 +23,9 @@ export function SkillFilterBar({
     changeStatus: (value: string) => void;
     onReset: () => void;
 }) {
-    const [keywordText, setKeywordText] = useState(keyword);
-    useEffect(() => setKeywordText(keyword), [keyword]);
     return (
-        <AdminToolbar>
-            <div className="w-full sm:w-[320px]">
-                <Input.Search
-                    value={keywordText}
-                    placeholder="搜索名称、描述或内容"
-                    allowClear
-                    enterButton={<SearchOutlined />}
-                    onSearch={() => onSearch(keywordText)}
-                    onChange={(event) => setKeywordText(event.target.value)}
-                />
-            </div>
+        <AdminFilterBar keyword={keyword} placeholder="搜索名称、描述或内容" onSearch={onSearch} onReset={onReset}>
             <Select className="w-full sm:w-[140px]" value={status} onChange={changeStatus} options={statusOptions} />
-            <Button
-                type="text"
-                onClick={() => {
-                    setKeywordText("");
-                    onReset();
-                }}
-            >
-                重置
-            </Button>
-        </AdminToolbar>
+        </AdminFilterBar>
     );
 }

@@ -35,8 +35,13 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
+import { blobsFromClipboardItems, readClipboardBlobs } from "@/lib/clipboard";
+import { usePasteClipboardText } from "@/hooks/use-paste-clipboard-text";
+import { useCopyText } from "@/hooks/use-copy-text";
+import { WORKBENCH_LAYOUT_KEY } from "@/lib/storage-keys";
+import { usesBackendTasks } from "@/lib/generation-history";
+import { isStorageNotConfiguredError } from "@/services/storage-errors";
 
-const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const RESULT_VIEW_MODE_KEY = "infinite-canvas:image-result-view-mode";
 const IMAGE_TASK_POLL_INTERVAL_MS = 10000;
 const WORKFLOW_BUTTON_POSITION_KEY = "infinite-canvas:workflow-button-position";
@@ -47,6 +52,8 @@ const CreativeWorkflowWorkspace = dynamic(
 export default function ImagePage() {
     const { message } = App.useApp();
     const confirm = useConfirm();
+    const copyText = useCopyText();
+    const pasteClipboardText = usePasteClipboardText();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const config = useConfigStore((state) => state.config);
     const effectiveConfig = useEffectiveConfig();
@@ -100,7 +107,7 @@ export default function ImagePage() {
     const isWorkflowLog = (log: GenerationLog) => workflowWorkspaceReady && (Boolean(log.workflowId) || log.task?.source === "workflow");
     const pendingLogCount = logs.filter((log) => log.status === "生成中" && log.task && !log.images.length && !isWorkflowLog(log)).length;
     const hasCustomWorkflowButtonPosition = Boolean(workflowButtonPosition.x || workflowButtonPosition.y);
-    const usesBackendImageTasks = (value: AiConfig) => value.channelMode === "remote" || (value.channelMode === "local" && Boolean(token));
+    const usesBackendImageTasks = (value: AiConfig) => usesBackendTasks(value, token);
     const imageTaskConfig = () => effectiveConfigRef.current;
 
     const restorePendingLogResults = (sourceLogs: GenerationLog[]) => {
@@ -282,52 +289,36 @@ export default function ImagePage() {
         persistWorkflowButtonPosition(finalPos);
     };
 
-    const addReferences = async (files?: FileList | null) => {
-        const imageFiles = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
-        if (!imageFiles.length) return;
-        setUploadingCount(imageFiles.length);
-        const hideLoading = message.loading("正在上传参考图...", 0);
+    const uploadReferences = async (items: Array<{ blob: Blob; name: string }>, source: "upload" | "clipboard") => {
+        if (!items.length) return;
+        setUploadingCount(items.length);
+        const hideLoading = message.loading(source === "upload" ? "正在上传参考图..." : "正在上传并读取参考图...", 0);
         try {
             const nextReferences = await Promise.all(
-                imageFiles.map(async (file) => {
-                    const image = await uploadImage(file);
-                    return { id: nanoid(), name: file.name, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey, source: "upload" as const, temporary: true };
+                items.map(async ({ blob, name }) => {
+                    const image = await uploadImage(blob);
+                    return { id: nanoid(), name, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey, source, temporary: true };
                 }),
             );
             setReferences((value) => [...value, ...nextReferences]);
-            message.success("参考图上传成功");
+            message.success(source === "upload" ? "参考图上传成功" : `已成功上传并读取 ${nextReferences.length} 张参考图`);
         } catch (error) {
-            message.error(error instanceof Error ? `上传参考图失败：${error.message}` : "上传参考图失败");
+            message.error(source === "upload" ? (error instanceof Error ? `上传参考图失败：${error.message}` : "上传参考图失败") : toErrorMessage(error, "读取参考图失败"));
         } finally {
             hideLoading();
             setUploadingCount(0);
         }
     };
 
-    const addReferenceBlobs = async (blobs: Blob[]) => {
-        setUploadingCount(blobs.length);
-        const hideLoading = message.loading("正在上传并读取参考图...", 0);
-        try {
-            const nextReferences = await Promise.all(
-                blobs.map(async (blob, index) => {
-                    const image = await uploadImage(blob);
-                    return { id: nanoid(), name: `clipboard-${index + 1}.png`, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey, source: "clipboard" as const, temporary: true };
-                }),
-            );
-            setReferences((value) => [...value, ...nextReferences]);
-            message.success(`已成功上传并读取 ${nextReferences.length} 张参考图`);
-        } catch (error) {
-            message.error(toErrorMessage(error, "读取参考图失败"));
-        } finally {
-            hideLoading();
-            setUploadingCount(0);
-        }
-    };
+    const addReferences = (files?: FileList | null) =>
+        uploadReferences(Array.from(files || []).filter((file) => file.type.startsWith("image/")).map((file) => ({ blob: file, name: file.name })), "upload");
+
+    const addReferenceBlobs = (blobs: Blob[]) =>
+        uploadReferences(blobs.map((blob, index) => ({ blob, name: `clipboard-${index + 1}.png` })), "clipboard");
 
     const addReferencesFromClipboard = async () => {
         try {
-            const items = await navigator.clipboard.read();
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))));
+            const blobs = await readClipboardBlobs("image/");
             if (!blobs.length) {
                 message.error("剪切板里没有可读取的图片");
                 return;
@@ -351,7 +342,7 @@ export default function ImagePage() {
                     return;
                 }
             }
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))));
+            const blobs = await blobsFromClipboardItems(items, "image/");
             if (blobs.length) {
                 await addReferenceBlobs(blobs);
                 return;
@@ -385,20 +376,6 @@ export default function ImagePage() {
             } catch (error) {
                 message.error(toErrorMessage(error, "参考图文件删除失败"));
             }
-        }
-    };
-
-    const pastePromptFromClipboard = async () => {
-        try {
-            const text = (await navigator.clipboard.readText()).trim();
-            if (!text) {
-                message.error("剪切板里没有可读取的文本");
-                return;
-            }
-            setPrompt(text);
-            message.success("已读取剪切板文本");
-        } catch {
-            message.error("剪切板里没有可读取的文本");
         }
     };
 
@@ -517,12 +494,7 @@ export default function ImagePage() {
             message.success("图片已同步到云端存储");
             return { ...image, dataUrl: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width || image.width, height: uploaded.height || image.height, bytes: uploaded.bytes || image.bytes, mimeType: uploaded.mimeType || image.mimeType };
         } catch (error) {
-            const errorMessage = toErrorMessage(error, "");
-            if (errorMessage.includes("服务端对象存储未启用") || errorMessage.includes("用户对象存储配置不完整")) {
-                message.error("未添加云存储");
-            } else {
-                message.error(errorMessage || "图片同步失败");
-            }
+            message.error(isStorageNotConfiguredError(error) ? "未添加云存储" : toErrorMessage(error, "图片同步失败"));
             return null;
         } finally {
             hideLoading();
@@ -612,17 +584,20 @@ export default function ImagePage() {
         await deleteImageGenerationLogs(token, ids).catch(() => undefined);
     };
 
+    const purgeDeletedLogs = async (deletedLogs: GenerationLog[], nextLogs: GenerationLog[]) => {
+        const imageKeys = disposableLogStorageKeys(deletedLogs, nextLogs);
+        const previewKeys = deletedLogs.flatMap((log) => log.images.map((image) => `image-result:${image.id}`));
+        await Promise.all([deleteBackendImageTasks(deletedLogs), deleteAccountImageLogs(deletedLogs), deleteStoredImages(imageKeys), deleteImagePreviews(previewKeys), ...deletedLogs.map((log) => logStore.removeItem(log.id))]);
+        setLogs(nextLogs);
+        setReferences((value) => value.filter((item) => !item.storageKey || !imageKeys.includes(item.storageKey)));
+        await persistImageHistory(nextLogs, categories);
+        await refreshLogs();
+    };
+
     const deleteSelectedLogs = () => {
         const deletedLogs = logs.filter((log) => selectedLogIds.includes(log.id));
         const nextLogs = logs.filter((log) => !selectedLogIds.includes(log.id));
-        const imageKeys = disposableLogStorageKeys(deletedLogs, nextLogs);
-        const previewKeys = deletedLogs.flatMap((log) => log.images.map((image) => `image-result:${image.id}`));
-        void Promise.all([deleteBackendImageTasks(deletedLogs), deleteAccountImageLogs(deletedLogs), deleteStoredImages(imageKeys), deleteImagePreviews(previewKeys), ...deletedLogs.map((log) => logStore.removeItem(log.id))]).then(async () => {
-            setLogs(nextLogs);
-            setReferences((value) => value.filter((item) => !item.storageKey || !imageKeys.includes(item.storageKey)));
-            await persistImageHistory(nextLogs, categories);
-            await refreshLogs();
-        });
+        void purgeDeletedLogs(deletedLogs, nextLogs);
         if (previewLog && selectedLogIds.includes(previewLog.id)) {
             setPreviewLog(null);
             setResults((value) => value.filter((item) => item.status === "pending"));
@@ -635,15 +610,9 @@ export default function ImagePage() {
         const confirmed = await confirm({ title: "删除生成结果", description: "删除后无法恢复，生成记录与本地图片会一并移除。", confirmText: "删除", tone: "danger" });
         if (!confirmed) return;
         const nextLogs = logs.filter((item) => item.id !== log.id);
-        const imageKeys = disposableLogStorageKeys([log], nextLogs);
-        const previewKeys = log.images.map((image) => `image-result:${image.id}`);
-        await Promise.all([deleteBackendImageTasks([log]), deleteAccountImageLogs([log]), deleteStoredImages(imageKeys), deleteImagePreviews(previewKeys), logStore.removeItem(log.id)]);
-        setLogs(nextLogs);
-        setReferences((value) => value.filter((item) => !item.storageKey || !imageKeys.includes(item.storageKey)));
-        await persistImageHistory(nextLogs, categories);
+        await purgeDeletedLogs([log], nextLogs);
         setSelectedLogIds((value) => value.filter((id) => id !== log.id));
         if (previewLog?.id === log.id) setPreviewLog(null);
-        await refreshLogs();
     };
 
     const persistLoggedOutLogImages = async (log: GenerationLog): Promise<GenerationLog> => {
@@ -837,11 +806,6 @@ export default function ImagePage() {
         message.success("已复用该结果的生成配置");
     };
 
-    const copyPrompt = async (text: string) => {
-        await navigator.clipboard.writeText(text);
-        message.success("提示词已复制");
-    };
-
     const buildRequestSnapshot = ({ promptText = prompt, referenceItems = references, taskCount = generationCount, configOverride, workflowRef = config.imageWorkflowRef, retry }: { promptText?: string; referenceItems?: ReferenceImage[]; taskCount?: number; configOverride?: Partial<GenerationLogConfig>; workflowRef?: WorkflowRef | null; retry?: () => void } = {}) => {
         const text = promptText.trim();
         if (!text && !workflowRef) {
@@ -993,7 +957,7 @@ export default function ImagePage() {
             onPreviewLog={(log) => void previewGenerationLog(log)}
             onRetryLog={(log) => void retryLog(log)}
             onReuseConfig={(result) => void reuseResultConfig(result)}
-            onCopyPrompt={copyPrompt}
+            onCopyPrompt={(text) => copyText(text, "提示词已复制")}
             onEdit={addResultToReferences}
             onMaskEdit={openMaskEdit}
             onDownload={downloadImage}
@@ -1010,7 +974,6 @@ export default function ImagePage() {
     const workbenchPanel = (
         <ImageWorkbenchPanel
             layout={workbenchLayout}
-            currentLayout={workbenchLayout}
             prompt={prompt}
             references={references}
             config={effectiveConfig}
@@ -1023,7 +986,7 @@ export default function ImagePage() {
             onPromptChange={setPrompt}
             onOpenPromptLibrary={() => setPromptDialogOpen(true)}
             onOpenAssetPicker={() => setAssetPickerOpen(true)}
-            onPastePrompt={() => void pastePromptFromClipboard()}
+            onPastePrompt={() => void pasteClipboardText(setPrompt)}
             onClearPrompt={clearPrompt}
             onPasteReferences={() => void addReferencesFromClipboard()}
             onPasteClipboard={() => void pasteFromClipboard()}

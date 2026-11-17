@@ -29,7 +29,6 @@ const cogVideoX3DurationOptions = COGVIDEOX3_DURATIONS.map((value) => ({ value, 
 
 export function VideoWorkbenchPanel({
     layout,
-    currentLayout,
     prompt,
     negativePrompt = "",
     references,
@@ -70,7 +69,6 @@ export function VideoWorkbenchPanel({
     setBottomSettingsCollapsed,
 }: {
     layout: WorkbenchLayout;
-    currentLayout: WorkbenchLayout;
     prompt: string;
     negativePrompt?: string;
     references: ReferenceImage[];
@@ -81,7 +79,6 @@ export function VideoWorkbenchPanel({
     config: AiConfig;
     model: string;
     canGenerate: boolean;
-    running: boolean;
     pendingCount: number;
     taskCount: number;
     onTaskCountChange: (value: number) => void;
@@ -208,7 +205,7 @@ export function VideoWorkbenchPanel({
     return (
         <WorkbenchSidePanel
             title="视频工作台"
-            currentLayout={currentLayout}
+            currentLayout={layout}
             onLayoutChange={onLayoutChange}
             canGenerate={canGenerate}
             onGenerate={onGenerate}

@@ -2,44 +2,37 @@
 
 import { MoreOutlined } from "@ant-design/icons";
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
-import { useQuery } from "@tanstack/react-query";
 import { App, Button, InputNumber, Popover, Space, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 
 import { deleteAdminAICallLogs, fetchAdminAICallLogs, fetchAdminSettings, saveAdminSettings, type AdminAICallLog } from "@/services/api/admin";
-import { useUserStore } from "@/stores/use-user-store";
 
 import { AdminPageHeader } from "../components/admin-page-header";
-import { buildAdminTableProps } from "../components/admin-table-props";
+import { buildAdminPagination, buildAdminTableProps } from "../components/admin-table-props";
+import { useAdminList } from "../components/use-admin-list";
 import { AiLogDetailDrawer } from "./components/ai-log-detail-drawer";
 import { AiLogFilterBar } from "./components/ai-log-filter-bar";
 import { buildAiLogColumns } from "./components/ai-log-table-columns";
 import { errorMessage } from "@/lib/utils";
 
+const ADMIN_AI_LOG_FILTERS = { keyword: "" };
+
 export default function AdminAICallLogsPage() {
-    const token = useUserStore((state) => state.token);
     const { message } = App.useApp();
-    const [keyword, setKeyword] = useState("");
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+    const { token, query, filters, page, pageSize, applyFilters, changePage, changePageSize, resetFilters } = useAdminList({
+        queryKey: ({ token, filters, page, pageSize }) => ["admin", "ai-logs", token, filters.keyword, page, pageSize],
+        fetcher: ({ token, filters, page, pageSize }) => fetchAdminAICallLogs(token, { keyword: filters.keyword, page, pageSize }),
+        initialFilters: ADMIN_AI_LOG_FILTERS,
+        errorFallback: "读取 AI 调用日志失败",
+        pageSize: 20,
+    });
     const [clearDays, setClearDays] = useState(7);
     const [clearing, setClearing] = useState(false);
     const [maintenanceOpen, setMaintenanceOpen] = useState(false);
     const [detail, setDetail] = useState<AdminAICallLog | null>(null);
     const [localDirectReportEnabled, setLocalDirectReportEnabled] = useState(false);
     const [savingLocalDirectReport, setSavingLocalDirectReport] = useState(false);
-
-    const logsQuery = useQuery({
-        queryKey: ["admin", "ai-logs", token, keyword, page, pageSize],
-        queryFn: () => fetchAdminAICallLogs(token, { keyword, page, pageSize }),
-        enabled: Boolean(token),
-        retry: false,
-    });
-
-    useEffect(() => {
-        if (!logsQuery.isError) return;
-        message.error(errorMessage(logsQuery.error, "读取 AI 调用日志失败"));
-    }, [logsQuery.error, logsQuery.isError, message]);
+    const total = query.data?.total || 0;
 
     useEffect(() => {
         if (!token) return;
@@ -49,12 +42,9 @@ export default function AdminAICallLogsPage() {
     }, [message, token]);
 
     const searchLogs = (value: string) => {
-        if (value !== keyword || page !== 1) {
-            setKeyword(value);
-            setPage(1);
-            return;
-        }
-        void logsQuery.refetch();
+        if (value !== filters.keyword) return applyFilters({ keyword: value });
+        if (page !== 1) return changePage(1);
+        void query.refetch();
     };
 
     const clearLogs = async () => {
@@ -64,8 +54,8 @@ export default function AdminAICallLogsPage() {
             const result = await deleteAdminAICallLogs(token, clearDays);
             message.success(`已清理 ${result.removedFiles} 个日志文件`);
             setMaintenanceOpen(false);
-            if (page === 1) await logsQuery.refetch();
-            else setPage(1);
+            if (page === 1) await query.refetch();
+            else changePage(1);
         } catch (error) {
             message.error(errorMessage(error, "清理 AI 调用日志失败"));
         } finally {
@@ -131,35 +121,26 @@ export default function AdminAICallLogsPage() {
                 }
             />
             <AiLogFilterBar
-                keyword={keyword}
+                keyword={filters.keyword}
                 onSearch={searchLogs}
-                onReset={() => searchLogs("")}
+                onReset={resetFilters}
                 localDirectReportEnabled={localDirectReportEnabled}
                 savingLocalDirectReport={savingLocalDirectReport}
                 onToggleLocalDirectReport={(checked) => void updateLocalDirectReport(checked)}
             />
             <ProTable<AdminAICallLog>
-                {...buildAdminTableProps({ onReload: () => void logsQuery.refetch() })}
+                {...buildAdminTableProps({ onReload: () => void query.refetch() })}
                 rowKey="id"
                 columns={columns as ProColumns<AdminAICallLog>[]}
-                dataSource={logsQuery.data?.items || []}
-                loading={logsQuery.isFetching}
+                dataSource={query.data?.items || []}
+                loading={query.isFetching}
                 headerTitle={
                     <Space>
                         <Typography.Text strong>AI 调用日志</Typography.Text>
-                        <Tag>{logsQuery.data?.total || 0} 条</Tag>
+                        <Tag>{total} 条</Tag>
                     </Space>
                 }
-                pagination={{
-                    current: page,
-                    pageSize,
-                    total: logsQuery.data?.total || 0,
-                    showSizeChanger: true,
-                    onChange: (nextPage, nextPageSize) => {
-                        setPage(nextPage);
-                        setPageSize(nextPageSize);
-                    },
-                }}
+                pagination={buildAdminPagination({ page, pageSize, total, changePage, changePageSize })}
             />
             <AiLogDetailDrawer log={detail} onClose={() => setDetail(null)} />
         </main>

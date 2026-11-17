@@ -14,7 +14,7 @@ import { setImageBlob } from "@/services/image-storage";
 import { CanvasDeleteProjectsDialog } from "./components/canvas-delete-projects-dialog";
 import { CanvasProjectCard } from "./components/canvas-project-card";
 import type { CanvasExportFile } from "./export-types";
-import { useCanvasStore } from "./stores/use-canvas-store";
+import { useCanvasStore, nextCanvasProjectTitle } from "./stores/use-canvas-store";
 import { useCanvasUiStore } from "./stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "./utils/canvas-export";
 
@@ -45,7 +45,7 @@ export default function CanvasPage() {
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
     };
-    const createAndEnter = () => enterProject(createProject(`矩灵画布 ${projects.length + 1}`));
+    const createAndEnter = () => enterProject(createProject(nextCanvasProjectTitle()));
     const importCanvas = async (file?: File) => {
         if (!file) return;
         try {

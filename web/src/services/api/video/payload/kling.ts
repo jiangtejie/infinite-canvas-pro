@@ -1,9 +1,9 @@
-import { modelKey } from "@/lib/video-model-capabilities";
 import { resolveMediaUrl } from "@/services/file-storage";
 import { imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
+import { isProviderKlingConfig } from "@/services/api/protocols/kling-models";
 import { type AiConfig, type VideoElementReference } from "@/stores/use-config-store";
 
-import { normalizeVideoResolution, publicHttpUrl, videoChannelProtocol } from "./shared";
+import { normalizeVideoResolution, publicHttpUrl } from "./shared";
 
 
 export function isAPIMartKlingV26VideoConfig(config: AiConfig, model: string) {
@@ -23,11 +23,11 @@ export function isKIEKlingMotionControlVideoConfig(config: AiConfig, model: stri
 }
 
 function isAPIMartKlingVideoConfig(config: AiConfig, model: string, key: string) {
-    return modelKey(model) === key && videoChannelProtocol(config, model) === "apimart";
+    return isProviderKlingConfig(config, model, key, "apimart");
 }
 
 function isKIEKlingVideoConfig(config: AiConfig, model: string, key: string) {
-    return modelKey(model) === key && videoChannelProtocol(config, model) === "kie";
+    return isProviderKlingConfig(config, model, key, "kie");
 }
 
 export function normalizeCharacterOrientation(value: string | undefined) {
@@ -114,9 +114,4 @@ export async function elementReferenceToInputUrl(reference: VideoElementReferenc
     return publicHttpUrl(resolvedUrl) || publicHttpUrl(reference.url) || resolvedUrl || reference.url || "";
 }
 
-export function normalizeKlingV26AspectRatio(value: string) {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (["9:16", "720x1280", "1080x1920"].includes(normalized)) return "9:16";
-    if (["1:1", "1024x1024", "1080x1080"].includes(normalized)) return "1:1";
-    return "16:9";
-}
+export { normalizeKlingV26Ratio as normalizeKlingV26AspectRatio } from "@/services/api/protocols/kling-models";

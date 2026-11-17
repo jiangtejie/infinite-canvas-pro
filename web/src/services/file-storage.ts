@@ -7,6 +7,7 @@ import { collectStorageReferenceKeys } from "@/lib/storage-reference-keys";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
 import { autoSyncToCloud, canUseGlobalStorage, clearAutoSyncCache, getProxyUrl, loadUserStorageProvider, toProviderPayload, type StorageConfig, type UserWebDAVStorageProvider } from "@/services/image-storage";
+import { isStorageNotConfiguredError, StorageNotConfiguredError } from "@/services/storage-errors";
 import { useUserStore } from "@/stores/use-user-store";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
@@ -39,7 +40,7 @@ export async function uploadAssetMediaFile(file: File, prefix = "asset-media"): 
     try {
         return await uploadMediaBlobToServer(file, file.name || `${prefix}-${nanoid()}`);
     } catch (error) {
-        if (error instanceof Error && !error.message.includes("服务端对象存储未启用")) throw error;
+        if (!isStorageNotConfiguredError(error)) throw error;
         return uploadMediaFile(file, prefix);
     }
 }
@@ -73,7 +74,7 @@ async function uploadMediaBlobToServer(blob: Blob, filename: string, metadataUrl
         throw new Error("登录状态已变化");
     }
     const userProvider = config?.allowUserProvider ? loadUserStorageProvider() : null;
-    if (!config || (!canUseGlobalStorage(config) && !userProvider)) throw new Error("服务端对象存储未启用");
+    if (!config || (!canUseGlobalStorage(config) && !userProvider)) throw new StorageNotConfiguredError();
     const token = tokenOverride === undefined ? useUserStore.getState().token : tokenOverride;
     if (userProvider?.type === "webdav") {
         const directUpload = await uploadWebDAVMediaDirect(blob, filename, userProvider);

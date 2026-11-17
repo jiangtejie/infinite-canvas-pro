@@ -439,6 +439,10 @@ export function useAdminSettings() {
 
     async function measureStorageProviderAt(index: number) {
         if (!token) return;
+        if (dirtyTabs.public || dirtyTabs.private) {
+            message.warning("有未保存的修改，请先保存后再统计容量");
+            return;
+        }
         const provider = normalizeStorageProvider(form.getFieldValue(["private", "storage", "providers", index]));
         setMeasuringProviderIndex(index);
         try {

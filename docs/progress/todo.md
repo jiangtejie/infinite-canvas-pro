@@ -43,14 +43,14 @@ description: 当前项目后续值得处理的事项
 
 ## 冗余收敛剩余项
 
-A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收敛，见 pending-test；以下未动：
+A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收敛，见 pending-test；Kling 的视频侧判定（`video/history.ts` ↔ `protocols/kling-models.ts`，request payload 第三份）也已在「技术债清理」轮收敛为协议单一口径。以下未动：
 
 - 【A5 视频参数】归一化跨层双写且语义相反：`user/video/history.ts` 保留 `"-1"`，`api/video/payload/shared.ts` 把它算成 6；size 的 `"auto"` 一处返回 `"auto"` 一处返回 `null`。
 - 【A6 日志脱敏】`api/image/client.ts` 的 `redactLogImages` 只挡 `data:image/`，`api/video/client.ts` 的 `redactLogMedia` 还挡 video/audio；同一份上报逻辑两份，脱敏口径不一致（涉及隐私，优先）。
 - 【A7 publicHttpUrl】`api/image/payload.ts` 与 `api/video/payload/shared.ts` 逐字相同两份；`api/direct-ai.ts` 的 `publicReferenceURL` 是分歧变体（正则、不处理相对地址）。
 - 【B8 上传/删除双写】`services/image-storage.ts` 与 `services/file-storage.ts` 整条服务端上传/删除链路逐行同构，分歧只在失败 return null 还是 throw；牵涉存储链路，需单独一轮加回归。
 - 【B9 storageConfig 双缓存】两个存储文件各缓存同一个 GET、各导出 `clearStorageConfigCache`，调用方被迫同时清两个，漏清一个就是脏配置。
-- 【B10 小双写】`readAxiosError` 三份（image/video/audio client）兜底已分歧；两个 TTS 音色选择器近整份复制；storageKey→URL 的 effect 四份；六个后台筛选条重复同一套搜索+重置。
+- 【B10 小双写】`readAxiosError` 三份（image/video/audio client）兜底已分歧；两个 TTS 音色选择器近整份复制；storageKey→URL 的 effect 四份。后台筛选条已统一为共享组件。
 - 【C 组小重复】`connection()` 在 canvas-source-remix 与 canvas-source-plan 逐字相同；「有素材」判定三份（hook/卡片/面板）；作者/统计行 UI 卡片与面板重复拼装；`formatBytes` 至少三份且精度单位表不同；节点摘要两套字段抽取（`canvasAgentNodeSummary` 与 `summarizeNode`）。
 - 【seedance sd2】别名在 lib 音频/参考图判定里有、摘要时长档位里没有，属 A 组同类分歧。
 
@@ -58,12 +58,12 @@ A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收
 
 - 【画布】`canvas/[id]/canvas-client-page.tsx` 现 2051 行；任务/视口/选中/生成 hooks 与纯函数已迁出，剩余可选项是把主组件拆成容器 + 侧栏 + 工具栏，以及页面 model 类型继续收敛。z-index 档位未合并（合并会改遮挡，需专门回归）；`canvas/page.tsx` 与侧栏的派生 state useEffect 待收敛。
 - 【素材选择器】与侧栏已共用查询、筛选与插入载荷逻辑（`canvas/lib/canvas-asset-query.ts`），卡片 UI 仍是两套（侧栏画布主题加拖拽插入，弹窗语义 token 加点击插入），合并需先定产品语义。
-- 【生图/视频】`image/page.tsx` 1031 行、`video/page.tsx` 1130 行，主链路已抽页面私有 hooks；剩余 retry / mask edit 为薄编排，不再为拆而拆。Kling 面板 TEXT 字典/Section/OptionGrid/参考图条与共享实现视觉文案不同，统一需先定设计；生成失败/删除流程仍有三套，可抽页面私有 hook。
+- 【生图/视频】`image/page.tsx` 1088 行、`video/page.tsx` 1099 行，主链路已抽页面私有 hooks；剩余 retry / mask edit 为薄编排，不再为拆而拆。Kling 面板 TEXT 字典/Section/OptionGrid/参考图条与共享实现视觉文案不同，统一需先定设计；视频页生成失败/删除流程仍与生图页不同构，抽页面私有 hook 前先定是否统一删除语义。
 - 【工作流】`components/workflows/creative-workflow-workspace.tsx` 2702 行，是当前最大的单文件；继续拆分需保持真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。
 - 【样式】`app/globals.css` 1251 行；画布/后台/提示词/影视私有样式已抽到 `styles/`，剩余工作台私有样式继续移出，globals 只留 token、reset、共享原语和通用 antd 覆写。`PunkAura` 已从 WebGL 着色器改为纯 CSS 静态多层渐变，不再有持续渲染开销。
 - 【React Compiler】规则逐条启用（purity / refs / set-state-in-effect），先做白名单再扩大。
 - 【测试】前端 79 个文件、419 条（`bun test`）；后续补任务合并、连接校验的边界用例。
-- 【后台】概览 AI 日志全量扫描的缓存/统计索引、概览与列表的行级深链、浅色主题逐项视觉；少数页面继续组件化。
+- 【后台】概览 AI 日志全量扫描的缓存/统计索引、概览与列表的行级深链、浅色主题逐项视觉；AI 日志页已接入共享列表抽象，其余页面按需继续组件化。
 - 【视觉】FilterTagGroup 可考虑增加 density/variant（当前用 `.prompt-filter-tag` 全局覆盖）；画布选中环仍为硬编码蓝色，后续统一为主题 token；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。
 - 【无障碍】节点目前采用自然 Tab 序列而非单锚点 roving，是否改 roving tabindex 待评估。
 - 【导演台】工具栏收纳需产品确认。

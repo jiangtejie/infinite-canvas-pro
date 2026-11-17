@@ -14,7 +14,7 @@ import { LoadingState } from "@/components/ui/state-panel";
 import { WORKBENCH_BOTTOM_RESULTS_CLASS, WorkbenchShell } from "@/components/workbench/workbench-shell";
 import { VideoWorkbenchPanel } from "./components/workbench-panel";
 import type { GeneratedVideo, GenerationResult, GenerationLog, UpdateAiConfig, AssetPickerTarget, WorkflowPollContext } from "./history";
-import { logStore, createResultFromLog, copyPrompt, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, resolveKlingWorkbenchConfig, normalizeCharacterOrientation, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
+import { logStore, createResultFromLog, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, resolveKlingWorkbenchConfig, normalizeCharacterOrientation, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
 import { ReferenceVideoStrip } from "./components/reference-strips";
 import { ResultsPanel } from "./components/results-panel";
 import { useVideoTaskPolling } from "./hooks/use-video-task-polling";
@@ -42,8 +42,12 @@ import type { WorkflowRef } from "@/lib/workflow-channel";
 
 import type { VideoGenerationSnapshot, VideoTaskRun } from "./task-types";
 import { errorMessage } from "@/lib/utils";
+import { readClipboardBlobs } from "@/lib/clipboard";
+import { usePasteClipboardText } from "@/hooks/use-paste-clipboard-text";
+import { useCopyText } from "@/hooks/use-copy-text";
+import { WORKBENCH_LAYOUT_KEY } from "@/lib/storage-keys";
+import { usesBackendTasks } from "@/lib/generation-history";
 
-const WORKBENCH_LAYOUT_KEY = "infinite-canvas:workbench-layout";
 const KlingV26WorkbenchPanel = dynamic(
     () => import("./components/kling-v26-workbench-panel").then((module) => module.KlingV26WorkbenchPanel),
     { ssr: false, loading: () => <LoadingState className="min-h-[420px] rounded-lg border border-border bg-card" label="正在加载 Kling 工作台..." /> },
@@ -51,6 +55,8 @@ const KlingV26WorkbenchPanel = dynamic(
 export default function VideoPage() {
     useScreenLoadTiming("视频工作台");
     const { message } = App.useApp();
+    const copyText = useCopyText();
+    const pasteClipboardText = usePasteClipboardText();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const elementFileInputRef = useRef<HTMLInputElement>(null);
     const firstFrameInputRef = useRef<HTMLInputElement>(null);
@@ -121,7 +127,7 @@ export default function VideoPage() {
     const videoReferenceLimit = klingAcceptsVideoReferences ? 1 : referenceLimits.videos;
     const hasPendingLogs = logs.some((log) => (log.status === "生成中" || (log.status === "停止中" && !log.error)) && log.task && !log.video);
     const hasPendingTasks = hasPendingLogs || pendingCount > 0 || results.some((item) => item.status === "stopping" && !item.error);
-    const usesBackendVideoTasks = (value: AiConfig) => value.channelMode === "remote" || (value.channelMode === "local" && Boolean(token));
+    const usesBackendVideoTasks = (value: AiConfig) => usesBackendTasks(value, token);
 
     useEffect(() => {
         if (autodl && autodlError) message.error(autodlError.message);
@@ -205,20 +211,6 @@ export default function VideoPage() {
         }
     };
 
-    const pastePromptFromClipboard = async () => {
-        try {
-            const text = (await navigator.clipboard.readText()).trim();
-            if (!text) {
-                message.error("剪切板里没有可读取的文本");
-                return;
-            }
-            setPrompt(text);
-            message.success("已读取剪切板文本");
-        } catch {
-            message.error("剪切板里没有可读取的文本");
-        }
-    };
-
     const openAssetPicker = (target: AssetPickerTarget = "general") => {
         setAssetPickerTarget(target);
         setAssetPickerOpen(true);
@@ -269,8 +261,7 @@ export default function VideoPage() {
             const list = normalizeKlingElementList(effectiveConfig.videoElementList);
             const current = list[elementIndex];
             if (!current) return;
-            const items = await navigator.clipboard.read();
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))));
+            const blobs = await readClipboardBlobs("image/");
             if (!blobs.length) {
                 message.error("剪贴板里没有可读取的图片");
                 return;
@@ -389,8 +380,7 @@ export default function VideoPage() {
             return;
         }
         try {
-            const items = await navigator.clipboard.read();
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))));
+            const blobs = await readClipboardBlobs("image/");
             if (!blobs.length) {
                 message.error("剪切板里没有可读取的图片");
                 return;
@@ -410,8 +400,7 @@ export default function VideoPage() {
 
     const setFrameFromClipboard = async (slot: "first" | "last") => {
         try {
-            const items = await navigator.clipboard.read();
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))));
+            const blobs = await readClipboardBlobs("image/");
             const blob = blobs[0];
             if (!blob) {
                 message.error("剪切板里没有可读取的图片");
@@ -437,8 +426,7 @@ export default function VideoPage() {
 
     const addVideoReferencesFromClipboard = async () => {
         try {
-            const items = await navigator.clipboard.read();
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("video/")).map((type) => item.getType(type))));
+            const blobs = await readClipboardBlobs("video/");
             if (!blobs.length) {
                 message.error("剪切板里没有可读取的视频");
                 return;
@@ -460,8 +448,7 @@ export default function VideoPage() {
 
     const addAudioReferencesFromClipboard = async () => {
         try {
-            const items = await navigator.clipboard.read();
-            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("audio/")).map((type) => item.getType(type))));
+            const blobs = await readClipboardBlobs("audio/");
             if (!blobs.length) {
                 message.error("剪切板里没有可读取的音频");
                 return;
@@ -650,6 +637,30 @@ export default function VideoPage() {
         void submitGenerationSnapshot(snapshot);
     };
 
+    const applyVideoGenerationConfig = (config: GenerationLog["config"], fallbackModel: string, task: GenerationLog["task"], providerWorkflowRef: WorkflowRef | undefined, taskCountValue?: number) => {
+        updateConfig("videoWorkflowRef", providerWorkflowRef);
+        const nextModel = config.videoModel || fallbackModel;
+        const nextChannelId = resolveVideoChannelId(effectiveConfig, nextModel, videoTaskChannelId(task), config.videoChannelId, config.activeChannelId);
+        if (nextModel) updateConfig("videoModel", nextModel);
+        if (nextChannelId) {
+            updateConfig("videoChannelId", nextChannelId);
+            updateConfig("activeChannelId", nextChannelId);
+        }
+        if (config.size) updateConfig("videoSize", config.size);
+        if (config.vquality) updateConfig("vquality", config.vquality);
+        if (config.videoSeconds) updateConfig("videoSeconds", config.videoSeconds);
+        if (config.videoMode) updateConfig("videoMode", config.videoMode);
+        updateConfig("videoMultiShot", config.videoMultiShot || "false");
+        updateConfig("videoShotType", config.videoShotType || "intelligence");
+        updateConfig("videoMultiPrompt", normalizeKlingMultiPrompts(config.videoMultiPrompt));
+        updateConfig("videoElementList", normalizeKlingElementList(config.videoElementList));
+        if (taskCountValue) setTaskCount(normalizeVideoCount(taskCountValue));
+        updateConfig("videoNegativePrompt", config.videoNegativePrompt || "");
+        if (config.videoGenerateAudio) updateConfig("videoGenerateAudio", config.videoGenerateAudio);
+        if (config.videoWatermark) updateConfig("videoWatermark", config.videoWatermark);
+        updateConfig("videoCharacterOrientation", normalizeCharacterOrientation(config.videoCharacterOrientation));
+    };
+
     const previewGenerationResult = (result: GenerationResult) => {
         setPreviewLog(null);
         setResults((value) => value.filter((item) => item.id !== result.id));
@@ -660,27 +671,7 @@ export default function VideoPage() {
         setLastFrame(result.lastFrame || null);
         setVideoReferences(result.videoReferences || []);
         setAudioReferences(result.audioReferences || []);
-        updateConfig("videoWorkflowRef", result.providerWorkflowRef);
-        const nextModel = result.config.videoModel || result.model;
-        const nextChannelId = resolveVideoChannelId(effectiveConfig, nextModel, videoTaskChannelId(result.task), result.config.videoChannelId, result.config.activeChannelId);
-        if (nextModel) updateConfig("videoModel", nextModel);
-        if (nextChannelId) {
-            updateConfig("videoChannelId", nextChannelId);
-            updateConfig("activeChannelId", nextChannelId);
-        }
-        if (result.config.size) updateConfig("videoSize", result.config.size);
-        if (result.config.vquality) updateConfig("vquality", result.config.vquality);
-        if (result.config.videoSeconds) updateConfig("videoSeconds", result.config.videoSeconds);
-        if (result.config.videoMode) updateConfig("videoMode", result.config.videoMode);
-        updateConfig("videoMultiShot", result.config.videoMultiShot || "false");
-        updateConfig("videoShotType", result.config.videoShotType || "intelligence");
-        updateConfig("videoMultiPrompt", normalizeKlingMultiPrompts(result.config.videoMultiPrompt));
-        updateConfig("videoElementList", normalizeKlingElementList(result.config.videoElementList));
-        if (result.taskCount) setTaskCount(normalizeVideoCount(result.taskCount));
-        updateConfig("videoNegativePrompt", result.config.videoNegativePrompt || "");
-        if (result.config.videoGenerateAudio) updateConfig("videoGenerateAudio", result.config.videoGenerateAudio);
-        if (result.config.videoWatermark) updateConfig("videoWatermark", result.config.videoWatermark);
-        updateConfig("videoCharacterOrientation", normalizeCharacterOrientation(result.config.videoCharacterOrientation));
+        applyVideoGenerationConfig(result.config, result.model, result.task, result.providerWorkflowRef, result.taskCount);
     };
 
     const downloadVideo = async (video: GeneratedVideo) => {
@@ -914,27 +905,7 @@ export default function VideoPage() {
         setLastFrame(log.lastFrame || null);
         setVideoReferences(log.videoReferences || []);
         setAudioReferences(log.audioReferences || []);
-        updateConfig("videoWorkflowRef", log.providerWorkflowRef);
-        const nextModel = log.config.videoModel || log.model;
-        const nextChannelId = resolveVideoChannelId(effectiveConfig, nextModel, videoTaskChannelId(log.task), log.config.videoChannelId, log.config.activeChannelId);
-        if (nextModel) updateConfig("videoModel", nextModel);
-        if (nextChannelId) {
-            updateConfig("videoChannelId", nextChannelId);
-            updateConfig("activeChannelId", nextChannelId);
-        }
-        if (log.config.size) updateConfig("videoSize", log.config.size);
-        if (log.config.vquality) updateConfig("vquality", log.config.vquality);
-        if (log.config.videoSeconds) updateConfig("videoSeconds", log.config.videoSeconds);
-        if (log.config.videoMode) updateConfig("videoMode", log.config.videoMode);
-        updateConfig("videoMultiShot", log.config.videoMultiShot || "false");
-        updateConfig("videoShotType", log.config.videoShotType || "intelligence");
-        updateConfig("videoMultiPrompt", normalizeKlingMultiPrompts(log.config.videoMultiPrompt));
-        updateConfig("videoElementList", normalizeKlingElementList(log.config.videoElementList));
-        if (log.taskCount) setTaskCount(normalizeVideoCount(log.taskCount));
-        updateConfig("videoNegativePrompt", log.config.videoNegativePrompt || "");
-        if (log.config.videoGenerateAudio) updateConfig("videoGenerateAudio", log.config.videoGenerateAudio);
-        if (log.config.videoWatermark) updateConfig("videoWatermark", log.config.videoWatermark);
-        updateConfig("videoCharacterOrientation", normalizeCharacterOrientation(log.config.videoCharacterOrientation));
+        applyVideoGenerationConfig(log.config, log.model, log.task, log.providerWorkflowRef, log.taskCount);
     };
 
     const retryGenerationLog = (log: GenerationLog) => {
@@ -965,7 +936,7 @@ export default function VideoPage() {
             onPreviewResult={previewGenerationResult}
             onRetryResult={retryResult}
             onStopResult={(result) => void stopVideoTask(result.taskLogId || result.id)}
-            onCopyPrompt={(value) => void copyPrompt(value, (content) => message.success(content))}
+            onCopyPrompt={(value) => copyText(value, "提示词已复制")}
             onDownload={downloadVideo}
             onSyncResult={syncResultVideo}
             onSyncLog={syncLogVideo}
@@ -1006,7 +977,7 @@ export default function VideoPage() {
             onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
             onOpenPromptLibrary={() => setPromptDialogOpen(true)}
             onOpenAssetPicker={openAssetPicker}
-            onPastePrompt={() => void pastePromptFromClipboard()}
+            onPastePrompt={() => void pasteClipboardText(setPrompt)}
             onClearPrompt={() => setPrompt("")}
             onPasteReferences={() => void addReferencesFromClipboard()}
             onUploadReferences={() => fileInputRef.current?.click()}
@@ -1022,7 +993,6 @@ export default function VideoPage() {
     ) : (
         <VideoWorkbenchPanel
             layout={workbenchLayout}
-            currentLayout={workbenchLayout}
             prompt={prompt}
             negativePrompt={negativePrompt}
             references={references}
@@ -1033,7 +1003,6 @@ export default function VideoPage() {
             config={videoConfig}
             model={model}
             canGenerate={canGenerate}
-            running={running}
             pendingCount={pendingCount}
             taskCount={taskCount}
             onTaskCountChange={setTaskCount}
@@ -1044,7 +1013,7 @@ export default function VideoPage() {
             onNegativePromptChange={(value) => { setNegativePrompt(value); updateConfig("videoNegativePrompt", value); }}
             onOpenPromptLibrary={() => setPromptDialogOpen(true)}
             onOpenAssetPicker={openAssetPicker}
-            onPastePrompt={() => void pastePromptFromClipboard()}
+            onPastePrompt={() => void pasteClipboardText(setPrompt)}
             onClearPrompt={() => setPrompt("")}
             onPasteReferences={() => void addReferencesFromClipboard()}
             onPasteFrame={(slot) => void setFrameFromClipboard(slot)}
