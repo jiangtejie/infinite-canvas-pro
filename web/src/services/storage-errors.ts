@@ -13,3 +13,8 @@ export function isStorageNotConfiguredError(error: unknown) {
     const message = errorMessage(error, "");
     return message.includes("服务端对象存储未启用") || message.includes("用户对象存储配置不完整");
 }
+
+export function isStorageFallbackAllowed(error: unknown) {
+    if (error instanceof StorageNotConfiguredError) return true;
+    return errorMessage(error, "").includes("服务端对象存储未启用");
+}

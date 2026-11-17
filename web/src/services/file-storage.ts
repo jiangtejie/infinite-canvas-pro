@@ -7,7 +7,7 @@ import { collectStorageReferenceKeys } from "@/lib/storage-reference-keys";
 import { deleteAnonymousStorageFile, uploadAnonymousStorageFile } from "@/services/anonymous-storage";
 import { apiGet } from "@/services/api/request";
 import { autoSyncToCloud, canUseGlobalStorage, clearAutoSyncCache, getProxyUrl, loadUserStorageProvider, toProviderPayload, type StorageConfig, type UserWebDAVStorageProvider } from "@/services/image-storage";
-import { isStorageNotConfiguredError, StorageNotConfiguredError } from "@/services/storage-errors";
+import { isStorageFallbackAllowed, StorageNotConfiguredError } from "@/services/storage-errors";
 import { useUserStore } from "@/stores/use-user-store";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number };
@@ -40,7 +40,7 @@ export async function uploadAssetMediaFile(file: File, prefix = "asset-media"): 
     try {
         return await uploadMediaBlobToServer(file, file.name || `${prefix}-${nanoid()}`);
     } catch (error) {
-        if (!isStorageNotConfiguredError(error)) throw error;
+        if (!isStorageFallbackAllowed(error)) throw error;
         return uploadMediaFile(file, prefix);
     }
 }

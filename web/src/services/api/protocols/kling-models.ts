@@ -43,7 +43,7 @@ export function isKlingV3Config(config: AiConfig, modelName: string) {
 }
 
 export function isAPIMartKlingMotionControlConfig(config: AiConfig, modelName: string) {
-    return isProviderKlingConfig(config, modelName, "kling-v2-6-motion-control", "apimart");
+    return isProviderKlingConfig(config, modelName, "kling-v2-6-motion-control", "apimart") || isProviderKlingConfig(config, modelName, "kling-v3-motion-control", "apimart");
 }
 
 export function isKIEKlingV3Config(config: AiConfig, modelName: string) {

@@ -6,6 +6,7 @@ import localforage from "localforage";
 import { mediaStore } from "@/services/file-storage";
 import { createVideoGenerationTask, pollCreatedVideoGenerationTask } from "../tasks";
 import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
+import { useUserStore } from "@/stores/use-user-store";
 import type { AiConfig } from "@/stores/use-config-store";
 import { filterChannelModelsByCapability } from "@/stores/use-config-store";
 import { createTeamoVideoRequestBody, isTeamoVideoConfig, teamoVideoSeconds, teamoVideoSize } from "./teamo";
@@ -54,7 +55,7 @@ test("TeamoRouter 云端渠道按选中的公开渠道识别", async () => {
 test("TeamoRouter Gemini 渠道直连创建保留必填 model", async () => {
     const originalAdapter = axios.defaults.adapter;
     const originalAccounts = useChannelTranslationStore.getState().accounts;
-    useChannelTranslationStore.setState({ accounts: { guest: {} } });
+    useChannelTranslationStore.setState({ accounts: { [useUserStore.getState().user?.id || "guest"]: {} } });
     let sent: { url?: string; body?: Record<string, unknown> } = {};
     axios.defaults.adapter = async (request) => {
         sent = { url: request.url, body: JSON.parse(request.data) };

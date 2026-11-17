@@ -47,6 +47,8 @@ test("Kling model variants keep existing exact normalized matches", () => {
     const apimart = configFor("kling-v2.6", "apimart");
     assert.equal(isAPIMartKlingV26Config(apimart, "kling-v2.6"), true);
     assert.equal(isAPIMartKlingMotionControlConfig(apimart, "kling-v2.6-motion-control"), true);
+    const apimartV3MotionControl = configFor("kling-v3-motion-control", "apimart");
+    assert.equal(isAPIMartKlingMotionControlConfig(apimartV3MotionControl, "kling-v3-motion-control"), true);
     const kie = configFor("kling-3.0/video", "kie");
     assert.equal(isKIEKlingV3Config(kie, "kling-3.0/video"), true);
     assert.equal(isKIEKlingMotionControlConfig(kie, "kling-2.6/motion-control"), true);
