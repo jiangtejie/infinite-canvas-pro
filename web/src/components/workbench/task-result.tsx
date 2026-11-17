@@ -27,7 +27,7 @@ export function TaskPromptBlock({ prompt, onCopyPrompt, compact = false }: { pro
     const [expanded, setExpanded] = useState(false);
     if (compact) {
         return (
-            <div className="rounded-lg border border-border/50 bg-muted/50 px-2.5 py-2 text-xs">
+            <div className="rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
                 <p className={`whitespace-pre-wrap break-words text-[12px] leading-5 text-foreground/80 ${expanded ? "" : "line-clamp-2"}`}>{prompt}</p>
                 <div className="mt-1 flex justify-end gap-0.5">
                     <Button size="small" type="text" title="复制提示词" aria-label="复制提示词" className="!h-5 !px-1 !text-[10px]" icon={<Copy className="size-3" />} onClick={() => void onCopyPrompt(prompt)} />
@@ -98,7 +98,7 @@ export function FailedResultCard({ mediaClassName, references, error, detail, in
 }) {
     const [detailOpen, setDetailOpen] = useState(false);
     return (
-        <div role="alert" className="overflow-hidden rounded-lg border border-destructive/30 bg-destructive/10">
+        <div role="alert" className="overflow-hidden rounded-2xl border border-destructive/30 bg-destructive/10">
             <div className={`relative flex flex-col items-center justify-center gap-3 p-6 text-center ${mediaClassName}`}>
                 <ReferenceThumbnailOverlay references={references} className="left-1.5 top-1.5" />
                 <AlertCircle className="size-7 text-destructive" aria-hidden />
@@ -141,7 +141,7 @@ export function MediaResultCard({ media, mediaClassName, mediaBackgroundClassNam
     onCopyPrompt?: (text: string) => void | Promise<void>;
 }) {
     return (
-        <div className={`overflow-hidden rounded-xl border border-border/70 bg-background transition-[border-color,box-shadow] duration-200 hover:border-acid/40 hover:shadow-sm ${className}`}>
+        <div className={`punk-card overflow-hidden rounded-2xl border border-border/70 bg-background ${className}`}>
             <div className={`relative ${mediaClassName} ${mediaBackgroundClassName}`}>
                 {overlay}
                 <ReferenceThumbnailOverlay references={references} className="left-1.5 top-1.5" />
@@ -163,7 +163,7 @@ export function PendingMediaCard({ mediaClassName, prompt, tags, info, className
     children: ReactNode;
 }) {
     return (
-        <div className={`overflow-hidden rounded-xl border border-dashed border-border/70 bg-muted/40 ${className}`}>
+        <div className={`overflow-hidden rounded-2xl border border-dashed border-border/70 bg-muted/40 ${className}`}>
             <div className={`relative ${mediaClassName}`}>{children}</div>
             {info ?? (prompt && onCopyPrompt ? <TaskResultInfo prompt={prompt} tags={tags} onCopyPrompt={onCopyPrompt} /> : null)}
         </div>
@@ -172,7 +172,7 @@ export function PendingMediaCard({ mediaClassName, prompt, tags, info, className
 
 export function ResultMediaMeta({ meta, actions }: { meta?: ReactNode; actions?: ReactNode }) {
     return (
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border/70 px-3 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border/70 px-3.5 py-2.5">
             <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-1 text-[10px] text-muted-foreground/90">{meta}</div>
             {actions ? <div className="flex shrink-0 gap-1.5">{actions}</div> : null}
         </div>

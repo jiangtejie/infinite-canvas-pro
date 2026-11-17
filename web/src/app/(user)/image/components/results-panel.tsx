@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/ui/state-panel";
 import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
 import { useResultsWindow } from "@/components/workbench/use-results-window";
 
+import { cn } from "@/lib/utils";
+
 import type { GeneratedImage, GenerationCategory, GenerationLog, GenerationResult, ResultViewMode } from "../history";
 import { imageLogIdentityKeys, imageResultIdentityKeys } from "../history";
 import { CategoryCard } from "./category-card";
@@ -44,6 +46,7 @@ export function ResultsPanel({
     onDeleteLog,
     onPreviewLog,
     onRetryLog,
+    onReuseConfig,
     onCopyPrompt,
     onEdit,
     onMaskEdit,
@@ -80,6 +83,7 @@ export function ResultsPanel({
     onDeleteLog: (log: GenerationLog) => void;
     onPreviewLog: (log: GenerationLog) => void;
     onRetryLog: (log: GenerationLog) => void;
+    onReuseConfig: (result: GenerationResult) => void;
     onCopyPrompt: (text: string) => void | Promise<void>;
     onEdit: (image: GeneratedImage, index: number) => void;
     onMaskEdit: (log: GenerationLog, image: GeneratedImage) => void;
@@ -109,7 +113,9 @@ export function ResultsPanel({
     const categoryGroups = categories.map((category) => ({ category, logs: baseVisibleLogs.filter((log) => log.categoryIds.includes(category.id)) }));
     const activeCategory = activeCategoryId ? categories.find((category) => category.id === activeCategoryId) : null;
     const totalCount = results.length + (resultViewMode === "category" ? (activeCategoryId ? visibleLogs.length : categories.length + visibleLogs.length) : visibleLogs.length);
-    const shouldShowGrid = totalCount > 0;
+    const showLiveSection = resultViewMode === "category" && results.length > 0;
+    const showArchiveGrid = Boolean(displayedLogs.length || (!showLiveSection && results.length) || (resultViewMode === "category" && !activeCategoryId && categoryGroups.length));
+    const resultGridClass = "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
     const selectedImages = visibleLogs.flatMap((log) => (selectedLogIds.includes(log.id) ? log.images.filter((image) => Boolean(image.dataUrl)) : []));
     const createCategory = async () => {
         const name = categoryName.trim();
@@ -127,6 +133,31 @@ export function ResultsPanel({
         if (activeCategoryId && !categories.some((category) => category.id === activeCategoryId)) onActiveCategoryChange(null);
     }, [activeCategoryId, categories, onActiveCategoryChange]);
 
+    const liveResultCards = results.map((result, index) => (
+        <div key={result.id} className="enter-up h-full" style={{ "--enter-index": Math.min(index, 8) } as CSSProperties}>
+            {result.status === "success" && result.image ? (
+                <ResultImageCard
+                    result={result}
+                    image={result.image}
+                    index={index}
+                    onCopyPrompt={onCopyPrompt}
+                    onEdit={onEdit}
+                    onReuseConfig={onReuseConfig}
+                    onDownload={onDownload}
+                    onSaveAsset={onSaveAsset}
+                    syncing={syncingImageIds.includes(result.image.id)}
+                    onSync={(image) => onSyncResult(result.id, image, index)}
+                />
+            ) : result.status === "failed" ? (
+                <FailedImageCard result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
+            ) : result.status === "stopped" ? (
+                <StoppedImageCard result={result} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
+            ) : (
+                <PendingImageCard result={result} now={now} onCopyPrompt={onCopyPrompt} stopping={result.status === "stopping"} onStop={canStopResult?.(result) ?? Boolean(result.task) ? () => onStop(result) : undefined} />
+            )}
+        </div>
+    ));
+
     return (
         <ResultsPanelShell
             className={className}
@@ -140,20 +171,26 @@ export function ResultsPanel({
                             返回分类
                         </Button>
                     ) : null}
-                    <div className="flex shrink-0 rounded-lg border border-border/70 bg-muted/50 p-1">
-                        <Button
-                            size="small"
-                            type={resultViewMode === "all" ? "primary" : "text"}
+                    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-muted/30 p-0.5">
+                        <button
+                            type="button"
+                            aria-pressed={resultViewMode === "all"}
+                            className={cn("h-7 rounded-md px-2.5 text-[11px] transition-colors", resultViewMode === "all" ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/60 hover:text-foreground")}
                             onClick={() => {
                                 onActiveCategoryChange(null);
                                 onResultViewModeChange("all");
                             }}
                         >
                             全部展示
-                        </Button>
-                        <Button size="small" type={resultViewMode === "category" ? "primary" : "text"} onClick={() => onResultViewModeChange("category")}>
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={resultViewMode === "category"}
+                            className={cn("h-7 rounded-md px-2.5 text-[11px] transition-colors", resultViewMode === "category" ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/60 hover:text-foreground")}
+                            onClick={() => onResultViewModeChange("category")}
+                        >
                             分类展示
-                        </Button>
+                        </button>
                     </div>
                     <ResultsToolbarActions
                         onNew={resultViewMode === "category" ? () => setCreatingCategory(true) : onCreateSession}
@@ -169,7 +206,10 @@ export function ResultsPanel({
                 </>
             }
             empty={
-                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 lg:min-h-[520px]">
+                <div
+                    className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border/60 bg-muted/10 lg:min-h-[520px]"
+                    style={{ backgroundImage: "radial-gradient(circle at 50% 34%, var(--acid-soft), transparent 58%)" }}
+                >
                     <EmptyState
                 icon={<ImagePlus className="size-6" />}
                 title="还没有生成图片"
@@ -187,40 +227,24 @@ export function ResultsPanel({
                 </div>
             }
         >
-            {shouldShowGrid ? (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {results.map((result, index) => (
-                        <div key={result.id} className="enter-up h-full" style={{ "--enter-index": Math.min(index, 8) } as CSSProperties}>
-                            {result.status === "success" && result.image ? (
-                                <ResultImageCard
-                                    result={result}
-                                    image={result.image}
-                                    index={index}
-                                    onCopyPrompt={onCopyPrompt}
-                                    onEdit={onEdit}
-                                    onDownload={onDownload}
-                                    onSaveAsset={onSaveAsset}
-                                    syncing={syncingImageIds.includes(result.image.id)}
-                                    onSync={(image) => onSyncResult(result.id, image, index)}
-                                />
-                            ) : result.status === "failed" ? (
-                                <FailedImageCard result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
-                            ) : result.status === "stopped" ? (
-                                <StoppedImageCard result={result} onCopyPrompt={onCopyPrompt} onRetry={() => onRetry(result)} />
-                            ) : (
-                                <PendingImageCard result={result} now={now} onCopyPrompt={onCopyPrompt} stopping={result.status === "stopping"} onStop={canStopResult?.(result) ?? Boolean(result.task) ? () => onStop(result) : undefined} />
-                            )}
-                        </div>
-                    ))}
-                    {resultViewMode === "category" ? (
-                        <>
-                            {!activeCategoryId
-                                ? categoryGroups.map(({ category, logs: categoryLogs }) => (
-                                      <CategoryCard key={category.id} category={category} logs={categoryLogs} onRename={onRenameCategory} onDelete={onDeleteCategory} onOpen={() => onActiveCategoryChange(category.id)} />
-                                  ))
-                                : null}
-                        </>
-                    ) : null}
+            {showLiveSection ? (
+                <section className="mb-5">
+                    <div className="mb-3 flex items-center gap-2.5">
+                        <span className="size-1.5 rounded-full bg-acid shadow-[0_0_10px_var(--acid)]" aria-hidden />
+                        <h3 className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">本次生成</h3>
+                        <span className="h-px flex-1 bg-gradient-to-r from-border to-transparent" aria-hidden />
+                    </div>
+                    <div className={resultGridClass}>{liveResultCards}</div>
+                </section>
+            ) : null}
+            {showArchiveGrid ? (
+                <div className={resultGridClass}>
+                    {showLiveSection ? null : liveResultCards}
+                    {resultViewMode === "category" && !activeCategoryId
+                        ? categoryGroups.map(({ category, logs: categoryLogs }) => (
+                              <CategoryCard key={category.id} category={category} logs={categoryLogs} onRename={onRenameCategory} onDelete={onDeleteCategory} onOpen={() => onActiveCategoryChange(category.id)} />
+                          ))
+                        : null}
                     {displayedLogs.map((log, index) => (
                         <div key={log.id} className="enter-up h-full" style={{ "--enter-index": Math.min(index + results.length, 8) } as CSSProperties}>
                             <HistoryLogCard

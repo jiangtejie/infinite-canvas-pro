@@ -102,7 +102,7 @@ async function collectGenerationLogKeys() {
     const keys: string[] = [];
     try {
         const localforage = (await import("localforage")).default;
-        for (const storeName of ["image_generation_logs", "video_generation_logs"]) {
+        for (const storeName of ["image_generation_logs", "video_generation_logs", "image_workbench_draft"]) {
             const store = localforage.createInstance({ name: "infinite-canvas", storeName });
             await store.iterate<GenerationLog, void>((log) => {
                 log?.images?.forEach((image) => {

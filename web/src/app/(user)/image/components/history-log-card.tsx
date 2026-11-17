@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Checkbox, Image, Input, Tag } from "antd";
-import { AlertCircle, Brush, CloudUpload, Download, FolderPlus, PenLine, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Button, Checkbox, Dropdown, Image, Input, Tag } from "antd";
+import { AlertCircle, BookmarkPlus, Brush, CloudUpload, Download, FolderPlus, ImagePlus, MoreHorizontal, Plus, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import { FailureDetailModal, ReferenceThumbnailOverlay, TaskErrorLine, TaskPromptBlock, formatTaskTime } from "@/components/workbench/task-result";
 import { formatDuration } from "@/lib/image-utils";
@@ -74,6 +74,26 @@ export function HistoryLogCard({
         setCategoryOpen(false);
         action();
     };
+    const moreItems = [
+        ...(firstImage ? [{ key: "reference", icon: <ImagePlus className="size-3.5" />, label: "作为参考图" }] : []),
+        { key: "mask", icon: <Brush className="size-3.5" />, label: "局部重绘", disabled: !firstImage },
+        { key: "category", icon: <FolderPlus className="size-3.5" />, label: "分类" },
+        ...(firstImage && !firstImage.storageKey?.startsWith("server:") ? [{ key: "sync", icon: <CloudUpload className="size-3.5" />, label: "同步到云端", disabled: syncing }] : []),
+        ...(firstImage
+            ? [
+                  { key: "asset", icon: <BookmarkPlus className="size-3.5" />, label: "保存到我的素材" },
+                  { key: "download", icon: <Download className="size-3.5" />, label: "下载图片" },
+              ]
+            : []),
+    ];
+    const handleMore = (key: string) => {
+        if (key === "reference" && firstImage) closeThen(() => void onEdit(firstImage, index));
+        else if (key === "mask" && firstImage) closeThen(() => onMaskEdit(firstImage));
+        else if (key === "category") setCategoryOpen(true);
+        else if (key === "sync" && firstImage) closeThen(() => onSync(firstImage));
+        else if (key === "asset" && firstImage) closeThen(() => void onSaveAsset(firstImage, index));
+        else if (key === "download" && firstImage) closeThen(() => onDownload(firstImage, index));
+    };
 
     useEffect(() => {
         if (!categoryOpen) return;
@@ -85,7 +105,7 @@ export function HistoryLogCard({
     }, [categoryOpen]);
 
     return (
-        <div className={`group flex h-full flex-col overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] duration-200 hover:shadow-sm ${active ? "border-acid/60 shadow-sm" : "border-border/70 hover:border-acid/40"}`}>
+        <div className={`punk-card group flex h-full flex-col overflow-hidden rounded-2xl border bg-background ${active ? "border-acid/60 shadow-sm" : "border-border/70"}`}>
             <div className="relative aspect-[4/3] shrink-0 bg-muted">
                 <div className={`absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 ${selected ? "sm:opacity-100" : ""}`}>
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />
@@ -151,16 +171,17 @@ export function HistoryLogCard({
                     items={[formatTaskTime(log.createdAt), log.model, log.workflowName ? `工作流 ${log.workflowName}` : "", log.config.size || "auto", formatDuration(log.durationMs)]}
                 />
             </div>
-            <div className="flex flex-wrap items-center gap-1.5 border-t border-border/70 px-3 py-2.5">
-                <div ref={categoryMenuRef} className="relative flex items-center gap-1">
-                    <Button size="small" onClick={() => closeThen(onPreview)}>
-                        载入
-                    </Button>
-                    <Button size="small" title="重试" aria-label="重试" icon={<RotateCcw className="size-3.5" />} onClick={() => closeThen(onRetry)} />
-                    <Button size="small" title="局部重绘" aria-label="局部重绘" icon={<Brush className="size-3.5" />} disabled={!firstImage} onClick={() => closeThen(() => firstImage ? onMaskEdit(firstImage) : undefined)} />
-                    <Button size="small" title="分类" aria-label="分类" icon={<FolderPlus className="size-3.5" />} onClick={() => setCategoryOpen((value) => !value)} />
+            <div className="flex items-center gap-1.5 border-t border-border/70 px-3 py-2.5">
+                <Button size="small" icon={<SlidersHorizontal className="size-3.5" />} onClick={() => closeThen(onPreview)}>
+                    复用配置
+                </Button>
+                <Button size="small" type="text" className="!text-muted-foreground hover:!text-foreground" title="重试" aria-label="重试" icon={<RotateCcw className="size-3.5" />} onClick={() => closeThen(onRetry)} />
+                <div ref={categoryMenuRef} className="relative ml-auto flex items-center">
+                    <Dropdown trigger={["click"]} placement="bottomRight" menu={{ items: moreItems, onClick: ({ key }) => handleMore(key) }}>
+                        <Button size="small" type="text" className="!text-muted-foreground hover:!text-foreground" title="更多操作" aria-label="更多操作" icon={<MoreHorizontal className="size-3.5" />} />
+                    </Dropdown>
                     {categoryOpen ? (
-                        <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-lg border border-border bg-popover p-2 shadow-xl">
+                        <div className="absolute bottom-full right-0 z-20 mb-2 w-56 rounded-lg border border-border bg-popover p-2 shadow-xl">
                             <div className="max-h-44 space-y-1 overflow-y-auto">
                                 {categories.map((category) => (
                                     <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent">
@@ -180,14 +201,6 @@ export function HistoryLogCard({
                         </div>
                     ) : null}
                 </div>
-                {firstImage ? (
-                    <div className="ml-auto flex shrink-0 items-center gap-1">
-                        <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={firstImage.storageKey?.startsWith("server:")} onClick={() => closeThen(() => onSync(firstImage))} />
-                        <Button size="small" title="保存到我的素材" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => closeThen(() => void onSaveAsset(firstImage, index))} />
-                        <Button size="small" title="继续编辑" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => closeThen(() => void onEdit(firstImage, index))} />
-                        <Button size="small" title="下载图片" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => closeThen(() => onDownload(firstImage, index))} />
-                    </div>
-                ) : null}
             </div>
             <FailureDetailModal open={detailOpen} detail={log.errorDetails?.[0] || log.errors[0] || ""} onClose={() => setDetailOpen(false)} />
         </div>

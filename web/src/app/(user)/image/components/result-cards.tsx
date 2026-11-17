@@ -1,7 +1,7 @@
 "use client";
 
-import { Button, Image, Tag } from "antd";
-import { Ban, CloudUpload, Download, FolderPlus, LoaderCircle, PenLine } from "lucide-react";
+import { Button, Dropdown, Image, Tag } from "antd";
+import { Ban, CloudUpload, Download, FolderPlus, ImagePlus, LoaderCircle, MoreHorizontal, SlidersHorizontal } from "lucide-react";
 
 import { FailedResultCard, MediaResultCard, PendingMediaCard, TaskPromptBlock, formatTaskTime } from "@/components/workbench/task-result";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
@@ -44,6 +44,7 @@ export function ResultImageCard({
     index,
     onCopyPrompt,
     onEdit,
+    onReuseConfig,
     onDownload,
     onSaveAsset,
     syncing,
@@ -54,12 +55,19 @@ export function ResultImageCard({
     index: number;
     onCopyPrompt: (text: string) => void | Promise<void>;
     onEdit: (image: GeneratedImage, index: number) => void;
+    onReuseConfig: (result: GenerationResult) => void;
     onDownload: (image: GeneratedImage, index: number) => void;
     onSaveAsset: (image: GeneratedImage, index: number) => void;
     syncing: boolean;
     onSync: (image: GeneratedImage) => void;
 }) {
     const previewUrl = useImagePreviewUrl(`image-result:${image.id}`, image.storageKey || image.dataUrl, image.dataUrl);
+    const moreItems = [
+        { key: "reuse", icon: <SlidersHorizontal className="size-3.5" />, label: "复用配置" },
+        ...(image.storageKey?.startsWith("server:") ? [] : [{ key: "sync", icon: <CloudUpload className="size-3.5" />, label: "同步到云端", disabled: syncing }]),
+        { key: "asset", icon: <FolderPlus className="size-3.5" />, label: "保存到我的素材" },
+        { key: "download", icon: <Download className="size-3.5" />, label: "下载图片" },
+    ];
 
     return (
         <MediaResultCard
@@ -75,10 +83,24 @@ export function ResultImageCard({
             }
             actions={
                 <>
-                    <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={image.storageKey?.startsWith("server:")} onClick={() => onSync(image)} />
-                    <Button size="small" title="保存到我的素材" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => void onSaveAsset(image, index)} />
-                    <Button size="small" title="继续编辑" aria-label="继续编辑" icon={<PenLine className="size-3.5" />} onClick={() => void onEdit(image, index)} />
-                    <Button size="small" title="下载图片" aria-label="下载图片" icon={<Download className="size-3.5" />} onClick={() => onDownload(image, index)} />
+                    <Button size="small" icon={<ImagePlus className="size-3.5" />} onClick={() => void onEdit(image, index)}>
+                        作为参考图
+                    </Button>
+                    <Dropdown
+                        trigger={["click"]}
+                        placement="bottomRight"
+                        menu={{
+                            items: moreItems,
+                            onClick: ({ key }) => {
+                                if (key === "reuse") onReuseConfig(result);
+                                else if (key === "sync") onSync(image);
+                                else if (key === "asset") void onSaveAsset(image, index);
+                                else if (key === "download") onDownload(image, index);
+                            },
+                        }}
+                    >
+                        <Button size="small" type="text" className="!text-muted-foreground hover:!text-foreground" title="更多操作" aria-label="更多操作" icon={<MoreHorizontal className="size-3.5" />} />
+                    </Dropdown>
                 </>
             }
             media={<Image src={previewUrl} preview={{ src: image.dataUrl }} alt={`生成结果 ${index + 1}`} width={image.width || undefined} height={image.height || undefined} className="aspect-[4/3] object-cover" />}

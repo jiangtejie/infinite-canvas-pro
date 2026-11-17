@@ -19,6 +19,7 @@ import { useImageGeneration } from "./hooks/use-image-generation";
 import { useImageBatchGeneration } from "./hooks/use-image-batch-generation";
 import { useImageHistorySync } from "./hooks/use-image-history-sync";
 import { CATEGORY_STORE_KEY, logStore, categoryStore, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, mergePendingLogResults, imageLogIdentityKeys, dedupeGenerationLogs, readStoredLogs, readStoredCategories, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition } from "./history";
+import { readWorkbenchDraft, saveWorkbenchDraft } from "./draft";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/app/(user)/canvas/components/canvas-node-mask-edit-dialog";
@@ -75,6 +76,7 @@ export default function ImagePage() {
     const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
     const [previewLog, setPreviewLog] = useState<GenerationLog | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [draftReady, setDraftReady] = useState(false);
     const [now, setNow] = useState(Date.now());
     const [workflowButtonPosition, setWorkflowButtonPosition] = useState({ x: 0, y: 0 });
     const workflowButtonRef = useRef<HTMLButtonElement>(null);
@@ -139,6 +141,34 @@ export default function ImagePage() {
     useEffect(() => {
         logsRef.current = logs;
     }, [logs]);
+
+    useEffect(() => {
+        if (!isUserReady) return;
+        let cancelled = false;
+        void readWorkbenchDraft()
+            .then((draft) => {
+                if (cancelled) return;
+                if (draft) {
+                    setPrompt(draft.prompt);
+                    setReferences(draft.references);
+                }
+                setDraftReady(true);
+            })
+            .catch(() => {
+                if (!cancelled) setDraftReady(true);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [isUserReady]);
+
+    useEffect(() => {
+        if (!isUserReady || !draftReady) return;
+        const timer = window.setTimeout(() => {
+            void saveWorkbenchDraft(prompt, references).catch(() => undefined);
+        }, 500);
+        return () => window.clearTimeout(timer);
+    }, [draftReady, isUserReady, prompt, references]);
 
     useEffect(() => {
         if (workflowDrawerOpen) setWorkflowWorkspaceReady(true);
@@ -274,6 +304,26 @@ export default function ImagePage() {
         }
     };
 
+    const addReferenceBlobs = async (blobs: Blob[]) => {
+        setUploadingCount(blobs.length);
+        const hideLoading = message.loading("正在上传并读取参考图...", 0);
+        try {
+            const nextReferences = await Promise.all(
+                blobs.map(async (blob, index) => {
+                    const image = await uploadImage(blob);
+                    return { id: nanoid(), name: `clipboard-${index + 1}.png`, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey, source: "clipboard" as const, temporary: true };
+                }),
+            );
+            setReferences((value) => [...value, ...nextReferences]);
+            message.success(`已成功上传并读取 ${nextReferences.length} 张参考图`);
+        } catch (error) {
+            message.error(toErrorMessage(error, "读取参考图失败"));
+        } finally {
+            hideLoading();
+            setUploadingCount(0);
+        }
+    };
+
     const addReferencesFromClipboard = async () => {
         try {
             const items = await navigator.clipboard.read();
@@ -282,24 +332,43 @@ export default function ImagePage() {
                 message.error("剪切板里没有可读取的图片");
                 return;
             }
-            setUploadingCount(blobs.length);
-            const hideLoading = message.loading("正在上传并读取参考图...", 0);
-            try {
-                const nextReferences = await Promise.all(
-                    blobs.map(async (blob, index) => {
-                        const image = await uploadImage(blob);
-                        return { id: nanoid(), name: `clipboard-${index + 1}.png`, type: image.mimeType, dataUrl: image.url, storageKey: image.storageKey, source: "clipboard" as const, temporary: true };
-                    }),
-                );
-                setReferences((value) => [...value, ...nextReferences]);
-                message.success(`已成功上传并读取 ${nextReferences.length} 张参考图`);
-            } finally {
-                hideLoading();
-                setUploadingCount(0);
-            }
+            await addReferenceBlobs(blobs);
         } catch {
             message.error("剪切板里没有可读取的图片");
-            setUploadingCount(0);
+        }
+    };
+
+    /** 底部布局只有一个剪贴板入口：有文本时写入提示词，否则读取图片作为参考图。 */
+    const pasteFromClipboard = async () => {
+        try {
+            const items = await navigator.clipboard.read();
+            const textItem = items.find((item) => item.types.includes("text/plain"));
+            if (textItem) {
+                const text = (await (await textItem.getType("text/plain")).text()).trim();
+                if (text) {
+                    setPrompt(text);
+                    message.success("已读取剪贴板文本");
+                    return;
+                }
+            }
+            const blobs = await Promise.all(items.flatMap((item) => item.types.filter((type) => type.startsWith("image/")).map((type) => item.getType(type))));
+            if (blobs.length) {
+                await addReferenceBlobs(blobs);
+                return;
+            }
+            message.error("剪贴板里没有可读取的文本或图片");
+        } catch {
+            try {
+                const text = (await navigator.clipboard.readText()).trim();
+                if (text) {
+                    setPrompt(text);
+                    message.success("已读取剪贴板文本");
+                    return;
+                }
+            } catch {
+                // Fall through to the shared empty-clipboard message.
+            }
+            message.error("剪贴板里没有可读取的文本或图片");
         }
     };
 
@@ -726,26 +795,46 @@ export default function ImagePage() {
         await updateLogCategories(log, nextCategoryIds);
     };
 
-    const previewGenerationLog = async (log: GenerationLog) => {
-        setPreviewLog(log);
-        setPrompt(log.prompt);
-        setReferences(log.references || []);
-        updateConfig("imageWorkflowRef", log.providerWorkflowRef);
-        const nextModel = log.config.imageModel || log.model;
-        const nextChannelId = resolveImageChannelId(effectiveConfig, nextModel, imageTaskChannelId(log.task), log.config.imageChannelId, log.config.activeChannelId);
+    const applyGenerationConfig = (config: GenerationLogConfig, fallbackModel: string, task?: GenerationLog["task"], providerWorkflowRef?: WorkflowRef) => {
+        updateConfig("imageWorkflowRef", providerWorkflowRef);
+        const nextModel = config.imageModel || config.model || fallbackModel;
+        const nextChannelId = resolveImageChannelId(effectiveConfig, nextModel, imageTaskChannelId(task), config.imageChannelId, config.activeChannelId);
         if (nextModel) updateConfig("imageModel", nextModel);
         if (nextChannelId) {
             updateConfig("imageChannelId", nextChannelId);
             updateConfig("activeChannelId", nextChannelId);
         }
-        if (log.config.quality) updateConfig("quality", log.config.quality);
-        if (log.config.size) updateConfig("size", log.config.size);
-        if (log.config.count) updateConfig("count", log.config.count);
-        if (log.config.apiMode) updateConfig("apiMode", log.config.apiMode);
-        if (typeof log.config.streamImages === "boolean") updateConfig("streamImages", log.config.streamImages);
-        if (log.config.streamPartialImages) updateConfig("streamPartialImages", log.config.streamPartialImages);
-        if (typeof log.config.responseFormatB64Json === "boolean") updateConfig("responseFormatB64Json", log.config.responseFormatB64Json);
-        if (typeof log.config.codexCli === "boolean") updateConfig("codexCli", log.config.codexCli);
+        if (config.quality) updateConfig("quality", config.quality);
+        if (config.size) updateConfig("size", config.size);
+        if (config.count) updateConfig("count", config.count);
+        if (config.apiMode) updateConfig("apiMode", config.apiMode);
+        if (typeof config.streamImages === "boolean") updateConfig("streamImages", config.streamImages);
+        if (config.streamPartialImages) updateConfig("streamPartialImages", config.streamPartialImages);
+        if (typeof config.responseFormatB64Json === "boolean") updateConfig("responseFormatB64Json", config.responseFormatB64Json);
+        if (typeof config.codexCli === "boolean") updateConfig("codexCli", config.codexCli);
+    };
+
+    const confirmDraftOverwrite = async (previewLogId?: string) => {
+        if (previewLogId && previewLog?.id === previewLogId) return true;
+        if (!prompt.trim() && !references.length) return true;
+        return confirm({ title: "覆盖当前创作", description: "当前提示词、参考图与生成参数会被所选内容替换。", confirmText: "覆盖并复用", tone: "warning" });
+    };
+
+    const previewGenerationLog = async (log: GenerationLog) => {
+        if (!(await confirmDraftOverwrite(log.id))) return;
+        setPreviewLog(log);
+        setPrompt(log.prompt);
+        setReferences(log.references || []);
+        applyGenerationConfig(log.config, log.model, log.task, log.providerWorkflowRef);
+    };
+
+    const reuseResultConfig = async (result: GenerationResult) => {
+        if (!(await confirmDraftOverwrite())) return;
+        setPreviewLog(null);
+        setPrompt(result.prompt);
+        setReferences(result.references || []);
+        applyGenerationConfig(result.config, result.model, result.task, result.providerWorkflowRef);
+        message.success("已复用该结果的生成配置");
     };
 
     const copyPrompt = async (text: string) => {
@@ -903,6 +992,7 @@ export default function ImagePage() {
             onDeleteLog={deleteLog}
             onPreviewLog={(log) => void previewGenerationLog(log)}
             onRetryLog={(log) => void retryLog(log)}
+            onReuseConfig={(result) => void reuseResultConfig(result)}
             onCopyPrompt={copyPrompt}
             onEdit={addResultToReferences}
             onMaskEdit={openMaskEdit}
@@ -936,6 +1026,8 @@ export default function ImagePage() {
             onPastePrompt={() => void pastePromptFromClipboard()}
             onClearPrompt={clearPrompt}
             onPasteReferences={() => void addReferencesFromClipboard()}
+            onPasteClipboard={() => void pasteFromClipboard()}
+            onOpenWorkflow={() => setWorkflowDrawerOpen(true)}
             onUploadReferences={() => fileInputRef.current?.click()}
             onRemoveReference={(id) => void removeReference(id)}
             onGenerate={() => void generate()}
@@ -946,27 +1038,29 @@ export default function ImagePage() {
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
             <WorkbenchShell layout={workbenchLayout} panel={workbenchPanel} results={resultsPanel} />
-            <button
-                ref={workflowButtonRef}
-                type="button"
-                className={`fixed z-40 inline-flex touch-none select-none items-center gap-2 rounded-lg border border-border bg-background/90 px-3.5 py-2.5 text-[13px] font-medium text-foreground shadow-lg backdrop-blur-xl transition hover:border-acid/45 hover:bg-accent ${hasCustomWorkflowButtonPosition ? "" : workbenchLayout === "bottom" ? "bottom-[calc(15rem+env(safe-area-inset-bottom))] right-6" : "bottom-6 right-6"}`}
-                style={hasCustomWorkflowButtonPosition ? { left: workflowButtonPosition.x, top: workflowButtonPosition.y } : undefined}
-                onPointerDown={handleWorkflowButtonPointerDown}
-                onPointerMove={handleWorkflowButtonPointerMove}
-                onPointerUp={handleWorkflowButtonPointerUp}
-                onClick={() => {
-                    if (workflowButtonDragRef.current?.moved) {
+            {workbenchLayout === "side" ? (
+                <button
+                    ref={workflowButtonRef}
+                    type="button"
+                    className={`fixed z-40 inline-flex touch-none select-none items-center gap-2 rounded-lg border border-border bg-background/90 px-3.5 py-2.5 text-[13px] font-medium text-foreground shadow-lg backdrop-blur-xl transition hover:border-acid/45 hover:bg-accent ${hasCustomWorkflowButtonPosition ? "max-lg:!bottom-[calc(15rem+env(safe-area-inset-bottom))] max-lg:!left-auto max-lg:!right-5 max-lg:!top-auto" : "bottom-6 right-6"}`}
+                    style={hasCustomWorkflowButtonPosition ? { left: workflowButtonPosition.x, top: workflowButtonPosition.y } : undefined}
+                    onPointerDown={handleWorkflowButtonPointerDown}
+                    onPointerMove={handleWorkflowButtonPointerMove}
+                    onPointerUp={handleWorkflowButtonPointerUp}
+                    onClick={() => {
+                        if (workflowButtonDragRef.current?.moved) {
+                            workflowButtonDragRef.current = null;
+                            return;
+                        }
                         workflowButtonDragRef.current = null;
-                        return;
-                    }
-                    workflowButtonDragRef.current = null;
-                    setWorkflowDrawerOpen(true);
-                }}
-            >
-                <span className="size-1.5 rounded-full bg-acid shadow-[0_0_10px_var(--acid)]" aria-hidden />
-                <WandSparkles className="size-4 text-acid" />
-                工作流
-            </button>
+                        setWorkflowDrawerOpen(true);
+                    }}
+                >
+                    <span className="size-1.5 rounded-full bg-acid shadow-[0_0_10px_var(--acid)]" aria-hidden />
+                    <WandSparkles className="size-4 text-acid" />
+                    工作流
+                </button>
+            ) : null}
             <Drawer title="创作工作流" placement="right" size="min(1120px, 92vw)" open={workflowDrawerOpen}  onClose={() => setWorkflowDrawerOpen(false)} styles={{ body: { padding: 0 } }} destroyOnHidden={false}>
                 <CreativeWorkflowWorkspace
                     embedded

@@ -14,11 +14,11 @@ export function ResultsPanelShell({ className = "", title, count, pendingCount, 
     children?: ReactNode;
 }) {
     return (
-        <section className={`thin-scrollbar punk-panel rounded-xl p-4 lg:min-h-0 lg:overflow-y-auto lg:p-5 ${className}`}>
-            <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-card px-4 pb-3 pt-0.5 lg:-mx-5 lg:px-5">
+        <section className={`thin-scrollbar punk-panel min-h-0 overflow-y-auto rounded-2xl p-4 lg:p-5 ${className}`}>
+            <div className="sticky top-0 z-10 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-card/95 px-4 pb-3.5 pt-0.5 backdrop-blur-md lg:-mx-5 lg:px-5">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <History className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <h2 className="truncate text-[15px] font-semibold tracking-tight">{title}</h2>
+                    <h2 className="truncate text-base font-semibold tracking-tight">{title}</h2>
                     <span className="chip chip-acid">{count}</span>
                     {pendingCount ? (
                         <span className="chip" role="status" aria-live="polite">
@@ -47,16 +47,16 @@ export function ResultsToolbarActions({ onNew, newLabel = "新建", onToggleSele
 }) {
     return (
         <>
-            <Button size="small" icon={<Plus className="size-3.5" />} onClick={onNew}>
+            <Button size="small" className="!h-7 !px-2.5" icon={<Plus className="size-3.5" />} onClick={onNew}>
                 {newLabel}
             </Button>
-            <Button size="small" icon={<CheckSquare className="size-3.5" />} disabled={selectAllDisabled} onClick={onToggleSelectAll}>
+            <Button size="small" type="text" className="!h-7 !px-2.5 !text-muted-foreground hover:!text-foreground" icon={<CheckSquare className="size-3.5" />} disabled={selectAllDisabled} onClick={onToggleSelectAll}>
                 {selectAllLabel}
             </Button>
-            <Button size="small" icon={<Download className="size-3.5" />} disabled={downloadDisabled} onClick={onDownload}>
+            <Button size="small" type="text" className="!h-7 !px-2.5 !text-muted-foreground hover:!text-foreground" icon={<Download className="size-3.5" />} disabled={downloadDisabled} onClick={onDownload}>
                 下载
             </Button>
-            <Button size="small" danger icon={<Trash2 className="size-3.5" />} disabled={deleteDisabled} onClick={onDelete}>
+            <Button size="small" type="text" danger className="!h-7 !px-2.5" icon={<Trash2 className="size-3.5" />} disabled={deleteDisabled} onClick={onDelete}>
                 删除
             </Button>
         </>

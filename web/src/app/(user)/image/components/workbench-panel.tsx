@@ -42,6 +42,8 @@ export function ImageWorkbenchPanel({
     onPastePrompt,
     onClearPrompt,
     onPasteReferences,
+    onPasteClipboard,
+    onOpenWorkflow,
     onUploadReferences,
     onRemoveReference,
     onGenerate,
@@ -64,6 +66,8 @@ export function ImageWorkbenchPanel({
     onPastePrompt: () => void;
     onClearPrompt: () => void;
     onPasteReferences: () => void;
+    onPasteClipboard: () => void;
+    onOpenWorkflow: () => void;
     onUploadReferences: () => void;
     onRemoveReference: (id: string) => void;
     onGenerate: () => void;
@@ -79,16 +83,29 @@ export function ImageWorkbenchPanel({
                 onPromptChange={onPromptChange}
                 canGenerate={canGenerate}
                 pendingCount={pendingCount}
+                generateLabel="开始生成"
                 settingsOpen={!bottomSettingsCollapsed}
                 onToggleSettings={() => setBottomSettingsCollapsed(!bottomSettingsCollapsed)}
                 onClearPrompt={onClearPrompt}
                 onOpenPromptLibrary={onOpenPromptLibrary}
                 onOpenAssetPicker={onOpenAssetPicker}
+                onPasteClipboard={onPasteClipboard}
+                onOpenWorkflow={onOpenWorkflow}
                 onSwitchToSide={() => onLayoutChange("side")}
                 onGenerate={onGenerate}
-                hint={<WorkbenchCreditHint config={config} model={model} mode="image" count={config.count || 1} />}
+                hint={
+                    <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+                        {pendingCount ? (
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="size-1 rounded-full bg-acid" aria-hidden />
+                                {pendingCount} 个生成中
+                            </span>
+                        ) : null}
+                        <WorkbenchCreditHint config={config} model={model} mode="image" count={config.count || 1} />
+                    </span>
+                }
             >
-                <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[1.3fr_auto_0.9fr_0.9fr_0.9fr_auto_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
+                <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-[minmax(0,1.35fr)_auto_minmax(0,0.72fr)_minmax(0,0.72fr)_minmax(0,0.42fr)_auto_auto] ${bottomSettingsCollapsed ? "hidden lg:grid" : "grid"}`}>
                     <label className="grid gap-1 text-xs text-muted-foreground">
                         模型
                         <ModelPicker
@@ -128,7 +145,7 @@ export function ImageWorkbenchPanel({
                     <QuickNumber label="数量" value={config.count || "1"} min={1} max={10} onChange={(value) => updateConfig("count", value)} />
                     <ReferenceQuickActions references={references} onUploadReferences={onUploadReferences} />
                     <Button type="primary" className="h-11 min-w-28 rounded-xl hidden lg:inline-flex" icon={<Sparkles className="size-4" />} disabled={!canGenerate} onClick={onGenerate}>
-                        {pendingCount ? `${pendingCount} 生成中` : "开始创作"}
+                        开始生成
                     </Button>
                 </div>
                 {references.length || uploadingCount > 0 ? <ReferenceStrip references={references} compact onRemoveReference={onRemoveReference} uploadingCount={uploadingCount} /> : null}
@@ -143,16 +160,17 @@ export function ImageWorkbenchPanel({
             onLayoutChange={onLayoutChange}
             canGenerate={canGenerate}
             onGenerate={onGenerate}
-            generateLabel={pendingCount ? `继续提交（${pendingCount} 个生成中）` : "开始生成"}
+            generateLabel="开始生成"
             generateHint={<WorkbenchCreditHint config={config} model={model} mode="image" count={config.count || 1} />}
+            pendingCount={pendingCount}
         >
             <WorkbenchPromptSection prompt={prompt} placeholder="描述画面主体、风格、构图、光线和用途" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} />
 
             <WorkbenchSection title="参考图" count={references.length}>
-                <div className="flex flex-wrap gap-1">
-                    <Button size="small" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteReferences}>剪切板</Button>
-                    <Button size="small" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
-                    <Button size="small" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>从素材库选择</Button>
+                <div className="-ml-1 flex flex-wrap items-center gap-1">
+                    <Button size="small" type="text" className="!h-7 !px-2 !text-[11px] !text-foreground/65 hover:!text-foreground" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteReferences}>剪切板</Button>
+                    <Button size="small" className="!h-7 !px-2.5 !text-[11px]" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
+                    <Button size="small" type="text" className="!h-7 !px-2 !text-[11px] !text-foreground/65 hover:!text-foreground" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>从素材库选择</Button>
                 </div>
                 <ReferenceStrip references={references} onRemoveReference={onRemoveReference} uploadingCount={uploadingCount} />
             </WorkbenchSection>

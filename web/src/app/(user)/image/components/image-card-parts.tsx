@@ -3,7 +3,7 @@ export function ImageMetaLine({ items, title }: { items: Array<string | undefine
     const visible = items.filter((item): item is string => Boolean(item));
     if (!visible.length) return null;
     return (
-        <div title={title || visible.join(" · ")} className="line-clamp-2 break-words text-[10px] leading-4 text-muted-foreground/90">
+        <div title={title || visible.join(" · ")} className="line-clamp-2 break-words text-[11px] leading-4 text-muted-foreground/90">
             {visible.join(" · ")}
         </div>
     );

@@ -57,7 +57,7 @@ export function CategoryCard({
     };
 
     return (
-        <div className="group relative min-h-[360px] overflow-hidden rounded-lg border border-border bg-muted/60 sm:min-h-[420px]">
+        <div className="punk-card group relative min-h-[360px] overflow-hidden rounded-2xl border border-border/70 bg-muted/60 sm:min-h-[420px]">
             <button type="button" className="absolute inset-0 z-0 text-left" onClick={onOpen} aria-label={`打开分类 ${category.name}`} />
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
                 {images.length ? (
@@ -71,15 +71,15 @@ export function CategoryCard({
                 )}
             </div>
             <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/45 to-transparent p-3 pt-10 text-white">
-                {editing ? <Input value={name} autoFocus onChange={(event) => setName(event.target.value)} onPressEnter={saveName} onBlur={saveName} /> : <div className="truncate text-sm font-semibold">{category.name}</div>}
+                {editing ? <Input value={name} autoFocus onChange={(event) => setName(event.target.value)} onPressEnter={saveName} onBlur={saveName} /> : <div className="truncate text-[15px] font-semibold tracking-tight">{category.name}</div>}
             </div>
             <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
-                <Tag className="m-0 text-[10px]">{logs.length} 条</Tag>
-                <Tag className="m-0 text-[10px]">{images.length} 图</Tag>
+                <Tag className="m-0 !border-border/50 !bg-background/75 !text-[10px] !text-foreground backdrop-blur">{logs.length} 条</Tag>
+                <Tag className="m-0 !border-border/50 !bg-background/75 !text-[10px] !text-foreground backdrop-blur">{images.length} 图</Tag>
             </div>
             <div className="absolute bottom-2 right-2 z-20 flex gap-1">
-                <Button title="改名" aria-label="重命名分类" size="small" icon={<PenLine className="size-3.5" />} onClick={() => setEditing(true)} />
-                <Button title="删除" aria-label="删除分类" size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => onDelete(category)} />
+                <Button title="改名" aria-label="重命名分类" size="small" type="text" className="!bg-background/65 !text-foreground backdrop-blur hover:!bg-background/85" icon={<PenLine className="size-3.5" />} onClick={() => setEditing(true)} />
+                <Button title="删除" aria-label="删除分类" size="small" type="text" danger className="!bg-background/65 backdrop-blur hover:!bg-background/85" icon={<Trash2 className="size-3.5" />} onClick={() => onDelete(category)} />
             </div>
         </div>
     );

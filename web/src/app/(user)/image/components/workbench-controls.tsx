@@ -15,10 +15,11 @@ import type { AiConfig } from "@/stores/use-config-store";
 import type { UpdateAiConfig } from "../history";
 
 export function ReferenceStrip({ references, compact = false, className = "", onRemoveReference, uploadingCount = 0 }: { references: ReferenceImage[]; compact?: boolean; className?: string; onRemoveReference: (id: string) => void; uploadingCount?: number }) {
+    const empty = !references.length && !uploadingCount;
     return (
-        <ReferenceStripShell compact={compact} className={className}>
+        <ReferenceStripShell compact={compact} className={`${empty ? "!min-h-14 !py-2" : ""} ${className}`}>
             {references.map((item) => (
-                <div key={item.id} className={`${compact ? "size-12" : "size-20"} group relative shrink-0 overflow-hidden rounded-md border border-border`}>
+                <div key={item.id} className={`${compact ? "size-12" : "size-20"} group relative shrink-0 overflow-hidden rounded-lg border border-border/80`}>
                     <Image
                         src={item.dataUrl || undefined}
                         alt={item.name}
@@ -38,13 +39,12 @@ export function ReferenceStrip({ references, compact = false, className = "", on
                     <LoaderCircle className="size-5 animate-spin text-muted-foreground" />
                 </div>
             ))}
-            {!references.length && !uploadingCount ? (
-                <div className={`flex min-w-full flex-col items-center justify-center gap-1.5 text-center ${compact ? "py-1" : "py-3"}`}>
-                    <span className="flex size-8 items-center justify-center rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground">
-                        <ImagePlus className="size-4" aria-hidden />
+            {empty ? (
+                <div className="flex min-w-full items-center justify-center gap-2 px-1 text-muted-foreground">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-dashed border-border/70 bg-background/40">
+                        <ImagePlus className="size-3.5" aria-hidden />
                     </span>
-                    <span className="text-xs text-muted-foreground">暂无参考图</span>
-                    {compact ? null : <span className="text-[11px] text-muted-foreground/70">可粘贴、上传或从素材库选择</span>}
+                    <span className="text-[11px]">暂无参考图，可粘贴、上传或从素材库选择</span>
                 </div>
             ) : null}
         </ReferenceStripShell>

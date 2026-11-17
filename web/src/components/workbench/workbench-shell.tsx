@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { WorkbenchLayout } from "@/components/workbench-header";
 
 /** 底部布局时结果区需要给底部创作栏留出空间。 */
-export const WORKBENCH_BOTTOM_RESULTS_CLASS = "min-h-[360px] flex-1 pb-40 lg:pb-44";
+export const WORKBENCH_BOTTOM_RESULTS_CLASS = "min-h-[360px] flex-1 pb-72 lg:pb-64";
 
 /**
  * 生图 / 视频工作台共用的页面壳：只负责侧边・底部两种布局下创作区与结果区的排布，
