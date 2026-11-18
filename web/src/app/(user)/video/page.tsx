@@ -9,7 +9,7 @@ import { saveAs } from "file-saver";
 
 import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import type { WorkbenchLayout } from "@/components/workbench-header";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
 import { LoadingState } from "@/components/ui/state-panel";
 import { WORKBENCH_BOTTOM_RESULTS_CLASS, WorkbenchShell } from "@/components/workbench/workbench-shell";
 import { VideoWorkbenchPanel } from "./components/workbench-panel";
@@ -41,6 +41,7 @@ import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import type { WorkflowRef } from "@/lib/workflow-channel";
 
+import { readVideoDraft, saveVideoDraft } from "./draft";
 import type { VideoGenerationSnapshot, VideoTaskRun } from "./task-types";
 import { errorMessage } from "@/lib/utils";
 import { readClipboardBlobs } from "@/lib/clipboard";
@@ -56,6 +57,7 @@ const KlingV26WorkbenchPanel = dynamic(
 export default function VideoPage() {
     useScreenLoadTiming("视频工作台");
     const { message } = App.useApp();
+    const confirm = useConfirm();
     const copyText = useCopyText();
     const pasteClipboardText = usePasteClipboardText();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +102,7 @@ export default function VideoPage() {
     const [previewLog, setPreviewLog] = useState<GenerationLog | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [taskCount, setTaskCount] = useState(1);
+    const [draftReady, setDraftReady] = useState(false);
     const [syncingVideoIds, setSyncingVideoIds] = useState<string[]>([]);
     const pollingLogIdsRef = useRef(new Set<string>());
     const videoTaskRunsRef = useRef(new Map<string, VideoTaskRun>());
@@ -189,6 +192,41 @@ export default function VideoPage() {
             // Keep the default layout when localStorage is unavailable.
         }
     }, []);
+
+    useEffect(() => {
+        if (!isUserReady) return;
+        let cancelled = false;
+        void readVideoDraft()
+            .then((draft) => {
+                if (cancelled) return;
+                if (draft) {
+                    setPrompt(draft.prompt);
+                    setNegativePrompt(draft.negativePrompt);
+                    updateConfig("videoNegativePrompt", draft.negativePrompt);
+                    setReferences(draft.references);
+                    setFirstFrame(draft.firstFrame);
+                    setLastFrame(draft.lastFrame);
+                    setVideoReferences(draft.videoReferences);
+                    setAudioReferences(draft.audioReferences);
+                    setTaskCount(draft.taskCount);
+                }
+                setDraftReady(true);
+            })
+            .catch(() => {
+                if (!cancelled) setDraftReady(true);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [isUserReady, updateConfig]);
+
+    useEffect(() => {
+        if (!isUserReady || !draftReady) return;
+        const timer = window.setTimeout(() => {
+            void saveVideoDraft({ prompt, negativePrompt, references, firstFrame, lastFrame, videoReferences, audioReferences, taskCount }).catch(() => undefined);
+        }, 500);
+        return () => window.clearTimeout(timer);
+    }, [draftReady, isUserReady, prompt, negativePrompt, references, firstFrame, lastFrame, videoReferences, audioReferences, taskCount]);
 
     useEffect(() => {
         effectiveConfigRef.current = videoConfig;
@@ -662,7 +700,15 @@ export default function VideoPage() {
         updateConfig("videoCharacterOrientation", normalizeCharacterOrientation(config.videoCharacterOrientation));
     };
 
-    const previewGenerationResult = (result: GenerationResult) => {
+    const confirmDraftOverwrite = async (previewLogId?: string) => {
+        if (previewLogId && previewLog?.id === previewLogId) return true;
+        const hasDraft = Boolean(prompt.trim() || negativePrompt.trim() || references.length || firstFrame || lastFrame || videoReferences.length || audioReferences.length);
+        if (!hasDraft) return true;
+        return confirm({ title: "覆盖当前创作", description: "当前提示词、负向提示词与参考素材会被所选内容替换。", confirmText: "覆盖并复用", tone: "warning" });
+    };
+
+    const previewGenerationResult = async (result: GenerationResult) => {
+        if (!(await confirmDraftOverwrite())) return;
         setPreviewLog(null);
         setResults((value) => value.filter((item) => item.id !== result.id));
         setPrompt(result.prompt);
@@ -897,7 +943,8 @@ export default function VideoPage() {
 
     const { pollPendingLogOnce } = useVideoTaskPolling({ pollingLogIdsRef, setResults, saveGenerationLog, finalizeGenerationLog });
 
-    const previewGenerationLog = (log: GenerationLog) => {
+    const previewGenerationLog = async (log: GenerationLog) => {
+        if (!(await confirmDraftOverwrite(log.id))) return;
         setPreviewLog(log);
         setPrompt(log.prompt);
         setNegativePrompt(log.config.videoNegativePrompt || "");
