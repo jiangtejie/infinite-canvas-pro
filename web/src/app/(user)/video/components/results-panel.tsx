@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useCallback, type CSSProperties } from "react";
 import { Button } from "antd";
 import { VideoIcon } from "lucide-react";
 
@@ -77,6 +77,9 @@ export function ResultsPanel({
     });
     const totalCount = visibleResults.length + visibleLogs.length;
     const selectedVideos = visibleLogs.flatMap((log) => (selectedLogIds.includes(log.id) && log.video ? [log.video] : []));
+    const toggleSelect = useCallback((logId: string, checked: boolean) => {
+        onSelectedLogIdsChange(checked ? [...selectedLogIds, logId] : selectedLogIds.filter((id) => id !== logId));
+    }, [onSelectedLogIdsChange, selectedLogIds]);
 
     return (
         <ResultsPanelShell
@@ -154,14 +157,14 @@ export function ResultsPanel({
                                 selected={selectedLogIds.includes(log.id)}
                                 active={activeLogId === log.id}
                                 syncing={Boolean(log.video && syncingVideoIds.includes(log.video.id))}
-                                onSelectedChange={(checked) => onSelectedLogIdsChange(checked ? [...selectedLogIds, log.id] : selectedLogIds.filter((id) => id !== log.id))}
-                                onDelete={() => onDeleteLog(log)}
-                                onPreview={() => onPreviewLog(log)}
-                                onRetry={() => onRetryLog(log)}
+                                onToggleSelect={toggleSelect}
+                                onDelete={onDeleteLog}
+                                onPreview={onPreviewLog}
+                                onRetry={onRetryLog}
                                 onCopyPrompt={onCopyPrompt}
                                 onDownload={onDownload}
-                                onSync={(video) => onSyncLog(log, video, index)}
-                                onSaveAsset={(video) => onSaveAsset(video, log.prompt)}
+                                onSync={onSyncLog}
+                                onSaveAsset={onSaveAsset}
                             />
                         </div>
                     ))}

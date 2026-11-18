@@ -3,6 +3,14 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 视频工作台历史卡片 memo
+
+- `HistoryLogCard` 包 `memo`：轮询或单条日志更新时只重渲染被更新的那一张卡（历史区最多 48 条），不再整树重渲染；实时结果卡（≤6 张）本轮不 memo，保留现有内联回调，留给 React Compiler 统一处理。
+- 前置回调稳定化：`useCopyText` 返回 `useCallback` 稳定函数（生图页共用，行为不变）；视频页把 `buildRequestSnapshot`、`submitGenerationSnapshot`、`confirmDraftOverwrite`、`applyVideoGenerationConfig`、预览/重试/同步/下载/存素材等动作包成 `useCallback`；`persistVideoLog` 与 `saveGenerationLog` 前移到相关 hooks 与回调之前，`usesBackendVideoTasks` 同步稳定化，`useVideoGeneration` 随之上移。
+- `ResultsPanel` 去掉给每条历史记录创建的内联箭头：稳定动作直接下传，卡片用自己的 `log`/`index` 调用（同步、保存、删除、载入、重试），勾选改为 `onToggleSelect(logId, checked)`；选择变化时历史卡会整体重渲染（预期）。
+- 验证：全量 `bun test` 91 文件 / 527 条通过；`bun run typecheck`、`bun run lint`（`--max-warnings=0`，依赖数组由 `react-hooks/exhaustive-deps` 校验）通过。
+- 未实测：批量场景（6 个进行中任务 + 48 条历史）下用浏览器渲染计数确认「轮询只重渲染进行中卡片」；历史卡的载入/重试/同步/存素材/下载/勾选/删除交互回归。
+
 ## 视频任务卡死 TTL 与轮询并发上限
 
 - 后端轮询前先判断任务年龄：超过 2 小时仍未完成的任务不再请求上游，直接以「视频任务超时未完成，已自动结束」标记失败，并复用既有失败分支落库与幂等退款；用户主动停止的任务在库里是 `cancelled`，不会被 `ListDueVideoTasks` 选中，因此不会被 TTL 误退款，也不会覆盖终态。

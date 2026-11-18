@@ -131,7 +131,7 @@ export default function VideoPage() {
     const videoReferenceLimit = capacity.videoLimit;
     const hasPendingLogs = logs.some((log) => (log.status === "生成中" || (log.status === "停止中" && !log.error)) && log.task && !log.video);
     const hasPendingTasks = hasPendingLogs || pendingCount > 0 || results.some((item) => item.status === "stopping" && !item.error);
-    const usesBackendVideoTasks = (value: AiConfig) => usesBackendTasks(value, token);
+    const usesBackendVideoTasks = useCallback((value: AiConfig) => usesBackendTasks(value, token), [token]);
 
     useEffect(() => {
         if (autodl && autodlError) message.error(autodlError.message);
@@ -234,6 +234,21 @@ export default function VideoPage() {
         if (!isUserReady) return;
         historySyncRef.current = (token ? loadAccountVideoHistoryRef.current() : refreshLogs()).then((items) => syncBackendVideoTasksRef.current(items));
     }, [isUserReady, token]);
+
+    const persistVideoLog = useCallback(async (log: GenerationLog) => {
+        if (!token || !shouldSyncVideoLog(log)) return;
+        await saveVideoGenerationLogs(token, [serializeLog(log)]).catch(() => undefined);
+    }, [token]);
+
+    const saveGenerationLog = useCallback(async (log: GenerationLog, active: () => boolean = () => true) => {
+        if (!active()) return;
+        await logStore.setItem(log.id, serializeLog(log));
+        if (!active()) return;
+        logsRef.current = sortVideoLogs([log, ...logsRef.current.filter((item) => item.id !== log.id)]);
+        setLogs((value) => active() ? sortVideoLogs([log, ...value.filter((item) => item.id !== log.id)]) : value);
+    }, []);
+
+    const { runVideoTask } = useVideoGeneration({ videoTaskRunsRef, saveGenerationLog, persistVideoLog, setResults });
 
     const setWorkbenchLayout = (layout: WorkbenchLayout) => {
         setWorkbenchLayoutState(layout);
@@ -555,7 +570,7 @@ export default function VideoPage() {
         await submitGenerationSnapshot(snapshot);
     };
 
-    const buildRequestSnapshot = ({ promptText = prompt, negativePromptText, referenceItems = references, firstFrameItem = firstFrame, lastFrameItem = lastFrame, videoReferenceItems = videoReferences, audioReferenceItems = audioReferences, taskCountValue = taskCount, configValue = videoConfig, modelValue = model, workflowRef = videoConfig.videoWorkflowRef }: { promptText?: string; negativePromptText?: string; referenceItems?: ReferenceImage[]; firstFrameItem?: ReferenceImage | null; lastFrameItem?: ReferenceImage | null; videoReferenceItems?: ReferenceVideo[]; audioReferenceItems?: ReferenceAudio[]; taskCountValue?: number; configValue?: AiConfig; modelValue?: string; workflowRef?: WorkflowRef | null } = {}) => {
+    const buildRequestSnapshot = useCallback(({ promptText = prompt, negativePromptText, referenceItems = references, firstFrameItem = firstFrame, lastFrameItem = lastFrame, videoReferenceItems = videoReferences, audioReferenceItems = audioReferences, taskCountValue = taskCount, configValue = videoConfig, modelValue = model, workflowRef = videoConfig.videoWorkflowRef }: { promptText?: string; negativePromptText?: string; referenceItems?: ReferenceImage[]; firstFrameItem?: ReferenceImage | null; lastFrameItem?: ReferenceImage | null; videoReferenceItems?: ReferenceVideo[]; audioReferenceItems?: ReferenceAudio[]; taskCountValue?: number; configValue?: AiConfig; modelValue?: string; workflowRef?: WorkflowRef | null } = {}) => {
         const text = promptText.trim();
         const currentNegativePrompt = (negativePromptText ?? configValue.videoNegativePrompt ?? negativePrompt).trim();
         if (workflowRef) {
@@ -577,9 +592,9 @@ export default function VideoPage() {
         if (omni === "reference-to-video" && videoReferenceItems.length) normalizedConfig.videoGenerateAudio = "false";
         const frameReferencesEnabled = videoFrameReferencesEnabled(configValue, modelValue);
         return { text, model: modelValue, config: normalizedConfig, references: referenceItems.slice(0, imageLimit), firstFrame: frameReferencesEnabled ? firstFrameItem : null, lastFrame: frameReferencesEnabled ? lastFrameItem : null, videoReferences: videoReferenceItems.slice(0, videoLimit), audioReferences: audioReferenceItems.slice(0, audioLimit), taskCount: normalizeVideoCount(taskCountValue) };
-    };
+    }, [isAiConfigReady, message, model, negativePrompt, openConfigDialog, prompt, references, firstFrame, lastFrame, taskCount, token, videoConfig, videoReferences, audioReferences]);
 
-    const submitGenerationSnapshot = async (snapshot: VideoGenerationSnapshot) => {
+    const submitGenerationSnapshot = useCallback(async (snapshot: VideoGenerationSnapshot) => {
         if (submittingRef.current) return;
         submittingRef.current = true;
         const workflowToken = snapshot.workflowRef ? useUserStore.getState().token : "";
@@ -619,9 +634,9 @@ export default function VideoPage() {
             submittingRef.current = false;
             if (!snapshot.workflowRef || workflowSubmissionRef.current === submissionId) setRunning(false);
         }
-    };
+    }, [message, runVideoTask, usesBackendVideoTasks]);
 
-    const retryResult = (result: GenerationResult) => {
+    const retryResult = useCallback((result: GenerationResult) => {
         const retryChannelId = videoTaskChannelId(result.task);
         const snapshot = buildRequestSnapshot({ promptText: result.prompt, negativePromptText: result.config.videoNegativePrompt || "", referenceItems: result.references, firstFrameItem: result.firstFrame, lastFrameItem: result.lastFrame, videoReferenceItems: result.videoReferences, audioReferenceItems: result.audioReferences, taskCountValue: 1, configValue: { ...videoConfig, ...result.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: result.model, videoModel: result.model }, modelValue: result.model, workflowRef: result.providerWorkflowRef || null });
         if (!snapshot) return;
@@ -631,9 +646,9 @@ export default function VideoPage() {
         }
         setResults((value) => value.filter((item) => item.id !== result.id));
         void submitGenerationSnapshot(snapshot);
-    };
+    }, [buildRequestSnapshot, message, submitGenerationSnapshot, videoConfig]);
 
-    const applyVideoGenerationConfig = (config: GenerationLog["config"], fallbackModel: string, task: GenerationLog["task"], providerWorkflowRef: WorkflowRef | undefined, taskCountValue?: number) => {
+    const applyVideoGenerationConfig = useCallback((config: GenerationLog["config"], fallbackModel: string, task: GenerationLog["task"], providerWorkflowRef: WorkflowRef | undefined, taskCountValue?: number) => {
         updateConfig("videoWorkflowRef", providerWorkflowRef);
         const nextModel = config.videoModel || fallbackModel;
         const nextChannelId = resolveVideoChannelId(effectiveConfig, nextModel, videoTaskChannelId(task), config.videoChannelId, config.activeChannelId);
@@ -655,16 +670,16 @@ export default function VideoPage() {
         if (config.videoGenerateAudio) updateConfig("videoGenerateAudio", config.videoGenerateAudio);
         if (config.videoWatermark) updateConfig("videoWatermark", config.videoWatermark);
         updateConfig("videoCharacterOrientation", normalizeCharacterOrientation(config.videoCharacterOrientation));
-    };
+    }, [effectiveConfig, updateConfig]);
 
-    const confirmDraftOverwrite = async (previewLogId?: string) => {
+    const confirmDraftOverwrite = useCallback(async (previewLogId?: string) => {
         if (previewLogId && previewLog?.id === previewLogId) return true;
         const hasDraft = Boolean(prompt.trim() || negativePrompt.trim() || references.length || firstFrame || lastFrame || videoReferences.length || audioReferences.length);
         if (!hasDraft) return true;
         return confirm({ title: "覆盖当前创作", description: "当前提示词、负向提示词与参考素材会被所选内容替换。", confirmText: "覆盖并复用", tone: "warning" });
-    };
+    }, [audioReferences, confirm, firstFrame, lastFrame, negativePrompt, previewLog, prompt, references, videoReferences]);
 
-    const previewGenerationResult = async (result: GenerationResult) => {
+    const previewGenerationResult = useCallback(async (result: GenerationResult) => {
         if (!(await confirmDraftOverwrite())) return;
         setPreviewLog(null);
         setResults((value) => value.filter((item) => item.id !== result.id));
@@ -676,9 +691,9 @@ export default function VideoPage() {
         setVideoReferences(result.videoReferences || []);
         setAudioReferences(result.audioReferences || []);
         applyVideoGenerationConfig(result.config, result.model, result.task, result.providerWorkflowRef, result.taskCount);
-    };
+    }, [applyVideoGenerationConfig, confirmDraftOverwrite]);
 
-    const downloadVideo = async (video: GeneratedVideo) => {
+    const downloadVideo = useCallback(async (video: GeneratedVideo) => {
         const hideLoading = message.loading("正在下载视频...", 0);
         try {
             saveAs(await downloadRemoteMedia(video.url), "video.mp4");
@@ -687,9 +702,9 @@ export default function VideoPage() {
         } finally {
             hideLoading();
         }
-    };
+    }, [message]);
 
-    const syncVideo = async (video: GeneratedVideo, index = 0) => {
+    const syncVideo = useCallback(async (video: GeneratedVideo, index = 0) => {
         if (isCloudVideo(video)) return video;
         setSyncingVideoIds((ids) => Array.from(new Set([...ids, video.id])));
         const hideLoading = message.loading("正在同步视频到云端存储...", 0);
@@ -704,24 +719,24 @@ export default function VideoPage() {
             hideLoading();
             setSyncingVideoIds((ids) => ids.filter((id) => id !== video.id));
         }
-    };
+    }, [message]);
 
-    const syncResultVideo = async (resultId: string, video: GeneratedVideo, index: number) => {
+    const syncResultVideo = useCallback(async (resultId: string, video: GeneratedVideo, index: number) => {
         const synced = await syncVideo(video, index);
         if (!synced) return;
         setResults((value) => updateResult(value, resultId, { video: synced }));
-    };
+    }, [syncVideo]);
 
-    const syncLogVideo = async (log: GenerationLog, video: GeneratedVideo, index: number) => {
+    const syncLogVideo = useCallback(async (log: GenerationLog, video: GeneratedVideo, index: number) => {
         const synced = await syncVideo(video, index);
         if (!synced) return;
         const nextLog = { ...log, video: synced };
         await saveGenerationLog(nextLog);
         await persistVideoLog(nextLog);
         if (previewLog?.id === log.id) setPreviewLog(nextLog);
-    };
+    }, [persistVideoLog, previewLog, saveGenerationLog, syncVideo]);
 
-    const saveResultToAssets = (video: GeneratedVideo, resultPrompt: string) => {
+    const saveResultToAssets = useCallback((video: GeneratedVideo, resultPrompt: string) => {
         addAsset({
             kind: "video",
             title: resultPrompt.slice(0, 12) || "生成视频",
@@ -732,7 +747,7 @@ export default function VideoPage() {
             metadata: { source: "video-page", prompt: resultPrompt },
         });
         message.success("已加入我的素材");
-    };
+    }, [addAsset, message]);
 
     const insertPickedAsset = async (payload: InsertAssetPayload) => {
         const insertImage = async () => {
@@ -870,20 +885,6 @@ export default function VideoPage() {
     loadAccountVideoHistoryRef.current = loadAccountVideoHistory;
     syncBackendVideoTasksRef.current = syncBackendVideoTasks;
 
-    const persistVideoLog = async (log: GenerationLog) => {
-        if (!token || !shouldSyncVideoLog(log)) return;
-        await saveVideoGenerationLogs(token, [serializeLog(log)]).catch(() => undefined);
-    };
-
-    const saveGenerationLog = async (log: GenerationLog, active: () => boolean = () => true) => {
-        if (!active()) return;
-        await logStore.setItem(log.id, serializeLog(log));
-        if (!active()) return;
-        logsRef.current = sortVideoLogs([log, ...logsRef.current.filter((item) => item.id !== log.id)]);
-        setLogs((value) => active() ? sortVideoLogs([log, ...value.filter((item) => item.id !== log.id)]) : value);
-    };
-
-    const { runVideoTask } = useVideoGeneration({ videoTaskRunsRef, saveGenerationLog, persistVideoLog, setResults });
     const { stopVideoTask } = useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, setLogs, setResults, saveGenerationLog, persistVideoLog, deleteAccountVideoLogs, onError: message.error });
 
     const finalizeGenerationLog = async (log: GenerationLog, active: () => boolean = () => true) => {
@@ -897,7 +898,7 @@ export default function VideoPage() {
 
     const { pollPendingLogOnce } = useVideoTaskPolling({ pollingLogIdsRef, setResults, saveGenerationLog, finalizeGenerationLog });
 
-    const previewGenerationLog = async (log: GenerationLog) => {
+    const previewGenerationLog = useCallback(async (log: GenerationLog) => {
         if (!(await confirmDraftOverwrite(log.id))) return;
         setPreviewLog(log);
         setPrompt(log.prompt);
@@ -908,9 +909,9 @@ export default function VideoPage() {
         setVideoReferences(log.videoReferences || []);
         setAudioReferences(log.audioReferences || []);
         applyVideoGenerationConfig(log.config, log.model, log.task, log.providerWorkflowRef, log.taskCount);
-    };
+    }, [applyVideoGenerationConfig, confirmDraftOverwrite]);
 
-    const retryGenerationLog = (log: GenerationLog) => {
+    const retryGenerationLog = useCallback((log: GenerationLog) => {
         const retryChannelId = videoTaskChannelId(log.task);
         const snapshot = buildRequestSnapshot({ promptText: log.prompt, negativePromptText: log.config.videoNegativePrompt || "", referenceItems: log.references || [], firstFrameItem: log.firstFrame || null, lastFrameItem: log.lastFrame || null, videoReferenceItems: log.videoReferences || [], audioReferenceItems: log.audioReferences || [], taskCountValue: 1, configValue: { ...videoConfig, ...log.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: log.model, videoModel: log.model }, modelValue: log.model, workflowRef: log.providerWorkflowRef || null });
         if (!snapshot) return;
@@ -919,7 +920,14 @@ export default function VideoPage() {
             return;
         }
         void submitGenerationSnapshot(snapshot);
-    };
+    }, [buildRequestSnapshot, message, submitGenerationSnapshot, videoConfig]);
+
+    const deleteLog = useCallback((log: GenerationLog) => {
+        setSelectedLogIds([log.id]);
+        setDeleteConfirmOpen(true);
+    }, []);
+
+    const copyPrompt = useCallback((value: string) => copyText(value, "提示词已复制"), [copyText]);
 
     const resultsPanel = (
         <ResultsPanel
@@ -932,16 +940,13 @@ export default function VideoPage() {
             onSelectedLogIdsChange={setSelectedLogIds}
             onCreateSession={createSession}
             onDeleteSelected={() => setDeleteConfirmOpen(true)}
-            onDeleteLog={(log) => {
-                setSelectedLogIds([log.id]);
-                setDeleteConfirmOpen(true);
-            }}
+            onDeleteLog={deleteLog}
             onPreviewLog={previewGenerationLog}
             onRetryLog={retryGenerationLog}
             onPreviewResult={previewGenerationResult}
             onRetryResult={retryResult}
             onStopResult={(result) => void stopVideoTask(result.taskLogId || result.id)}
-            onCopyPrompt={(value) => copyText(value, "提示词已复制")}
+            onCopyPrompt={copyPrompt}
             onDownload={downloadVideo}
             onSyncResult={syncResultVideo}
             onSyncLog={syncLogVideo}

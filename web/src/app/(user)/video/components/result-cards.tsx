@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Button, Checkbox, Tag } from "antd";
 import { AlertCircle, CloudUpload, Download, FolderPlus, LoaderCircle, RotateCcw, Square, Trash2 } from "lucide-react";
 
@@ -103,14 +103,14 @@ export function FailedVideoCard({ result, error, onCopyPrompt, onPreview, onRetr
     );
 }
 
-export function HistoryLogCard({ log, selected, active, syncing, onSelectedChange, onDelete, onPreview, onRetry, onCopyPrompt, onDownload, onSync, onSaveAsset }: { log: GenerationLog; index: number; selected: boolean; active: boolean; syncing: boolean; onSelectedChange: (checked: boolean) => void; onDelete: () => void; onPreview: () => void; onRetry: () => void; onCopyPrompt: (text: string) => void | Promise<void>; onDownload: (video: GeneratedVideo) => void; onSync: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
+export const HistoryLogCard = memo(function HistoryLogCard({ log, index, selected, active, syncing, onToggleSelect, onDelete, onPreview, onRetry, onCopyPrompt, onDownload, onSync, onSaveAsset }: { log: GenerationLog; index: number; selected: boolean; active: boolean; syncing: boolean; onToggleSelect: (logId: string, checked: boolean) => void; onDelete: (log: GenerationLog) => void; onPreview: (log: GenerationLog) => void; onRetry: (log: GenerationLog) => void; onCopyPrompt: (text: string) => void | Promise<void>; onDownload: (video: GeneratedVideo) => void; onSync: (log: GenerationLog, video: GeneratedVideo, index: number) => void; onSaveAsset: (video: GeneratedVideo, prompt: string) => void }) {
     const [detailOpen, setDetailOpen] = useState(false);
     return (
         <div className={`group overflow-hidden rounded-xl border bg-background transition-[border-color,box-shadow] duration-200 hover:shadow-sm ${active ? "border-acid/60 shadow-sm" : "border-border/70 hover:border-acid/40"}`}>
             <div className="relative aspect-video bg-muted">
                 <div className={`absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 ${selected ? "sm:opacity-100" : ""}`}>
-                    <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />
-                    {selected ? <Button size="small" type="text" danger title="删除" aria-label="删除视频结果" className="!h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
+                    <Checkbox checked={selected} onChange={(event) => onToggleSelect(log.id, event.target.checked)} />
+                    {selected ? <Button size="small" type="text" danger title="删除" aria-label="删除视频结果" className="!h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={() => onDelete(log)} /> : null}
                 </div>
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     {log.video ? <VideoSourceTag video={log.video} /> : null}
@@ -134,15 +134,15 @@ export function HistoryLogCard({ log, selected, active, syncing, onSelectedChang
             </div>
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border/70 px-3 py-2.5">
                 <div className="flex flex-wrap gap-1">
-                    <Button size="small" onClick={onPreview}>载入</Button>
-                    <Button size="small" icon={<RotateCcw className="size-3.5" />} onClick={onRetry}>重试</Button>
+                    <Button size="small" onClick={() => onPreview(log)}>载入</Button>
+                    <Button size="small" icon={<RotateCcw className="size-3.5" />} onClick={() => onRetry(log)}>重试</Button>
                 </div>
-                {log.video ? <div className="flex shrink-0 gap-1"><Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(log.video)} onClick={() => onSync(log.video!)} /><Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(log.video!)} /><Button size="small" aria-label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(log.video!)} /></div> : null}
+                {log.video ? <div className="flex shrink-0 gap-1"><Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(log.video)} onClick={() => onSync(log, log.video!, index)} /><Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(log.video!, log.prompt)} /><Button size="small" aria-label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(log.video!)} /></div> : null}
             </div>
             <FailureDetailModal open={detailOpen} detail={log.errorDetail || log.error || ""} onClose={() => setDetailOpen(false)} />
         </div>
     );
-}
+});
 
 export function VideoSourceTag({ video }: { video: GeneratedVideo }) {
     const cloud = isCloudVideo(video);

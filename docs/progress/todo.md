@@ -39,7 +39,6 @@ description: 当前项目后续值得处理的事项
 - 【antd 弹层】Select / AutoComplete / Tooltip 与已修的 Dropdown 共用 rc-trigger 定位，在「减少动态效果」或动画被压缩的环境中可能同样停在隐藏坐标。逐页确认后，若确实失效再改成自绘，或给 ConfigProvider 注入定位兜底。
 - 【localforage】写失败静默降级 localStorage 的读写不对称仍保留，风险高，需单独评估。
 - 【视频停止】本地直连视频停止只中断前端轮询，服务端可能继续执行。
-- 【视频工作台】结果/历史卡片仍无 memo，批量结果下的重渲染需先用真实批量数据评估再决定是否优化。
 - 【影视】`characterMasterImages` 的「无档案回退主图」不是旧数据兼容，而是「生成角色卡时自动先生成全身图」流程依赖（含 cardSignature 视觉标记），需配套重构后再删。
 
 ## 冗余收敛剩余项
