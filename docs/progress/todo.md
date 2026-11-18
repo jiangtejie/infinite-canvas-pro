@@ -40,7 +40,6 @@ description: 当前项目后续值得处理的事项
 - 【localforage】写失败静默降级 localStorage 的读写不对称仍保留，风险高，需单独评估。
 - 【视频停止】本地直连视频停止只中断前端轮询，服务端可能继续执行。
 - 【视频工作台】结果/历史卡片仍无 memo，批量结果下的重渲染需先用真实批量数据评估再决定是否优化。
-- 【后端】视频任务无卡死 TTL：`ListDueVideoTasks` 不按年龄过滤，上游永不完成的任务会永久 5s 轮询且已扣算力点不退（`DeleteFinishedVideoTasksBefore` 只清终态）；轮询 goroutine 单轮最多 200 视频 + 200 工作流并发且无上限。
 - 【影视】`characterMasterImages` 的「无档案回退主图」不是旧数据兼容，而是「生成角色卡时自动先生成全身图」流程依赖（含 cardSignature 视觉标记），需配套重构后再删。
 
 ## 冗余收敛剩余项

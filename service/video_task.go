@@ -16,6 +16,10 @@ import (
 const videoTaskPollInterval = 5 * time.Second
 const videoTaskFinishedRetention = 10 * time.Minute
 const videoTaskCleanupInterval = 10 * time.Minute
+
+// videoTaskTimeout 是任务被判为卡死的时长：停止轮询、标记失败并走既有退款路径。
+const videoTaskTimeout = 2 * time.Hour
+const videoTaskPollConcurrency = 8
 const runningHubWorkflowPageSize = 200
 
 var (
@@ -223,6 +227,8 @@ func WakeVideoTaskPoller() {
 
 func runVideoTaskPoller() {
 	inFlight := sync.Map{}
+	// 共享信号量：视频轮询与 RunningHub 工作流轮询合计最多 8 个上游请求并发。
+	semaphore := make(chan struct{}, videoTaskPollConcurrency)
 	lastCleanupAt := time.Time{}
 	lastImageCleanupAt := time.Time{}
 	lastAudioCleanupAt := time.Time{}
@@ -297,6 +303,15 @@ func runVideoTaskPoller() {
 				}
 				go func(task model.VideoTask) {
 					defer inFlight.Delete(task.ID)
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
+					if videoTaskExpired(task.CreatedAt, time.Now()) {
+						log.Printf("video task timed out id=%s created=%s", task.ID, task.CreatedAt)
+						if err := UpdateVideoTaskFromPoll(task, VideoTaskPollUpdate{Status: "failed", Error: "视频任务超时未完成，已自动结束"}); err != nil {
+							log.Printf("fail timed out video task failed id=%s err=%v", task.ID, err)
+						}
+						return
+					}
 					poll := currentVideoTaskPoller()
 					if poll == nil {
 						return
@@ -325,6 +340,8 @@ func runVideoTaskPoller() {
 				}
 				go func(task repository.RunningHubWorkflowTask) {
 					defer inFlight.Delete("workflow:" + task.ID)
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
 					kind := strings.SplitN(task.ID, "-", 3)[1]
 					ctx, cleanup, err := CanvasTaskContext(kind, task.UserID, task.ID)
 					if err != nil {
@@ -349,6 +366,14 @@ func currentVideoTaskPoller() VideoTaskPollFunc {
 
 func waitForNextVideoTaskPoll() {
 	time.Sleep(videoTaskPollInterval)
+}
+
+func videoTaskExpired(createdAt string, current time.Time) bool {
+	created, err := time.Parse(time.RFC3339Nano, createdAt)
+	if err != nil {
+		return false
+	}
+	return current.Sub(created) > videoTaskTimeout
 }
 
 func UpdateVideoTaskFromPoll(task model.VideoTask, update VideoTaskPollUpdate) error {
