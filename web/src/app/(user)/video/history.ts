@@ -161,23 +161,26 @@ export function shouldSyncVideoLog(log: GenerationLog) {
 
 export function dedupeVideoLogs(logs: GenerationLog[]) {
     const merged: GenerationLog[] = [];
+    const indexByKey = new Map<string, number>();
+    const keysOf = (log: GenerationLog) => [log.id, ...videoLogIdentityKeys(log)].filter((key) => Boolean(key));
     for (const log of logs) {
-        const index = merged.findIndex((item) => videoLogsShareIdentity(item, log));
-        if (index < 0) {
-            merged.push(log);
-        } else {
-            merged[index] = mergeDuplicateVideoLog(merged[index], log);
+        const keys = keysOf(log);
+        const matched = keys.map((key) => indexByKey.get(key)).find((index) => index !== undefined);
+        if (matched === undefined) {
+            const index = merged.push(log) - 1;
+            keys.forEach((key) => indexByKey.set(key, index));
+            continue;
         }
+        const previousKeys = keysOf(merged[matched]);
+        const next = mergeDuplicateVideoLog(merged[matched], log);
+        merged[matched] = next;
+        const nextKeys = keysOf(next);
+        const nextKeySet = new Set(nextKeys);
+        previousKeys.forEach((key) => { if (!nextKeySet.has(key)) indexByKey.delete(key); });
+        keys.forEach((key) => { if (!nextKeySet.has(key)) indexByKey.delete(key); });
+        nextKeys.forEach((key) => indexByKey.set(key, matched));
     }
     return sortVideoLogs(merged);
-}
-
-export function videoLogsShareIdentity(a: GenerationLog, b: GenerationLog) {
-    if (a.id && b.id && a.id === b.id) return true;
-    const aKeys = videoLogIdentityKeys(a);
-    if (!aKeys.length) return false;
-    const bKeys = new Set(videoLogIdentityKeys(b));
-    return aKeys.some((key) => bKeys.has(key));
 }
 
 export function mergeDuplicateVideoLog(existing: GenerationLog, incoming: GenerationLog) {

@@ -608,9 +608,8 @@ export default function VideoPage() {
             const nextLogs = settled
                 .map((item) => (item.status === "fulfilled" ? item.value : null))
                 .filter((item): item is NonNullable<typeof item> => Boolean(item));
-            const storedLogs = (await readStoredLogs()).filter((item) => !pendingLogs.some((log) => log.id === item.id) || videoTaskRunsRef.current.has(item.id));
             if (!active()) return;
-            setLogs((value) => dedupeVideoLogs([...storedLogs, ...value.filter((log) => log.status === "停止中" || log.status === "已停止")]));
+            setLogs((value) => dedupeVideoLogs(value));
             const createdCount = nextLogs.filter((item) => item.status === "生成中").length;
             const failedCount = nextLogs.filter((item) => item.status === "失败").length;
             if (createdCount) message.success(`已创建 ${createdCount} 个视频任务`);
@@ -892,9 +891,7 @@ export default function VideoPage() {
         if (!active()) return;
         const run = videoTaskRunsRef.current.get(log.id);
         if (run?.stopping) run.settledLog = log;
-        const nextLogs = await readStoredLogs();
-        if (!active()) return;
-        setLogs((value) => active() ? dedupeVideoLogs([...nextLogs, ...value.filter((item) => item.status === "停止中" || item.status === "已停止")]) : value);
+        setLogs((value) => active() ? dedupeVideoLogs(value) : value);
         await persistVideoLog(log);
     };
 

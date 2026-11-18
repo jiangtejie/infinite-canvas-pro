@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 视频历史写入路径与去重收敛
+
+- `finalizeGenerationLog` 与提交收尾不再 `readStoredLogs()` 全量重读并逐条 normalize：单任务收尾直接对当前 state 去重（`saveGenerationLog` 已完成落库与 upsert），提交收尾也改为对 state 去重；删除提交收尾里恒为真的 placeholder 过滤分支。挂载时的历史读取保持不变。
+- `dedupeVideoLogs` 从 O(n²) 改为 id + 身份键索引的 O(n) 合并；合并后按新身份更新索引（失效旧键会被移除），保持「合并结果按新身份参与后续去重」的语义；删除无调用方的 `videoLogsShareIdentity`。
+- 验证：全量 `bun test` 91 文件 / 527 条通过（新增去重 2 条：链式重复单次合并、合并后新身份键仍可命中）；`bun run typecheck`、`bun run lint`（`--max-warnings=0`）通过。
+- 未实测：多任务并发收尾时的日志列表与停止态合并、历史较长时的列表刷新体感；未运行生产构建。
+
 ## 视频工作台运行时收敛（删除、秒表与提交互斥）
 
 - 删除当前预览中的生成记录时不再清空全部结果：该记录对应的结果此前已按 id / taskLogId / 身份键过滤，额外的 `setResults([])` 会把无关的进行中与已完成结果一起清掉。

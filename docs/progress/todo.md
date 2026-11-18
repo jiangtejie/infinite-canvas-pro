@@ -39,8 +39,7 @@ description: 当前项目后续值得处理的事项
 - 【antd 弹层】Select / AutoComplete / Tooltip 与已修的 Dropdown 共用 rc-trigger 定位，在「减少动态效果」或动画被压缩的环境中可能同样停在隐藏坐标。逐页确认后，若确实失效再改成自绘，或给 ConfigProvider 注入定位兜底。
 - 【localforage】写失败静默降级 localStorage 的读写不对称仍保留，风险高，需单独评估。
 - 【视频停止】本地直连视频停止只中断前端轮询，服务端可能继续执行。
-- 【视频工作台】任务收尾/提交只落单条日志却 `readStoredLogs()` 全量重读并逐条 normalize（`page.tsx` `finalizeGenerationLog` / `submitGenerationSnapshot`）。`resolveMediaUrl` 已补 URL 缓存（见 pending-test），但调用点仍应改为单条写入/更新，避免历史变长后每次收尾都全表扫描。
-- 【视频工作台】`dedupeVideoLogs` 为 O(n²) 且每次日志变化都跑；结果/历史卡片仍无 memo，批量结果下的重渲染需在历史读取调用点收敛后一起评估。
+- 【视频工作台】结果/历史卡片仍无 memo，批量结果下的重渲染需先用真实批量数据评估再决定是否优化。
 - 【后端】视频任务无卡死 TTL：`ListDueVideoTasks` 不按年龄过滤，上游永不完成的任务会永久 5s 轮询且已扣算力点不退（`DeleteFinishedVideoTasksBefore` 只清终态）；轮询 goroutine 单轮最多 200 视频 + 200 工作流并发且无上限。
 - 【影视】`characterMasterImages` 的「无档案回退主图」不是旧数据兼容，而是「生成角色卡时自动先生成全身图」流程依赖（含 cardSignature 视觉标记），需配套重构后再删。
 

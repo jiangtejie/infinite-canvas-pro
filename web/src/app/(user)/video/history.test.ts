@@ -86,6 +86,29 @@ test("video history keeps stopped/completed logs when merging backend tasks", ()
     assert.equal(merged.video?.id, "video-0");
 });
 
+test("video history dedupes chained duplicates across one pass", () => {
+    const success = makeLog({ id: "log-a", status: "成功", createdAt: 1, task: { id: "task-1" } as never, video: { id: "video-1", url: "u" } as never, config: {} as never });
+    const pending = makeLog({ id: "log-b", status: "生成中", createdAt: 2, task: { id: "task-1" } as never, config: {} as never });
+    const failed = makeLog({ id: "log-c", status: "失败", createdAt: 3, task: { id: "task-1" } as never, config: {} as never });
+
+    const merged = dedupeVideoLogs([success, pending, failed]);
+
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0].status, "成功");
+    assert.equal(merged[0].video?.id, "video-1");
+});
+
+test("video history keeps merged identity keys usable for later duplicates", () => {
+    const pending = makeLog({ id: "log-a", status: "生成中", createdAt: 1, task: { id: "task-1" } as never, config: {} as never });
+    const withVideo = makeLog({ id: "log-b", status: "成功", createdAt: 2, task: { id: "task-1" } as never, video: { id: "video-9", url: "u" } as never, config: {} as never });
+    const byVideo = makeLog({ id: "log-c", status: "生成中", createdAt: 3, video: { id: "video-9", url: "u" } as never, config: {} as never });
+
+    const merged = dedupeVideoLogs([pending, withVideo, byVideo]);
+
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0].video?.id, "video-9");
+});
+
 test("video history does not downgrade a stopped result while merging pending logs", () => {
     const stoppedResult = { id: "log-a", taskLogId: "log-a", status: "stopped" } as unknown as GenerationResult;
     const pendingLog = makeLog({ id: "log-a", status: "生成中", task: { id: "task-1" } as never, config: {} as never });
