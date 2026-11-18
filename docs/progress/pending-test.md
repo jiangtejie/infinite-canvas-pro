@@ -3,6 +3,14 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 视频工作台运行时收敛（删除、秒表与提交互斥）
+
+- 删除当前预览中的生成记录时不再清空全部结果：该记录对应的结果此前已按 id / taskLogId / 身份键过滤，额外的 `setResults([])` 会把无关的进行中与已完成结果一起清掉。
+- 进行中卡片的时长秒表下沉到 `PendingVideoCard` 内部，仅该卡片每秒重渲染；删除页面级 `now` state 与 1s interval（此前会让整页、两套面板与全部卡片每秒重渲染）。
+- 新增提交互斥：`submittingRef` 保护 `submitGenerationSnapshot`，「生成 / 重试结果 / 重试历史」三条入口在提交中会被拦截并提示「正在提交，请稍候」；重试路径在删除结果之前判断，避免被拦时结果已被移除；两个面板的生成按钮在提交期间禁用。
+- 验证：全量 `bun test` 91 文件 / 525 条通过；`bun run typecheck`、`bun run lint`（`--max-warnings=0`）通过。
+- 未实测：生成中卡片的秒表与进度展示、提交期间连点生成/重试的拦截、删除预览记录时其他结果保持不动；未运行生产构建。
+
 ## 视频参考素材限额与提交校验收敛为单一实现
 
 - 新增 `lib/video-reference-limits.ts`：`videoKlingWorkbench` / `videoReferenceLimits` / `videoReferenceCapacity` / `videoFrameReferencesEnabled` 统一 Kling 工作台判定、ARK/Seedance 限额、各模式参考素材数量与首尾帧开关；Kling 判定仍只认型号归一化 + 渠道 protocol。

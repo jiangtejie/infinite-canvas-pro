@@ -96,7 +96,6 @@ export default function VideoPage() {
     const [assetPickerTarget, setAssetPickerTarget] = useState<AssetPickerTarget>("general");
     const [elementPickerIndex, setElementPickerIndex] = useState(0);
     const [elementUploadIndex, setElementUploadIndex] = useState(0);
-    const [now, setNow] = useState(Date.now());
     const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
     const [previewLog, setPreviewLog] = useState<GenerationLog | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -112,6 +111,7 @@ export default function VideoPage() {
     const logsRef = useRef<GenerationLog[]>([]);
     const effectiveConfigRef = useRef(videoConfig);
     const workflowSubmissionRef = useRef(0);
+    const submittingRef = useRef(false);
 
     const model = effectiveConfig.videoModel || effectiveConfig.model;
     const capacity = useMemo(() => videoReferenceCapacity(videoConfig, model, { workflow: Boolean(videoConfig.videoWorkflowRef) }), [videoConfig, model]);
@@ -160,12 +160,6 @@ export default function VideoPage() {
         });
     };
     pollPendingLogsOnceRef.current = pollPendingLogsOnce;
-
-    useEffect(() => {
-        if (!pendingCount && !hasPendingLogs) return;
-        const timer = window.setInterval(() => setNow(Date.now()), 1000);
-        return () => window.clearInterval(timer);
-    }, [pendingCount, hasPendingLogs]);
 
     useEffect(() => {
         logsRef.current = logs;
@@ -553,6 +547,10 @@ export default function VideoPage() {
     const generate = async () => {
         const snapshot = buildRequestSnapshot();
         if (!snapshot) return;
+        if (submittingRef.current) {
+            message.warning("正在提交，请稍候");
+            return;
+        }
         setPrompt("");
         await submitGenerationSnapshot(snapshot);
     };
@@ -582,12 +580,13 @@ export default function VideoPage() {
     };
 
     const submitGenerationSnapshot = async (snapshot: VideoGenerationSnapshot) => {
+        if (submittingRef.current) return;
+        submittingRef.current = true;
         const workflowToken = snapshot.workflowRef ? useUserStore.getState().token : "";
         const submissionId = snapshot.workflowRef ? ++workflowSubmissionRef.current : 0;
         const active = () => !snapshot.workflowRef || useUserStore.getState().token === workflowToken;
         setRunning(true);
         setPreviewLog(null);
-        setNow(Date.now());
         const pendingLogs = Array.from({ length: snapshot.taskCount }, (): GenerationLog => {
             const clientTaskId = `client_video_task_${nanoid()}`;
             const task: VideoResponse = { id: clientTaskId, task_id: clientTaskId, model: snapshot.model, status: "queued", progress: 0, created_at: Date.now(), size: snapshot.config.size, seconds: snapshot.config.videoSeconds };
@@ -618,6 +617,7 @@ export default function VideoPage() {
             else if (pendingLogs.some((log) => videoTaskRunsRef.current.get(log.id)?.controller.signal.aborted === false)) message.error("视频任务创建失败");
             if (failedCount) message.warning(`${failedCount} 个视频任务创建失败`);
         } finally {
+            submittingRef.current = false;
             if (!snapshot.workflowRef || workflowSubmissionRef.current === submissionId) setRunning(false);
         }
     };
@@ -626,6 +626,10 @@ export default function VideoPage() {
         const retryChannelId = videoTaskChannelId(result.task);
         const snapshot = buildRequestSnapshot({ promptText: result.prompt, negativePromptText: result.config.videoNegativePrompt || "", referenceItems: result.references, firstFrameItem: result.firstFrame, lastFrameItem: result.lastFrame, videoReferenceItems: result.videoReferences, audioReferenceItems: result.audioReferences, taskCountValue: 1, configValue: { ...videoConfig, ...result.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: result.model, videoModel: result.model }, modelValue: result.model, workflowRef: result.providerWorkflowRef || null });
         if (!snapshot) return;
+        if (submittingRef.current) {
+            message.warning("正在提交，请稍候");
+            return;
+        }
         setResults((value) => value.filter((item) => item.id !== result.id));
         void submitGenerationSnapshot(snapshot);
     };
@@ -839,7 +843,6 @@ export default function VideoPage() {
         void Promise.all([deleteBackendVideoTasks(deletedLogs), deleteAccountVideoLogs(deletedLogs), deleteStoredMedia(keys.media), deleteStoredImages(keys.images), ...deletedLogs.map((log) => logStore.removeItem(log.id))]).catch(() => undefined);
         if (previewLog && deletedLogs.some((log) => log.id === previewLog.id)) {
             setPreviewLog(null);
-            setResults([]);
         }
         setSelectedLogIds([]);
         setDeleteConfirmOpen(false);
@@ -914,6 +917,10 @@ export default function VideoPage() {
         const retryChannelId = videoTaskChannelId(log.task);
         const snapshot = buildRequestSnapshot({ promptText: log.prompt, negativePromptText: log.config.videoNegativePrompt || "", referenceItems: log.references || [], firstFrameItem: log.firstFrame || null, lastFrameItem: log.lastFrame || null, videoReferenceItems: log.videoReferences || [], audioReferenceItems: log.audioReferences || [], taskCountValue: 1, configValue: { ...videoConfig, ...log.config, ...(retryChannelId ? { videoChannelId: retryChannelId, activeChannelId: retryChannelId } : {}), model: log.model, videoModel: log.model }, modelValue: log.model, workflowRef: log.providerWorkflowRef || null });
         if (!snapshot) return;
+        if (submittingRef.current) {
+            message.warning("正在提交，请稍候");
+            return;
+        }
         void submitGenerationSnapshot(snapshot);
     };
 
@@ -923,7 +930,6 @@ export default function VideoPage() {
             results={results}
             logs={logs}
             pendingCount={pendingCount}
-            now={now}
             selectedLogIds={selectedLogIds}
             activeLogId={previewLog?.id}
             onSelectedLogIdsChange={setSelectedLogIds}
@@ -967,7 +973,7 @@ export default function VideoPage() {
             references={references}
             config={videoConfig}
             model={model}
-            canGenerate={canGenerate}
+            canGenerate={canGenerate && !running}
             running={running}
             pendingCount={pendingCount}
             taskCount={taskCount}
@@ -1004,7 +1010,7 @@ export default function VideoPage() {
             audioReferences={audioReferences}
             config={videoConfig}
             model={model}
-            canGenerate={canGenerate}
+            canGenerate={canGenerate && !running}
             pendingCount={pendingCount}
             taskCount={taskCount}
             onTaskCountChange={setTaskCount}

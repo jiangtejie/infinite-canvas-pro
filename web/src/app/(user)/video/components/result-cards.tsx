@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Checkbox, Tag } from "antd";
 import { AlertCircle, CloudUpload, Download, FolderPlus, LoaderCircle, RotateCcw, Square, Trash2 } from "lucide-react";
 
@@ -45,10 +45,16 @@ export function ResultVideoCard({ result, video, syncing, onCopyPrompt, onDownlo
     );
 }
 
-export function PendingVideoCard({ result, now, onCopyPrompt, onStop, onRetry, onDelete }: { result: GenerationResult; now: number; onCopyPrompt: (text: string) => void | Promise<void>; onStop: () => void; onRetry: () => void; onDelete: () => void }) {
+export function PendingVideoCard({ result, onCopyPrompt, onStop, onRetry, onDelete }: { result: GenerationResult; onCopyPrompt: (text: string) => void | Promise<void>; onStop: () => void; onRetry: () => void; onDelete: () => void }) {
     const progress = typeof result.progress === "number" ? Math.max(0, Math.min(100, Math.floor(result.progress))) : null;
     const stopping = result.status === "stopping";
     const stopped = result.status === "stopped";
+    const [now, setNow] = useState(Date.now);
+    useEffect(() => {
+        if (stopping || stopped) return;
+        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, [stopping, stopped]);
     const durationMs = stopping || stopped ? result.durationMs || 0 : Math.max(0, now - result.createdAt);
     return (
         <PendingMediaCard

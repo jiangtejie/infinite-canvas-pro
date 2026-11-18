@@ -23,7 +23,6 @@ export function ResultsPanel({
     results,
     logs,
     pendingCount,
-    now,
     selectedLogIds,
     activeLogId,
     onSelectedLogIdsChange,
@@ -47,7 +46,6 @@ export function ResultsPanel({
     results: GenerationResult[];
     logs: GenerationLog[];
     pendingCount: number;
-    now: number;
     selectedLogIds: string[];
     activeLogId?: string;
     onSelectedLogIdsChange: (ids: string[]) => void;
@@ -137,7 +135,6 @@ export function ResultsPanel({
                             ) : (
                                 <PendingVideoCard
                                     result={result}
-                                    now={now}
                                     onCopyPrompt={onCopyPrompt}
                                     onStop={() => onStopResult(result)}
                                     onRetry={() => onRetryResult(result)}
