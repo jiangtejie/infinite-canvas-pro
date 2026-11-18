@@ -97,7 +97,7 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
     return (
         <div className={`relative h-full w-full ${containerClassName || ""}`}>
             {showOverlay ? (
-                <div ref={overlayRef} className={`${className || ""} pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words`} style={{ ...style, color: theme.node.text }}>
+                <div ref={overlayRef} className={`${className || ""} pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words`} style={{ ...style, color: theme.node.text, "--canvas-selection": theme.canvas.selectionStroke, "--canvas-selection-soft": theme.canvas.selectionSoft } as CSSProperties}>
                     <MentionHighlightText value={value || props.placeholder?.toString() || ""} labels={activeLabels} placeholder={!value} />
                 </div>
             ) : null}
@@ -185,7 +185,7 @@ function MentionHighlightText({ value, labels, placeholder }: { value: string; l
         <>
             {value.split(pattern).map((part, index) =>
                 labels.includes(part) ? (
-                    <span key={`${part}-${index}`} className="rounded-md bg-[#2f80ff]/16 px-1 py-0.5 font-medium text-[#2f80ff] ring-1 ring-[#2f80ff]/24">
+                    <span key={`${part}-${index}`} className="rounded-md bg-[color:var(--canvas-selection-soft)] px-1 py-0.5 font-medium text-[color:var(--canvas-selection)] ring-1 ring-[color:var(--canvas-selection-soft)]">
                         {part}
                     </span>
                 ) : (

@@ -1,15 +1,17 @@
 export type CanvasColorTheme = "light" | "dark";
 export type CanvasBackgroundMode = "dots" | "lines" | "blank";
 
-/* 画布与站点共用一套中性色：深色是碳黑，浅色是纸白 */
+/* 画布与站点共用一套中性色：深色是碳黑，浅色是纸白；选中蓝独立于品牌 acid。 */
 export const canvasThemes = {
     light: {
         canvas: {
             background: "#f3f2ed",
             dot: "rgba(68,64,60,.26)",
             line: "rgba(68,64,60,.11)",
-            selectionStroke: "#1c1917",
-            selectionFill: "rgba(28,25,23,.06)",
+            guideStroke: "#1c1917",
+            selectionStroke: "#2f80ff",
+            selectionFill: "rgba(47,128,255,.08)",
+            selectionSoft: "rgba(47,128,255,.20)",
         },
         node: {
             label: "#57534e",
@@ -42,8 +44,10 @@ export const canvasThemes = {
             background: "#0d0d0c",
             dot: "rgba(245,245,244,.2)",
             line: "rgba(245,245,244,.08)",
-            selectionStroke: "#fafaf9",
-            selectionFill: "rgba(250,250,249,.09)",
+            guideStroke: "#fafaf9",
+            selectionStroke: "#2f80ff",
+            selectionFill: "rgba(47,128,255,.12)",
+            selectionSoft: "rgba(47,128,255,.24)",
         },
         node: {
             label: "#d6d3d1",

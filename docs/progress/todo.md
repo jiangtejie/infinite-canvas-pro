@@ -63,7 +63,7 @@ A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收
 - 【React Compiler】规则逐条启用（purity / refs / set-state-in-effect），先做白名单再扩大。
 - 【测试】前端 88 个文件、504 条（`bun test`）；后续补任务合并、连接校验的边界用例。
 - 【后台】概览 AI 日志全量扫描的缓存/统计索引、概览与列表的行级深链、浅色主题逐项视觉；AI 日志页已接入共享列表抽象，其余页面按需继续组件化。
-- 【视觉】FilterTagGroup 可考虑增加 density/variant（当前用 `.prompt-filter-tag` 全局覆盖）；画布选中环仍为硬编码蓝色，后续统一为主题 token；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。
+- 【视觉】FilterTagGroup 可考虑增加 density/variant（当前用 `.prompt-filter-tag` 全局覆盖）；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。
 - 【无障碍】节点目前采用自然 Tab 序列而非单锚点 roving，是否改 roving tabindex 待评估。
 - 【导演台】工具栏收纳需产品确认。
 - 【配置】后台公开配置「系统提示词」的 image / video / text / workflow 四项前端未消费：生成链路读本地 `config.systemPrompts.*`，只有 `workflowAgent` 在后端 `service/workflow_agent.go` 生效。需先定产品意图（管理员统一推送 vs 用户本地自填），再决定是否接入 `resolveEffectiveConfig`。

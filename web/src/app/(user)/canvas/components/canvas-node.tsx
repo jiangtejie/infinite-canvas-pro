@@ -18,7 +18,6 @@ import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
-const selectionBlue = "#2f80ff";
 const FLOATING_PANEL_MIN_ZOOM = 0.4;
 const FLOATING_PANEL_MAX_INVERSE_SCALE = 1.2;
 
@@ -153,7 +152,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     const isBatchRoot = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.isBatchRoot) && batchCount > 1;
     const isBatchChild = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.batchRootId);
     const isActive = isConnectionTarget || isSelected || isFocusRelated;
-    const imageBorderColor = isActive ? selectionBlue : isRelated && !isBatchChild ? theme.node.muted : "transparent";
+    const imageBorderColor = isActive ? theme.canvas.selectionStroke : isRelated && !isBatchChild ? theme.node.muted : "transparent";
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const resizePointerIdRef = useRef<number | null>(null);
@@ -326,14 +325,15 @@ export const CanvasNode = React.memo(function CanvasNode({
                 event.stopPropagation();
                 onKeyboardSelect?.(data.id);
             }}
-            className={`node-element absolute flex select-none flex-col outline-none transition-shadow duration-200 focus-visible:ring-2 focus-visible:ring-[#2f80ff]/80 focus-visible:ring-offset-0 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
+            className={`node-element canvas-selection-focus absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
                 width: data.width,
                 height: data.height,
                 transition: "box-shadow 200ms ease",
                 contain: "layout style",
-            }}
+                "--canvas-selection": theme.canvas.selectionStroke,
+            } as React.CSSProperties}
             onMouseEnter={() => {
                 setHovered(true);
                 onHoverStart(data.id);
@@ -400,8 +400,8 @@ export const CanvasNode = React.memo(function CanvasNode({
                 className={`relative h-full w-full overflow-visible border ${isGroup ? "rounded-xl" : "rounded-2xl border-2"}`}
                 style={{
                     background: isGroup ? theme.node.panel : hasImageContent || hasVideoContent ? "transparent" : theme.node.fill,
-                    borderColor: isGroup ? isGroupDropTarget || isActive ? selectionBlue : theme.node.stroke : hasImageContent ? imageBorderColor : isActive ? selectionBlue : isRelated ? theme.node.muted : theme.node.stroke,
-                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${selectionBlue}66` : isGroup && isSelected ? `0 0 0 1px ${selectionBlue}55` : isActive ? `0 0 0 1px ${selectionBlue}55` : isRelated && !isBatchChild ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
+                    borderColor: isGroup ? isGroupDropTarget || isActive ? theme.canvas.selectionStroke : theme.node.stroke : hasImageContent ? imageBorderColor : isActive ? theme.canvas.selectionStroke : isRelated ? theme.node.muted : theme.node.stroke,
+                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${theme.canvas.selectionSoft}` : isGroup && isSelected ? `0 0 0 1px ${theme.canvas.selectionSoft}` : isActive ? `0 0 0 1px ${theme.canvas.selectionSoft}` : isRelated && !isBatchChild ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
                 }}
                 onPointerDown={(event) => onDragStart(event, data.id)}
                 onDoubleClick={(event) => {
@@ -479,7 +479,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 {!isGroup && !hasImageContent && !hasVideoContent && !hasAudioContent ? <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12" style={{ background: `linear-gradient(to top, ${theme.canvas.background}66, transparent)` }} /> : null}
 
                 {referenceSelectionState && (referenceSelectionState !== "available" || hovered) ? (
-                    <div className="pointer-events-none absolute inset-0 z-[60] grid place-items-center rounded-[inherit]" style={{ background: `color-mix(in srgb, ${theme.canvas.background} ${referenceSelectionState === "target" ? 78 : referenceSelectionState === "disabled" ? 60 : 34}%, transparent)`, boxShadow: referenceSelectionState === "available" ? `inset 0 0 0 2px ${selectionBlue}` : undefined }}>
+                    <div className="pointer-events-none absolute inset-0 z-[60] grid place-items-center rounded-[inherit]" style={{ background: `color-mix(in srgb, ${theme.canvas.background} ${referenceSelectionState === "target" ? 78 : referenceSelectionState === "disabled" ? 60 : 34}%, transparent)`, boxShadow: referenceSelectionState === "available" ? `inset 0 0 0 2px ${theme.canvas.selectionStroke}` : undefined }}>
                         {referenceSelectionState !== "disabled" ? <span className="rounded-lg px-3 py-2 text-sm font-medium shadow-sm" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{referenceSelectionState === "target" ? "正在添加参考" : "选择"}</span> : null}
                     </div>
                 ) : null}
@@ -947,7 +947,7 @@ function ImageContent({
                     onMouseDown={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
-                    <span className="leading-none text-[#2f80ff]">{batchCount}</span>
+                    <span className="leading-none" style={{ color: theme.canvas.selectionStroke }}>{batchCount}</span>
                     <ChevronRight className={`size-3.5 opacity-55 transition-transform ${batchExpanded ? "rotate-90" : ""}`} />
                 </button>
             ) : null}
@@ -963,7 +963,7 @@ function ImageContent({
                     onMouseDown={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
                 >
-                    <Star className="size-3.5 text-[#2f80ff]" />
+                    <Star className="size-3.5" style={{ color: theme.canvas.selectionStroke }} />
                     设为主图
                 </button>
             ) : null}
@@ -1050,9 +1050,9 @@ function ConnectionHandleDot({ side, visible, prominent = false, label, onPointe
             aria-label={label}
             title={label}
             tabIndex={visible ? 0 : -1}
-            className={`absolute top-1/2 z-30 flex size-12 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full transition-opacity duration-150 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2f80ff]/70 [@media(pointer:coarse)]:size-16 ${side === "left" ? "-left-6 [@media(pointer:coarse)]:-left-8" : "-right-6 [@media(pointer:coarse)]:-right-8"
+            className={`canvas-selection-focus absolute top-1/2 z-30 flex size-12 -translate-y-1/2 cursor-crosshair items-center justify-center rounded-full transition-opacity duration-150 focus-visible:opacity-100 [@media(pointer:coarse)]:size-16 ${side === "left" ? "-left-6 [@media(pointer:coarse)]:-left-8" : "-right-6 [@media(pointer:coarse)]:-right-8"
                 } ${visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-            style={{ touchAction: "none" }}
+            style={{ touchAction: "none", "--canvas-selection": theme.canvas.selectionStroke } as React.CSSProperties}
             onPointerDown={(event) => {
                 event.stopPropagation();
                 onPointerDown(event);
@@ -1068,9 +1068,9 @@ function ConnectionHandleDot({ side, visible, prominent = false, label, onPointe
                 className={`flex items-center justify-center rounded-full border-2 transition-transform hover:scale-125 [@media(pointer:coarse)]:size-5 ${prominent ? "size-4" : "size-3"}`}
                 style={{
                     background: theme.node.panel,
-                    borderColor: prominent ? selectionBlue : theme.node.muted,
-                    color: selectionBlue,
-                    boxShadow: prominent ? `0 0 0 4px ${selectionBlue}22` : undefined,
+                    borderColor: prominent ? theme.canvas.selectionStroke : theme.node.muted,
+                    color: theme.canvas.selectionStroke,
+                    boxShadow: prominent ? `0 0 0 4px ${theme.canvas.selectionSoft}` : undefined,
                 }}
             >
                 {prominent ? <Plus className="size-2.5" /> : null}

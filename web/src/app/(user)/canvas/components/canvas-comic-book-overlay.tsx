@@ -354,7 +354,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
                                     {pageSlots.map((slot, index) => slot.kind === "available" ? (
                                         <div key={slot.pageNodeId} className="relative w-full bg-white" style={{ containerType: "inline-size" }}>
                                             <img src={slot.page.metadata?.content || ""} alt={slot.page.title} className="w-full" draggable={false} />
-                                            <LetteringLayer page={slot.page} elements={lettering[slot.page.id] || []} selectedId={selectedLetterId} drag={null} editable={false} onSelect={setSelectedLetterId} onDragStart={startLetterDrag} onDragMove={moveLetterDrag} onDragEnd={endLetterDrag} />
+                                            <LetteringLayer theme={theme} page={slot.page} elements={lettering[slot.page.id] || []} selectedId={selectedLetterId} drag={null} editable={false} onSelect={setSelectedLetterId} onDragStart={startLetterDrag} onDragMove={moveLetterDrag} onDragEnd={endLetterDrag} />
                                         </div>
                                     ) : (
                                         <div key={slot.pageNodeId} className="flex min-h-48 flex-col items-center justify-center gap-2 border border-dashed text-sm" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}><AlertCircle className="size-5" /><span>第 {index + 1} 页缺失</span></div>
@@ -382,7 +382,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
                                     {visibleSlots.map((slot, index) => slot.kind === "available" ? (
                                         <div key={slot.pageNodeId} data-comic-page className="relative flex h-full min-h-0 items-center justify-center overflow-hidden bg-white shadow-[0_18px_50px_rgba(0,0,0,.22)]" style={{ aspectRatio: pageFrameRatio(slot.page), height: "100%", maxWidth: visibleSlots.length === 2 ? "50%" : "70%", borderLeft: index === 1 ? `1px solid ${theme.node.stroke}` : undefined, containerType: "inline-size" }}>
                                             <img src={slot.page.metadata?.content || ""} alt={slot.page.title} draggable={false} className="size-full object-contain" />
-                                            <LetteringLayer page={slot.page} elements={lettering[slot.page.id] || []} selectedId={selectedLetterId} drag={letterDrag} editable={letteringMode && visibleSlots.length === 1} onSelect={setSelectedLetterId} onDragStart={startLetterDrag} onDragMove={moveLetterDrag} onDragEnd={endLetterDrag} />
+                                            <LetteringLayer theme={theme} page={slot.page} elements={lettering[slot.page.id] || []} selectedId={selectedLetterId} drag={letterDrag} editable={letteringMode && visibleSlots.length === 1} onSelect={setSelectedLetterId} onDragStart={startLetterDrag} onDragMove={moveLetterDrag} onDragEnd={endLetterDrag} />
                                         </div>
                                     ) : (
                                         <div key={slot.pageNodeId} className="flex h-full min-h-48 min-w-[min(70%,320px)] flex-col items-center justify-center gap-2 border border-dashed text-sm" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}><AlertCircle className="size-6" /><span>第 {safeIndex + index + 1} 页缺失</span><span className="text-xs">请在左侧替换或移除此引用</span></div>
@@ -427,7 +427,8 @@ function pageFrameRatio(page: CanvasNodeData) {
     return width > 0 && height > 0 ? width / height : 3 / 4;
 }
 
-function LetteringLayer({ page, elements, selectedId, drag, editable, onSelect, onDragStart, onDragMove, onDragEnd }: {
+function LetteringLayer({ theme, page, elements, selectedId, drag, editable, onSelect, onDragStart, onDragMove, onDragEnd }: {
+    theme: (typeof canvasThemes)[keyof typeof canvasThemes];
     page: CanvasNodeData;
     elements: ComicLetterElement[];
     selectedId: string;
@@ -460,7 +461,7 @@ function LetteringLayer({ page, elements, selectedId, drag, editable, onSelect, 
                             fontSize: `${(element.fontSize * 100).toFixed(2)}cqw`,
                             pointerEvents: editable ? "auto" : "none",
                             cursor: editable ? "grab" : "default",
-                            outline: selected ? "2px dashed #2f80ff" : undefined,
+                            outline: selected ? `2px dashed ${theme.canvas.selectionStroke}` : undefined,
                             outlineOffset: 4,
                             userSelect: "none",
                             touchAction: "none",

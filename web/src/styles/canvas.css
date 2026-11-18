@@ -1,5 +1,11 @@
 /* 画布私有样式：由 globals.css 统一 @import，只保留仍在组件里使用的类。 */
 
+/* 节点与连接点共用选中蓝聚焦环，避免 Tailwind outline-none 把 --tw-outline-style 固定为 none。 */
+.canvas-selection-focus:focus-visible {
+    outline: 2px solid var(--canvas-selection);
+    outline-offset: 2px;
+}
+
 /* 画布底部浮层间距：工具条、缩放条、小地图、批量进度统一在这里维护。 */
 .canvas-floating-toolbar {
     bottom: calc(1.25rem + env(safe-area-inset-bottom));

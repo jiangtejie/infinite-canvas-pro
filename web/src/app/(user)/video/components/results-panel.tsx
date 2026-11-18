@@ -100,22 +100,21 @@ export function ResultsPanel({
                 />
             }
             empty={
-                <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 lg:min-h-[520px]">
-                    <EmptyState
-                icon={<VideoIcon className="size-6" />}
-                title="还没有生成视频"
-                description="填写提示词并开始创作，或者先试试这些方向。"
-                action={
-                    <div className="flex max-w-lg flex-wrap justify-center gap-2">
-                        {EMPTY_PROMPTS.map((prompt) => (
-                            <Button key={prompt} size="small" className="!h-auto !whitespace-normal !px-3 !py-1.5 !text-left !text-[11px]" onClick={() => onUseExample(prompt)}>
-                                {prompt}
-                            </Button>
-                        ))}
-                    </div>
-                }
-            />
-                </div>
+                <EmptyState
+                    className="min-h-[320px] lg:min-h-[520px]"
+                    icon={<VideoIcon className="size-6" />}
+                    title="还没有生成视频"
+                    description="填写提示词并开始创作，或者先试试这些方向。"
+                    action={
+                        <div className="flex max-w-lg flex-wrap justify-center gap-2">
+                            {EMPTY_PROMPTS.map((prompt) => (
+                                <Button key={prompt} size="small" className="!h-auto !whitespace-normal !px-3 !py-1.5 !text-left !text-[11px]" onClick={() => onUseExample(prompt)}>
+                                    {prompt}
+                                </Button>
+                            ))}
+                        </div>
+                    }
+                />
             }
         >
             {totalCount ? (

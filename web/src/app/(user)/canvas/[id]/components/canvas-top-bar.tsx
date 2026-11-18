@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "antd";
-import { Bot, Eraser, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
+import { Bot, Eraser, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -201,13 +201,18 @@ export function CanvasTopBar({
                 </div>
 
                 <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 max-sm:ml-auto">
-                    {saveStatus === "saving" ? (
-                        <span className="hidden px-1.5 text-xs sm:inline" style={{ color: theme.node.muted }}>保存中…</span>
-                    ) : saveStatus === "saved" ? (
-                        <span aria-hidden={!showSaved} className={`hidden px-1.5 text-xs transition-opacity duration-500 sm:inline ${showSaved ? "opacity-100" : "opacity-0"}`} style={{ color: theme.node.muted }}>已保存</span>
-                    ) : saveStatus === "error" ? (
-                        <button type="button" onClick={retrySave} title="点击重试保存" className="rounded-full px-2 py-1 text-xs transition-colors hover:bg-[var(--canvas-topbar-hover)]" style={{ color: canvasStatusColors.error }}>保存失败 · 重试</button>
-                    ) : null}
+                    <div className="flex shrink-0 items-center justify-end sm:w-[88px]">
+                        {saveStatus === "saving" ? (
+                            <span className="hidden whitespace-nowrap px-1.5 text-xs sm:inline" style={{ color: theme.node.muted }}>保存中…</span>
+                        ) : saveStatus === "saved" ? (
+                            <span aria-hidden={!showSaved} className={`hidden whitespace-nowrap px-1.5 text-xs transition-opacity duration-500 sm:inline ${showSaved ? "opacity-100" : "opacity-0"}`} style={{ color: theme.node.muted }}>已保存</span>
+                        ) : saveStatus === "error" ? (
+                            <button type="button" onClick={retrySave} title="点击重试保存" aria-label="保存失败，点击重试" className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-1 text-xs transition-colors hover:bg-[var(--canvas-topbar-hover)]" style={{ color: canvasStatusColors.error }}>
+                                <RotateCcw className="size-3.5" />
+                                保存失败
+                            </button>
+                        ) : null}
+                    </div>
                     <UserStatusActions
                         variant="canvas"
                         accountOpen={accountOpen}

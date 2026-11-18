@@ -207,7 +207,7 @@ export function ResultsPanel({
             }
             empty={
                 <div
-                    className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border/60 bg-muted/10 lg:min-h-[520px]"
+                    className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-2xl bg-muted/10 lg:min-h-[520px]"
                     style={{ backgroundImage: "radial-gradient(circle at 50% 34%, var(--acid-soft), transparent 58%)" }}
                 >
                     <EmptyState

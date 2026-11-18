@@ -300,7 +300,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
                     className="pointer-events-none absolute inset-y-0 w-px opacity-[.48]"
                     style={{
                         left: viewport.x + alignmentGuides.vertical * viewport.k,
-                        backgroundImage: `repeating-linear-gradient(to bottom, ${theme.canvas.selectionStroke} 0 5px, transparent 5px 10px)`,
+                        backgroundImage: `repeating-linear-gradient(to bottom, ${theme.canvas.guideStroke} 0 5px, transparent 5px 10px)`,
                         zIndex: CANVAS_Z.guide,
                     }}
                 />
@@ -310,7 +310,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
                     className="pointer-events-none absolute inset-x-0 h-px opacity-[.48]"
                     style={{
                         top: viewport.y + alignmentGuides.horizontal * viewport.k,
-                        backgroundImage: `repeating-linear-gradient(to right, ${theme.canvas.selectionStroke} 0 5px, transparent 5px 10px)`,
+                        backgroundImage: `repeating-linear-gradient(to right, ${theme.canvas.guideStroke} 0 5px, transparent 5px 10px)`,
                         zIndex: CANVAS_Z.guide,
                     }}
                 />

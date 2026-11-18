@@ -22,7 +22,7 @@ export function ResultVideoCard({ result, video, syncing, onCopyPrompt, onDownlo
             }
             references={result.references}
             prompt={result.prompt}
-            tags={<TaskTags item={result} />}
+            tags={<TaskMetaLine item={result} />}
             meta={
                 <>
                     <span>
@@ -60,7 +60,7 @@ export function PendingVideoCard({ result, onCopyPrompt, onStop, onRetry, onDele
         <PendingMediaCard
             mediaClassName="aspect-video"
             prompt={result.prompt}
-            tags={<TaskTags item={{ ...result, durationMs }} />}
+            tags={<TaskMetaLine item={{ ...result, durationMs }} />}
             onCopyPrompt={onCopyPrompt}
         >
             <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--foreground) 12%, transparent) 1.4px, transparent 1.6px)", backgroundSize: "16px 16px" }} />
@@ -96,7 +96,7 @@ export function FailedVideoCard({ result, error, onCopyPrompt, onPreview, onRetr
             references={result.references}
             error={error}
             detail={result.errorDetail || error}
-            info={<TaskResultInfo prompt={result.prompt} tags={<TaskTags item={result} />} error={error} onCopyPrompt={onCopyPrompt} />}
+            info={<TaskResultInfo prompt={result.prompt} tags={<TaskMetaLine item={result} />} error={error} onCopyPrompt={onCopyPrompt} />}
             extraActions={<Button size="small" onClick={onPreview}>载入</Button>}
             onRetry={onRetry}
         />
@@ -121,15 +121,7 @@ export const HistoryLogCard = memo(function HistoryLogCard({ log, index, selecte
             </div>
             <div className="space-y-2 border-t border-border/70 p-3 text-xs">
                 <TaskPromptBlock prompt={log.prompt} onCopyPrompt={onCopyPrompt} />
-                <div className="flex flex-wrap gap-1">
-                    <Tag className="m-0 !text-[10px]">{formatTaskTime(log.createdAt)}</Tag>
-                    <Tag className="m-0 !text-[10px]">{log.model}</Tag>
-                    <Tag className="m-0 !text-[10px]">{log.size}</Tag>
-                    <Tag className="m-0 !text-[10px]">{log.resolution}p</Tag>
-                    <Tag className="m-0 !text-[10px]">{log.seconds}s</Tag>
-                    <Tag className="m-0 !text-[10px]">数量 {log.taskCount || 1}</Tag>
-                    <Tag className="m-0 !text-[10px]">{formatDuration(log.durationMs)}</Tag>
-                </div>
+                <MetaLine items={[formatTaskTime(log.createdAt), log.model, log.size, `${log.resolution}p`, `${log.seconds}s`, log.taskCount && log.taskCount > 1 ? `数量 ${log.taskCount}` : "", formatDuration(log.durationMs)]} />
                 {log.error ? <TaskErrorLine error={log.error} onDetail={() => setDetailOpen(true)} /> : null}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border/70 px-3 py-2.5">
@@ -149,16 +141,12 @@ export function VideoSourceTag({ video }: { video: GeneratedVideo }) {
     return <Tag className="m-0 !text-[10px]" color={cloud ? "green" : video.storageKey ? "default" : "gold"}>{cloud ? "云端" : video.storageKey ? "本地缓存" : "AI 临时URL"}</Tag>;
 }
 
-export function TaskTags({ item }: { item: GenerationResult }) {
-    return (
-        <>
-            <Tag className="m-0 !text-[10px]">{formatTaskTime(item.createdAt)}</Tag>
-            <Tag className="m-0 !text-[10px]">{item.model}</Tag>
-            <Tag className="m-0 !text-[10px]">{item.config.size || "auto"}</Tag>
-            <Tag className="m-0 !text-[10px]">{item.config.vquality || "720"}p</Tag>
-            <Tag className="m-0 !text-[10px]">{item.config.videoSeconds || "6"}s</Tag>
-            <Tag className="m-0 !text-[10px]">数量 {item.taskCount || 1}</Tag>
-            {item.durationMs ? <Tag className="m-0 !text-[10px]">{formatDuration(item.durationMs)}</Tag> : null}
-        </>
-    );
+function MetaLine({ items }: { items: Array<string | undefined | null | false> }) {
+    const text = items.filter((item): item is string => Boolean(item)).join(" · ");
+    if (!text) return null;
+    return <div className="line-clamp-2 w-full break-words text-[11px] leading-4 text-muted-foreground/90">{text}</div>;
+}
+
+function TaskMetaLine({ item }: { item: GenerationResult }) {
+    return <MetaLine items={[formatTaskTime(item.createdAt), item.model, item.config.size || "auto", `${item.config.vquality || "720"}p`, `${item.config.videoSeconds || "6"}s`, item.taskCount && item.taskCount > 1 ? `数量 ${item.taskCount}` : "", item.durationMs ? formatDuration(item.durationMs) : ""]} />;
 }
