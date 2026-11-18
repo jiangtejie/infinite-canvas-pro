@@ -38,7 +38,6 @@ description: 当前项目后续值得处理的事项
 - 【算力点】缺少 AI 代理扣点/退款的 handler 集成测试（本地代理环境会影响 upstream mock）；前端估算依赖已加载的 public 模型单价，后台改价后需刷新；用户停止任务按「不退还已开始执行任务」处理，如需退款要按未开始执行条件实现幂等退款。方案见 [ai-film-plan.md](ai-film-plan.md)。
 - 【antd 弹层】Select / AutoComplete / Tooltip 与已修的 Dropdown 共用 rc-trigger 定位，在「减少动态效果」或动画被压缩的环境中可能同样停在隐藏坐标。逐页确认后，若确实失效再改成自绘，或给 ConfigProvider 注入定位兜底。
 - 【localforage】写失败静默降级 localStorage 的读写不对称仍保留，风险高，需单独评估。
-- 【视频停止】本地直连视频停止只中断前端轮询，服务端可能继续执行。
 - 【影视】`characterMasterImages` 的「无档案回退主图」不是旧数据兼容，而是「生成角色卡时自动先生成全身图」流程依赖（含 cardSignature 视觉标记），需配套重构后再删。
 
 ## 冗余收敛剩余项

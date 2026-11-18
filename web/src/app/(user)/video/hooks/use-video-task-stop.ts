@@ -49,12 +49,13 @@ type UseVideoTaskStopOptions = {
     persistVideoLog: (log: GenerationLog) => Promise<void>;
     deleteAccountVideoLogs: (items: GenerationLog[]) => Promise<void>;
     onError: (message: string) => void;
+    onNotice?: (message: string) => void;
 };
 
 /**
  * 停止视频任务：先向后端请求停止，未确认时恢复轮询；本地 client 任务直接 abort 并落已停止。
  */
-export function useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, setLogs, setResults, saveGenerationLog, persistVideoLog, deleteAccountVideoLogs, onError }: UseVideoTaskStopOptions) {
+export function useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, setLogs, setResults, saveGenerationLog, persistVideoLog, deleteAccountVideoLogs, onError, onNotice }: UseVideoTaskStopOptions) {
     const stopVideoTask = useCallback(async (logId: string) => {
         const log = logsRef.current.find((item) => item.id === logId);
         if (!log?.task || (log.status !== "生成中" && log.status !== "停止中")) return;
@@ -136,6 +137,7 @@ export function useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, se
                 : { status: "pending", durationMs: nextLog.durationMs, error: nextLog.error, errorDetail: nextLog.errorDetail });
             if (stopErrorMessage) onError(stopErrorMessage);
             else if (nextLog.error) onError(nextLog.error);
+            else if (localClientTask) onNotice?.("已停止本地任务；上游服务可能继续生成");
             await saveGenerationLog(nextLog, active).catch((error) => { onError(`${nextLog.status === "已停止" ? "任务已停止，但记录保存失败" : "停止记录保存失败"}：${errorMessage(error)}`); });
             if (active()) await persistVideoLog(nextLog);
         } finally {
@@ -144,7 +146,7 @@ export function useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, se
             // 已确认停止后移除运行记录并保持 abort 状态，页面轮询不会再为它重启任务。
             else if (stoppedSuccessfully) videoTaskRunsRef.current.delete(logId);
         }
-    }, [deleteAccountVideoLogs, historySyncRef, logsRef, onError, persistVideoLog, saveGenerationLog, setLogs, setResults, videoTaskRunsRef]);
+    }, [deleteAccountVideoLogs, historySyncRef, logsRef, onError, onNotice, persistVideoLog, saveGenerationLog, setLogs, setResults, videoTaskRunsRef]);
 
     return { stopVideoTask };
 }

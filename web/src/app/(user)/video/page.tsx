@@ -885,7 +885,7 @@ export default function VideoPage() {
     loadAccountVideoHistoryRef.current = loadAccountVideoHistory;
     syncBackendVideoTasksRef.current = syncBackendVideoTasks;
 
-    const { stopVideoTask } = useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, setLogs, setResults, saveGenerationLog, persistVideoLog, deleteAccountVideoLogs, onError: message.error });
+    const { stopVideoTask } = useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, setLogs, setResults, saveGenerationLog, persistVideoLog, deleteAccountVideoLogs, onError: message.error, onNotice: message.info });
 
     const finalizeGenerationLog = async (log: GenerationLog, active: () => boolean = () => true) => {
         await saveGenerationLog(log, active);
