@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 影视时长输入移除 addonAfter 弃用告警
+
+- `FilmProjectSettingsFields` 与结构策划弹窗的时长输入由 antd 6 已废弃的 `addonAfter` 改为 `suffix`，单位仍显示在输入框右侧；新建影视项目弹窗不再触发 Next.js dev 错误浮层。
+- 验证：ego-browser 复现修复前打开「新建影视项目」记录到 1 条 `[antd: InputNumber] addonAfter is deprecated`，修复后为 0 条，单位「秒」正常显示为输入框内后缀；`bun run typecheck` 与 `bun run build` 通过（Next.js 16.2.9，29/29 静态页生成）。
+- 未实测：结构策划弹窗的场次时长输入（未构造编辑场景，按同一 API 替换）。
+
 ## P0 视觉收口：视频卡、结果空态、保存状态
 
 - 视频结果/历史卡的 7 个同权重 Tag 收敛为一行元信息（时间 · 模型 · 尺寸 · 清晰度 · 秒数 · 数量 · 耗时，数量为 1 时省略），状态/来源标签仍保留在媒体角标；实时成功、待生成、失败与历史卡共用同一元信息实现。

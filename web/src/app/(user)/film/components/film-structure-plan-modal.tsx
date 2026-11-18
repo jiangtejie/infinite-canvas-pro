@@ -95,7 +95,7 @@ export function FilmStructurePlanModal({ open, plan, generating, regeneratingSce
                                             <span className="text-xs font-semibold text-foreground">{scene.sceneName}</span>
                                             <label className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                                 预计
-                                                <InputNumber className="!w-20" min={3} max={900} value={scene.estimatedDuration} onChange={(value) => patchScene(index, { estimatedDuration: Number(value) || 3 })} addonAfter="s" />
+                                                <InputNumber className="!w-20" min={3} max={900} value={scene.estimatedDuration} onChange={(value) => patchScene(index, { estimatedDuration: Number(value) || 3 })} suffix="s" />
                                             </label>
                                         </div>
                                         <Input value={scene.purpose} placeholder="这场戏的目的" onChange={(event) => patchScene(index, { purpose: event.target.value })} />

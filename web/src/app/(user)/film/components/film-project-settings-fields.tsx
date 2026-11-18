@@ -46,7 +46,7 @@ export function FilmProjectSettingsFields({ value, onChange }: { value: FilmProj
             </label>
             <label className="grid gap-1.5">
                 <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">目标时长（可选）</span>
-                <InputNumber className="!w-full" min={1} max={7200} placeholder="成片目标秒数，例如 180" addonAfter="秒" value={value.targetDuration} onChange={(targetDuration) => onChange({ targetDuration: typeof targetDuration === "number" ? targetDuration : undefined })} />
+                <InputNumber className="!w-full" min={1} max={7200} placeholder="成片目标秒数，例如 180" suffix="秒" value={value.targetDuration} onChange={(targetDuration) => onChange({ targetDuration: typeof targetDuration === "number" ? targetDuration : undefined })} />
                 <span className="text-[11px] leading-5 text-muted-foreground/60">用于预演校验总时长偏差；留空表示不校验。</span>
             </label>
         </>
