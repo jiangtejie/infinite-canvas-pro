@@ -62,7 +62,7 @@ A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收
 - 【工作流】`components/workflows/creative-workflow-workspace.tsx` 2702 行，是当前最大的单文件；继续拆分需保持真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。
 - 【样式】`app/globals.css` 1251 行；画布/后台/提示词/影视私有样式已抽到 `styles/`，剩余工作台私有样式继续移出，globals 只留 token、reset、共享原语和通用 antd 覆写。`PunkAura` 已从 WebGL 着色器改为纯 CSS 静态多层渐变，不再有持续渲染开销。
 - 【React Compiler】规则逐条启用（purity / refs / set-state-in-effect），先做白名单再扩大。
-- 【测试】前端 87 个文件、501 条（`bun test`）；后续补任务合并、连接校验的边界用例。
+- 【测试】前端 88 个文件、504 条（`bun test`）；后续补任务合并、连接校验的边界用例。
 - 【后台】概览 AI 日志全量扫描的缓存/统计索引、概览与列表的行级深链、浅色主题逐项视觉；AI 日志页已接入共享列表抽象，其余页面按需继续组件化。
 - 【视觉】FilterTagGroup 可考虑增加 density/variant（当前用 `.prompt-filter-tag` 全局覆盖）；画布选中环仍为硬编码蓝色，后续统一为主题 token；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。
 - 【无障碍】节点目前采用自然 Tab 序列而非单锚点 roving，是否改 roving tabindex 待评估。

@@ -9,7 +9,7 @@ import { ReferenceImage } from "@/types/image";
 import { nanoid } from "nanoid";
 
 import { fetchErrorDetail, imageRequestRetries, readAxiosError, requestWithTransientRetry, stringifyLogPayload, summarizeFormData, summarizeGeneratedImages, withSystemMessage, withTimeout, writeLocalAICallLog } from "./client";
-import { IMAGE_MIME, IMAGE_REQUEST_TIMEOUT_SECONDS, applyAgnesImageSize, applyImageGenerationOptions, applyImageGenerationParams, assertImageReferencesSupported, createChatImageBody, createGeminiImageBody, createGrokImageEditBody, createImageRequestParams, createResponsesImageTool, createResponsesInput, imageTranslationInput, isAgnesImageModel, isGrok2APIImageConfig, isZhipuImageModel, publicHttpUrl, withPromptGuard, withSystemPrompt } from "./payload";
+import { IMAGE_MIME, IMAGE_REQUEST_TIMEOUT_SECONDS, applyAgnesImageSize, applyImageGenerationOptions, applyImageGenerationParams, assertImageReferencesSupported, createChatImageBody, createGeminiImageBody, createGrokImageEditBody, createImageRequestParams, createResponsesImageTool, createResponsesInput, createTeamoRouterUpscaleEditBody, imageTranslationInput, isAgnesImageModel, isGrok2APIImageConfig, isTeamorouterUpscaleImageConfig, isZhipuImageModel, publicHttpUrl, withPromptGuard, withSystemPrompt } from "./payload";
 import { isEventStreamResponse, parseChatImagesPayload, parseGeminiImages, parseImagePayload, parseImagesStreamResponse, parseResponsesPayload, parseResponsesStreamResponse, readJsonServerSentEvents } from "./stream";
 import { ImageRequestError } from "./types";
 import type { ChatCompletionMessage, ChatImagesApiResponse, GeneratedImage, ImageApiResponse, ImageRequestParams, ParsedImageResponse, ResponsesApiResponse, SeedableImageConfig } from "./types";
@@ -96,8 +96,11 @@ async function requestImageGenerationSingle(config: SeedableImageConfig, prompt:
 }
 
 async function requestGrokImageEditSingle(config: AiConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams): Promise<GeneratedImage[]> {
+    return requestJsonImageEditSingle(config, await createGrokImageEditBody(config, prompt, references, params), params);
+}
+
+async function requestJsonImageEditSingle(config: AiConfig, body: Record<string, unknown>, params: ImageRequestParams): Promise<GeneratedImage[]> {
     const mime = IMAGE_MIME;
-    const body = await createGrokImageEditBody(config, prompt, references, params);
     return requestAndParseImages(
         config,
         "/images/edits",
@@ -139,6 +142,7 @@ function normalizeCloudEditSize(config: AiConfig) {
 async function requestImageEditSingle(config: AiConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams): Promise<GeneratedImage[]> {
     if (isGeminiConfig(config)) return requestGeminiImageSingle(config, prompt, references, params);
     if (isGrok2APIImageConfig(config)) return requestGrokImageEditSingle(config, prompt, references, params);
+    if (references.length && isTeamorouterUpscaleImageConfig(config)) return requestJsonImageEditSingle(config, await createTeamoRouterUpscaleEditBody(config, prompt, references, params), params);
 
     const mime = IMAGE_MIME;
     const cloudOpenAI = config.channelMode === "remote" && channelProtocolForConfig(config) === "openai";

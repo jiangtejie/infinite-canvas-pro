@@ -1,7 +1,7 @@
 import { normalizeTranslationAspectRatio, type TranslationInput } from "../channel-parameter-translation";
-import { dataUrlToGeminiInlineData } from "@/lib/gemini";
+import { dataUrlToGeminiInlineData, isTeamorouterBaseUrl } from "@/lib/gemini";
 import { imageToDataUrl } from "@/services/image-storage";
-import { channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
+import { channelIdForActiveModel, channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { ReferenceImage } from "@/types/image";
 
 import { ImageRequestError } from "./types";
@@ -163,6 +163,28 @@ export function withSystemPrompt(config: AiConfig, prompt: string) {
 
 export function withPromptGuard(config: AiConfig, prompt: string) {
     return config.codexCli ? `${PROMPT_REWRITE_GUARD_PREFIX}\n${prompt}` : prompt;
+}
+
+/** TeamoRouter 的 4K Upscale 型号编辑接口只接受 JSON，image 需传图片 data URL 而非 multipart 文件。 */
+export function isTeamorouterUpscaleImageConfig(config: AiConfig) {
+    if (!config.model.trim().toLowerCase().endsWith("-4k-upscale")) return false;
+    const channel = config.channelMode === "remote"
+        ? config.publicChannels.find((item) => item.id === channelIdForActiveModel(config))
+        : localChannelForActiveModel(config);
+    return isTeamorouterBaseUrl(channel?.baseUrl || config.baseUrl);
+}
+
+export async function createTeamoRouterUpscaleEditBody(config: AiConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams) {
+    const images = (await Promise.all(references.map((image) => imageToDataUrl(image)))).filter(Boolean);
+    if (!images.length) throw new ImageRequestError("参考图无法读取");
+    const body: Record<string, unknown> = {
+        model: config.model,
+        prompt: withPromptGuard(config, withSystemPrompt(config, prompt)),
+        image: images.length === 1 ? images[0] : images,
+    };
+    applyImageGenerationParams(body, config, params, "edit");
+    applyImageGenerationOptions(body, config, params);
+    return body;
 }
 
 export async function createGrokImageEditBody(config: AiConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams) {

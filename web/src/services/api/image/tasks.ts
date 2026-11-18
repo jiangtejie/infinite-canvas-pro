@@ -15,7 +15,7 @@ import { ReferenceImage } from "@/types/image";
 import { nanoid } from "nanoid";
 
 import { fetchErrorDetail, readAxiosError } from "./client";
-import { IMAGE_REQUEST_TIMEOUT_SECONDS, applyAgnesImageSize, applyImageGenerationOptions, applyImageGenerationParams, assertImageReferencesSupported, createChatImageBody, createGeminiImageBody, createGrokImageEditBody, createImageRequestParams, createResponsesImageTool, createResponsesInput, imageTranslationInput, isAgnesImageModel, isGrok2APIImageConfig, isZhipuImageModel, publicHttpUrl, withPromptGuard, withSystemPrompt } from "./payload";
+import { IMAGE_REQUEST_TIMEOUT_SECONDS, applyAgnesImageSize, applyImageGenerationOptions, applyImageGenerationParams, assertImageReferencesSupported, createChatImageBody, createGeminiImageBody, createGrokImageEditBody, createImageRequestParams, createResponsesImageTool, createResponsesInput, createTeamoRouterUpscaleEditBody, imageTranslationInput, isAgnesImageModel, isGrok2APIImageConfig, isTeamorouterUpscaleImageConfig, isZhipuImageModel, publicHttpUrl, withPromptGuard, withSystemPrompt } from "./payload";
 import { requestImages } from "./request";
 import { ImageRequestError } from "./types";
 import type { CanvasImageTask, CanvasImageTaskOptions, ImageRequestParams, SeedableImageConfig } from "./types";
@@ -145,6 +145,14 @@ async function createCanvasImageTaskRequest(config: SeedableImageConfig, prompt:
     }
     if (references.length && isGrok2APIImageConfig(config)) {
         const body = await createGrokImageEditBody(config, prompt, references, params);
+        return {
+            method: "POST",
+            headers: jsonHeaders,
+            body: JSON.stringify({ endpoint: "/images/edits", ...meta, request: body }),
+        };
+    }
+    if (references.length && isTeamorouterUpscaleImageConfig(config)) {
+        const body = await createTeamoRouterUpscaleEditBody(config, prompt, references, params);
         return {
             method: "POST",
             headers: jsonHeaders,

@@ -3,6 +3,14 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 生图工作台 TeamoRouter 4K Upscale 局域重绘修复
+
+- TeamoRouter 的 `gpt-image-*-4k-upscale` 型号编辑接口只接受 JSON，`image` 传图片 URL 或 data URL；生图工作台与画布任务对这些型号的编辑请求改发 JSON（单图字符串、多图数组），不再发 multipart，修复报错「图片请求正文无效：invalid number at line 1 column 2」。
+- 仅在渠道 Base URL 属于 teamorouter.ai 且型号以 `-4k-upscale` 结尾时启用；普通 TeamoRouter 型号和其他渠道维持原 multipart 行为。
+- 验证：`bun test` 88 文件 / 504 条通过（新增 payload 纯函数 2 条、请求路由 1 条）；`bun run typecheck`、`bun run lint`（0 warning）通过；通过本机后端以 JSON + data URL 调用该型号 `/images/edits`，返回 1280×720 图片。真实页面已发起一次局部重绘，后端日志确认请求体为 JSON（`image` 约 2.47MB data URL），未再出现 `invalid number`。
+- 未实测：上述真实页面请求被上游安全系统拒绝（`moderation_blocked`，提示词「衣服遮挡太多」），实际出图未完成；另一次真实请求在约 417 秒后收到上游 `unexpected EOF`（两次长请求均未出图），4K Upscale 编辑的长请求稳定性待上游确认；画布节点局部重绘未逐项点击验证。
+- TeamoRouter Gemini 原生 URL：`BuildGeminiChannelURL` 对 `/v1beta/...` 原生路径不再追加 `/v1`，视频 `/videos` 仍使用 `/v1`；新增 service 回归测试覆盖三种 Base URL 写法，`go test ./service` 通过。渠道已拆分：现有 OpenAI 渠道移除 `gemini-nano-banana-2.1`，新增 `teamorouter-gemini`（gemini 协议，Base URL `https://api.teamorouter.ai`）并公开；更新后的后端在 8081 临时验证、重启 8080 后再次调用，均通过新渠道返回 HTTP 200 与图片。
+
 ## 技术债清理：跨页面重复收敛与云存储错误收口
 
 - 剪贴板：生图/视频页的图片/视频/音频读取（7 处一行式）收敛到 `lib/clipboard.ts`；「粘贴提示词」三份收敛到 `usePasteClipboardText`；复制提示词统一走 `useCopyText`，失败时有提示，不再直接吞异常。视频页「复用配置」与「载入」共用同一份参数回填（此前 30 行逐字重复），行为不变。

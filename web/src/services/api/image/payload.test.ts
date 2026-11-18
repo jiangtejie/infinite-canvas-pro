@@ -4,7 +4,7 @@ import test from "node:test";
 import { geminiDirectHeaders, isTeamorouterBaseUrl } from "@/lib/gemini";
 import { defaultConfig, type AiConfig } from "@/stores/use-config-store";
 
-import { createGeminiImageBody } from "./payload";
+import { createGeminiImageBody, createTeamoRouterUpscaleEditBody, isTeamorouterUpscaleImageConfig } from "./payload";
 import type { ImageRequestParams } from "./types";
 
 function geminiConfig(size: string): AiConfig {
@@ -33,6 +33,18 @@ function params(size: string): ImageRequestParams {
     return { n: 1, quality: "auto", size, timeoutSeconds: 600, streamPartialImages: 0 };
 }
 
+function teamoOpenAIConfig(model: string): AiConfig {
+    return {
+        ...defaultConfig,
+        channelMode: "local",
+        model,
+        imageModel: model,
+        localChannels: [{ id: "teamorouter", protocol: "openai", name: "teamorouter", baseUrl: "https://api.teamorouter.ai/v1", apiKey: "sk-teamo-test", models: [model] }],
+        activeChannelId: "teamorouter",
+        imageChannelId: "teamorouter",
+    };
+}
+
 test("TeamoRouter 走 Bearer 鉴权，Google 仍走 x-goog-api-key", () => {
     const config = geminiConfig("512x512");
     assert.equal(isTeamorouterBaseUrl("https://api.teamorouter.ai"), true);
@@ -55,3 +67,22 @@ for (const [size, ratio] of [["512x2048", "1:4"], ["2048x512", "4:1"], ["512x409
         assert.equal(body.generationConfig.imageConfig.aspectRatio, ratio);
     });
 }
+
+test("TeamoRouter 4K Upscale 型号的编辑请求使用 JSON image 数据", async () => {
+    const model = "gpt-image-2.6-sunburst-4k-upscale";
+    const config = teamoOpenAIConfig(model);
+    assert.equal(isTeamorouterUpscaleImageConfig(config), true);
+    const first = { id: "r1", name: "r1", type: "image/png", dataUrl: "data:image/png;base64,AAAA" };
+    const single = await createTeamoRouterUpscaleEditBody(config, "只改蓝色区域", [first], params("1280x720"));
+    assert.deepEqual(single, { model, prompt: "只改蓝色区域", image: "data:image/png;base64,AAAA", size: "1280x720", quality: "auto" });
+    const multiple = await createTeamoRouterUpscaleEditBody(config, "p", [first, { ...first, id: "r2", dataUrl: "data:image/png;base64,BBBB" }], params("1280x720"));
+    assert.deepEqual(multiple.image, ["data:image/png;base64,AAAA", "data:image/png;base64,BBBB"]);
+});
+
+test("仅 TeamoRouter 的 upscale 型号走 JSON 编辑", () => {
+    const model = "gpt-image-2.6-sunburst-4k-upscale";
+    assert.equal(isTeamorouterUpscaleImageConfig(teamoOpenAIConfig("gpt-image-2.6-sunburst")), false);
+    const apimart = teamoOpenAIConfig(model);
+    apimart.localChannels = [{ ...apimart.localChannels[0], baseUrl: "https://api.apimart.ai/v1" }];
+    assert.equal(isTeamorouterUpscaleImageConfig(apimart), false);
+});

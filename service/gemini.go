@@ -44,6 +44,10 @@ func BuildGeminiChannelURL(channel model.ModelChannel, path string) string {
 				break
 			}
 		}
+		// TeamoRouter 的 Gemini 原生路径是 /v1beta/...，视频等兼容路径才需要 /v1 前缀。
+		if path == "/v1beta" || strings.HasPrefix(path, "/v1beta/") {
+			return baseURL + path
+		}
 		return baseURL + "/v1" + path
 	}
 	if strings.HasSuffix(strings.ToLower(baseURL), "/v1beta") {

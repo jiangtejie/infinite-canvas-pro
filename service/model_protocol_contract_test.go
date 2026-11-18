@@ -121,6 +121,16 @@ func TestTeamorouterGeminiVideoURLUsesV1(t *testing.T) {
 	}
 }
 
+func TestTeamorouterGeminiImageURLKeepsV1Beta(t *testing.T) {
+	const path = "/v1beta/models/gemini-nano-banana-2.1:generateContent"
+	for _, baseURL := range []string{"https://api.teamorouter.ai", "https://api.teamorouter.ai/v1", "https://api.teamorouter.ai/v1beta"} {
+		got := BuildModelChannelURL(model.ModelChannel{Protocol: "gemini", BaseURL: baseURL}, path)
+		if want := "https://api.teamorouter.ai" + path; got != want {
+			t.Errorf("BuildModelChannelURL(%q, %q) = %q, want %q", baseURL, path, got, want)
+		}
+	}
+}
+
 func TestModelProtocolConfigTestsDoNotGenerate(t *testing.T) {
 	stubProtocolAdminHTTP(t, func(*http.Request) (*http.Response, error) {
 		t.Error("configuration-only test performed an upstream generation")
