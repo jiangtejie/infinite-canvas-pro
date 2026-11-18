@@ -775,13 +775,6 @@ export function resolveVideoChannelId(config: AiConfig, model: string, ...prefer
 
 export { isAPIMartKlingV26Config, isAPIMartKlingV3Config, isKlingV3Config, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, normalizeKlingV26Ratio, videoChannelProtocol } from "@/services/api/protocols/kling-models";
 
-export function resolveKlingWorkbenchConfig(config: AiConfig, model: string): { provider: "apimart" | "kie"; variant: "v26" | "v3" } | null {
-    if (isAPIMartKlingV26Config(config, model)) return { provider: "apimart", variant: "v26" };
-    if (isAPIMartKlingV3Config(config, model)) return { provider: "apimart", variant: "v3" };
-    if (isKIEKlingV3Config(config, model)) return { provider: "kie", variant: "v3" };
-    return null;
-}
-
 export const characterOrientationOptions = [{ value: "image", label: "图片" }, { value: "video", label: "视频" }];
 
 export function normalizeCharacterOrientation(value: string | undefined) {

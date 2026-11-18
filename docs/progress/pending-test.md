@@ -3,6 +3,16 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 视频参考素材限额与提交校验收敛为单一实现
+
+- 新增 `lib/video-reference-limits.ts`：`videoKlingWorkbench` / `videoReferenceLimits` / `videoReferenceCapacity` / `videoFrameReferencesEnabled` 统一 Kling 工作台判定、ARK/Seedance 限额、各模式参考素材数量与首尾帧开关；Kling 判定仍只认型号归一化 + 渠道 protocol。
+- 视频页、Kling 底部面板与请求层（`api/video/payload/request.ts`）全部改为调用该模块，删除页面内 3 处重复表达式与请求层硬编码 `10` / `kieKlingOmni ? 1 : all`。
+- 工作流模式通过显式 `{ workflow: true }` 开关保留原页面语义；请求层不传该开关，避免画布 / 影视配置里残留的 `videoWorkflowRef` 影响真实请求。
+- 行为变化（向 UI 现有上限看齐）：`reference-to-video` 参考图从「不限」收紧到 10；非 Kling 参考视频 / 音频从「不限」收紧到 3（ARK Seedance 2.5 为 10）；Kling `image-to-video` / `text-to-video` 的请求层参考视频由 1 收紧到 0（UI 本就无法添加）。
+- 新增 `video/validation.ts` 的 `validateVideoRequest()` 纯函数，把提交前 10 条业务规则（Kling 各模式必填、v2.6 音频限制、元素完整性、Seedance 参考视频时长等）从页面搬出；页面只按 `error` / `config` 两种 tone 弹提示或打开配置。
+- 验证：全量 `bun test` 91 文件 / 525 条通过（新增限额 7 条、校验 8 条）；`bun run typecheck`、`bun run lint`（`--max-warnings=0`）通过。
+- 未实测：画布与影视传超限参考素材时的实际截断、Kling 各 omni 模式在真实渠道下的提交、工作流模式下的首尾帧与素材上限；未运行生产构建。
+
 ## 视频工作台创作草稿
 
 - 新增账号级创作草稿：提示词、负向提示词、参考图、首尾帧、参考视频、参考音频与任务数量在编辑后自动保存（500ms 防抖），刷新或重新打开页面自动恢复；负向提示词回填时同步写回全局配置，与手动输入走同一条路径。

@@ -5,6 +5,7 @@ import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "..
 import { autoDLBaseUrl, getAutoDLCapabilities } from "@/lib/autodl";
 import { fetchAutoDLWorkflow } from "../../autodl";
 import { isAgnesVideoV25Model, isCogVideoX3Model, isWan3VideoModel, modelKey, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
+import { videoReferenceCapacity } from "@/lib/video-reference-limits";
 import { localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { aiApiUrl, usesAccountProxy } from "../../ai-request";
 import { VideoRequestError } from "../types";
@@ -148,14 +149,14 @@ export async function createVideoRequestBody(config: AiConfig, model: string, pr
     if (tokenDance || motionControl) body.append("character_orientation", normalizeCharacterOrientation(config.videoCharacterOrientation));
     if (tokenDance || apimartWan3 || supportsVideoAudioGeneration(model)) body.append("video_generate_audio", String(boolConfig(config.videoGenerateAudio, false)));
     if (tokenDance) body.append("video_watermark", String(boolConfig(config.videoWatermark, false)));
-    const imageReferenceLimit = kieKlingOmni === "text-to-video" ? 0 : kieKlingOmni === "reference-to-video" ? input.references.length : kieKlingOmni === "transformation" ? 4 : kling ? 2 : 10;
-    const files = await Promise.all(input.references.slice(0, imageReferenceLimit).map(imageReferenceToFormValue));
+    const capacity = videoReferenceCapacity(config, model);
+    const files = await Promise.all(input.references.slice(0, capacity.imageLimit).map(imageReferenceToFormValue));
     files.forEach((file) => body.append("input_reference[]", file));
     if (!kling && input.firstFrame) body.append("first_frame_url", await imageReferenceToFormValue(input.firstFrame));
     if (!kling && input.lastFrame) body.append("last_frame_url", await imageReferenceToFormValue(input.lastFrame));
-    const videoFiles = kling && kieKlingOmni !== "reference-to-video" && kieKlingOmni !== "transformation" ? [] : await Promise.all(input.videoReferences.slice(0, kieKlingOmni ? 1 : input.videoReferences.length).map(mediaReferenceToFormValue));
+    const videoFiles = await Promise.all(input.videoReferences.slice(0, capacity.videoLimit).map(mediaReferenceToFormValue));
     videoFiles.forEach((file) => body.append("video_reference[]", file));
-    const audioFiles = kling ? [] : await Promise.all(input.audioReferences.map(mediaReferenceToFormValue));
+    const audioFiles = await Promise.all(input.audioReferences.slice(0, capacity.audioLimit).map(mediaReferenceToFormValue));
     audioFiles.forEach((file) => body.append("audio_reference[]", file));
     return body;
 }

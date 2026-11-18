@@ -14,14 +14,15 @@ import { WorkbenchSidePanel } from "@/components/workbench/workbench-side-panel"
 import { normalizeVideoResolutionValue, videoResolutionOptions, videoSizeForResolution, videoSizeOptions } from "@/components/video-settings-panel";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { isAutoDLConfig, normalizeAutoDLDuration } from "@/lib/autodl";
-import { ARK_SEEDANCE_REFERENCE_LIMITS, boolConfig, isSeedanceVideoConfig, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
-import { COGVIDEOX3_DURATIONS, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration, supportsVideoFrameReferences } from "@/lib/video-model-capabilities";
-import { channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
+import { boolConfig, isSeedanceVideoConfig } from "@/lib/seedance-video";
+import { COGVIDEOX3_DURATIONS, isCogVideoX3Model, modelKey, normalizeCogVideoX3Duration, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
+import { videoFrameReferencesEnabled, videoKlingWorkbench, videoReferenceLimits } from "@/lib/video-reference-limits";
+import type { AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
 import type { AssetPickerTarget, UpdateAiConfig } from "../history";
-import { characterOrientationOptions, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, normalizeCharacterOrientation, normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount, normalizeVideoSeconds, resolveKlingWorkbenchConfig, videoChannelProtocol } from "../history";
+import { characterOrientationOptions, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, normalizeCharacterOrientation, normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount, normalizeVideoSeconds, videoChannelProtocol } from "../history";
 import { ReferenceAudioStrip, ReferenceImageStrip, ReferenceVideoStrip } from "./reference-strips";
 import { FrameReferenceStrip, GenerationSettings, ReferenceQuickActions } from "./workbench-controls";
 
@@ -108,14 +109,14 @@ export function VideoWorkbenchPanel({
     bottomSettingsCollapsed?: boolean;
     setBottomSettingsCollapsed?: (value: boolean) => void;
 }) {
-    const frameReferencesEnabled = Boolean(config.videoWorkflowRef) || supportsVideoFrameReferences(model, channelProtocolForConfig({ ...config, model }));
-    const referenceLimits = !config.videoWorkflowRef && channelProtocolForConfig({ ...config, model, videoModel: model }) === "ark" && (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5")) ? ARK_SEEDANCE_REFERENCE_LIMITS : SEEDANCE_REFERENCE_LIMITS;
+    const frameReferencesEnabled = videoFrameReferencesEnabled(config, model, { workflow: Boolean(config.videoWorkflowRef) });
+    const referenceLimits = videoReferenceLimits(config, model, { workflow: Boolean(config.videoWorkflowRef) });
     const autodl = !config.videoWorkflowRef && isAutoDLConfig(config, model);
     const { data: autodlWorkflow } = useAutoDLWorkflow(config, model);
     const cogVideoX3 = !config.videoWorkflowRef && isCogVideoX3Model(model);
     const audioGenerationEnabled = supportsVideoAudioGeneration(model);
     const generateAudio = boolConfig(config.videoGenerateAudio, false);
-    const klingBottomConfig = config.videoWorkflowRef ? null : resolveKlingWorkbenchConfig(config, model);
+    const klingBottomConfig = videoKlingWorkbench(config, model, { workflow: Boolean(config.videoWorkflowRef) });
     const klingBottomVariant = klingBottomConfig?.variant || "";
     const klingBottomProvider = klingBottomConfig?.provider || "apimart";
     const klingBottom = Boolean(klingBottomConfig);

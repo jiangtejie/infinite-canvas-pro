@@ -14,7 +14,7 @@ import { LoadingState } from "@/components/ui/state-panel";
 import { WORKBENCH_BOTTOM_RESULTS_CLASS, WorkbenchShell } from "@/components/workbench/workbench-shell";
 import { VideoWorkbenchPanel } from "./components/workbench-panel";
 import type { GeneratedVideo, GenerationResult, GenerationLog, UpdateAiConfig, AssetPickerTarget, WorkflowPollContext } from "./history";
-import { logStore, createResultFromLog, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, isAPIMartKlingV26Config, isKlingV3Config, resolveKlingWorkbenchConfig, normalizeCharacterOrientation, defaultKlingElementList, normalizeKlingElementList, validateKlingElementList, normalizeKlingMultiPrompts, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
+import { logStore, createResultFromLog, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, normalizeCharacterOrientation, defaultKlingElementList, normalizeKlingElementList, normalizeKlingMultiPrompts, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
 import { ReferenceVideoStrip } from "./components/reference-strips";
 import { ResultsPanel } from "./components/results-panel";
 import { useVideoTaskPolling } from "./hooks/use-video-task-polling";
@@ -25,17 +25,15 @@ import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { getAutoDLCapabilities, isAutoDLConfig } from "@/lib/autodl";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
-import { kieKlingOmniVariant } from "@/components/video-settings-panel";
-import { isMiniMaxH3Config } from "@/lib/minimax-video";
-import { ARK_SEEDANCE_REFERENCE_LIMITS, boolConfig, seedanceVideoReferenceError, seedanceVideoReferenceHint, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
-import { isAgnesVideoV25Model, modelKey, supportsVideoFrameReferences } from "@/lib/video-model-capabilities";
+import { SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
+import { videoFrameReferencesEnabled, videoReferenceCapacity } from "@/lib/video-reference-limits";
 import { deleteStoredMedia, downloadRemoteMedia, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
 import { deleteStoredImages, uploadImage } from "@/services/image-storage";
 import { deleteVideoGenerationLogs, saveVideoGenerationLogs } from "@/services/api/generation-logs";
 import { deleteVideoGenerationTask, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
 import { useAssetStore } from "@/stores/use-asset-store";
-import { channelProtocolForConfig, useConfigStore, useEffectiveConfig, type AiConfig, type VideoElementItem, type VideoElementReference } from "@/stores/use-config-store";
+import { useConfigStore, useEffectiveConfig, type AiConfig, type VideoElementItem, type VideoElementReference } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
@@ -43,6 +41,7 @@ import type { WorkflowRef } from "@/lib/workflow-channel";
 
 import { readVideoDraft, saveVideoDraft } from "./draft";
 import type { VideoGenerationSnapshot, VideoTaskRun } from "./task-types";
+import { validateVideoRequest } from "./validation";
 import { errorMessage } from "@/lib/utils";
 import { readClipboardBlobs } from "@/lib/clipboard";
 import { usePasteClipboardText } from "@/hooks/use-paste-clipboard-text";
@@ -115,20 +114,21 @@ export default function VideoPage() {
     const workflowSubmissionRef = useRef(0);
 
     const model = effectiveConfig.videoModel || effectiveConfig.model;
-    const referenceLimits = !videoConfig.videoWorkflowRef && channelProtocolForConfig({ ...videoConfig, model, videoModel: model }) === "ark" && (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5")) ? ARK_SEEDANCE_REFERENCE_LIMITS : SEEDANCE_REFERENCE_LIMITS;
+    const capacity = useMemo(() => videoReferenceCapacity(videoConfig, model, { workflow: Boolean(videoConfig.videoWorkflowRef) }), [videoConfig, model]);
+    const referenceLimits = capacity.limits;
     const autodl = !videoConfig.videoWorkflowRef && isAutoDLConfig(videoConfig, model);
     const { data: autodlWorkflow, error: autodlError } = useAutoDLWorkflow(videoConfig, model);
     const autodlCapabilities = getAutoDLCapabilities(autodlWorkflow);
     const canGenerate = Boolean(prompt.trim() || videoConfig.videoWorkflowRef) || (autodl && autodlCapabilities?.promptRequired === false);
     const pendingCount = results.filter((item) => item.status === "pending").length;
-    const klingWorkbench = videoConfig.videoWorkflowRef ? null : resolveKlingWorkbenchConfig(videoConfig, model);
+    const klingWorkbench = capacity.klingWorkbench;
     const klingWorkbenchVariant = klingWorkbench?.variant || "";
     const klingWorkbenchProvider = klingWorkbench?.provider || "apimart";
     const isKlingWorkbench = Boolean(klingWorkbench);
-    const klingOmni = videoConfig.videoWorkflowRef ? "" : kieKlingOmniVariant(videoConfig, model);
-    const klingAcceptsVideoReferences = klingOmni === "reference-to-video" || klingOmni === "transformation";
-    const referenceImageLimit = klingOmni === "text-to-video" ? 0 : klingOmni === "image-to-video" ? 2 : klingOmni === "transformation" ? 4 : isKlingWorkbench && klingOmni !== "reference-to-video" ? 2 : referenceLimits.images;
-    const videoReferenceLimit = klingAcceptsVideoReferences ? 1 : referenceLimits.videos;
+    const klingOmni = capacity.omni;
+    const klingAcceptsVideoReferences = capacity.acceptsVideoReferences;
+    const referenceImageLimit = capacity.imageLimit;
+    const videoReferenceLimit = capacity.videoLimit;
     const hasPendingLogs = logs.some((log) => (log.status === "生成中" || (log.status === "停止中" && !log.error)) && log.task && !log.video);
     const hasPendingTasks = hasPendingLogs || pendingCount > 0 || results.some((item) => item.status === "stopping" && !item.error);
     const usesBackendVideoTasks = (value: AiConfig) => usesBackendTasks(value, token);
@@ -564,67 +564,21 @@ export default function VideoPage() {
             if (!token) { message.error("工作流生成需要先登录"); return null; }
             return { text, model: modelValue, config: { ...configValue, videoNegativePrompt: currentNegativePrompt }, references: [...referenceItems], firstFrame: firstFrameItem, lastFrame: lastFrameItem, videoReferences: [...videoReferenceItems], audioReferences: [...audioReferenceItems], taskCount: normalizeVideoCount(taskCountValue), workflowRef };
         }
-        const klingV26 = isAPIMartKlingV26Config(configValue, modelValue);
-        const klingV3 = isKlingV3Config(configValue, modelValue);
-        const kling = klingV26 || klingV3;
-        const omni = kieKlingOmniVariant(configValue, modelValue);
-        const acceptsVideoReferences = omni === "reference-to-video" || omni === "transformation";
-        const supportsElements = omni !== "transformation";
-        if (!text && !isAutoDLConfig(configValue, modelValue)) {
-            message.error("请输入视频提示词");
-            return null;
-        }
-        if (!isAiConfigReady(configValue, modelValue)) {
-            message.warning("请先完成配置");
-            openConfigDialog(true);
-            return null;
-        }
-        if (kling && omni !== "reference-to-video" && referenceItems.length > (omni === "transformation" ? 4 : 2)) {
-            message.error(`Kling 参考图最多 ${omni === "transformation" ? 4 : 2} 张`);
-            return null;
-        }
-        if (omni === "image-to-video" && !referenceItems.length) {
-            message.error("请添加首帧图片");
-            return null;
-        }
-        if (omni === "reference-to-video" && !referenceItems.length && !videoReferenceItems.length && !configValue.videoElementList?.some((item) => item.references?.length)) {
-            message.error("请添加参考图、参考视频或角色元素");
-            return null;
-        }
-        if (omni === "transformation" && !videoReferenceItems.length) {
-            message.error("请添加需要变换的参考视频");
-            return null;
-        }
-        if (klingV26 && boolConfig(configValue.videoGenerateAudio, false)) {
-            if (configValue.videoMode !== "pro") {
-                message.error("Kling v2.6 音频生成需要 pro 模式");
-                return null;
+        const issue = validateVideoRequest({ config: configValue, model: modelValue, prompt: text, references: referenceItems, videoReferences: videoReferenceItems, elementList: configValue.videoElementList, configReady: isAiConfigReady(configValue, modelValue) });
+        if (issue) {
+            if (issue.tone === "config") {
+                message.warning(issue.message);
+                openConfigDialog(true);
+            } else {
+                message.error(issue.message);
             }
-            if (referenceItems.length > 1) {
-                message.error("Kling v2.6 开启音频时最多 1 张参考图");
-                return null;
-            }
+            return null;
         }
-        if (klingV3 && supportsElements) {
-            const elementError = validateKlingElementList(configValue.videoElementList);
-            if (elementError) {
-                message.error(elementError);
-                return null;
-            }
-        }
-        if (!kling && !isAutoDLConfig(configValue, modelValue) && !isMiniMaxH3Config(configValue, modelValue) && !isAgnesVideoV25Model(modelValue)) {
-            const limits = channelProtocolForConfig({ ...configValue, model: modelValue, videoModel: modelValue }) === "ark" && (modelKey(modelValue).includes("seedance-2-5") || modelKey(modelValue).includes("seedance2-5")) ? ARK_SEEDANCE_REFERENCE_LIMITS : SEEDANCE_REFERENCE_LIMITS;
-            const videoReferenceError = seedanceVideoReferenceError(videoReferenceItems, limits);
-            if (videoReferenceError) {
-                message.error(`${videoReferenceError}。${seedanceVideoReferenceHint}`);
-                return null;
-            }
-        }
-        const frameReferencesEnabled = !kling && supportsVideoFrameReferences(modelValue, channelProtocolForConfig({ ...configValue, model: modelValue }));
+        const { omni, imageLimit, videoLimit, audioLimit } = videoReferenceCapacity(configValue, modelValue);
         const normalizedConfig = buildVideoConfig({ ...configValue, videoNegativePrompt: currentNegativePrompt }, modelValue);
         if (omni === "reference-to-video" && videoReferenceItems.length) normalizedConfig.videoGenerateAudio = "false";
-        const imageReferences = omni === "text-to-video" ? [] : omni === "reference-to-video" ? [...referenceItems] : [...referenceItems].slice(0, kling ? omni === "transformation" ? 4 : 2 : referenceItems.length);
-        return { text, model: modelValue, config: normalizedConfig, references: imageReferences, firstFrame: frameReferencesEnabled ? firstFrameItem : null, lastFrame: frameReferencesEnabled ? lastFrameItem : null, videoReferences: acceptsVideoReferences ? [...videoReferenceItems].slice(0, 1) : kling ? [] : [...videoReferenceItems], audioReferences: kling ? [] : [...audioReferenceItems], taskCount: normalizeVideoCount(taskCountValue) };
+        const frameReferencesEnabled = videoFrameReferencesEnabled(configValue, modelValue);
+        return { text, model: modelValue, config: normalizedConfig, references: referenceItems.slice(0, imageLimit), firstFrame: frameReferencesEnabled ? firstFrameItem : null, lastFrame: frameReferencesEnabled ? lastFrameItem : null, videoReferences: videoReferenceItems.slice(0, videoLimit), audioReferences: audioReferenceItems.slice(0, audioLimit), taskCount: normalizeVideoCount(taskCountValue) };
     };
 
     const submitGenerationSnapshot = async (snapshot: VideoGenerationSnapshot) => {
