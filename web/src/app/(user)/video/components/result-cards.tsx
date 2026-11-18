@@ -139,7 +139,8 @@ export function HistoryLogCard({ log, selected, active, syncing, onSelectedChang
 }
 
 export function VideoSourceTag({ video }: { video: GeneratedVideo }) {
-    return <Tag className="m-0 !text-[10px]" color={video.storageKey ? "default" : "gold"}>{video.storageKey ? "本地缓存" : "AI 临时URL"}</Tag>;
+    const cloud = isCloudVideo(video);
+    return <Tag className="m-0 !text-[10px]" color={cloud ? "green" : video.storageKey ? "default" : "gold"}>{cloud ? "云端" : video.storageKey ? "本地缓存" : "AI 临时URL"}</Tag>;
 }
 
 export function TaskTags({ item }: { item: GenerationResult }) {

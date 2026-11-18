@@ -462,7 +462,7 @@ export default function ImagePage() {
         }
     };
 
-    const saveResultToAssets = async (image: GeneratedImage, index: number) => {
+    const saveResultToAssets = async (image: GeneratedImage, index: number, resultPrompt: string) => {
         const stored = image.storageKey
             ? {
                   url: await resolveImageUrl(image.storageKey, image.dataUrl),
@@ -480,7 +480,7 @@ export default function ImagePage() {
             tags: [],
             source: "生图工作台",
             data: { dataUrl: stored.url, storageKey: stored.storageKey, width: stored.width, height: stored.height, bytes: stored.bytes, mimeType: stored.mimeType },
-            metadata: { source: "image-page", prompt },
+            metadata: { source: "image-page", prompt: resultPrompt },
         });
         message.success("已加入我的素材");
     };

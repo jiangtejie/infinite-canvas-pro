@@ -63,7 +63,7 @@ export function ResultsPanel({
     onDownload: (video: GeneratedVideo) => void;
     onSyncResult: (resultId: string, video: GeneratedVideo, index: number) => void;
     onSyncLog: (log: GenerationLog, video: GeneratedVideo, index: number) => void;
-    onSaveAsset: (video: GeneratedVideo) => void;
+    onSaveAsset: (video: GeneratedVideo, prompt: string) => void;
     syncingVideoIds: string[];
     onUseExample: (prompt: string) => void;
 }) {
@@ -130,7 +130,7 @@ export function ResultsPanel({
                                     onCopyPrompt={onCopyPrompt}
                                     onDownload={onDownload}
                                     onSync={(video) => onSyncResult(result.id, video, index)}
-                                    onSaveAsset={onSaveAsset}
+                                    onSaveAsset={(video) => onSaveAsset(video, result.prompt)}
                                 />
                             ) : result.status === "failed" ? (
                                 <FailedVideoCard result={result} error={result.error || "生成失败"} onCopyPrompt={onCopyPrompt} onPreview={() => onPreviewResult(result)} onRetry={() => onRetryResult(result)} />
@@ -164,7 +164,7 @@ export function ResultsPanel({
                                 onCopyPrompt={onCopyPrompt}
                                 onDownload={onDownload}
                                 onSync={(video) => onSyncLog(log, video, index)}
-                                onSaveAsset={onSaveAsset}
+                                onSaveAsset={(video) => onSaveAsset(video, log.prompt)}
                             />
                         </div>
                     ))}

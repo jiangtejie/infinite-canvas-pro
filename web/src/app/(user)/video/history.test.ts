@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dedupeVideoLogs, mergeBackendTaskIntoLog, mergeDuplicateVideoLog, mergePendingLogResults, parseTaskTimestamp, shouldPreferVideoLog, updateResultByLogId, videoLogBackendMergeKeys, videoLogIdentityKeys, videoLogScore, videoTaskIdentityKeys, type GenerationLog, type GenerationResult } from "./history";
+import { dedupeVideoLogs, isCloudVideo, mergeBackendTaskIntoLog, mergeDuplicateVideoLog, mergePendingLogResults, parseTaskTimestamp, shouldPreferVideoLog, updateResultByLogId, videoLogBackendMergeKeys, videoLogIdentityKeys, videoLogScore, videoTaskIdentityKeys, type GenerationLog, type GenerationResult } from "./history";
 
 const makeLog = (patch: Partial<GenerationLog>): GenerationLog => ({ ...({} as GenerationLog), ...patch });
 
@@ -93,4 +93,12 @@ test("video history does not downgrade a stopped result while merging pending lo
     const merged = mergePendingLogResults([stoppedResult], [pendingLog]);
 
     assert.equal(merged[0].status, "stopped");
+});
+
+test("video only treats server storage keys as already in the cloud", () => {
+    assert.equal(isCloudVideo({ storageKey: "server:abc", url: "u" } as never), true);
+    assert.equal(isCloudVideo({ storageKey: "server:webdav:abc", url: "u" } as never), true);
+    assert.equal(isCloudVideo({ storageKey: "generated-video:abc", url: "blob:u" } as never), false);
+    assert.equal(isCloudVideo({ storageKey: "workflow-video:abc", url: "blob:u" } as never), false);
+    assert.equal(isCloudVideo({ storageKey: "", url: "https://cdn/u.mp4" } as never), false);
 });

@@ -15,6 +15,8 @@ export type UploadedFile = { url: string; storageKey: string; bytes: number; mim
 export const mediaStore = localforage.createInstance({ name: "infinite-canvas", storeName: "media_files" });
 const store = mediaStore;
 const objectUrls = new Map<string, string>();
+const serverMediaUrls = new Map<string, string>();
+const serverMediaUrlRequests = new Map<string, Promise<string | undefined>>();
 let storageConfigPromise: Promise<StorageConfig> | null = null;
 
 export async function uploadMediaFile(input: string | Blob, prefix = "file", syncId?: string, tokenOverride?: string): Promise<UploadedFile> {
@@ -141,22 +143,41 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
     if (storageKey.startsWith("server:")) {
         const id = storageKey.slice("server:".length);
         if (fallback && !fallback.startsWith("blob:") && !fallback.includes("direct=1") && !fallback.startsWith("/webdav-media/")) return fallback;
-        const { getStorageObjectInfo } = await import("@/services/api/storage");
-        const info = await getStorageObjectInfo(id).catch(() => null);
-        if (!info) return fallback;
-        const provider = loadUserStorageProvider();
-        if (info.direct && provider?.type === "webdav") {
-            const direct = await import("@/services/webdav-direct-storage");
-            try {
-                return await direct.directWebDAVMediaUrl(provider, info.objectKey);
-            } catch (error) {
-                if (!useUserStore.getState().token || !direct.isWebDAVDirectUnavailable(error)) throw error;
+        const cachedUrl = serverMediaUrls.get(id);
+        if (cachedUrl) return cachedUrl;
+        const pending = serverMediaUrlRequests.get(id);
+        if (pending) return (await pending) || fallback;
+        const request = (async () => {
+            const { getStorageObjectInfo } = await import("@/services/api/storage");
+            const info = await getStorageObjectInfo(id).catch(() => null);
+            if (!info) return undefined;
+            const provider = loadUserStorageProvider();
+            if (info.direct && provider?.type === "webdav") {
+                const direct = await import("@/services/webdav-direct-storage");
+                try {
+                    // 预签名直连地址会过期，不进缓存。
+                    return await direct.directWebDAVMediaUrl(provider, info.objectKey);
+                } catch (error) {
+                    if (!useUserStore.getState().token || !direct.isWebDAVDirectUnavailable(error)) throw error;
+                }
             }
+            const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
+            serverMediaUrls.set(id, url);
+            return url;
+        })();
+        serverMediaUrlRequests.set(id, request);
+        try {
+            return (await request) || fallback;
+        } finally {
+            if (serverMediaUrlRequests.get(id) === request) serverMediaUrlRequests.delete(id);
         }
-        const url = info.publicUrl || `/api/files/${encodeURIComponent(id)}/content`;
-        return url;
     }
     return fallback;
+}
+
+function forgetServerMediaUrl(id: string) {
+    serverMediaUrls.delete(id);
+    serverMediaUrlRequests.delete(id);
 }
 
 export async function getMediaBlob(storageKey: string) {
@@ -180,6 +201,7 @@ async function deleteServerMedia(storageKey: string) {
         const direct = await import("@/services/webdav-direct-storage");
         if (await direct.deletePersistedDirectWebDAV(provider, storageKey)) {
             clearAutoSyncCache(storageKey);
+            forgetServerMediaUrl(id);
             const url = objectUrls.get(storageKey);
             if (url) URL.revokeObjectURL(url);
             objectUrls.delete(storageKey);
@@ -191,6 +213,7 @@ async function deleteServerMedia(storageKey: string) {
         if (!provider) return;
         await deleteAnonymousStorageFile(id, toProviderPayload(provider));
         clearAutoSyncCache(storageKey);
+        forgetServerMediaUrl(id);
         const url = objectUrls.get(storageKey);
         if (url) URL.revokeObjectURL(url);
         objectUrls.delete(storageKey);
@@ -205,6 +228,7 @@ async function deleteServerMedia(storageKey: string) {
     const payload = (await response.json().catch(() => null)) as { code?: number; msg?: string } | null;
     if (!response.ok || payload?.code !== 0) throw new Error(payload?.msg || "删除服务端视频失败");
     clearAutoSyncCache(storageKey);
+    forgetServerMediaUrl(id);
 }
 
 export async function deleteStoredMedia(keys: Iterable<string>) {

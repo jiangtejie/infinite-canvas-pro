@@ -52,7 +52,7 @@ export function HistoryLogCard({
     onEdit: (image: GeneratedImage, index: number) => void;
     onMaskEdit: (image: GeneratedImage) => void;
     onDownload: (image: GeneratedImage, index: number) => void;
-    onSaveAsset: (image: GeneratedImage, index: number) => void;
+    onSaveAsset: (image: GeneratedImage, index: number, prompt: string) => void;
     syncing: boolean;
     onSync: (image: GeneratedImage) => void;
 }) {
@@ -91,7 +91,7 @@ export function HistoryLogCard({
         else if (key === "mask" && firstImage) closeThen(() => onMaskEdit(firstImage));
         else if (key === "category") setCategoryOpen(true);
         else if (key === "sync" && firstImage) closeThen(() => onSync(firstImage));
-        else if (key === "asset" && firstImage) closeThen(() => void onSaveAsset(firstImage, index));
+        else if (key === "asset" && firstImage) closeThen(() => void onSaveAsset(firstImage, index, log.prompt));
         else if (key === "download" && firstImage) closeThen(() => onDownload(firstImage, index));
     };
 

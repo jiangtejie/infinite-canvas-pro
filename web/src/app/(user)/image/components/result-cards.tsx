@@ -57,7 +57,7 @@ export function ResultImageCard({
     onEdit: (image: GeneratedImage, index: number) => void;
     onReuseConfig: (result: GenerationResult) => void;
     onDownload: (image: GeneratedImage, index: number) => void;
-    onSaveAsset: (image: GeneratedImage, index: number) => void;
+    onSaveAsset: (image: GeneratedImage, index: number, prompt: string) => void;
     syncing: boolean;
     onSync: (image: GeneratedImage) => void;
 }) {
@@ -94,7 +94,7 @@ export function ResultImageCard({
                             onClick: ({ key }) => {
                                 if (key === "reuse") onReuseConfig(result);
                                 else if (key === "sync") onSync(image);
-                                else if (key === "asset") void onSaveAsset(image, index);
+                                else if (key === "asset") void onSaveAsset(image, index, result.prompt);
                                 else if (key === "download") onDownload(image, index);
                             },
                         }}

@@ -534,7 +534,7 @@ export function isRecoverableBackendVideoTask(task: VideoResponse) {
 }
 
 export function isCloudVideo(video: GeneratedVideo) {
-    return Boolean(video.storageKey);
+    return Boolean(video.storageKey?.startsWith("server:"));
 }
 
 

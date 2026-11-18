@@ -88,7 +88,7 @@ export function ResultsPanel({
     onEdit: (image: GeneratedImage, index: number) => void;
     onMaskEdit: (log: GenerationLog, image: GeneratedImage) => void;
     onDownload: (image: GeneratedImage, index: number) => void;
-    onSaveAsset: (image: GeneratedImage, index: number) => void;
+    onSaveAsset: (image: GeneratedImage, index: number, prompt: string) => void;
     syncingImageIds: string[];
     onSyncResult: (resultId: string, image: GeneratedImage, index: number) => void;
     onSyncLog: (log: GenerationLog, image: GeneratedImage, index: number) => void;

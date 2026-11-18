@@ -30,6 +30,7 @@ import { isMiniMaxH3Config } from "@/lib/minimax-video";
 import { ARK_SEEDANCE_REFERENCE_LIMITS, boolConfig, seedanceVideoReferenceError, seedanceVideoReferenceHint, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
 import { isAgnesVideoV25Model, modelKey, supportsVideoFrameReferences } from "@/lib/video-model-capabilities";
 import { deleteStoredMedia, downloadRemoteMedia, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
+import { isStorageNotConfiguredError } from "@/services/storage-errors";
 import { deleteStoredImages, uploadImage } from "@/services/image-storage";
 import { deleteVideoGenerationLogs, saveVideoGenerationLogs } from "@/services/api/generation-logs";
 import { deleteVideoGenerationTask, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
@@ -694,7 +695,7 @@ export default function VideoPage() {
             message.success("视频已同步到云端存储");
             return { ...video, url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width || video.width, height: uploaded.height || video.height, bytes: uploaded.bytes || video.bytes, mimeType: uploaded.mimeType || video.mimeType };
         } catch (error) {
-            message.error(errorMessage(error, "视频同步失败"));
+            message.error(isStorageNotConfiguredError(error) ? "未添加云存储" : errorMessage(error, "视频同步失败"));
             return null;
         } finally {
             hideLoading();
@@ -717,15 +718,15 @@ export default function VideoPage() {
         if (previewLog?.id === log.id) setPreviewLog(nextLog);
     };
 
-    const saveResultToAssets = (video: GeneratedVideo) => {
+    const saveResultToAssets = (video: GeneratedVideo, resultPrompt: string) => {
         addAsset({
             kind: "video",
-            title: "生成视频",
+            title: resultPrompt.slice(0, 12) || "生成视频",
             coverUrl: "",
             tags: [],
             source: "视频工作台",
             data: { url: video.url, storageKey: video.storageKey, width: video.width, height: video.height, bytes: video.bytes, mimeType: video.mimeType },
-            metadata: { source: "video-page", prompt },
+            metadata: { source: "video-page", prompt: resultPrompt },
         });
         message.success("已加入我的素材");
     };
@@ -763,7 +764,7 @@ export default function VideoPage() {
         };
         const insertAudio = () => {
             if (isKlingWorkbench) {
-                message.warning("当前 Kling v2.6 不支持参考音频");
+                message.warning(`当前 Kling ${klingWorkbenchVariant === "v3" ? "v3" : "v2.6"} 不支持参考音频`);
                 return;
             }
             if (payload.kind !== "audio") {

@@ -3,6 +3,17 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 生图 / 视频工作台素材落库与视频云端判定修复
+
+- 云端口径：`isCloudVideo` 改为只认 `server:` 前缀（含 `server:webdav:`），与生图侧 `startsWith("server:")` 一致。此前把本地 IndexedDB 缓存（`generated-video:` / `workflow-video:`）当成已同步云端，导致「同步到云端存储」按钮永久禁用、本地视频无法补传；来源标签同步改为三态：云端 / 本地缓存 / AI 临时URL。
+- 云同步失败提示：未配置云存储时提示「未添加云存储」，与生图一致（此前直接显示服务端错误原文）。
+- 历史读取：`resolveMediaUrl` 为服务端对象补 URL 缓存与在途请求合并（与 `resolveImageUrl` 同构），删除服务端文件时失效对应缓存；预签名 WebDAV 直连地址不进缓存。此前 `serializeLog` 会清空 URL，`normalizeLog` 只能回落为空再逐条请求文件信息，每次任务收尾/提交都会对每条云端媒体各发一次未缓存的 `GET /api/files/{id}`。
+- 加入我的素材：标题与 `metadata.prompt` 改用该结果自身的提示词，不再取已被清空的输入框。
+- 生图「加入我的素材」同样改用结果自身提示词：实时结果卡传 `result.prompt`，历史卡传 `log.prompt`；素材标题仍按「生成结果 N」。
+- Kling 音频提示：v3 场景不再误显示「当前 Kling v2.6 不支持参考音频」。
+- 验证：全量 `bun test` 88 文件 / 505 条通过（含新增 1 条云端口径断言：`server:` / `server:webdav:` 为云端，`generated-video:` / `workflow-video:` / 空键不是）；`bun run typecheck`、`bun run lint`（`--max-warnings=0`）通过。
+- 未实测：真实浏览器下对本地缓存视频点「同步到云端存储」补传成功、标签翻为「云端」；缓存生效后同一云端视频的历史读取不再重复请求文件信息；生图/视频「保存到我的素材」后素材详情里的提示词与结果一致（该路径为组件内参数传递，无单测）；未运行生产构建与全量回归。
+
 ## 生图工作台 TeamoRouter 4K Upscale 局域重绘修复
 
 - TeamoRouter 的 `gpt-image-*-4k-upscale` 型号编辑接口只接受 JSON，`image` 传图片 URL 或 data URL；生图工作台与画布任务对这些型号的编辑请求改发 JSON（单图字符串、多图数组），不再发 multipart，修复报错「图片请求正文无效：invalid number at line 1 column 2」。
