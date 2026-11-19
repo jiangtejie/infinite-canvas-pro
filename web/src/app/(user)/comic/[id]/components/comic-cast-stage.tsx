@@ -44,7 +44,7 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
         if (!file || !uploadTarget) return;
         setUploading(true);
         try {
-            const uploaded = await uploadImage(file, { localOnly: true });
+            const uploaded = await uploadImage(file);
             const image: ComicImageRef = { url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width, height: uploaded.height };
             patchLocation(uploadTarget.id, { image });
             message.success("参考图已更新");

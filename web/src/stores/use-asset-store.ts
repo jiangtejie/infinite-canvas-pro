@@ -12,6 +12,7 @@ import { cleanupUnusedImages, resolveImageUrl, uploadImage } from "@/services/im
 import { cleanupUnusedMedia, resolveMediaUrl } from "@/services/file-storage";
 import { collectStorageReferences } from "@/services/storage-references";
 import { fetchUserAssetData, syncUserAssetData } from "@/services/api/user-config";
+import { applyAssetMediaPromotions, assetMediaNeedsPromotion, collectAssetMediaPromotions } from "@/services/asset-media-sync";
 import { useUserStore } from "@/stores/use-user-store";
 
 export type AssetKind = "text" | "image" | "video" | "audio";
@@ -146,8 +147,10 @@ export const useAssetStore = create<AssetStore>()(
                         const remoteIds = new Set(remoteAssets.map((asset) => asset.id));
                         const assets = mergeAssets(remoteAssets, localAssets);
                         set({ assets });
-                        // 本地独有的素材（含游客期创作、接管过来的游客分区）要补传，否则会被远端列表直接覆盖掉。
-                        if (localAssets.some((asset) => !remoteIds.has(asset.id))) await syncUserAssetData(token, { assets });
+                        // 本地独有的素材（含游客期创作、接管过来的游客分区）与本地媒体要先升级云存储再补传。
+                        if (localAssets.some((asset) => !remoteIds.has(asset.id)) || assetMediaNeedsPromotion(get().assets)) {
+                            await get().syncAccountAssets(token).catch(() => {});
+                        }
                     } else {
                         const localHasAssets = get().assets.length > 0;
                         if (!localHasAssets && remoteAssets.length) {
@@ -165,7 +168,12 @@ export const useAssetStore = create<AssetStore>()(
             },
             syncAccountAssets: async (token) => {
                 if (!token || !accountAssetSyncEnabled) return;
-                await syncUserAssetData(token, { assets: get().assets });
+                if (useUserStore.getState().token !== token) return;
+                const replacements = await collectAssetMediaPromotions(get().assets, token);
+                if (useUserStore.getState().token !== token) return;
+                const applied = applyAssetMediaPromotions(get().assets, replacements);
+                if (applied.changed) set({ assets: applied.assets });
+                await syncUserAssetData(token, { assets: applied.assets });
             },
             syncMarketingAssets: async (token, assetIds) => {
                 if (!token) throw new Error("营销资料图片跨设备复用需要先登录");

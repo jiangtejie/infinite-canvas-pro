@@ -47,7 +47,7 @@ export async function composeComicPage(project: ComicProject, page: ComicPage, o
     const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((value) => value ? resolve(value) : reject(new Error("整页导出失败")), "image/png");
     });
-    const uploaded = await uploadImage(blob, { localOnly: true });
+    const uploaded = await uploadImage(blob);
     const hasWarnings = compositionWarnings.stalePanelIds.length || compositionWarnings.unrecordedPanelIds.length || compositionWarnings.incompletePanelIds.length;
     return {
         image: { url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width || width, height: uploaded.height || height },

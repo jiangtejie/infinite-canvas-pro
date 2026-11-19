@@ -43,7 +43,7 @@ export function ComicCharacterEditor({ character, onChange, actions }: {
         if (!file || !uploadTarget) return;
         setUploading(true);
         try {
-            const uploaded = await uploadImage(file, { localOnly: true });
+            const uploaded = await uploadImage(file);
             if (uploadTarget.kind === "base") {
                 const existing = character.references[uploadTarget.slot];
                 const reference: ComicCharacterReference = {
