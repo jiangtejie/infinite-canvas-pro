@@ -727,14 +727,21 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry }: { messa
             return <code {...props} className={className}>{children}</code>;
         },
     }), [nodeById, onFocusNode, theme]);
-    let previousUserSkills: CanvasAgentSkillSelection[] = [];
+    const skillVisibility = useMemo(() => {
+        const visibility = new Map<string, boolean>();
+        let previousUserSkills: CanvasAgentSkillSelection[] = [];
+        for (const message of messages) {
+            visibility.set(message.id, message.skillsSelected ?? Boolean(message.skills?.length && !sameSkillSelections(message.skills, previousUserSkills)));
+            if (message.role === "user") previousUserSkills = message.skills || [];
+        }
+        return visibility;
+    }, [messages]);
 
     return (
         <>
             {messages.map((message) => {
                 const running = message.status === "thinking" || message.status === "running";
-                const showSkills = message.skillsSelected ?? Boolean(message.skills?.length && !sameSkillSelections(message.skills, previousUserSkills));
-                if (message.role === "user") previousUserSkills = message.skills || [];
+                const showSkills = skillVisibility.get(message.id) ?? false;
                 return (
                     <div key={message.id} className={cn("flex flex-col gap-2", message.role === "user" ? "items-end" : "items-start")}>
                         {message.text ? (

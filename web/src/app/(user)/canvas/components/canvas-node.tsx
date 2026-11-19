@@ -274,13 +274,13 @@ export const CanvasNode = React.memo(function CanvasNode({
         [data.id, onResize, scale],
     );
 
-    const handleResizeUp = useCallback((event?: PointerEvent) => {
+    const handleResizeUp = useCallback(function handleResizeEnd(event?: PointerEvent) {
         if (event && resizePointerIdRef.current != null && event.pointerId !== resizePointerIdRef.current) return;
         resizeRef.current.isResizing = false;
         resizePointerIdRef.current = null;
         window.removeEventListener("pointermove", handleResizeMove);
-        window.removeEventListener("pointerup", handleResizeUp);
-        window.removeEventListener("pointercancel", handleResizeUp);
+        window.removeEventListener("pointerup", handleResizeEnd);
+        window.removeEventListener("pointercancel", handleResizeEnd);
     }, [handleResizeMove]);
 
     const handleResizePointerDown = (event: React.PointerEvent, corner: ResizeCorner) => {

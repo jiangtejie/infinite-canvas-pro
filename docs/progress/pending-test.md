@@ -5,9 +5,10 @@ description: 当前版本已实现但仍需人工验证的变更项
 
 ## 结构与工程：React Hooks 规则白名单
 
-- ESLint 启用 8 条当前零违规的 React Hooks 规则：`static-components`、`use-memo`、`preserve-manual-memoization`、`globals`、`error-boundaries`、`set-state-in-render`、`config`、`gating`。后续重构若引入这些模式会直接报错。
-- 仍需分批清理的规则保持关闭：`purity`（约 21 处）、`refs`（约 32 处）、`set-state-in-effect`（约 99 处）、`immutability`（6 处）。
-- 验证：`bun run lint --max-warnings=0`、`bun run typecheck`、`bun test`（109 文件 / 598 条）通过；无需浏览器回归。
+- ESLint 启用 9 条 React Hooks 规则：`static-components`、`use-memo`、`preserve-manual-memoization`、`globals`、`error-boundaries`、`set-state-in-render`、`config`、`gating`，以及本轮清零后启用的 `immutability`。
+- `immutability` 清理 6 处：全屏预览 wheel 处理器前置、画布节点缩放结束函数改为命名函数表达式、助手技能可见性改为 `useMemo` 预计算、生图/视频日志刷新函数移到首个 effect 之前。
+- 仍需分批清理的规则保持关闭：`purity`（约 21 处）、`refs`（约 32 处）、`set-state-in-effect`（约 99 处）。
+- 验证：`bun run lint --max-warnings=0`、`bun run typecheck`、`bun test`（109 文件 / 598 条）通过；ego-browser 实测生图、视频与画布页正常加载。
 
 ## 结构与工程：共享筛选样式归属
 

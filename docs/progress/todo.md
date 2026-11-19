@@ -46,7 +46,7 @@ description: 当前项目后续值得处理的事项
 - 【生图/视频】`image/page.tsx` 1088 行、`video/page.tsx` 1099 行，主链路已抽页面私有 hooks；剩余 retry / mask edit 为薄编排，不再为拆而拆。Kling 面板 TEXT 字典/Section/OptionGrid/参考图条与共享实现视觉文案不同，统一需先定设计；视频页生成失败/删除流程仍与生图页不同构，抽页面私有 hook 前先定是否统一删除语义。
 - 【工作流】`components/workflows/creative-workflow-workspace.tsx` 2702 行，是当前最大的单文件；继续拆分需保持真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。
 - 【样式】`app/globals.css` 约 1251 行；画布/后台/影视私有样式已抽到 `styles/`，共享筛选样式也已独立为 `filter-tags.css`，提示词页私有样式文件已清空删除。剩余工作台私有样式继续移出，globals 只留 token、reset、共享原语和通用 antd 覆写。`PunkAura` 已从 WebGL 着色器改为纯 CSS 静态多层渐变，不再有持续渲染开销。
-- 【React Compiler】已启用 8 条零违规规则；剩余 purity（约 21 处）、refs（约 32 处）、set-state-in-effect（约 99 处）、immutability（6 处）需分批清理后启用。
+- 【React Compiler】已启用 9 条规则（含 immutability）；剩余 purity（约 21 处）、refs（约 32 处）、set-state-in-effect（约 99 处）需分批清理后启用。
 - 【测试】前端 109 个文件、598 条（`bun test`）；后续补任务合并、连接校验的边界用例。
 - 【后台】概览 AI 日志已加文件指纹缓存与 Top-N；统计索引、概览与列表行级深链、浅色主题逐项视觉仍待做。AI 日志页已接入共享列表抽象，其余页面按需继续组件化。
 - 【视觉】FilterTagGroup 可考虑增加 density/variant；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。

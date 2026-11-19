@@ -20,8 +20,8 @@ const config = [
             "react-hooks/set-state-in-render": "error",
             "react-hooks/config": "error",
             "react-hooks/gating": "error",
-            // 仍需分批清理：purity / refs / set-state-in-effect / immutability。
-            "react-hooks/immutability": "off",
+            "react-hooks/immutability": "error",
+            // 仍需分批清理：purity / refs / set-state-in-effect。
             "react-hooks/refs": "off",
             "react-hooks/set-state-in-effect": "off",
             "react-hooks/purity": "off",

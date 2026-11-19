@@ -71,6 +71,12 @@ export default function ImagePage() {
     const [logs, setLogs] = useState<GenerationLog[]>([]);
     const [syncingImageIds, setSyncingImageIds] = useState<string[]>([]);
     const [categories, setCategories] = useState<GenerationCategory[]>([]);
+    const refreshLogs = async () => {
+        const nextLogs = await readStoredLogs();
+        setLogs(nextLogs);
+        return nextLogs;
+    };
+    const refreshCategories = async () => setCategories(await readStoredCategories());
     const [resultViewMode, setResultViewModeState] = useState<ResultViewMode>("all");
     const [activeResultCategoryId, setActiveResultCategoryId] = useState<string | null>(null);
     const [workbenchLayout, setWorkbenchLayoutState] = useState<WorkbenchLayout>("side");
@@ -671,13 +677,6 @@ export default function ImagePage() {
         usesBackendImageTasks,
         notify: message,
     });
-
-    const refreshLogs = async () => {
-        const nextLogs = await readStoredLogs();
-        setLogs(nextLogs);
-        return nextLogs;
-    };
-    const refreshCategories = async () => setCategories(await readStoredCategories());
 
     const { loadAccountImageHistory, persistImageHistory, syncBackendImageTasks } = useImageHistorySync({
         token,

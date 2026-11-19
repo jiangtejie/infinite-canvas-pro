@@ -88,6 +88,11 @@ export default function VideoPage() {
     const [audioReferences, setAudioReferences] = useState<ReferenceAudio[]>([]);
     const [results, setResults] = useState<GenerationResult[]>([]);
     const [logs, setLogs] = useState<GenerationLog[]>([]);
+    const refreshLogs = async () => {
+        const nextLogs = await readStoredLogs();
+        setLogs(nextLogs);
+        return nextLogs;
+    };
     const [running, setRunning] = useState(false);
     const [workbenchLayout, setWorkbenchLayoutState] = useState<WorkbenchLayout>("side");
     const [bottomSettingsCollapsed, setBottomSettingsCollapsed] = useState(true);
@@ -873,12 +878,6 @@ export default function VideoPage() {
         const ids = Array.from(new Set(items.flatMap(videoLogDeleteKeys)));
         if (!ids.length) return;
         await deleteVideoGenerationLogs(token, ids).catch(() => undefined);
-    };
-
-    const refreshLogs = async () => {
-        const nextLogs = await readStoredLogs();
-        setLogs(nextLogs);
-        return nextLogs;
     };
 
     const { loadAccountVideoHistory, syncBackendVideoTasks } = useVideoHistorySync({ token, effectiveConfigRef, logsRef, setLogs, setResults, usesBackendVideoTasks });

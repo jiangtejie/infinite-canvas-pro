@@ -61,13 +61,6 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
         return () => window.removeEventListener("keydown", onKeyDown, true);
     }, [hasNext, hasPrev, onClose, onNext, onPrev]);
 
-    useEffect(() => {
-        const el = imgRef.current;
-        if (!el) return;
-        el.addEventListener("wheel", handleWheel, { passive: false });
-        return () => el.removeEventListener("wheel", handleWheel);
-    });
-
     const handleWheel = (e: WheelEvent) => {
         e.stopPropagation();
         e.preventDefault();
@@ -77,6 +70,13 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
             return next;
         });
     };
+
+    useEffect(() => {
+        const el = imgRef.current;
+        if (!el) return;
+        el.addEventListener("wheel", handleWheel, { passive: false });
+        return () => el.removeEventListener("wheel", handleWheel);
+    });
 
     const handlePointerDown = (e: ReactPointerEvent) => {
         e.stopPropagation();
