@@ -8,7 +8,9 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/state-panel";
 import { cn, errorMessage } from "@/lib/utils";
 import type { FilmEpisode, FilmProject, FilmShot } from "@/lib/film/types";
-import { addFilmEpisode, addFilmScene, addFilmShot, removeFilmScene } from "../utils/film-edits";
+import { nanoid } from "nanoid";
+import { addFilmEpisode, addFilmScene, addFilmShot, createFilmAsset, removeFilmScene, updateFilmAsset } from "../utils/film-edits";
+import { createFilmImageSlot } from "../utils/film-image-slot";
 import { useFilmAiParse } from "../hooks/use-film-ai-parse";
 import { useFilmContinuity } from "../hooks/use-film-continuity";
 import { useFilmScriptAnalysis } from "../hooks/use-film-script-analysis";
@@ -141,7 +143,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     const [acceptedCharacters, setAcceptedCharacters] = useState<string[]>([]);
     const [acceptedRelationships, setAcceptedRelationships] = useState<string[]>([]);
     const [analysisEditing, setAnalysisEditing] = useState(false);
-    const [analysisTab, setAnalysisTab] = useState<"characters" | "relationships" | "scenes" | "beats">("characters");
+    const [analysisTab, setAnalysisTab] = useState<"characters" | "relationships" | "scenes" | "beats" | "breakdown">("characters");
     const [importTextExpanded, setImportTextExpanded] = useState(false);
     const importFileRef = useRef<HTMLInputElement>(null);
     const importStep = !importDoc ? 1 : scriptAnalysis ? 3 : 2;
@@ -250,6 +252,50 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         return { ...scriptAnalysis, characters, relationships };
     }, [scriptAnalysis, acceptedCharacters, acceptedRelationships]);
 
+    const costumeSuggestions = useMemo(() => {
+        if (!scriptAnalysis) return [];
+        const existing = new Set((project.costumes || []).map((asset) => normalizeEntityKey(asset.name)));
+        const seen = new Set<string>();
+        return scriptAnalysis.scenes
+            .flatMap((scene) => (scene.costumes || []).map((hint) => ({ ...hint, scene })))
+            .filter((suggestion) => {
+                const key = normalizeEntityKey(suggestion.description.trim().slice(0, 24));
+                if (!key || existing.has(key) || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+    }, [scriptAnalysis, project.costumes]);
+
+    const variantSuggestions = useMemo(() => {
+        if (!scriptAnalysis) return [];
+        return scriptAnalysis.scenes.flatMap((scene) => {
+            const atmosphere = (scene.atmosphere || "").trim();
+            if (!atmosphere) return [];
+            const heading = normalizeEntityKey(scene.heading);
+            const location = (project.locations || []).find((asset) => {
+                const name = normalizeEntityKey(asset.name);
+                return Boolean(name) && heading.includes(name);
+            });
+            if (!location) return [];
+            if ((location.location?.variants || []).some((variant) => normalizeEntityKey(variant.name) === normalizeEntityKey(atmosphere))) return [];
+            return [{ scene, location, atmosphere }];
+        });
+    }, [scriptAnalysis, project.locations]);
+
+    const applyCostumeSuggestion = (suggestion: (typeof costumeSuggestions)[number]) => {
+        const name = suggestion.description.trim().slice(0, 24);
+        const asset = { ...createFilmAsset("costume", (project.costumes || []).length + 1), name, description: `${suggestion.character} · ${suggestion.scene.heading}` };
+        onUpdate({ costumes: [...(project.costumes || []), asset] });
+        message.success(`已建服装「${name}」，可到服装工作台生成设定图`);
+    };
+
+    const applyVariantSuggestion = (suggestion: (typeof variantSuggestions)[number]) => {
+        const variants = suggestion.location.location?.variants || [];
+        const variant = { id: nanoid(), name: suggestion.atmosphere, timeOfDay: "", weather: "", mood: suggestion.scene.mood || "", description: suggestion.scene.summary || "", concept: createFilmImageSlot() };
+        onUpdate({ locations: updateFilmAsset(project.locations || [], suggestion.location.id, { location: { variants: [...variants, variant] } }) });
+        message.success(`已建场景变体「${suggestion.atmosphere}」，可到场景工作台生成变体图`);
+    };
+
     const acceptAllAnalysis = () => {
         if (!scriptAnalysis) return;
         setAcceptedCharacters(scriptAnalysis.characters.map((character) => normalizeEntityKey(character.name)));
@@ -312,12 +358,13 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         const assets = buildScriptAnalysisAssets(project, project.scriptAnalysis, locationNames);
         const addedCharacters = assets.characters.length - project.characters.length;
         const addedLocations = assets.locations.length - project.locations.length;
-        if (!addedCharacters && !addedLocations) {
-            message.info("分析里的角色和场景都已经在项目里了");
+        const addedProps = assets.props.length - (project.props || []).length;
+        if (!addedCharacters && !addedLocations && !addedProps) {
+            message.info("分析里的角色、场景和道具都已经在项目里了");
             return;
         }
-        onUpdate({ characters: assets.characters, locations: assets.locations });
-        message.success(`已补 ${addedCharacters} 个角色、${addedLocations} 个场景`);
+        onUpdate({ characters: assets.characters, locations: assets.locations, props: assets.props });
+        message.success(`已补 ${addedCharacters} 个角色、${addedLocations} 个场景、${addedProps} 个道具`);
     };
 
     const applyAnalysisImport = (mode: "replace" | "append") => {
@@ -326,7 +373,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
         if (selectedScriptAnalysis) {
             const locationNames = [...new Set(importDoc.episodes.flatMap((episode) => episode.scenes.map((scene) => scene.location)).filter(Boolean))];
             const assets = buildScriptAnalysisAssets(project, selectedScriptAnalysis, locationNames);
-            onUpdate({ characters: assets.characters, locations: assets.locations, scriptAnalysis: selectedScriptAnalysis, scriptDocument: importDoc });
+            onUpdate({ characters: assets.characters, locations: assets.locations, props: assets.props, scriptAnalysis: selectedScriptAnalysis, scriptDocument: importDoc });
         }
         setImportOpen(false);
     };
@@ -347,14 +394,17 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
             next = structuredClone(episodes);
             mergeFilmEpisodes(next, parsed);
         }
-        const bound = bindFilmCast(next, project.characters || [], project.locations || []);
+        const bound = bindFilmCast(next, project.characters || [], project.locations || [], project.props || []);
         onUpdate({ episodes: bound.episodes });
         setSelectedShotId(flattenFilmShots(bound.episodes)[0]?.id ?? "");
         setPendingParsed(null);
         const parts = [`${mode === "append" ? "已追加" : "已覆盖"} ${flattenFilmShots(parsed).length} 个分镜`];
         if (bound.boundCharacters) parts.push(`绑定 ${bound.boundCharacters} 个镜头角色`);
         if (bound.boundLocations) parts.push(`绑定 ${bound.boundLocations} 个场景`);
+        if (bound.boundProps) parts.push(`绑定 ${bound.boundProps} 个镜头道具`);
+        if (bound.boundVariants) parts.push(`匹配 ${bound.boundVariants} 个场景变体`);
         if (bound.suggestedCharacters) parts.push(`${bound.suggestedCharacters} 个镜头有同名角色待确认`);
+        if (bound.suggestedVariants) parts.push(`${bound.suggestedVariants} 个镜头有场景变体待确认`);
         message.success(parts.join("，"));
     };
 
@@ -367,16 +417,19 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
     });
 
     const autoBind = () => {
-        const result = bindFilmCast(episodes, project.characters || [], project.locations || []);
-        if (!result.boundCharacters && !result.boundLocations && !result.suggestedCharacters) {
-            message.info("没有匹配到角色或场景名称，先补全资产名称再试");
+        const result = bindFilmCast(episodes, project.characters || [], project.locations || [], project.props || []);
+        if (!result.boundCharacters && !result.boundLocations && !result.boundProps && !result.boundVariants && !result.suggestedCharacters && !result.suggestedVariants) {
+            message.info("没有匹配到角色、场景、道具或变体，先补全资产名称再试");
             return;
         }
         onUpdate({ episodes: result.episodes });
         const parts = [];
         if (result.boundCharacters) parts.push(`绑定 ${result.boundCharacters} 个镜头角色`);
         if (result.boundLocations) parts.push(`绑定 ${result.boundLocations} 个场景`);
+        if (result.boundProps) parts.push(`绑定 ${result.boundProps} 个镜头道具`);
+        if (result.boundVariants) parts.push(`匹配 ${result.boundVariants} 个场景变体`);
         if (result.suggestedCharacters) parts.push(`${result.suggestedCharacters} 个镜头有同名角色待确认`);
+        if (result.suggestedVariants) parts.push(`${result.suggestedVariants} 个镜头有场景变体待确认`);
         message.success(parts.join("，"));
     };
 
@@ -800,7 +853,7 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
-                                {([{ value: "characters", label: `角色 ${scriptAnalysis.characters.length}` }, { value: "relationships", label: `关系 ${scriptAnalysis.relationships.length}` }, { value: "scenes", label: `场次 ${scriptAnalysis.scenes.length}` }, { value: "beats", label: `节拍 ${scriptAnalysis.scenes.reduce((total, scene) => total + scene.beats.length, 0)}` }] as const).map((tab) => (
+                                {([{ value: "characters", label: `角色 ${scriptAnalysis.characters.length}` }, { value: "relationships", label: `关系 ${scriptAnalysis.relationships.length}` }, { value: "scenes", label: `场次 ${scriptAnalysis.scenes.length}` }, { value: "beats", label: `节拍 ${scriptAnalysis.scenes.reduce((total, scene) => total + scene.beats.length, 0)}` }, { value: "breakdown", label: `拆件 ${costumeSuggestions.length + variantSuggestions.length}` }] as const).map((tab) => (
                                     <button key={tab.value} type="button" onClick={() => setAnalysisTab(tab.value)} className={cn("rounded px-2 py-0.5 text-[11px] transition-colors", analysisTab === tab.value ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}>
                                         {tab.label}
                                     </button>
@@ -877,6 +930,25 @@ export function FilmScriptStage({ project, onUpdate, onGenerateImage, onGenerate
                                     </div>
                                 )))}
                                 {!scriptAnalysis.scenes.some((scene) => scene.beats.length) ? <p className="py-3 text-center text-[11px] text-muted-foreground/60">还没有分析出剧情节拍</p> : null}
+                            </div>
+                            <div className={cn("thin-scrollbar grid max-h-64 gap-1 overflow-y-auto pr-1", analysisTab === "breakdown" ? "" : "hidden")}>
+                                {costumeSuggestions.map((suggestion) => (
+                                    <div key={`costume-${suggestion.scene.sceneIndex}-${suggestion.character}-${suggestion.description}`} className="flex flex-wrap items-center gap-2 rounded border border-border/50 bg-background/30 p-1.5">
+                                        <span className="chip chip-acid shrink-0">服装</span>
+                                        <span className="min-w-0 flex-1 text-[11px] leading-5 text-foreground/80">{suggestion.character} · {suggestion.description}</span>
+                                        <span className="font-mono text-[9px] text-muted-foreground/50">{suggestion.scene.episode} / {suggestion.scene.heading}</span>
+                                        <Button size="small" type="text" onClick={() => applyCostumeSuggestion(suggestion)}>建服装资产</Button>
+                                    </div>
+                                ))}
+                                {variantSuggestions.map((suggestion) => (
+                                    <div key={`variant-${suggestion.scene.sceneIndex}-${suggestion.atmosphere}`} className="flex flex-wrap items-center gap-2 rounded border border-border/50 bg-background/30 p-1.5">
+                                        <span className="chip shrink-0">变体</span>
+                                        <span className="min-w-0 flex-1 text-[11px] leading-5 text-foreground/80">{suggestion.location.name} · {suggestion.atmosphere}</span>
+                                        <span className="font-mono text-[9px] text-muted-foreground/50">{suggestion.scene.episode} / {suggestion.scene.heading}</span>
+                                        <Button size="small" type="text" onClick={() => applyVariantSuggestion(suggestion)}>建场景变体</Button>
+                                    </div>
+                                ))}
+                                {!costumeSuggestions.length && !variantSuggestions.length ? <p className="py-3 text-center text-[11px] text-muted-foreground/60">没有待建的服装或场景变体；分析出服装/气氛提示后会出现在这里。</p> : null}
                             </div>
                         </div>
                     ) : null}

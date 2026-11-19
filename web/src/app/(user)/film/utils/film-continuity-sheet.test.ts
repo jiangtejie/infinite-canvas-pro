@@ -32,8 +32,8 @@ const episode = (): FilmEpisode => ({
             time: "白天",
             mood: "",
             shots: [
-                { id: "s1", shotNo: "01", shotType: "MS", cameraMovement: "", duration: 4, description: "钓鱼", dialogue: "", audio: "", prompt: "", characterBindings: [] },
-                { id: "s2", shotNo: "02", shotType: "CU", cameraMovement: "", duration: 3, description: "鱼的近景", dialogue: "", audio: "", prompt: "", characterBindings: [] },
+                { id: "s1", shotNo: "01", shotType: "MS", cameraMovement: "", duration: 4, description: "钓鱼", dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [] },
+                { id: "s2", shotNo: "02", shotType: "CU", cameraMovement: "", duration: 3, description: "鱼的近景", dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [] },
             ],
         },
     ],

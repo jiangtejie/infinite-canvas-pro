@@ -3,9 +3,10 @@ import test from "node:test";
 
 import { checkFilmBindingIssues } from "./film-binding-check";
 import type { FilmAsset, FilmEpisode } from "@/lib/film/types";
+import { createEmptyCharacterProfile } from "./film-character";
 
-const asset = (id: string, name: string): FilmAsset => ({ id, name, aliases: [], description: "", visualPrompt: "", status: "idle", createdAt: "2026-01-01T00:00:00.000Z" });
-const shot = (id: string, description: string, extra: Partial<FilmEpisode["scenes"][number]["shots"][number]> = {}) => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description, dialogue: "", audio: "", prompt: "", characterBindings: [], ...extra });
+const asset = (id: string, name: string): FilmAsset => ({ id, name, aliases: [], description: "", visualPrompt: "", status: "idle", concept: { images: [], locked: false }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" });
+const shot = (id: string, description: string, extra: Partial<FilmEpisode["scenes"][number]["shots"][number]> = {}) => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description, dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [], ...extra });
 
 const episodes: FilmEpisode[] = [{
     id: "e1", title: "第1集", scenes: [{
@@ -42,7 +43,7 @@ test("绑定角色已删除时提示待修复", () => {
 });
 
 test("绑定状态已删除时提示待修复", () => {
-    const character = { ...asset("c1", "沈星晴"), character: { parts: {} as never, props: [], states: [], masterViews: [], masterLocked: false } };
+    const character = { ...asset("c1", "沈星晴"), character: { ...createEmptyCharacterProfile(), states: [] } };
     const bound: FilmEpisode[] = [{ ...episodes[0], scenes: [{ ...episodes[0].scenes[0], shots: [shot("01", "空镜", { characterBindings: [{ characterId: "c1", stateId: "injured", source: "manual", characterNameSnapshot: "沈星晴", stateNameSnapshot: "受伤", continuity: {} }] })] }] }];
     const issues = checkFilmBindingIssues(bound, [character], []);
     assert.ok(issues.some((issue) => issue.message.includes("状态「受伤」已失效")));

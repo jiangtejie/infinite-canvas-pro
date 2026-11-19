@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectReusableScenePayloads, mergeFilmSceneSemantics, parseSceneSemanticPayload, validateFilmScriptAnalysis } from "./film-script-analysis";
+import { buildScriptAnalysisAssets, collectReusableScenePayloads, mergeFilmSceneSemantics, parseSceneSemanticPayload, validateFilmScriptAnalysis } from "./film-script-analysis";
+import { createFilmAsset } from "./film-edits";
 import { parseFilmScriptDocument } from "@/lib/film/film-script-import";
 import type { FilmSceneSemanticEntry } from "./film-script-analysis";
+import type { FilmProject } from "@/lib/film/types";
 
 const document = parseFilmScriptDocument(`1-1 内景 咖啡馆 日
 阿健：这么晚还开着？
@@ -94,4 +96,45 @@ test("校验未知关系端点和重复别名", () => {
     ]);
     const issues = validateFilmScriptAnalysis(analysis);
     assert.ok(issues.some((issue) => issue.message.includes("同时属于")));
+});
+
+test("语义分析自动补角色、场景与去重后的 idle 道具资产", () => {
+    const analysis = mergeFilmSceneSemantics(document, [
+        entry(0, {
+            summary: "", mood: "", props: ["咖啡", "雨伞"], productionNotes: [],
+            characters: [{ name: "阿健", role: "主角", description: "" }],
+            relationships: [], beats: [],
+        }),
+        entry(1, {
+            summary: "", mood: "", props: ["雨伞", " "], productionNotes: [],
+            characters: [], relationships: [], beats: [],
+        }),
+    ]);
+    const existingProp = { ...createFilmAsset("prop", 1), name: "雨伞" };
+    const project: FilmProject = {
+        id: "p1", title: "", visualStyle: "", aspect: "16:9", stylePreset: "cinematic", stage: "script", scriptText: "",
+        episodes: [], characters: [], locations: [], props: [existingProp], costumes: [], createdAt: "", updatedAt: "",
+    };
+    const result = buildScriptAnalysisAssets(project, analysis, ["咖啡馆", "咖啡馆"]);
+    assert.deepEqual(result.characters.map((asset) => asset.name), analysis.characters.map((character) => character.name));
+    assert.deepEqual(result.locations.map((asset) => asset.name), ["咖啡馆"]);
+    assert.deepEqual(result.props.map((asset) => asset.name).sort(), ["咖啡", "雨伞"]);
+    const added = result.props.find((asset) => asset.name === "咖啡")!;
+    assert.equal(added.status, "idle");
+    assert.equal(added.concept.images.length, 0);
+    assert.equal(added.views?.images.length, 0);
+});
+
+test("语义 payload 解析服装与气氛提示，并合并到场次", () => {
+    const payload = parseSceneSemanticPayload(JSON.stringify({
+        summary: "", mood: "", props: [], productionNotes: [],
+        costumes: [{ character: "阿健", description: "湿透的白衬衫" }],
+        atmosphere: "夜·雨",
+        characters: [], relationships: [], beats: [],
+    }));
+    assert.deepEqual(payload.costumes, [{ character: "阿健", description: "湿透的白衬衫" }]);
+    assert.equal(payload.atmosphere, "夜·雨");
+    const analysis = mergeFilmSceneSemantics(document, [entry(0, payload)]);
+    assert.equal(analysis.scenes[0].atmosphere, "夜·雨");
+    assert.equal(analysis.scenes[0].costumes?.[0].character, "阿健");
 });

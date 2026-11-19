@@ -12,6 +12,7 @@ import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useDownloadFile } from "@/hooks/use-download-file";
 import { useFilmStore } from "@/stores/use-film-store";
+import { useSaveStatusStore } from "@/lib/persisted-store";
 import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
 import { FilmProjectSettingsFields } from "./components/film-project-settings-fields";
 import type { FilmAspect, FilmProject, FilmStylePresetId } from "@/lib/film/types";
@@ -27,6 +28,7 @@ export default function FilmListPage() {
     const router = useRouter();
     const { message } = App.useApp();
     const hydrated = useFilmStore((state) => state.hydrated);
+    const syncStatus = useSaveStatusStore((state) => state.syncStatus);
     const projects = useFilmStore((state) => state.projects);
     const createProject = useFilmStore((state) => state.createProject);
     const importProject = useFilmStore((state) => state.importProject);
@@ -126,7 +128,9 @@ export default function FilmListPage() {
                             <PageHeader
                                 eyebrow="创作工作台"
                                 title="影视项目"
-                                description="剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台；数据仅保存在本机浏览器。"
+                                description={syncStatus === "idle"
+                                    ? "剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台；数据仅保存在本机浏览器。"
+                                    : "剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台；本机自动保存，登录后同步到账号，未登录或断网时仅保留本机。"}
                                 meta={
                                     <>
                                         <span className="chip chip-acid inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{projects.length} 个项目</span>

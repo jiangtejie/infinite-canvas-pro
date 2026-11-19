@@ -7,7 +7,7 @@ import { App, AutoComplete, Button, Image, Input, InputNumber, Select, Spin } fr
 import { Field } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import type { FilmContinuitySheet, FilmProject, FilmShot, FilmShotBranch, FilmShotCharacterBinding } from "@/lib/film/types";
-import { setFilmShotCharacterBindings } from "../utils/film-cast-bind";
+import { setFilmShotCharacterBindings, setFilmShotLocationVariant, setFilmShotPropBindings } from "../utils/film-cast-bind";
 import { appendDirectorStyleToPrompt, directorStyleFor } from "@/lib/film/director-styles";
 import { filmSceneOptions, filmShotPosition, moveFilmShot, moveFilmShotToScene, removeFilmShot, updateFilmShot } from "../utils/film-edits";
 import { flattenFilmShots } from "../utils/parse-script";
@@ -22,6 +22,7 @@ import { FILM_CAMERA_MOVEMENT_OPTIONS, FILM_SHOT_TYPE_OPTIONS } from "../utils/f
 import { FILM_CONTINUITY_FIELDS } from "../utils/film-continuity-sheet";
 import { FilmImageThumbnail } from "./film-asset-thumbnail";
 import { FilmShotVideoPanel } from "./film-shot-video-panel";
+import { FilmShotReflowMenu } from "./film-shot-reflow-menu";
 import { FilmGenerationInfo, FilmMediaStateBadge, FilmMediaStateDot } from "./film-media-context";
 import { useFilmShotGeneration } from "../hooks/use-film-shot-generation";
 import { WorkbenchCreditHint } from "@/components/workbench/credit-hint";
@@ -30,7 +31,7 @@ import { useEffectiveConfig } from "@/stores/use-config-store";
 type FilmShotDetailProps = {
     shot: FilmShot;
     project: FilmProject;
-    onUpdate: (patch: Partial<Pick<FilmProject, "episodes">>) => void;
+    onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
     onGenerate?: () => void;
     generating?: boolean;
     onGenerateVideo?: () => void;
@@ -50,6 +51,8 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
     const imageElapsed = useElapsedSeconds(Boolean(generating));
     const characters = project.characters || [];
     const locations = project.locations || [];
+    const props = project.props || [];
+    const costumes = project.costumes || [];
     const variables = project.interactiveVariables || [];
     const aspect = project.aspect;
     const directorStyle = directorStyleFor(project.directorStyleId);
@@ -63,6 +66,11 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
     const imageGeneration = useFilmShotGeneration(project, shot, "image");
     const currentImageVersion = (shot.imageVersions || []).find((version) => version.url === shot.imageUrl);
     const currentImageState = currentImageVersion ? imageGeneration.stateForVersion(currentImageVersion) : "unrecorded";
+    const reflowSource = {
+        url: currentImageVersion?.url || shot.imageUrl || "",
+        storageKey: currentImageVersion?.storageKey || shot.storageKey,
+        prompt: currentImageVersion?.generationContext?.prompt,
+    };
     const onChange = (patch: Partial<FilmShot>) => onUpdate({ episodes: updateFilmShot(project.episodes, shot.id, patch) });
     const moveShot = (direction: "up" | "down") => onUpdate({ episodes: moveFilmShot(project.episodes, shot.id, direction === "up" ? -1 : 1) });
     const moveShotToScene = (sceneId: string) => {
@@ -82,6 +90,18 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
     const dismissSuggestion = (characterName: string) => {
         const rest = (shot.characterSuggestions || []).filter((item) => item.characterName !== characterName);
         onChange({ characterSuggestions: rest.length ? rest : undefined });
+    };
+    const selectedLocation = locations.find((location) => location.id === shot.locationId);
+    const locationVariants = selectedLocation?.location?.variants || [];
+    const updatePropBindings = (propIds: string[]) => {
+        onChange({ propBindings: setFilmShotPropBindings(shot, propIds, props).propBindings });
+    };
+    const applyLocationVariant = (variantId?: string) => {
+        onChange(setFilmShotLocationVariant(shot, variantId));
+    };
+    const dismissVariantSuggestion = (variantId: string) => {
+        const rest = (shot.variantSuggestions || []).filter((item) => item.variantId !== variantId);
+        onChange({ variantSuggestions: rest.length ? rest : undefined });
     };
     const applyStylePrompt = () => {
         if (!directorStyle) return;
@@ -171,7 +191,7 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                     </Field>
                 </div>
                 <p className="text-[11px] leading-5 text-muted-foreground/60">镜头状态由是否已有分镜图 / 视频自动派生，无需手动设置。</p>
-                {characters.length || locations.length ? (
+                {characters.length || locations.length || props.length ? (
                     <div className="grid gap-2 rounded-lg border border-border/60 bg-background/30 p-3">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">参考对象</span>
                         {characters.length ? (
@@ -188,6 +208,9 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                                 {shot.characterBindings.map((binding) => {
                                     const character = characters.find((item) => item.id === binding.characterId);
                                     const stateOptions = character?.character?.states || [];
+                                    const state = stateOptions.find((item) => item.id === binding.stateId);
+                                    const costumeName = state?.costumeId ? costumes.find((item) => item.id === state.costumeId)?.name || "" : "";
+                                    const heldPropNames = (state?.heldPropIds || []).map((id) => props.find((item) => item.id === id)?.name || "").filter(Boolean);
                                     return (
                                         <div key={binding.characterId} className="grid gap-1 rounded-md border border-border/40 p-2">
                                             <div className="flex flex-wrap items-center gap-2">
@@ -204,6 +227,11 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                                                 />
                                                 <Button size="small" type="text" danger onClick={() => updateCharacterBindings(bindingInputs().filter((item) => item.characterId !== binding.characterId))}>移除</Button>
                                             </div>
+                                            {costumeName || heldPropNames.length ? (
+                                                <p className="text-[10px] leading-4 text-muted-foreground/60">
+                                                    造型引用{costumeName ? ` · 服装 ${costumeName}` : ""}{heldPropNames.length ? ` · 道具 ${heldPropNames.join("、")}` : ""}
+                                                </p>
+                                            ) : null}
                                             <div className="grid grid-cols-2 gap-1">
                                                 <Input size="small" placeholder="服装变化" value={binding.continuity.outfit || ""} onChange={(event) => setBindingContinuity(binding, { outfit: event.target.value })} />
                                                 <Input size="small" placeholder="身体状态" value={binding.continuity.physicalCondition || ""} onChange={(event) => setBindingContinuity(binding, { physicalCondition: event.target.value })} />
@@ -242,7 +270,38 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                                     placeholder="选择场景"
                                     value={shot.locationId || undefined}
                                     options={locations.map((location) => ({ value: location.id, label: location.name }))}
-                                    onChange={(value: string) => onChange({ locationId: value || "" })}
+                                    onChange={(value: string) => onChange({ locationId: value || "", locationVariantId: undefined, variantSuggestions: undefined })}
+                                />
+                                {locationVariants.length ? (
+                                    <Select
+                                        size="small"
+                                        allowClear
+                                        placeholder="场景气氛变体（默认用概念图）"
+                                        value={shot.locationVariantId}
+                                        options={locationVariants.map((variant) => ({ value: variant.id, label: variant.name }))}
+                                        onChange={(value?: string) => applyLocationVariant(value)}
+                                    />
+                                ) : null}
+                                {(shot.variantSuggestions || []).map((suggestion) => (
+                                    <div key={suggestion.variantId} className="flex flex-wrap items-center gap-2">
+                                        <span className="text-[11px] text-amber-600">待确认变体：{suggestion.variantName}</span>
+                                        <Button size="small" type="text" onClick={() => applyLocationVariant(suggestion.variantId)}>采用</Button>
+                                        <Button size="small" type="text" onClick={() => dismissVariantSuggestion(suggestion.variantId)}>忽略</Button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : null}
+                        {props.length ? (
+                            <div className="grid gap-1">
+                                <span className="text-[11px] text-muted-foreground/70">道具</span>
+                                <Select
+                                    size="small"
+                                    mode="multiple"
+                                    allowClear
+                                    placeholder="绑定本镜出场的道具"
+                                    value={(shot.propBindings || []).map((binding) => binding.propId)}
+                                    options={props.map((prop) => ({ value: prop.id, label: prop.name }))}
+                                    onChange={(value: string[]) => updatePropBindings(value)}
                                 />
                             </div>
                         ) : null}
@@ -307,6 +366,11 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                                 </div>
                             ) : null}
                         </div>
+                        {reflowSource.url ? (
+                            <div className="flex justify-end">
+                                <FilmShotReflowMenu project={project} shot={shot} onUpdate={onUpdate} source={reflowSource} />
+                            </div>
+                        ) : null}
                         {shot.imageVersions && shot.imageVersions.length > 1 ? (
                             <div className="grid gap-1">
                                 <div className="flex items-center justify-between">
@@ -338,6 +402,9 @@ export function FilmShotDetail({ shot, project, onUpdate, onGenerate, generating
                                                     <span className="absolute right-1 top-1"><FilmMediaStateDot state={imageGeneration.stateForVersion(version)} /></span>
                                                     {current ? <span className="absolute bottom-0 right-0 rounded-tl bg-acid px-1 font-mono text-[8px] text-background">当前</span> : null}
                                                 </button>
+                                                <div className="absolute bottom-0.5 left-0.5 hidden group-hover/version:block">
+                                                    <FilmShotReflowMenu project={project} shot={shot} onUpdate={onUpdate} source={{ url: version.url, storageKey: version.storageKey, prompt: version.generationContext?.prompt }} iconOnly />
+                                                </div>
                                                 {!current ? (
                                                     <button
                                                         type="button"

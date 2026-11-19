@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Modal } from "antd";
+import { App, Modal } from "antd";
 import { ArrowLeft } from "lucide-react";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
@@ -16,18 +16,21 @@ import { FilmEditStage } from "../components/film-edit-stage";
 import { FilmScriptStage } from "../components/film-script-stage";
 import { FilmStoryboardStage } from "../components/film-storyboard-stage";
 import { FilmProjectSettingsFields } from "../components/film-project-settings-fields";
+import { FilmStyleBible } from "../components/film-style-bible";
 import { useFilmAssetImage } from "../hooks/use-film-asset-image";
 import { useFilmShotImage } from "../hooks/use-film-shot-image";
 import { useFilmShotVideo } from "../hooks/use-film-shot-video";
 import { useFilmTaskRecovery } from "../hooks/use-film-task-recovery";
 import { useFilmStore } from "@/stores/use-film-store";
-import type { FilmAspect, FilmStage, FilmStylePresetId } from "@/lib/film/types";
+import type { FilmAspect, FilmAssetKind, FilmShot, FilmStage, FilmStylePresetId } from "@/lib/film/types";
 import { DEFAULT_DIRECTOR_STYLE_ID, directorStyleLabel } from "@/lib/film/director-styles";
 import { filmAspectLabel, normalizeFilmAspect } from "@/lib/film/film-aspects";
 import { DEFAULT_FILM_STYLE, filmStyleLabel, normalizeFilmStylePreset } from "@/lib/film/film-styles";
 import { FILM_STAGES } from "@/lib/film/film-stages";
+import { filmAssetReadiness } from "../utils/film-asset-readiness";
 
 export default function FilmProjectPage() {
+    const { modal, message } = App.useApp();
     const params = useParams<{ id: string }>();
     const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
     const hydrated = useFilmStore((state) => state.hydrated);
@@ -41,6 +44,7 @@ export default function FilmProjectPage() {
     const [visualStyleDraft, setVisualStyleDraft] = useState("");
     const [directorStyleIdDraft, setDirectorStyleIdDraft] = useState(DEFAULT_DIRECTOR_STYLE_ID);
     const [targetDurationDraft, setTargetDurationDraft] = useState<number | undefined>(undefined);
+    const [castFocus, setCastFocus] = useState<{ kind: FilmAssetKind; assetId?: string } | null>(null);
     const currentStage = stage ?? project?.stage ?? "script";
     const imageGeneration = useFilmShotImage(project, (patch) => {
         if (project) updateProject(project.id, patch);
@@ -60,7 +64,61 @@ export default function FilmProjectPage() {
 
     const switchStage = (next: FilmStage) => {
         setStage(next);
+        if (next !== "cast") setCastFocus(null);
         if (project) updateProject(project.id, { stage: next });
+    };
+
+    const openCastFocus = (item: { kind: FilmAssetKind; assetId?: string }) => {
+        if (!project) return;
+        setStage("cast");
+        updateProject(project.id, { stage: "cast" });
+        setCastFocus({ kind: item.kind, assetId: item.assetId });
+    };
+
+    const checkBatchReadiness = async (shots: FilmShot[]) => {
+        if (!project) return false;
+        const report = filmAssetReadiness(project, shots);
+        if (!report.missing.length) {
+            if (report.unlocked.length) {
+                message.info(`有 ${report.unlocked.length} 项资产已有参考但未锁定：${report.unlocked.slice(0, 3).map((item) => item.name).join("、")}（不影响生成）`);
+            }
+            return true;
+        }
+        return new Promise<boolean>((resolve) => {
+            modal.confirm({
+                title: `批量生成前还有 ${report.missing.length} 项资产缺参考`,
+                width: 540,
+                content: (
+                    <div className="grid gap-1">
+                        {report.missing.slice(0, 6).map((item) => (
+                            <p key={item.key} className="text-xs leading-5 text-muted-foreground">· {item.name}：{item.reason}（{item.shotNos.length} 镜）</p>
+                        ))}
+                        {report.missing.length > 6 ? <p className="text-xs leading-5 text-muted-foreground">…另有 {report.missing.length - 6} 项</p> : null}
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">缺失参考在生成时会跳过该资产，画面可能与设定不一致。</p>
+                    </div>
+                ),
+                okText: "去补全",
+                cancelText: "仍要继续",
+                keyboard: false,
+                maskClosable: false,
+                onOk: () => {
+                    const first = report.missing.find((item) => item.assetId) || report.missing[0];
+                    openCastFocus({ kind: first.kind, assetId: first.assetId });
+                    resolve(false);
+                },
+                onCancel: () => resolve(true),
+            });
+        });
+    };
+
+    const guardedImageBatch = async (...args: Parameters<typeof imageGeneration.generateBatch>) => {
+        if (!(await checkBatchReadiness(args[0]))) return;
+        await imageGeneration.generateBatch(...args);
+    };
+
+    const guardedVideoBatch = async (...args: Parameters<typeof videoGeneration.generateVideoBatch>) => {
+        if (!(await checkBatchReadiness(args[0]))) return;
+        await videoGeneration.generateVideoBatch(...args);
     };
 
     if (!hydrated) {
@@ -155,7 +213,7 @@ export default function FilmProjectPage() {
                             project={project}
                             onUpdate={(patch) => updateProject(project.id, patch)}
                             onGenerateImage={imageGeneration.generate}
-                            onGenerateImageBatch={imageGeneration.generateBatch}
+                            onGenerateImageBatch={guardedImageBatch}
                             generatingShotId={imageGeneration.generatingShotId}
                             batchProgress={imageGeneration.batchProgress}
                             onStopBatch={imageGeneration.stopBatch}
@@ -170,8 +228,10 @@ export default function FilmProjectPage() {
                             onUpdate={(patch) => updateProject(project.id, patch)}
                             onGenerateAsset={assetGeneration.generateAsset}
                             onGenerateView={assetGeneration.generateView}
+                            onGenerateVariant={assetGeneration.generateVariant}
                             onStopAsset={assetGeneration.stopAsset}
                             generatingAssetId={assetGeneration.generatingAssetId}
+                            focus={castFocus}
                         />
                     ) : currentStage === "edit" ? (
                         <FilmEditStage project={project} onGoStoryboard={() => switchStage("storyboard")} />
@@ -182,14 +242,14 @@ export default function FilmProjectPage() {
                             onGoScript={() => switchStage("script")}
                             onGenerateImage={imageGeneration.generate}
                             generatingShotId={imageGeneration.generatingShotId}
-                            onGenerateImageBatch={imageGeneration.generateBatch}
+                            onGenerateImageBatch={guardedImageBatch}
                             onStopImageBatch={imageGeneration.stopBatch}
                             batchProgress={imageGeneration.batchProgress}
                             onGenerateVideo={videoGeneration.generateVideo}
                             onStopVideo={videoGeneration.stopVideo}
                             generatingVideoShotId={videoGeneration.generatingShotId}
                             videoProgress={videoGeneration.videoProgress}
-                            onGenerateVideoBatch={videoGeneration.generateVideoBatch}
+                            onGenerateVideoBatch={guardedVideoBatch}
                             onStopVideoBatch={videoGeneration.stopVideo}
                             videoBatchProgress={videoGeneration.batchProgress}
                         />
@@ -213,6 +273,7 @@ export default function FilmProjectPage() {
                     setAspectOpen(false);
                 }}
                 onCancel={() => setAspectOpen(false)}
+                width={680}
             >
                 <div className="grid gap-3 py-2">
                     <p className="text-xs leading-6 text-muted-foreground">画幅、视觉风格与导演风格只影响之后的生成和预演校验，已经生成的结果不会自动重做。</p>
@@ -225,6 +286,13 @@ export default function FilmProjectPage() {
                             if (patch.directorStyleId !== undefined) setDirectorStyleIdDraft(patch.directorStyleId);
                             if ("targetDuration" in patch) setTargetDurationDraft(patch.targetDuration);
                         }}
+                    />
+                    <FilmStyleBible
+                        project={project}
+                        onUpdate={(patch) => updateProject(project.id, patch)}
+                        onGenerateAsset={assetGeneration.generateAsset}
+                        onStopAsset={assetGeneration.stopAsset}
+                        generatingAssetId={assetGeneration.generatingAssetId}
                     />
                 </div>
             </Modal>

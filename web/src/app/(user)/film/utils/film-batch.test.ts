@@ -14,7 +14,7 @@ const shot = (id: string, overrides: Partial<FilmShot> = {}): FilmShot => ({
     dialogue: "",
     audio: "",
     prompt: "",
-    characterBindings: [],
+    characterBindings: [], propBindings: [],
     ...overrides,
 });
 

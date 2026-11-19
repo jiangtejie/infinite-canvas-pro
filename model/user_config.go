@@ -7,6 +7,8 @@ type UserConfig struct {
 	StorageProvider string `json:"storageProvider"`
 	ImageHistory    string `json:"imageHistory"`
 	AssetData       string `json:"assetData"`
+	FilmProjectData string `json:"filmProjectData" gorm:"size:134217728"`
+	FilmLibraryData string `json:"filmLibraryData" gorm:"size:134217728"`
 	CreatedAt       string `json:"createdAt"`
 	UpdatedAt       string `json:"updatedAt"`
 }

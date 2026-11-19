@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { FilmProject, FilmShot } from "@/lib/film/types";
+import type { FilmAsset, FilmProject, FilmShot } from "@/lib/film/types";
+import { createEmptyCharacterProfile } from "./film-character";
 
 import { buildFilmConsistencyContext, parseFilmConsistencyReview } from "./film-ai-consistency";
 
 function makeShot(id: string, shotNo: string, patch: Partial<FilmShot> = {}): FilmShot {
-    return { id, shotNo, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], ...patch };
+    return { id, shotNo, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [], ...patch };
 }
 
 function makeProject(): FilmProject {
@@ -25,6 +26,8 @@ function makeProject(): FilmProject {
         }],
         characters: [],
         locations: [],
+        props: [],
+        costumes: [],
         createdAt: "",
         updatedAt: "",
     };
@@ -96,7 +99,7 @@ test("缺少 message 的条目丢弃，summary 缺省为 undefined", () => {
 
 test("审阅上下文包含镜头角色绑定、别名、状态与签名", () => {
     const project = makeProject();
-    project.characters = [{ id: "c1", name: "沈星晴", aliases: ["小沈"], description: "红色短发", visualPrompt: "", status: "ready", createdAt: "" }];
+    project.characters = [{ id: "c1", name: "沈星晴", aliases: ["小沈"], description: "红色短发", visualPrompt: "", status: "ready", concept: { images: [], locked: false }, createdAt: "", updatedAt: "" }];
     project.episodes[0].scenes[0].shots[0].characterBindings = [{ characterId: "c1", source: "manual", characterNameSnapshot: "沈星晴", continuity: { outfit: "湿外套", emotion: "克制" } }];
     const context = JSON.parse(buildFilmConsistencyContext(project));
     const shot = context.episodes[0].scenes[0].shots[0];
@@ -106,4 +109,41 @@ test("审阅上下文包含镜头角色绑定、别名、状态与签名", () =>
     assert.ok(shot.characters[0].signature.length > 0);
     assert.equal(shot.characters[0].continuity.outfit, "湿外套");
     assert.equal(shot.characters[0].continuity.emotion, "克制");
+});
+
+test("审阅上下文携带服装、道具与场景变体信息", () => {
+    const project = makeProject();
+    const concept = { images: [], locked: false };
+    const character: FilmAsset = {
+        id: "c1", name: "沈星晴", aliases: [], description: "", visualPrompt: "", status: "ready", concept,
+        character: {
+            ...createEmptyCharacterProfile(),
+            states: [{ id: "wet", name: "淋雨", description: "", costumeId: "cos1", condition: "", heldPropIds: ["p1"], look: { images: [], locked: false } }],
+        },
+        createdAt: "", updatedAt: "",
+    };
+    const costume: FilmAsset = { id: "cos1", name: "湿外套", aliases: [], description: "", visualPrompt: "", status: "ready", concept, createdAt: "", updatedAt: "" };
+    const prop: FilmAsset = { id: "p1", name: "旧信", aliases: [], description: "", visualPrompt: "", status: "ready", concept, createdAt: "", updatedAt: "" };
+    const location: FilmAsset = {
+        id: "l1", name: "咖啡馆", aliases: [], description: "", visualPrompt: "", status: "ready", concept,
+        location: { variants: [{ id: "v1", name: "夜·雨", description: "", concept }] },
+        createdAt: "", updatedAt: "",
+    };
+    project.characters = [character];
+    project.costumes = [costume];
+    project.props = [prop];
+    project.locations = [location];
+    const shot = project.episodes[0].scenes[0].shots[0];
+    shot.characterBindings = [{ characterId: "c1", stateId: "wet", source: "manual", characterNameSnapshot: "沈星晴", continuity: {} }];
+    shot.propBindings = [{ propId: "p1", propNameSnapshot: "旧信", source: "manual" }];
+    shot.locationId = "l1";
+    shot.locationVariantId = "v1";
+    const context = JSON.parse(buildFilmConsistencyContext(project));
+    const contextShot = context.episodes[0].scenes[0].shots[0];
+    assert.equal(contextShot.characters[0].costume, "湿外套");
+    assert.deepEqual(contextShot.characters[0].heldProps, ["旧信"]);
+    assert.deepEqual(contextShot.props, ["旧信"]);
+    assert.equal(contextShot.variant, "夜·雨");
+    assert.deepEqual(context.props, ["旧信"]);
+    assert.deepEqual(context.costumes, ["湿外套"]);
 });

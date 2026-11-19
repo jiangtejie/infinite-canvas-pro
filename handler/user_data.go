@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -94,6 +95,48 @@ func SaveUserAssetData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data, err := service.SaveCurrentUserAssetData(r.Context(), request.Data)
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, json.RawMessage(data))
+}
+
+func UserFilmProjectData(w http.ResponseWriter, r *http.Request) {
+	data, err := service.CurrentUserFilmProjectData(r.Context())
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, json.RawMessage(data))
+}
+
+func SaveUserFilmProjectData(w http.ResponseWriter, r *http.Request) {
+	saveUserDataField(w, r, service.SaveCurrentUserFilmProjectData)
+}
+
+func UserFilmLibraryData(w http.ResponseWriter, r *http.Request) {
+	data, err := service.CurrentUserFilmLibraryData(r.Context())
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, json.RawMessage(data))
+}
+
+func SaveUserFilmLibraryData(w http.ResponseWriter, r *http.Request) {
+	saveUserDataField(w, r, service.SaveCurrentUserFilmLibraryData)
+}
+
+func saveUserDataField(w http.ResponseWriter, r *http.Request, save func(context.Context, json.RawMessage) (json.RawMessage, error)) {
+	var request struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 129<<20)).Decode(&request); err != nil || len(request.Data) == 0 {
+		Fail(w, "数据内容不能为空")
+		return
+	}
+	data, err := save(r.Context(), request.Data)
 	if err != nil {
 		FailError(w, err)
 		return

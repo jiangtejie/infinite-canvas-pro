@@ -221,7 +221,7 @@ export function filmAiRowsToEpisodes(rows: FilmAiShotRow[], options: FilmParseOp
             ...(row.color ? { colorTone: row.color.trim() } : {}),
             ...(row.lens ? { lens: row.lens.trim() } : {}),
             ...(row.transition ? { transition: row.transition.trim() } : {}),
-            characterBindings: [],
+            characterBindings: [], propBindings: [],
         });
         count += 1;
     }

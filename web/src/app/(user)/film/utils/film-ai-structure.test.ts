@@ -18,6 +18,8 @@ function makeProject(patch: Partial<FilmProject> = {}): FilmProject {
         episodes: [],
         characters: [],
         locations: [],
+        props: [],
+        costumes: [],
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
         ...patch,
@@ -129,7 +131,7 @@ test("structurePlanPromptContext 输出场名/beats/coverage，无 plan 返回�
 test("buildFilmStructureInput 优先场次摘要，无场次时截取剧本原文", () => {
     const withEpisodes = makeProject({
         targetDuration: 120,
-        episodes: [{ id: "e1", title: "第1集", scenes: [{ id: "s1", name: "1-1 街道", location: "街道", time: "夜", mood: "紧张", shots: [{ id: "sh1", shotNo: "01", shotType: "WS", cameraMovement: "", duration: 4, description: "雨中街道", dialogue: "别走", audio: "", prompt: "", characterBindings: [] }] }] }],
+        episodes: [{ id: "e1", title: "第1集", scenes: [{ id: "s1", name: "1-1 街道", location: "街道", time: "夜", mood: "紧张", shots: [{ id: "sh1", shotNo: "01", shotType: "WS", cameraMovement: "", duration: 4, description: "雨中街道", dialogue: "别走", audio: "", prompt: "", characterBindings: [], propBindings: [] }] }] }],
     });
     const parsed = JSON.parse(buildFilmStructureInput(withEpisodes)) as Record<string, unknown>;
     assert.equal(parsed.title, "测试项目");

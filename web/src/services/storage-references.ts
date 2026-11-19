@@ -1,4 +1,5 @@
 import { readOtherAccountStates } from "@/lib/account-storage";
+import { waitForStoreHydration } from "@/lib/store-hydration";
 import { ASSET_STORE_KEY, CANVAS_STORE_KEY, COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
 
 type GenerationLog = {
@@ -6,27 +7,6 @@ type GenerationLog = {
     references?: Array<{ storageKey?: string } | null>;
     video?: { storageKey?: string } | null;
 };
-
-type HydratableStore = {
-    persist: {
-        hasHydrated: () => boolean;
-        onFinishHydration: (listener: () => void) => () => void;
-    };
-};
-
-async function waitForHydration(store: HydratableStore) {
-    if (store.persist.hasHydrated()) return;
-    await new Promise<void>((resolve) => {
-        const unsubscribe = store.persist.onFinishHydration(() => {
-            unsubscribe();
-            resolve();
-        });
-        if (store.persist.hasHydrated()) {
-            unsubscribe();
-            resolve();
-        }
-    });
-}
 
 export type StorageReferenceSources = {
     assets?: unknown;
@@ -69,11 +49,11 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
     const { useComicStore } = await import("@/app/(user)/comic/stores/use-comic-store");
     const { useComicCastStore } = await import("@/app/(user)/comic/stores/use-comic-cast-store");
     await Promise.all([
-        waitForHydration(useCanvasStore),
-        waitForHydration(useFilmStore),
-        waitForHydration(useFilmCastStore),
-        waitForHydration(useComicStore),
-        waitForHydration(useComicCastStore),
+        waitForStoreHydration(useCanvasStore),
+        waitForStoreHydration(useFilmStore),
+        waitForStoreHydration(useFilmCastStore),
+        waitForStoreHydration(useComicStore),
+        waitForStoreHydration(useComicCastStore),
     ]);
     const cast = useFilmCastStore.getState();
     const comicCast = useComicCastStore.getState();
@@ -81,7 +61,7 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
         assets,
         projects: useCanvasStore.getState().projects,
         filmProjects: useFilmStore.getState().projects,
-        filmCast: { characters: cast.characters, locations: cast.locations },
+        filmCast: { characters: cast.characters, locations: cast.locations, props: cast.props, costumes: cast.costumes, styles: cast.styles },
         comicProjects: useComicStore.getState().projects,
         comicCast: { characters: comicCast.characters, locations: comicCast.locations },
         skills,

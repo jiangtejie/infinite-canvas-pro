@@ -5,14 +5,14 @@ import type { FilmProject, FilmShot } from "@/lib/film/types";
 import { branchTargetIndex, buildFilmBranchGraph, buildFilmBranchPaths, collectFilmBranches, findUnreachableShots } from "./film-branch";
 
 function makeShot(id: string, patch: Partial<FilmShot> = {}): FilmShot {
-    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], ...patch };
+    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [], ...patch };
 }
 
 function makeProject(shots: FilmShot[]): FilmProject {
     return {
         id: "p1", title: "t", visualStyle: "", aspect: "16:9", stylePreset: "cinematic", stage: "storyboard", scriptText: "",
         episodes: [{ id: "e1", title: "第1集", scenes: [{ id: "sc1", name: "1-1 街道", location: "", time: "", mood: "", shots }] }],
-        characters: [], locations: [], createdAt: "", updatedAt: "",
+        characters: [], locations: [], props: [], costumes: [], createdAt: "", updatedAt: "",
     };
 }
 

@@ -54,9 +54,9 @@ export function FilmScriptSource({ project, onUpdate }: {
             ? (() => {
                 const next = structuredClone(project.episodes);
                 mergeFilmEpisodes(next, plan.episodes);
-                return bindFilmCast(next, project.characters || [], project.locations || []).episodes;
+                return bindFilmCast(next, project.characters || [], project.locations || [], project.props || []).episodes;
             })()
-            : bindFilmCast(plan.episodes, project.characters || [], project.locations || []).episodes;
+            : bindFilmCast(plan.episodes, project.characters || [], project.locations || [], project.props || []).episodes;
         onUpdate({ scriptText: plan.scriptText, episodes, scriptDocument: plan.document, scriptHash: plan.document.scriptHash });
         setPreview(null);
         message.success(mode === "append" ? "已按最新剧本追加分镜" : "已按最新剧本重新生成分镜");

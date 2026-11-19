@@ -32,9 +32,13 @@ export function useSessionBootstrap() {
         if (!isReady) return;
         if (!userId) {
             wasLoggedOutRef.current = true;
+            void import("@/services/film-sync").then((module) => module.stopFilmAccountSync());
             return;
         }
         if (!token) return;
+        if (isAdminRoute) {
+            void import("@/services/film-sync").then((module) => module.stopFilmAccountSync());
+        }
         const syncCanvasAfterLogin = wasLoggedOutRef.current;
         wasLoggedOutRef.current = false;
         const accountToken = token;
@@ -58,6 +62,8 @@ export function useSessionBootstrap() {
                     }
                     const { useAssetStore } = await import("@/stores/use-asset-store");
                     void useAssetStore.getState().hydrateAccountAssets(accountToken, syncEnabled);
+                    const { hydrateFilmAccountSync } = await import("@/services/film-sync");
+                    void hydrateFilmAccountSync(accountToken, syncEnabled);
                 }
                 // TokenDance 回调页只同步画布与素材，模型配置交给回调页自行写入。
                 if (isTokenDanceCallback) return;

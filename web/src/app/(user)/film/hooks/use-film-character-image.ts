@@ -12,13 +12,15 @@ import type { FilmAsset, FilmAssetTask, FilmCharacterPartKey, FilmImageRef, Film
 import { composeCharacterCard, type CharacterCardOptions } from "../utils/film-character-card";
 import { normalizeFilmAspect } from "@/lib/film/film-aspects";
 import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterPartLabel, ensureCharacterProfile } from "../utils/film-character";
+import { activeSlotImage, appendSlotImage } from "../utils/film-image-slot";
+import { latestFilmAsset, latestFilmAssetPatch, latestFilmProject } from "../utils/film-live-project";
 import { runImageTask, stopFilmImageTask } from "../utils/film-image-task";
 import { compressFilmReference } from "../utils/film-image-compress";
 import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
 
-export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master" | "card";
+export type FilmCharacterGenerationKey = "" | `part:${FilmCharacterPartKey}` | "master" | "card" | "expression";
 
 const MAX_REFERENCES = 10;
 
@@ -35,9 +37,8 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
     const taskRef = useRef<FilmAssetTask | null>(null);
 
     const patchCharacter = (characterId: string, updater: (asset: FilmAsset) => FilmAsset) => {
-        const current = projectRef.current;
-        if (!current) return;
-        onUpdate({ characters: (current.characters || []).map((asset) => asset.id === characterId ? updater(asset) : asset) });
+        const patch = latestFilmAssetPatch(projectRef.current?.id, "character", characterId, (asset) => updater(asset));
+        if (patch) onUpdate(patch);
     };
 
     const markPending = (characterId: string, pending: FilmAssetTask | undefined) => {
@@ -94,6 +95,17 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         return references;
     };
 
+    const makeImageRef = (imageUrl: string, storageKey: string, prompt: string, config: SeedableImageConfig, label?: string): FilmImageRef => ({
+        id: nanoid(),
+        url: imageUrl,
+        storageKey,
+        source: "generated",
+        label,
+        prompt,
+        model: config.model,
+        createdAt: new Date().toISOString(),
+    });
+
     const generatePart = async (characterId: string, partKey: FilmCharacterPartKey, options: { inBatch?: boolean } = {}): Promise<boolean> => {
         const current = projectRef.current;
         if (!current || generatingKey) return false;
@@ -102,7 +114,7 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         if (!asset) return false;
         const profile = ensureCharacterProfile(asset);
         const part = profile.parts[partKey];
-        if (part.locked) {
+        if (part.slot.locked) {
             message.warning("该部位已锁定，先解锁再生成");
             return false;
         }
@@ -110,9 +122,10 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         if (!config) return false;
 
         const refs: FilmImageRef[] = [];
-        if (partKey !== "face") refs.push(...profile.parts.face.images.slice(0, 3));
-        refs.push(...characterMasterImages(asset).slice(0, 2));
-        refs.push(...part.images.slice(-2));
+        const faceActive = activeSlotImage(profile.parts.face.slot);
+        if (partKey !== "face" && faceActive) refs.push(faceActive);
+        refs.push(...characterMasterImages(asset).slice(-2));
+        refs.push(...part.slot.images.slice(-2));
         const references = await resolveReferences(refs);
 
         const styleText = resolveFilmStyleText(current);
@@ -130,7 +143,6 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         setGeneratingKey(`part:${partKey}`);
         try {
             const { imageUrl, storageKey } = await runImageTask(config, prompt, references, `${characterId}-${partKey}`, { signal: task.signal, onTask: task.onTask });
-            const image: FilmImageRef = { id: nanoid(), url: imageUrl, storageKey, source: "generated", createdAt: new Date().toISOString() };
             patchCharacter(characterId, (item) => {
                 const nextProfile = ensureCharacterProfile(item);
                 return {
@@ -140,7 +152,7 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
                         ...nextProfile,
                         parts: {
                             ...nextProfile.parts,
-                            [partKey]: { ...nextProfile.parts[partKey], images: [...nextProfile.parts[partKey].images, image].slice(-6) },
+                            [partKey]: { ...nextProfile.parts[partKey], slot: appendSlotImage(nextProfile.parts[partKey].slot, makeImageRef(imageUrl, storageKey, prompt, config)) },
                         },
                     },
                 };
@@ -161,14 +173,14 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
     const createMasterImage = async (current: FilmProject, asset: FilmAsset, config: SeedableImageConfig, handlers: { signal?: AbortSignal; onTask?: (task: CanvasImageTask) => void } = {}): Promise<FilmImageRef> => {
         const profile = ensureCharacterProfile(asset);
         const refs = [
-            ...profile.parts.face.images.slice(0, 2),
-            ...profile.masterViews.slice(0, 1),
-            ...profile.parts.hair.images.slice(0, 1),
-            ...profile.parts.upper.images.slice(0, 1),
-            ...profile.parts.lower.images.slice(0, 1),
-            ...profile.parts.limbs.images.slice(0, 1),
-            ...profile.props.flatMap((prop) => prop.images.slice(0, 1)),
-        ];
+            activeSlotImage(profile.parts.face.slot),
+            activeSlotImage(profile.master),
+            activeSlotImage(profile.parts.hair.slot),
+            activeSlotImage(profile.parts.upper.slot),
+            activeSlotImage(profile.parts.lower.slot),
+            activeSlotImage(profile.parts.limbs.slot),
+            ...profile.propIds.map((propId) => activeSlotImage((current.props || []).find((item) => item.id === propId)?.concept)),
+        ].filter((image): image is FilmImageRef => Boolean(image));
         const references = await resolveReferences(refs);
         const styleText = resolveFilmStyleText(current);
         const prompt = [
@@ -179,7 +191,7 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
             "严格保持与参考图中的脸、发型、服装、腿型与鞋子一致。",
         ].filter(Boolean).join("\n\n");
         const { imageUrl, storageKey } = await runImageTask(config, prompt, references, `${asset.id}-master`, handlers);
-        return { id: nanoid(), url: imageUrl, storageKey, source: "generated", createdAt: new Date().toISOString() };
+        return makeImageRef(imageUrl, storageKey, prompt, config);
     };
 
     const generateMaster = async (characterId: string) => {
@@ -188,7 +200,7 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         const asset = current.characters?.find((item) => item.id === characterId);
         if (!asset) return;
         const profile = ensureCharacterProfile(asset);
-        if (profile.masterLocked) {
+        if (profile.master.locked) {
             message.warning("全身合成图已锁定，先解锁再生成");
             return;
         }
@@ -204,11 +216,9 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
                 return {
                     ...item,
                     pendingTask: undefined,
-                    imageUrl: image.url,
-                    storageKey: image.storageKey,
                     status: "ready",
                     errorMessage: "",
-                    character: { ...nextProfile, masterViews: [...nextProfile.masterViews, image].slice(-4) },
+                    character: { ...nextProfile, master: appendSlotImage(nextProfile.master, image) },
                 };
             });
             if (stopRequestedRef.current) message.info("停止时任务已生成完成，结果已保留");
@@ -225,8 +235,12 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
     const generateCard = async (characterId: string, options?: CharacterCardOptions): Promise<boolean> => {
         const current = projectRef.current;
         if (!current || generatingKey) return false;
-        const asset = current.characters?.find((item) => item.id === characterId);
+        const asset = latestFilmAsset(current.id, "character", characterId)?.asset;
         if (!asset) return false;
+        if (ensureCharacterProfile(asset).card.locked) {
+            message.warning("角色卡已锁定，先解锁再生成");
+            return false;
+        }
         const config = buildImageConfig(current);
         if (!config) return false;
         stopRequestedRef.current = false;
@@ -234,7 +248,8 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         const controller = new AbortController();
         controllerRef.current = controller;
         try {
-            let master = characterMasterImages(asset).slice(-1)[0];
+            let master = activeSlotImage(ensureCharacterProfile(asset).master);
+            let cardAsset = asset;
             if (!master) {
                 master = await createMasterImage(current, asset, config, {
                     signal: controller.signal,
@@ -251,25 +266,24 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
                     return {
                         ...item,
                         pendingTask: undefined,
-                        imageUrl: generatedMaster.url,
-                        storageKey: generatedMaster.storageKey,
                         status: "ready",
                         errorMessage: "",
-                        character: { ...itemProfile, masterViews: [...itemProfile.masterViews, generatedMaster].slice(-4) },
+                        character: { ...itemProfile, master: appendSlotImage(itemProfile.master, generatedMaster) },
                     };
                 });
                 controllerRef.current = null;
                 taskRef.current = null;
+                const latest = latestFilmAsset(current.id, "character", characterId)?.asset || asset;
+                const latestProfile = ensureCharacterProfile(latest);
+                cardAsset = { ...latest, character: { ...latestProfile, master: appendSlotImage(latestProfile.master, generatedMaster) } };
             }
             if (stopRequestedRef.current) {
                 markPending(characterId, undefined);
                 message.info("已停止生成角色卡");
                 return false;
             }
-            const cardMaster: FilmImageRef = master;
-            const latestAsset = projectRef.current?.characters?.find((item) => item.id === characterId) || asset;
-            const cardAsset: FilmAsset = { ...latestAsset, imageUrl: cardMaster.url, storageKey: cardMaster.storageKey, status: "ready", character: ensureCharacterProfile(latestAsset) };
-            const { card, signature } = await composeCharacterCard(cardAsset, options);
+            const latestProject = latestFilmProject(current.id) || current;
+            const { card, signature } = await composeCharacterCard(cardAsset, latestProject.props || [], latestProject.costumes || [], options);
             if (stopRequestedRef.current) {
                 markPending(characterId, undefined);
                 message.info("已停止生成角色卡");
@@ -280,11 +294,9 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
                 return {
                     ...item,
                     pendingTask: undefined,
-                    imageUrl: cardMaster.url,
-                    storageKey: cardMaster.storageKey,
                     status: "ready",
                     errorMessage: "",
-                    character: { ...itemProfile, card, cardSignature: signature },
+                    character: { ...itemProfile, card: appendSlotImage(itemProfile.card, card), cardSignature: signature },
                 };
             });
             return true;
@@ -300,13 +312,68 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         }
     };
 
+    const generateExpression = async (characterId: string, label: string, prompt?: string): Promise<boolean> => {
+        const current = projectRef.current;
+        if (!current || generatingKey) return false;
+        const asset = current.characters?.find((item) => item.id === characterId);
+        if (!asset) return false;
+        const profile = ensureCharacterProfile(asset);
+        if (profile.expressions.locked) {
+            message.warning("表情集已锁定，先解锁再生成");
+            return false;
+        }
+        const expressionLabel = label.trim();
+        if (!expressionLabel) {
+            message.warning("先填写表情名，例如「喜」「怒」「哀」「惊」");
+            return false;
+        }
+        const config = buildImageConfig(current);
+        if (!config) return false;
+        const refs = [
+            activeSlotImage(profile.parts.face.slot),
+            activeSlotImage(profile.master),
+            activeSlotImage(profile.card),
+        ].filter((image): image is FilmImageRef => Boolean(image));
+        const references = await resolveReferences(refs);
+        const styleText = resolveFilmStyleText(current);
+        const expressionPrompt = [
+            prompt?.trim() || `角色 ${asset.name} 的表情特写：${expressionLabel}。面部近景，保持五官、发型与整体气质一致。`,
+            asset.description?.trim() ? `角色设定：${asset.description.trim()}` : "",
+            styleText ? `视觉风格：${styleText}` : "",
+        ].filter(Boolean).join("\n\n");
+
+        const task = startImageTask(characterId, { target: "expression", label: expressionLabel });
+        setGeneratingKey("expression");
+        try {
+            const { imageUrl, storageKey } = await runImageTask(config, expressionPrompt, references, `${characterId}-expression`, { signal: task.signal, onTask: task.onTask });
+            patchCharacter(characterId, (item) => {
+                const nextProfile = ensureCharacterProfile(item);
+                return {
+                    ...item,
+                    pendingTask: undefined,
+                    character: { ...nextProfile, expressions: appendSlotImage(nextProfile.expressions, makeImageRef(imageUrl, storageKey, expressionPrompt, config, expressionLabel)) },
+                };
+            });
+            if (stopRequestedRef.current) message.info("停止时任务已生成完成，结果已保留");
+            else message.success(`表情「${expressionLabel}」已生成`);
+            return true;
+        } catch (error) {
+            markPending(characterId, undefined);
+            if (stopRequestedRef.current) message.info("已停止生成，未完成的任务已取消");
+            else message.error(errorMessage(error, "表情生成失败"));
+            return false;
+        } finally {
+            task.finish();
+        }
+    };
+
     const generateMissingParts = async (characterId: string) => {
         const current = projectRef.current;
         if (!current || generatingKey || batchProgress) return;
         const asset = current.characters?.find((item) => item.id === characterId);
         if (!asset) return;
         const profile = ensureCharacterProfile(asset);
-        const missing = CHARACTER_PART_DEFINITIONS.filter((definition) => !profile.parts[definition.key].images.length && !profile.parts[definition.key].locked);
+        const missing = CHARACTER_PART_DEFINITIONS.filter((definition) => !profile.parts[definition.key].slot.images.length && !profile.parts[definition.key].slot.locked);
         if (!missing.length) {
             message.info("所有部位都已经有参考图了");
             return;
@@ -333,7 +400,7 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         else message.success(`补齐完成：成功 ${succeeded}/${missing.length}`);
     };
 
-    /** 停止角色部位 / 全身合成 / 角色卡生成：中断本地等待并尽力取消账号渠道上的远端任务。 */
+    /** 停止角色部位 / 全身合成 / 角色卡 / 表情生成：中断本地等待并尽力取消账号渠道上的远端任务。 */
     const stopCharacterImage = () => {
         if (!generatingKey && !batchProgress) {
             message.info("当前没有正在生成的设定图");
@@ -345,5 +412,5 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
         message.info("正在停止生成…");
     };
 
-    return { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard, stopCharacterImage };
+    return { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard, generateExpression, stopCharacterImage };
 }

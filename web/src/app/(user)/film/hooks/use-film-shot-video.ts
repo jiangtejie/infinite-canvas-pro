@@ -6,8 +6,7 @@ import { App } from "antd";
 import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { VideoReferenceInput } from "@/services/api/video";
 import type { FilmGenerationContext, FilmProject, FilmShot, FilmShotTask } from "@/lib/film/types";
-import { updateFilmShot } from "../utils/film-edits";
-import { flattenFilmShots } from "../utils/parse-script";
+import { latestFilmShotPatch } from "../utils/film-live-project";
 import { withVideoVersion } from "../utils/film-versions";
 import { buildFilmShotGenerationContext } from "../utils/film-shot-generation";
 import { loadFilmShotGenerationReferences } from "../utils/film-references";
@@ -98,8 +97,13 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
         return { ...result, generationContext };
     };
 
+    const patchShot = (shotId: string, updater: (shot: FilmShot) => Partial<FilmShot>) => {
+        const patch = latestFilmShotPatch(projectRef.current?.id, shotId, updater);
+        if (patch) onUpdate(patch);
+    };
+
     const clearPendingTask = (shotId: string) => {
-        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shotId, { pendingTask: undefined }) });
+        patchShot(shotId, () => ({ pendingTask: undefined }));
     };
 
     const generateVideo = async (shot: FilmShot) => {
@@ -134,13 +138,10 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                 signal: controller.signal,
                 onTask: (task, context) => {
                     currentTaskRef.current = task;
-                    onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { ...task, generationContext: context } }) });
+                    patchShot(shot.id, () => ({ pendingTask: { ...task, generationContext: context } }));
                 },
             });
-            const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
-            onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey, generationContext), pendingTask: undefined }),
-            });
+            patchShot(shot.id, (latestShot) => ({ ...withVideoVersion(latestShot, videoUrl, storageKey, generationContext), pendingTask: undefined }));
             message.success("分镜视频已生成");
         } catch (error) {
             if (error instanceof FilmVideoStoppedError || stopRequestedRef.current) {
@@ -149,9 +150,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
             } else {
                 const reason = friendlyVideoError(error);
                 if (typeof window !== "undefined") console.warn("[film-video] 生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, reason });
-                onUpdate({
-                    episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: reason, pendingTask: undefined }),
-                });
+                patchShot(shot.id, () => ({ errorMessage: reason, pendingTask: undefined }));
                 message.error(reason);
             }
         } finally {
@@ -195,13 +194,10 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                         signal: controller.signal,
                         onTask: (task, context) => {
                             currentTaskRef.current = task;
-                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { ...task, generationContext: context } }) });
+                            patchShot(shot.id, () => ({ pendingTask: { ...task, generationContext: context } }));
                         },
                     });
-                    const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
-                    onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withVideoVersion(latestShot, videoUrl, storageKey, generationContext), pendingTask: undefined }),
-                    });
+                    patchShot(shot.id, (latestShot) => ({ ...withVideoVersion(latestShot, videoUrl, storageKey, generationContext), pendingTask: undefined }));
                     succeeded += 1;
                 } catch (error) {
                     if (error instanceof FilmVideoStoppedError || stopRequestedRef.current) {
@@ -211,9 +207,7 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
                         failed += 1;
                         const reason = friendlyVideoError(error);
                         if (typeof window !== "undefined") console.warn("[film-video] 批量生成失败", { shotId: shot.id, model: config.model, videoModel: config.videoModel, reason });
-                        onUpdate({
-                            episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: reason, pendingTask: undefined }),
-                        });
+                        patchShot(shot.id, () => ({ errorMessage: reason, pendingTask: undefined }));
                     }
                 } finally {
                     controllerRef.current = null;

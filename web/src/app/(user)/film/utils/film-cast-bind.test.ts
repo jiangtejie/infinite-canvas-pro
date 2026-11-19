@@ -5,8 +5,8 @@ import { bindFilmCast, setFilmShotCharacterBindings } from "./film-cast-bind";
 import { createEmptyCharacterProfile } from "./film-character";
 import type { FilmAsset, FilmEpisode, FilmShot } from "@/lib/film/types";
 
-const asset = (id: string, name: string, aliases: string[] = []): FilmAsset => ({ id, name, aliases, description: "", visualPrompt: "", status: "idle", createdAt: "2026-01-01T00:00:00.000Z" });
-const shot = (id: string, description: string, extra: Partial<FilmShot> = {}): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description, dialogue: "", audio: "", prompt: "", characterBindings: [], ...extra });
+const asset = (id: string, name: string, aliases: string[] = []): FilmAsset => ({ id, name, aliases, description: "", visualPrompt: "", status: "idle", concept: { images: [], locked: false }, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" });
+const shot = (id: string, description: string, extra: Partial<FilmShot> = {}): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description, dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [], ...extra });
 
 const episodes: FilmEpisode[] = [{
     id: "e1",
@@ -79,10 +79,56 @@ test("已有手动绑定不覆盖", () => {
 
 test("状态绑定必须属于对应角色", () => {
     const first = asset("c1", "沈星晴");
-    first.character = { ...createEmptyCharacterProfile(), states: [{ id: "injured", name: "受伤", description: "", outfit: "", physicalCondition: "", heldProps: [] }] };
+    first.character = { ...createEmptyCharacterProfile(), states: [{ id: "injured", name: "受伤", description: "", condition: "", heldPropIds: [], look: { images: [], locked: false } }] };
     const second = asset("c2", "刘娜");
     const baseShot = shot("shot1", "");
     const bound = setFilmShotCharacterBindings(baseShot, [{ characterId: "c1", stateId: "injured" }], [first, second]);
     assert.equal(bound.characterBindings[0].stateNameSnapshot, "受伤");
     assert.throws(() => setFilmShotCharacterBindings(baseShot, [{ characterId: "c2", stateId: "injured" }], [first, second]), /状态不存在或不属于该角色/);
+});
+
+test("道具按唯一名称或别名绑定，同名道具不抢绑定", () => {
+    const props = [asset("p1", "雨伞"), asset("p2", "旧信", ["那封信"]), asset("p3", "刀"), asset("p4", "刀")];
+    const input: FilmEpisode[] = [{
+        ...episodes[0],
+        scenes: [{
+            ...episodes[0].scenes[0],
+            shots: [shot("shot1", "她撑着雨伞读那封信"), shot("shot2", "刀光一闪")],
+        }],
+    }];
+    const result = bindFilmCast(input, [], [], props);
+    assert.deepEqual(result.episodes[0].scenes[0].shots[0].propBindings.map((binding) => binding.propId), ["p1", "p2"]);
+    assert.deepEqual(result.episodes[0].scenes[0].shots[1].propBindings, []);
+    assert.equal(result.boundProps, 1);
+});
+
+test("场次时间或氛围唯一命中时自动绑定场景变体", () => {
+    const night = { id: "v-night", name: "夜·雨", timeOfDay: "夜", weather: "雨", mood: "压抑", description: "", concept: { images: [], locked: false } };
+    const location = { ...asset("l1", "咖啡馆"), location: { variants: [night] } };
+    const input: FilmEpisode[] = [{
+        id: "e1",
+        title: "第1集",
+        scenes: [{ id: "s1", name: "1-1 咖啡馆", location: "咖啡馆", time: "夜", mood: "压抑", shots: [shot("shot1", "咖啡馆内")] }],
+    }];
+    const result = bindFilmCast(input, [], [location], []);
+    assert.equal(result.episodes[0].scenes[0].shots[0].locationId, "l1");
+    assert.equal(result.episodes[0].scenes[0].shots[0].locationVariantId, "v-night");
+    assert.equal(result.boundVariants, 1);
+});
+
+test("多个变体同时命中时保留建议不自动绑定", () => {
+    const night = { id: "v-night", name: "夜·雨", timeOfDay: "夜", weather: "雨", mood: "", description: "", concept: { images: [], locked: false } };
+    const lateNight = { id: "v-late", name: "深夜", timeOfDay: "夜", weather: "", mood: "", description: "", concept: { images: [], locked: false } };
+    const location = { ...asset("l1", "咖啡馆"), location: { variants: [night, lateNight] } };
+    const input: FilmEpisode[] = [{
+        id: "e1",
+        title: "第1集",
+        scenes: [{ id: "s1", name: "1-1 咖啡馆", location: "咖啡馆", time: "夜", mood: "", shots: [shot("shot1", "咖啡馆内")] }],
+    }];
+    const result = bindFilmCast(input, [], [location], []);
+    const boundShot = result.episodes[0].scenes[0].shots[0];
+    assert.equal(boundShot.locationVariantId, undefined);
+    assert.deepEqual(boundShot.variantSuggestions?.map((item) => item.variantId), ["v-night", "v-late"]);
+    assert.equal(result.suggestedVariants, 1);
+    assert.equal(result.boundVariants, 0);
 });

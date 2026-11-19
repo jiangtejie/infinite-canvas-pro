@@ -12,7 +12,7 @@ import { filmCharacterSignature, findFilmCharacterState } from "./film-character
 const MAX_CONTEXT_SHOTS = 160;
 
 const CONSISTENCY_PROMPT = `你是影视项目的一致性监理（script supervisor + continuity editor），只做审片式检查，不重写剧本。
-每个镜头的 characters 字段给出出场角色绑定：角色 ID、显示名与别名、造型状态、设定签名，以及镜头级服装/身体/持有道具/情绪变化（continuity）。请据此逐镜检查。
+每个镜头的 characters 字段给出出场角色绑定：角色 ID、显示名与别名、造型状态、设定签名、造型引用的服装与持有道具，以及镜头级服装/身体/持有道具/情绪变化（continuity）；props 与 variant 字段给出本镜绑定的项目道具与场景气氛变体。请据此逐镜检查。
 检查范围：
 1. 结构覆盖：结构计划里每场的 beats / coverage 是否在镜头里体现，缺了哪类镜头或信息点；
 2. 身份与造型漂移：同一角色跨镜长相/发型/身份是否改变；服装、身体状态、持有道具是否承接上一镜——镜头 continuity.intentionalChange 声明了刻意变化时允许该差异，否则要求连续；
@@ -39,6 +39,8 @@ export function buildFilmConsistencyContext(project: FilmProject) {
     const style = directorStyleFor(project.directorStyleId);
     const characterById = new Map((project.characters || []).map((asset) => [asset.id, asset]));
     const locationById = new Map((project.locations || []).map((asset) => [asset.id, asset]));
+    const propById = new Map((project.props || []).map((asset) => [asset.id, asset]));
+    const costumeById = new Map((project.costumes || []).map((asset) => [asset.id, asset]));
     let shotCount = 0;
     const episodes = (project.episodes || []).slice(0, 60).map((episode) => ({
         episode: episode.title,
@@ -61,16 +63,21 @@ export function buildFilmConsistencyContext(project: FilmProject) {
                     characters: shot.characterBindings.map((binding) => {
                         const asset = characterById.get(binding.characterId);
                         const state = asset ? findFilmCharacterState(asset, binding.stateId) : undefined;
+                        const costume = state?.costumeId ? costumeById.get(state.costumeId) : undefined;
                         return {
                             characterId: binding.characterId,
                             name: asset?.name || binding.characterNameSnapshot,
                             aliases: asset?.aliases || [],
                             state: state?.name || binding.stateNameSnapshot || "",
-                            signature: asset ? filmCharacterSignature(asset) : "",
+                            costume: costume?.name || "",
+                            heldProps: (state?.heldPropIds || []).map((id) => propById.get(id)?.name || "").filter(Boolean),
+                            signature: asset ? filmCharacterSignature(asset, { costumes: project.costumes, props: project.props }) : "",
                             continuity: binding.continuity,
                         };
                     }),
+                    props: (shot.propBindings || []).map((binding) => propById.get(binding.propId)?.name || binding.propNameSnapshot),
                     location: shot.locationId ? locationById.get(shot.locationId)?.name || "" : "",
+                    variant: shot.locationVariantId ? locationById.get(shot.locationId || "")?.location?.variants.find((item) => item.id === shot.locationVariantId)?.name || "" : "",
                     continuityCheck: shot.continuityCheck,
                     performance: shot.performance,
                     soundDesign: shot.soundDesign,
@@ -85,6 +92,9 @@ export function buildFilmConsistencyContext(project: FilmProject) {
         structurePlan: structurePlanPromptContext(project.structurePlan) || undefined,
         characters: (project.characters || []).map((asset) => asset.name).slice(0, 40),
         locations: (project.locations || []).map((asset) => asset.name).slice(0, 40),
+        props: (project.props || []).map((asset) => asset.name).slice(0, 40),
+        costumes: (project.costumes || []).map((asset) => asset.name).slice(0, 40),
+        styleBible: project.style?.visualPrompt || undefined,
         episodes,
     });
 }

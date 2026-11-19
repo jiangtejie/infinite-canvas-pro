@@ -1,69 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button, Input } from "antd";
-import { ArrowLeft, Library, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Image, Input } from "antd";
+import { ArrowLeft, Library, Search, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { FilmAmbient } from "@/components/film/film-ambient";
 import { Field } from "@/components/ui/field";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
+import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "../components/film-asset-thumbnail";
+import { useFilmImageUrl } from "../hooks/use-film-image-url";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
+import { useFilmStore } from "@/stores/use-film-store";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
+import { EMPTY_FILM_LIBRARY_USAGE, filmLibraryUsageIndex } from "../utils/film-library";
 import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 
-type Selection = { kind: FilmAssetKind; id: string };
+const TABS: Array<{ kind: FilmAssetKind; label: string }> = [
+    { kind: "character", label: "角色" },
+    { kind: "location", label: "场景" },
+    { kind: "prop", label: "道具" },
+    { kind: "costume", label: "服装" },
+    { kind: "style", label: "风格" },
+];
 
 export default function FilmLibraryPage() {
     const { confirmDelete } = useFilmDeleteConfirm();
     const hydrated = useFilmCastStore((state) => state.hydrated);
     const characters = useFilmCastStore((state) => state.characters);
     const locations = useFilmCastStore((state) => state.locations);
+    const props = useFilmCastStore((state) => state.props);
+    const costumes = useFilmCastStore((state) => state.costumes);
+    const styles = useFilmCastStore((state) => state.styles);
     const updateAsset = useFilmCastStore((state) => state.updateAsset);
     const removeAsset = useFilmCastStore((state) => state.removeAsset);
-    const [selection, setSelection] = useState<Selection | null>(null);
+    const projects = useFilmStore((state) => state.projects);
+    const [tab, setTab] = useState<FilmAssetKind>("character");
+    const [search, setSearch] = useState("");
+    const [selectedId, setSelectedId] = useState("");
+
+    const lists: Record<FilmAssetKind, FilmAsset[]> = { character: characters, location: locations, prop: props, costume: costumes, style: styles };
+    const list = lists[tab];
+    const keyword = search.trim().toLowerCase();
+    const filtered = keyword
+        ? list.filter((asset) => [asset.name, ...asset.aliases, ...(asset.tags || [])].join(" ").toLowerCase().includes(keyword))
+        : list;
 
     useEffect(() => {
-        if (selection) {
-            const list = selection.kind === "character" ? characters : locations;
-            if (list.some((asset) => asset.id === selection.id)) return;
-        }
-        const firstCharacter = characters[0];
-        if (firstCharacter) {
-            setSelection({ kind: "character", id: firstCharacter.id });
-            return;
-        }
-        const firstLocation = locations[0];
-        if (firstLocation) {
-            setSelection({ kind: "location", id: firstLocation.id });
-            return;
-        }
-        setSelection(null);
-    }, [characters, locations, selection]);
+        if (selectedId && list.some((asset) => asset.id === selectedId)) return;
+        setSelectedId(list[0]?.id || "");
+    }, [list, selectedId]);
 
-    const selected = selection
-        ? (selection.kind === "character" ? characters : locations).find((asset) => asset.id === selection.id) ?? null
-        : null;
-
+    const selected = list.find((asset) => asset.id === selectedId) || null;
+    const usageIndex = useMemo(() => filmLibraryUsageIndex(projects, tab), [projects, tab]);
+    const usage = selected ? usageIndex.get(selected.id) || EMPTY_FILM_LIBRARY_USAGE : null;
     const updateSelected = (patch: Partial<FilmAsset>) => {
-        if (selection) updateAsset(selection.kind, selection.id, patch);
+        if (selected) updateAsset(tab, selected.id, patch);
     };
 
     const removeSelected = () => {
-        if (!selection || !selected) return;
+        if (!selected || !usage) return;
         confirmDelete({
             title: `从库中删除「${selected.name}」？`,
             description: "删除后已导入到项目里的副本不受影响。",
-            detail: `${selection.kind === "character" ? "角色" : "场景"} · ${selected.views?.length || 0} 张视图`,
+            detail: `${FILM_ASSET_KIND_LABELS[tab]} · ${usage.projects} 个项目使用 · ${usage.bindings} 处镜头 / 造型引用`,
             confirmText: "从库中删除",
             onConfirm: () => {
-                removeAsset(selection.kind, selection.id);
-                setSelection(null);
+                removeAsset(tab, selected.id);
+                setSelectedId("");
             },
         });
     };
+
+    const totalCount = TABS.reduce((total, item) => total + lists[item.kind].length, 0);
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
@@ -72,74 +83,137 @@ export default function FilmLibraryPage() {
                     <div className="relative">
                         <FilmAmbient className="-inset-x-6 -top-10 h-[320px] opacity-80 sm:-inset-x-10" />
                         <div className="relative">
-                    <PageHeader
-                        eyebrow="创作工作台"
-                        title="角色与场景库"
-                        description="在影视项目里生成的角色设定和场景概念，存入这里后可以跨项目复用；导入项目后会生成一份独立副本。"
-                        meta={
-                            <>
-                                <span className="chip chip-acid">{characters.length} 个角色</span>
-                                <span className="chip">{locations.length} 个场景</span>
-                            </>
-                        }
-                        actions={
-                            <Button href="/film" icon={<ArrowLeft className="size-4" />}>
-                                返回影视项目
-                            </Button>
-                        }
-                    />
+                            <PageHeader
+                                eyebrow="创作工作台"
+                                title="影视资产库"
+                                description="角色、场景、道具、服装与风格圣经的母版库；存入时按来源去重，从库更新或推送到库都由你确认覆盖方向。"
+                                meta={<span className="chip chip-acid">{totalCount} 个条目</span>}
+                                actions={
+                                    <Button href="/film" icon={<ArrowLeft className="size-4" />}>
+                                        返回影视项目
+                                    </Button>
+                                }
+                            />
                         </div>
                     </div>
 
-                    {!hydrated ? <LoadingState label="正在加载角色与场景库" /> : null}
+                    {!hydrated ? <LoadingState label="正在加载影视资产库" /> : null}
 
-                    {hydrated && characters.length === 0 && locations.length === 0 ? (
-                        <EmptyState
-                            title="库还是空的"
-                            description="打开任意影视项目，在「角色与场景」里生成设定图后点「存入角色库」，就会出现在这里。"
-                            icon={<Library className="size-6" />}
-                            action={<Button type="primary" href="/film">去影视项目</Button>}
-                        />
-                    ) : null}
+                    {hydrated ? (
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+                            <section className="punk-panel flex flex-col gap-4 rounded-xl p-4">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-0.5 rounded-md border border-border/60 bg-background/40 p-0.5">
+                                        {TABS.map((item) => (
+                                            <button
+                                                key={item.kind}
+                                                type="button"
+                                                onClick={() => { setTab(item.kind); setSelectedId(""); }}
+                                                aria-pressed={tab === item.kind}
+                                                className={cn("rounded px-2.5 py-1 text-[11px] transition-colors", tab === item.kind ? "bg-acid/10 text-acid" : "text-muted-foreground hover:text-foreground")}
+                                            >
+                                                {item.label} {lists[item.kind].length}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <Input
+                                        size="small"
+                                        allowClear
+                                        className="ml-auto max-w-56"
+                                        prefix={<Search className="size-3.5 text-muted-foreground/50" />}
+                                        placeholder="搜索名称 / 别名 / 标签"
+                                        value={search}
+                                        onChange={(event) => setSearch(event.target.value)}
+                                    />
+                                </div>
 
-                    {hydrated && (characters.length > 0 || locations.length > 0) ? (
-                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
-                            <section className="punk-panel flex flex-col gap-6 rounded-xl p-4">
-                                <LibrarySection title="角色库" kind="character" assets={characters} selection={selection} onSelect={(id) => setSelection({ kind: "character", id })} />
-                                <LibrarySection title="场景库" kind="location" assets={locations} selection={selection} onSelect={(id) => setSelection({ kind: "location", id })} />
+                                {filtered.length === 0 ? (
+                                    <EmptyState
+                                        className="py-12"
+                                        title={list.length ? "没有匹配的条目" : `${FILM_ASSET_KIND_LABELS[tab]}库还是空的`}
+                                        description={list.length ? "换一个关键词试试。" : "在影视项目里打磨资产后点「存入…库」，就会出现在这里。"}
+                                        icon={<Library className="size-6" />}
+                                        action={<Button type="primary" href="/film">去影视项目</Button>}
+                                    />
+                                ) : (
+                                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                        {filtered.map((asset, index) => {
+                                            const itemUsage = usageIndex.get(asset.id) || EMPTY_FILM_LIBRARY_USAGE;
+                                            return (
+                                                <button
+                                                    key={asset.id}
+                                                    type="button"
+                                                    onClick={() => setSelectedId(asset.id)}
+                                                    style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}
+                                                    className={cn(
+                                                        "punk-card enter-up group flex flex-col overflow-hidden rounded-lg border text-left",
+                                                        selectedId === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-acid/40",
+                                                    )}
+                                                >
+                                                    <div className="relative w-full overflow-hidden">
+                                                        <FilmAssetThumbnail asset={asset} className="h-24 w-full transition-transform duration-500 group-hover:scale-[1.03]" />
+                                                        <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-background/50 via-transparent to-transparent" />
+                                                    </div>
+                                                    <span className="p-2.5">
+                                                        <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
+                                                        <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-muted-foreground/70">{asset.description || "未填写描述"}</span>
+                                                        {asset.tags?.length ? (
+                                                            <span className="mt-1 flex flex-wrap gap-1">
+                                                                {asset.tags.slice(0, 3).map((tag) => <span key={tag} className="rounded bg-muted/60 px-1 font-mono text-[8px] text-muted-foreground/70">{tag}</span>)}
+                                                            </span>
+                                                        ) : null}
+                                                        <span className="mt-1 block font-mono text-[9px] text-muted-foreground/50">{itemUsage.projects} 个项目 · {itemUsage.bindings} 处引用</span>
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </section>
 
                             <section className="punk-panel flex flex-col overflow-hidden rounded-xl">
                                 <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
-                                    <span className="eyebrow">{selection?.kind === "location" ? "场景详情" : "角色详情"}</span>
-                                    {selected ? <span className="font-mono text-[10px] text-muted-foreground/70">{selected.views?.length || 0} 张视图</span> : null}
+                                    <span className="eyebrow">{FILM_ASSET_KIND_LABELS[tab]}详情</span>
+                                    {selected ? <span className="font-mono text-[10px] text-muted-foreground/70">{selected.concept.images.length} 概念 · {selected.views?.images.length || 0} 视图</span> : null}
                                 </div>
                                 {selected ? (
                                     <div className="p-4">
-                                        <FilmAssetThumbnail asset={selected} className="h-44 w-full rounded-lg border border-border/60" />
+                                        <LibraryPreview asset={selected} />
                                         <div className="mt-4 grid gap-3">
                                             <Field label="名称">
                                                 <Input value={selected.name} onChange={(event) => updateSelected({ name: event.target.value })} />
                                             </Field>
+                                            <Field label="别名">
+                                                <Input value={selected.aliases.join("，")} placeholder="使用逗号分隔" onChange={(event) => updateSelected({ aliases: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
+                                            </Field>
                                             <Field label="描述">
-                                                <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} value={selected.description} onChange={(event) => updateSelected({ description: event.target.value })} />
+                                                <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={selected.description} onChange={(event) => updateSelected({ description: event.target.value })} />
                                             </Field>
                                             <Field label="视觉提示词">
-                                                <Input.TextArea autoSize={{ minRows: 3, maxRows: 6 }} value={selected.visualPrompt} placeholder="留空则用名称和描述" onChange={(event) => updateSelected({ visualPrompt: event.target.value })} />
+                                                <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={selected.visualPrompt} placeholder="留空则用名称和描述" onChange={(event) => updateSelected({ visualPrompt: event.target.value })} />
                                             </Field>
-                                            {selected.views?.length ? (
+                                            <Field label="标签">
+                                                <Input value={(selected.tags || []).join("，")} placeholder="用逗号分隔，用于库内搜索" onChange={(event) => updateSelected({ tags: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
+                                            </Field>
+                                            {selected.views?.images.length ? (
                                                 <div className="grid gap-2">
                                                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">视图设定</span>
                                                     <div className="grid grid-cols-2 gap-2">
-                                                        {selected.views.map((view) => (
+                                                        {selected.views.images.map((view) => (
                                                             <div key={view.id} className="relative overflow-hidden rounded-md border border-border/60">
-                                                                <FilmImageThumbnail url={view.imageUrl} storageKey={view.storageKey} alt={view.label} className="h-24 w-full" />
-                                                                <span className="absolute left-1 top-1 rounded bg-background/80 px-1.5 py-0.5 font-mono text-[9px] text-foreground/80">{view.label}</span>
+                                                                <FilmImageThumbnail url={view.url} storageKey={view.storageKey} alt={view.label} className="h-24 w-full" />
+                                                                <span className="absolute left-1 top-1 rounded bg-background/80 px-1.5 py-0.5 font-mono text-[9px] text-foreground/80">{view.label || "视图"}</span>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                             ) : null}
+                                            <div className="grid gap-1 rounded-md border border-border/50 bg-background/25 p-2 text-[11px] leading-5 text-muted-foreground/70">
+                                                <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">使用情况</span>
+                                                <span>{usage && usage.projects ? `${usage.projects} 个项目 · ${usage.copies} 份副本 · ${usage.bindings} 处镜头 / 造型引用` : "还没有项目导入这个条目"}</span>
+                                                {usage?.projectTitles.length ? <span className="line-clamp-1">来源项目：{usage.projectTitles.join("、")}</span> : null}
+                                                <span>更新于 {new Date(selected.updatedAt).toLocaleString("zh-CN", { hour12: false })}</span>
+                                            </div>
                                             <div className="pt-1">
                                                 <Button danger size="small" icon={<Trash2 className="size-3.5" />} onClick={removeSelected}>从库中删除</Button>
                                             </div>
@@ -162,44 +236,17 @@ export default function FilmLibraryPage() {
     );
 }
 
-function LibrarySection({ title, kind, assets, selection, onSelect }: {
-    title: string;
-    kind: FilmAssetKind;
-    assets: FilmAsset[];
-    selection: Selection | null;
-    onSelect: (id: string) => void;
-}) {
+function LibraryPreview({ asset }: { asset: FilmAsset }) {
+    const image = asset.concept.images.find((item) => item.id === asset.concept.activeImageId) || asset.concept.images[asset.concept.images.length - 1];
+    const src = useFilmImageUrl(image?.url, image?.storageKey);
+    if (!src) return <FilmAssetThumbnail asset={asset} className="h-56 w-full rounded-lg border border-border/60" />;
     return (
-        <div>
-            <div className="mb-2 flex items-center gap-2">
-                <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground/60 uppercase">{title}</span>
-                <span aria-hidden className="h-px flex-1 bg-border/50" />
-                <span className="font-mono text-[10px] text-muted-foreground/50 tabular-nums">{assets.length}</span>
-            </div>
-            {assets.length === 0 ? <p className="px-1 py-2 text-[11px] text-muted-foreground/60">还没有资产，去影视项目里生成并存入。</p> : null}
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {assets.map((asset, index) => (
-                    <button
-                        key={asset.id}
-                        type="button"
-                        onClick={() => onSelect(asset.id)}
-                        style={{ "--enter-index": Math.min(index, 10) } as React.CSSProperties}
-                        className={cn(
-                            "punk-card enter-up group flex flex-col overflow-hidden rounded-lg border text-left",
-                            selection?.kind === kind && selection.id === asset.id ? "border-acid/60 bg-acid/[0.05]" : "border-border/70 bg-card/50 hover:border-acid/40",
-                        )}
-                    >
-                        <div className="relative w-full overflow-hidden">
-                            <FilmAssetThumbnail asset={asset} className="h-24 w-full transition-transform duration-500 group-hover:scale-[1.03]" />
-                            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-background/50 via-transparent to-transparent" />
-                        </div>
-                        <span className="p-2.5">
-                            <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
-                            <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-muted-foreground/70">{asset.description || "未填写描述"}</span>
-                        </span>
-                    </button>
-                ))}
-            </div>
-        </div>
+        <Image
+            src={src}
+            alt={asset.name}
+            className="w-full rounded-lg border border-border/60 object-contain"
+            style={{ maxHeight: 260 }}
+            preview={{ mask: "大图预览" }}
+        />
     );
 }

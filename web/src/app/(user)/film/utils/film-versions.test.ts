@@ -4,7 +4,7 @@ import test from "node:test";
 import { MAX_MEDIA_VERSIONS, withImageVersion, withVideoVersion } from "./film-versions";
 import type { FilmGenerationContext, FilmShot } from "@/lib/film/types";
 
-const shot: FilmShot = { id: "s1", shotNo: "01", shotType: "", cameraMovement: "", duration: 5, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [] };
+const shot: FilmShot = { id: "s1", shotNo: "01", shotType: "", cameraMovement: "", duration: 5, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [] };
 const context = (inputSignature: string) => ({ inputSignature } as FilmGenerationContext);
 
 test("生成图片时保留历史版本", () => {

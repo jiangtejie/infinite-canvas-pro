@@ -5,16 +5,21 @@ import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
+export type SaveSyncStatus = "idle" | "syncing" | "synced" | "error";
 
 type SaveStatusState = {
     status: SaveStatus;
+    syncStatus: SaveSyncStatus;
     setStatus: (status: SaveStatus) => void;
+    setSyncStatus: (status: SaveSyncStatus) => void;
 };
 
-/** 全局保存状态：影剧 / 剧本 / 角色库共用，页面顶栏据此显示真实的保存进度。 */
+/** 本地保存与账号同步分开记录，避免一方成功覆盖另一方失败。 */
 export const useSaveStatusStore = create<SaveStatusState>((set) => ({
     status: "idle",
+    syncStatus: "idle",
     setStatus: (status) => set({ status }),
+    setSyncStatus: (syncStatus) => set({ syncStatus }),
 }));
 
 /**

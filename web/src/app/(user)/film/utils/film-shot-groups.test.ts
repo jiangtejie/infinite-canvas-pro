@@ -5,7 +5,7 @@ import type { FilmShot, FilmShotConnection, FilmShotGroup } from "@/lib/film/typ
 
 import { addShotToFilmGroup, countFilmShotConnections, createFilmShotConnection, createFilmShotGroup, pruneFilmEdges, removeFilmShotConnection, removeFilmShotGroup, removeShotFromFilmGroup } from "./film-shot-groups";
 
-const shot = (id: string): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [] });
+const shot = (id: string): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [] });
 const group = (id: string, shotIds: string[]): FilmShotGroup => ({ id, title: id, shotIds, createdAt: "2026-01-01T00:00:00.000Z" });
 
 test("创建镜头组会去空去重并修剪标题", () => {

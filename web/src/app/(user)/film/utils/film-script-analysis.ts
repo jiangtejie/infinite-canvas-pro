@@ -1,8 +1,8 @@
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
-import { nanoid } from "nanoid";
 import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
-import type { FilmAsset, FilmProject, FilmScriptAnalysis, FilmScriptCharacterAnalysis, FilmScriptRelationshipAnalysis, FilmScriptSceneAnalysis, FilmScriptSceneRelationship } from "@/lib/film/types";
+import type { FilmProject, FilmScriptAnalysis, FilmScriptCharacterAnalysis, FilmScriptCostumeHint, FilmScriptRelationshipAnalysis, FilmScriptSceneAnalysis, FilmScriptSceneRelationship } from "@/lib/film/types";
+import { createFilmAsset } from "./film-edits";
 import type { FilmScriptDocument } from "@/lib/film/film-script-import";
 
 export type FilmScriptAnalysisIssue = {
@@ -15,6 +15,10 @@ export type FilmSceneSemanticPayload = {
     mood: string;
     props: string[];
     productionNotes: string[];
+    /** 角色 × 服装描述，供剧本阶段建议建服装资产。 */
+    costumes?: FilmScriptCostumeHint[];
+    /** 气氛变体提示，例如 夜·雨 / 黄昏。 */
+    atmosphere?: string;
     characters: Array<{ name: string; aliases?: string[]; role?: string; description?: string }>;
     relationships: Array<{ from: string; to: string; type: string; direction?: string; strength?: number; note?: string; event?: string }>;
     beats: Array<{ type: string; summary: string }>;
@@ -34,6 +38,8 @@ const SYSTEM_PROMPT = `你是一名影视策划/剧本分析师。用户会给�
   "mood": "情绪氛围",
   "props": ["关键道具"],
   "productionNotes": ["制作提示：场景/道具/特效/群演/选角等"],
+  "costumes": [{"character":"角色名","description":"本场服装造型描述，例如 湿透的白衬衫与黑西裤"}],
+  "atmosphere": "本场气氛变体提示，例如 夜·雨 或 黄昏·雪，没有明显变化则留空",
   "characters": [{"name":"角色名","aliases":["别名"],"role":"主角/配角/群演","description":"人物特征"}],
   "relationships": [{"from":"角色A","to":"角色B","type":"关系类型","direction":"bilateral|from-to|to-from","strength":1-5,"note":"关系说明","event":"本场关系变化事件"}],
   "beats": [{"type":"目标|冲突|转折|高潮|信息","summary":"情节节拍"}]
@@ -42,7 +48,8 @@ const SYSTEM_PROMPT = `你是一名影视策划/剧本分析师。用户会给�
 1. 角色名使用剧本里的规范名字，别名放 aliases；
 2. 只写本场明确出现或明确提到的角色和关系；
 3. 关系有变化时才写 event，没有就留空；
-4. characters 必须覆盖本场有对白或动作的角色。`;
+4. characters 必须覆盖本场有对白或动作的角色；
+5. costumes 只写本场有明确服装/造型信息（含变化）的角色；atmosphere 只写与本场景常态明显不同的气氛（夜、雨、火场、黄昏等）。`;
 
 export function flattenFilmScriptScenes(document: FilmScriptDocument) {
     return document.episodes.flatMap((episode) => episode.scenes.map((scene) => ({ episode: episode.title, scene })));
@@ -74,6 +81,8 @@ export function sceneSemanticPayloadFromAnalysis(analysis: FilmScriptAnalysis, s
         mood: scene.mood,
         props: scene.props,
         productionNotes: scene.productionNotes,
+        costumes: scene.costumes || [],
+        atmosphere: scene.atmosphere || "",
         characters: scene.characters.map((name) => {
             const character = characters.get(normalizeEntityKey(name));
             return { name, aliases: character?.aliases || [], role: character?.role || "", description: character?.description || "" };
@@ -137,6 +146,13 @@ export function parseSceneSemanticPayload(content: string): FilmSceneSemanticPay
         mood: toStringValue(record.mood),
         props: stringArray(record.props),
         productionNotes: stringArray(record.productionNotes),
+        costumes: Array.isArray(record.costumes)
+            ? record.costumes.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").map((item) => ({
+                character: toStringValue(item.character),
+                description: toStringValue(item.description),
+            })).filter((item) => item.character && item.description)
+            : [],
+        atmosphere: toStringValue(record.atmosphere),
         characters: Array.isArray(record.characters)
             ? record.characters.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object").map((item) => ({
                 name: toStringValue(item.name),
@@ -209,6 +225,8 @@ export function mergeFilmSceneSemantics(document: FilmScriptDocument, entries: F
             productionNotes: payload.productionNotes,
             beats: payload.beats,
             relationships: sceneRelationships,
+            costumes: payload.costumes || [],
+            atmosphere: payload.atmosphere || "",
         });
         for (const relationship of sceneRelationships) {
             const fromKey = normalizeEntityKey(relationship.from);
@@ -277,9 +295,8 @@ export function validateFilmScriptAnalysis(analysis: FilmScriptAnalysis): FilmSc
     return issues;
 }
 
-/** 把语义分析里的角色/场景地点合并进项目资产，同名跳过。 */
+/** 把语义分析里的角色/场景地点/道具合并进项目资产，同名跳过。 */
 export function buildScriptAnalysisAssets(project: FilmProject, analysis: FilmScriptAnalysis, locationNames: string[]) {
-    const createdAt = new Date().toISOString();
     const characters = [...project.characters];
     const existingCharacters = new Set(project.characters.map((asset) => normalizeEntityKey(asset.name)));
     for (const character of analysis.characters) {
@@ -287,14 +304,11 @@ export function buildScriptAnalysisAssets(project: FilmProject, analysis: FilmSc
         if (!key || existingCharacters.has(key)) continue;
         existingCharacters.add(key);
         characters.push({
-            id: nanoid(),
+            ...createFilmAsset("character", characters.length + 1),
             name: character.name,
             aliases: character.aliases || [],
             description: [character.role, character.description].filter(Boolean).join("："),
-            visualPrompt: "",
-            status: "idle",
-            createdAt,
-        } satisfies FilmAsset);
+        });
     }
     const locations = [...project.locations];
     const existingLocations = new Set(project.locations.map((asset) => normalizeEntityKey(asset.name)));
@@ -302,9 +316,17 @@ export function buildScriptAnalysisAssets(project: FilmProject, analysis: FilmSc
         const key = normalizeEntityKey(name);
         if (!key || existingLocations.has(key)) continue;
         existingLocations.add(key);
-        locations.push({ id: nanoid(), name: name.trim(), aliases: [], description: "由剧本解析生成", visualPrompt: "", status: "idle", createdAt } satisfies FilmAsset);
+        locations.push({ ...createFilmAsset("location", locations.length + 1), name: name.trim(), description: "由剧本解析生成" });
     }
-    return { characters, locations };
+    const props = [...project.props];
+    const existingProps = new Set(project.props.map((asset) => normalizeEntityKey(asset.name)));
+    for (const name of new Set(analysis.scenes.flatMap((scene) => scene.props))) {
+        const key = normalizeEntityKey(name);
+        if (!key || existingProps.has(key)) continue;
+        existingProps.add(key);
+        props.push({ ...createFilmAsset("prop", props.length + 1), name: name.trim(), description: "由剧本解析生成" });
+    }
+    return { characters, locations, props };
 }
 
 export function normalizeEntityKey(value: string) {

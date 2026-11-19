@@ -1,6 +1,9 @@
 import { nanoid } from "nanoid";
 
-import type { FilmAsset, FilmAssetKind, FilmEpisode, FilmScene, FilmShot } from "@/lib/film/types";
+import type { FilmAsset, FilmAssetKind, FilmEpisode, FilmProject, FilmScene, FilmShot } from "@/lib/film/types";
+import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
+import { createEmptyCharacterProfile } from "./film-character";
+import { createFilmImageSlot } from "./film-image-slot";
 
 export function addFilmEpisode(episodes: FilmEpisode[]): FilmEpisode[] {
     return [
@@ -33,7 +36,7 @@ export function addFilmShot(episodes: FilmEpisode[], sceneId: string): FilmEpiso
                     dialogue: "",
                     audio: "",
                     prompt: "",
-                    characterBindings: [],
+                    characterBindings: [], propBindings: [],
                 }],
             };
         }),
@@ -103,28 +106,56 @@ export function removeFilmScene(episodes: FilmEpisode[], sceneId: string): FilmE
     return episodes.map((episode) => ({ ...episode, scenes: episode.scenes.filter((scene) => scene.id !== sceneId) }));
 }
 
+export function createFilmAsset(kind: FilmAssetKind, index: number): FilmAsset {
+    const now = new Date().toISOString();
+    return {
+        id: nanoid(),
+        name: `${kind === "style" ? "风格圣经" : FILM_ASSET_KIND_LABELS[kind]} ${index}`,
+        aliases: [],
+        description: "",
+        visualPrompt: "",
+        status: "idle",
+        concept: createFilmImageSlot(),
+        ...(kind === "location" || kind === "prop" || kind === "costume" ? { views: createFilmImageSlot() } : {}),
+        ...(kind === "character" ? { character: createEmptyCharacterProfile() } : {}),
+        ...(kind === "location" ? { location: { variants: [] } } : {}),
+        createdAt: now,
+        updatedAt: now,
+    };
+}
+
 export function addFilmAsset(assets: FilmAsset[], kind: FilmAssetKind): FilmAsset[] {
-    return [
-        ...assets,
-        {
-            id: nanoid(),
-            name: kind === "character" ? `角色 ${assets.length + 1}` : `场景 ${assets.length + 1}`,
-            aliases: [],
-            description: "",
-            visualPrompt: "",
-            status: "idle",
-            views: [],
-            createdAt: new Date().toISOString(),
-        },
-    ];
+    return [...assets, createFilmAsset(kind, assets.length + 1)];
 }
 
 export function importFilmAsset(assets: FilmAsset[], asset: FilmAsset): FilmAsset[] {
-    return [...assets, { ...structuredClone(asset), id: nanoid(), sourceLibraryAssetId: asset.id, createdAt: new Date().toISOString() }];
+    const now = new Date().toISOString();
+    return [...assets, { ...structuredClone(asset), id: nanoid(), sourceLibraryAssetId: asset.id, createdAt: now, updatedAt: now }];
 }
 
 export function updateFilmAsset(assets: FilmAsset[], id: string, patch: Partial<FilmAsset>): FilmAsset[] {
-    return assets.map((asset) => asset.id === id ? { ...asset, ...patch } : asset);
+    return assets.map((asset) => asset.id === id ? { ...asset, ...patch, updatedAt: new Date().toISOString() } : asset);
+}
+
+/** 按资产类别取项目内的资产列表；风格圣经是项目唯一资产。 */
+export function filmAssetsOfKind(project: FilmProject, kind: FilmAssetKind): FilmAsset[] {
+    if (kind === "character") return project.characters || [];
+    if (kind === "location") return project.locations || [];
+    if (kind === "prop") return project.props || [];
+    if (kind === "costume") return project.costumes || [];
+    return project.style ? [project.style] : [];
+}
+
+/** 按资产类别生成项目更新补丁，统一刷新资产 updatedAt。 */
+export function patchFilmAssetProject(project: FilmProject, kind: FilmAssetKind, assetId: string, patch: Partial<FilmAsset>): Partial<FilmProject> {
+    if (kind === "style") {
+        if (project.style?.id !== assetId) return {};
+        return { style: { ...project.style, ...patch, updatedAt: new Date().toISOString() } };
+    }
+    if (kind === "character") return { characters: updateFilmAsset(project.characters || [], assetId, patch) };
+    if (kind === "location") return { locations: updateFilmAsset(project.locations || [], assetId, patch) };
+    if (kind === "prop") return { props: updateFilmAsset(project.props || [], assetId, patch) };
+    return { costumes: updateFilmAsset(project.costumes || [], assetId, patch) };
 }
 
 export function removeFilmAsset(assets: FilmAsset[], id: string): FilmAsset[] {

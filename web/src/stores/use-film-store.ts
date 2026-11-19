@@ -40,6 +40,8 @@ export const useFilmStore = create<FilmStore>()(
                     episodes: [],
                     characters: [],
                     locations: [],
+                    props: [],
+                    costumes: [],
                     createdAt: now,
                     updatedAt: now,
                 };

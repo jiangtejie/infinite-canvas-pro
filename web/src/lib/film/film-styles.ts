@@ -1,4 +1,4 @@
-import type { FilmStylePresetId } from "./types";
+import type { FilmAsset, FilmStylePresetId } from "./types";
 
 export type FilmStylePreset = {
     id: FilmStylePresetId;
@@ -30,8 +30,8 @@ export function filmStyleLabel(value?: string) {
     return preset?.label || "自定义";
 }
 
-/** 把风格预设和自定义补充词合成一段注入提示词。 */
-export function resolveFilmStyleText(project: { stylePreset?: string; visualStyle?: string }) {
+/** 把风格预设、自定义补充词与风格圣经规则合成一段注入提示词。 */
+export function resolveFilmStyleText(project: { stylePreset?: string; visualStyle?: string; style?: FilmAsset }) {
     const preset = FILM_STYLE_PRESETS.find((item) => item.id === project.stylePreset);
-    return [preset?.prompt, project.visualStyle?.trim()].filter(Boolean).join("；");
+    return [preset?.prompt, project.visualStyle?.trim(), project.style?.visualPrompt?.trim()].filter(Boolean).join("；");
 }

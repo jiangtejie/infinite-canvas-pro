@@ -3,9 +3,10 @@ import test from "node:test";
 
 import { filmSceneOptions, filmShotPosition, importFilmAsset, moveFilmShot, moveFilmShotToScene } from "./film-edits";
 import { createEmptyCharacterProfile } from "./film-character";
+import { appendSlotImage } from "./film-image-slot";
 import type { FilmEpisode, FilmShot } from "@/lib/film/types";
 
-const shot = (id: string): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description: id, dialogue: "", audio: "", prompt: "", characterBindings: [] });
+const shot = (id: string): FilmShot => ({ id, shotNo: id, shotType: "", cameraMovement: "", duration: 5, description: id, dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [] });
 
 const episodes: FilmEpisode[] = [
     {
@@ -38,17 +39,17 @@ test("定位镜头与场景选项", () => {
 
 test("从角色库导入会深拷贝嵌套设定并记录来源", () => {
     const profile = createEmptyCharacterProfile();
-    profile.parts.face.images = [{ id: "face-1", url: "face.png" }];
-    profile.states = [{ id: "injured", name: "受伤", description: "额头受伤", outfit: "破损外套", physicalCondition: "左臂受伤", heldProps: [] }];
-    const source = { id: "library-c1", name: "沈星晴", aliases: ["小夏"], description: "", visualPrompt: "", status: "ready" as const, character: profile, createdAt: "2026-01-01T00:00:00.000Z" };
+    profile.parts.face.slot = appendSlotImage(profile.parts.face.slot, { id: "face-1", url: "face.png" });
+    profile.states = [{ id: "injured", name: "受伤", description: "额头受伤", condition: "左臂受伤", heldPropIds: [], look: { images: [], locked: false } }];
+    const source = { id: "library-c1", name: "沈星晴", aliases: ["小夏"], description: "", visualPrompt: "", status: "ready" as const, concept: { images: [], locked: false }, character: profile, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
     const imported = importFilmAsset([], source)[0];
 
     assert.notEqual(imported.id, source.id);
     assert.equal(imported.sourceLibraryAssetId, source.id);
     imported.aliases.push("阿夏");
     imported.character!.states[0].name = "新状态";
-    imported.character!.parts.face.images.push({ id: "face-2", url: "face-2.png" });
+    imported.character!.parts.face.slot.images.push({ id: "face-2", url: "face-2.png" });
     assert.deepEqual(source.aliases, ["小夏"]);
     assert.equal(source.character.states[0].name, "受伤");
-    assert.deepEqual(source.character.parts.face.images.map((image) => image.id), ["face-1"]);
+    assert.deepEqual(source.character.parts.face.slot.images.map((image) => image.id), ["face-1"]);
 });

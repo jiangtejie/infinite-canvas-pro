@@ -2,12 +2,13 @@
 
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import { App, Button, Input, InputNumber, Select, Spin } from "antd";
-import { Clapperboard, ImageIcon, Upload } from "lucide-react";
+import { Clapperboard, FolderInput, ImageIcon, Upload } from "lucide-react";
 
 import { useCopyText } from "@/hooks/use-copy-text";
 import { cn } from "@/lib/utils";
 import { uploadImage } from "@/services/image-storage";
 import { resolveModelForCapability, useEffectiveConfig } from "@/stores/use-config-store";
+import { useAssetStore } from "@/stores/use-asset-store";
 import type { FilmFrameSource, FilmProject, FilmShot, FilmVideoSegment } from "@/lib/film/types";
 import { useFilmVideoUrl } from "../hooks/use-film-image-url";
 import { useFilmShotGeneration } from "../hooks/use-film-shot-generation";
@@ -35,6 +36,7 @@ export function FilmShotVideoPanel({ shot, project, onChange, onGenerate, onStop
     const filmConfig = useEffectiveConfig();
     const { message } = App.useApp();
     const copyText = useCopyText();
+    const addAsset = useAssetStore((state) => state.addAsset);
     const effectiveConfig = useEffectiveConfig();
     const videoModel = effectiveConfig.videoModel || effectiveConfig.model;
     const resolvedVideoModel = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video") || "未选择";
@@ -121,7 +123,7 @@ export function FilmShotVideoPanel({ shot, project, onChange, onGenerate, onStop
         event.target.value = "";
         if (!file || !uploadTarget) return;
         try {
-            const uploaded = await uploadImage(file, { localOnly: true });
+            const uploaded = await uploadImage(file);
             setFrame(uploadTarget, { kind: "upload", url: uploaded.url, storageKey: uploaded.storageKey });
         } catch {
             message.error("图片上传失败");
@@ -131,6 +133,20 @@ export function FilmShotVideoPanel({ shot, project, onChange, onGenerate, onStop
     };
 
     const formatSeconds = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
+
+    const addVideoToAssets = () => {
+        if (!shot.videoUrl) return;
+        addAsset({
+            kind: "video",
+            title: `${project.title} · ${shot.shotNo}`,
+            coverUrl: "",
+            tags: ["影视", shot.shotNo],
+            source: "film",
+            data: { url: shot.videoUrl, storageKey: shot.videoStorageKey, width: 0, height: 0, bytes: 0, mimeType: "video/mp4" },
+            metadata: { source: "film", projectId: project.id, shotId: shot.id, shotNo: shot.shotNo, prompt: currentVideoVersion?.generationContext?.prompt },
+        });
+        message.success("已加入我的素材");
+    };
 
     return (
         <div className="grid gap-3">
@@ -281,6 +297,7 @@ export function FilmShotVideoPanel({ shot, project, onChange, onGenerate, onStop
                         {generating ? `生成中 ${progress}%` : shot.videoUrl ? "重新生成" : "生成分镜视频"}
                     </Button>
                     {generating && onStop ? <Button size="small" danger onClick={onStop}>停止生成</Button> : null}
+                    {shot.videoUrl ? <Button size="small" icon={<FolderInput className="size-3.5" />} onClick={addVideoToAssets}>加入我的素材</Button> : null}
                 </div>
                 <div className="flex justify-end text-[10px] text-muted-foreground/70"><WorkbenchCreditHint config={filmConfig} model={filmConfig.videoModel} mode="video" seconds={String(shot.duration)} resolution={filmConfig.vquality} /></div>
                 {shot.errorMessage && !generating ? <p className="text-[11px] leading-5 text-hot">上次生成失败：{shot.errorMessage}</p> : null}

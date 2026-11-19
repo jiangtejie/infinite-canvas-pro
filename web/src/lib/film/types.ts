@@ -6,46 +6,54 @@ export type FilmImageRef = {
     id: string;
     url: string;
     storageKey?: string;
-    source?: "upload" | "generated" | "asset" | "library";
+    source?: "upload" | "generated" | "asset" | "library" | "shot";
+    /** 表情名 / 视图名 / 细节部位名。 */
+    label?: string;
+    prompt?: string;
+    model?: string;
+    width?: number;
+    height?: number;
+    rating?: 0 | 1 | 2 | 3;
+    notes?: string;
     createdAt?: string;
+};
+
+/** 图槽位：版本池 + 当前选定参考 + 锁定；activeImageId 为空时取最后一张。 */
+export type FilmImageSlot = {
+    images: FilmImageRef[];
+    activeImageId?: string;
+    locked: boolean;
 };
 
 export type FilmCharacterPartKey = "face" | "hair" | "upper" | "lower" | "limbs";
 
 export type FilmCharacterPart = {
-    images: FilmImageRef[];
+    slot: FilmImageSlot;
     prompt: string;
     notes: string;
-    locked: boolean;
-};
-
-export type FilmCharacterProp = {
-    id: string;
-    name: string;
-    type: "accessory" | "weapon" | "other";
-    description: string;
-    images: FilmImageRef[];
-    locked: boolean;
 };
 
 export type FilmCharacterState = {
     id: string;
     name: string;
     description: string;
-    outfit: string;
-    physicalCondition: string;
-    heldProps: string[];
-    referenceImage?: FilmImageRef;
+    costumeId?: string;
+    /** 状况：破损 / 血迹 / 湿身等。 */
+    condition: string;
+    heldPropIds: string[];
+    look: FilmImageSlot;
 };
 
 export type FilmCharacterProfile = {
     parts: Record<FilmCharacterPartKey, FilmCharacterPart>;
-    props: FilmCharacterProp[];
-    states: FilmCharacterState[];
-    masterViews: FilmImageRef[];
-    masterLocked: boolean;
-    card?: FilmImageRef;
+    /** 表情集：label = 喜 / 怒 / 哀 / 惊 / 平静… */
+    expressions: FilmImageSlot;
+    master: FilmImageSlot;
+    card: FilmImageSlot;
     cardSignature?: string;
+    /** 标志性道具 → project.props。 */
+    propIds: string[];
+    states: FilmCharacterState[];
 };
 
 export type FilmVideoMode = "reference" | "frames";
@@ -70,11 +78,28 @@ export type FilmShotCharacterSuggestion = {
     characterName: string;
 };
 
+export type FilmShotPropBinding = {
+    propId: string;
+    propNameSnapshot: string;
+    source: "manual" | "ai";
+};
+
+/** 场次时间/氛围匹配到多个场景变体时留给用户确认的建议。 */
+export type FilmShotVariantSuggestion = {
+    variantId: string;
+    variantName: string;
+};
+
 export type FilmGenerationReferenceRole =
     | "character-package"
     | "character-state"
     | "character-detail"
+    | "character-expression"
+    | "costume"
+    | "prop"
     | "location"
+    | "location-variant"
+    | "style"
     | "previous-shot"
     | "anchor-shot"
     | "storyboard"
@@ -139,7 +164,7 @@ export type FilmStylePresetId =
     | "film"
     | "pixel";
 
-export type FilmAssetKind = "character" | "location";
+export type FilmAssetKind = "character" | "location" | "prop" | "costume" | "style";
 
 export type FilmAssetStatus = "idle" | "ready" | "failed";
 
@@ -155,13 +180,14 @@ export type FilmShotTask = {
     generationContext?: FilmGenerationContext;
 };
 
-/** 角色 / 场景资产的设定图任务，记录回写目标（概念图 / 视图 / 部位 / 全身合成 / 角色卡）。 */
-export type FilmAssetTaskTarget = "image" | "view" | "part" | "master" | "card";
+/** 资产设定图任务，记录回写目标（概念图 / 视图 / 部位 / 表情 / 全身合成 / 角色卡 / 场景变体）。 */
+export type FilmAssetTaskTarget = "concept" | "view" | "part" | "expression" | "master" | "card" | "variant";
 
 export type FilmAssetTask = FilmShotTask & {
     target: FilmAssetTaskTarget;
     label?: string;
     partKey?: FilmCharacterPartKey;
+    variantId?: string;
 };
 
 export type FilmMediaVersion = {
@@ -200,6 +226,11 @@ export type FilmScriptSceneRelationship = {
     event: string;
 };
 
+export type FilmScriptCostumeHint = {
+    character: string;
+    description: string;
+};
+
 export type FilmScriptSceneAnalysis = {
     sceneIndex: number;
     episode: string;
@@ -212,6 +243,10 @@ export type FilmScriptSceneAnalysis = {
     productionNotes: string[];
     beats: Array<{ type: string; summary: string }>;
     relationships: FilmScriptSceneRelationship[];
+    /** 角色 × 服装描述提示，用户确认后才建服装资产。 */
+    costumes?: FilmScriptCostumeHint[];
+    /** 气氛变体提示，例如 夜·雨 / 黄昏。 */
+    atmosphere?: string;
 };
 
 export type FilmScriptBlock =
@@ -346,7 +381,11 @@ export type FilmShot = {
     transition?: string;
     characterBindings: FilmShotCharacterBinding[];
     characterSuggestions?: FilmShotCharacterSuggestion[];
+    propBindings: FilmShotPropBinding[];
     locationId?: string;
+    /** 场景气氛变体；为空表示使用场景概念图。 */
+    locationVariantId?: string;
+    variantSuggestions?: FilmShotVariantSuggestion[];
     videoMode?: FilmVideoMode;
     firstFrame?: FilmFrameSource;
     lastFrame?: FilmFrameSource;
@@ -379,11 +418,18 @@ export type FilmEpisode = {
     scenes: FilmScene[];
 };
 
-export type FilmAssetView = {
+export type FilmLocationVariant = {
     id: string;
-    label: string;
-    imageUrl?: string;
-    storageKey?: string;
+    name: string;
+    timeOfDay?: string;
+    weather?: string;
+    mood?: string;
+    description: string;
+    concept: FilmImageSlot;
+};
+
+export type FilmLocationProfile = {
+    variants: FilmLocationVariant[];
 };
 
 export type FilmAsset = {
@@ -392,15 +438,19 @@ export type FilmAsset = {
     aliases: string[];
     description: string;
     visualPrompt: string;
-    imageUrl?: string;
-    storageKey?: string;
     status: FilmAssetStatus;
     errorMessage?: string;
-    views?: FilmAssetView[];
     sourceLibraryAssetId?: string;
+    tags?: string[];
+    /** 概念图 / 设定图（所有类型共有）。 */
+    concept: FilmImageSlot;
+    /** 角度 / 细节参考（场景 / 道具 / 服装）。 */
+    views?: FilmImageSlot;
     character?: FilmCharacterProfile;
+    location?: FilmLocationProfile;
     pendingTask?: FilmAssetTask;
     createdAt: string;
+    updatedAt: string;
 };
 
 /** 用户自定义镜头组：把一个或多个镜头聚在一起，仅用于导演台编排。 */
@@ -487,6 +537,10 @@ export type FilmProject = {
     episodes: FilmEpisode[];
     characters: FilmAsset[];
     locations: FilmAsset[];
+    props: FilmAsset[];
+    costumes: FilmAsset[];
+    /** 项目唯一风格圣经：concept 放色彩/光影/质感参考，visualPrompt 放风格规则。 */
+    style?: FilmAsset;
     scriptDocument?: FilmScriptDocument;
     scriptAnalysis?: FilmScriptAnalysis;
     shotGroups?: FilmShotGroup[];

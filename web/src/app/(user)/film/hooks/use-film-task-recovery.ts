@@ -9,8 +9,10 @@ import { resolveModelForCapability, useEffectiveConfig, type AiConfig } from "@/
 import type { FilmAsset, FilmAssetKind, FilmAssetTask, FilmImageRef, FilmProject, FilmShot, FilmShotTask } from "@/lib/film/types";
 import { isFilmImageTaskDone, isFilmImageTaskFailed } from "../utils/film-image-task";
 import { ensureCharacterProfile } from "../utils/film-character";
-import { updateFilmAsset, updateFilmShot } from "../utils/film-edits";
+import { appendSlotImage, createFilmImageSlot } from "../utils/film-image-slot";
+import { latestFilmAssetPatch, latestFilmShotPatch } from "../utils/film-live-project";
 import { flattenFilmShots } from "../utils/parse-script";
+
 import { withImageVersion, withVideoVersion } from "../utils/film-versions";
 import { FilmVideoStoppedError, pollFilmVideoTask } from "../utils/film-video-task";
 
@@ -47,14 +49,14 @@ export function useFilmTaskRecovery(
         if (!projectId) return;
         let cancelled = false;
 
-        const patchShot = (shotId: string, patch: Partial<FilmShot>) => {
-            updateRef.current({ episodes: updateFilmShot(projectRef.current?.episodes || [], shotId, patch) });
+        const patchShot = (shotId: string, updater: (shot: FilmShot) => Partial<FilmShot>) => {
+            const patch = latestFilmShotPatch(projectRef.current?.id, shotId, updater);
+            if (patch) updateRef.current(patch);
         };
 
         const patchAsset = (kind: FilmAssetKind, assetId: string, patch: Partial<FilmAsset>) => {
-            updateRef.current(kind === "character"
-                ? { characters: updateFilmAsset(projectRef.current?.characters || [], assetId, patch) }
-                : { locations: updateFilmAsset(projectRef.current?.locations || [], assetId, patch) });
+            const next = latestFilmAssetPatch(projectRef.current?.id, kind, assetId, () => patch);
+            if (next) updateRef.current(next);
         };
 
         const pollImageTask = async (shot: FilmShot, pending: FilmShotTask) => {
@@ -63,12 +65,12 @@ export function useFilmTaskRecovery(
             if (isFilmImageTaskDone(task.status)) {
                 const imageUrl = task.image_url || task.image_urls?.[0] || task.url || "";
                 if (!imageUrl) throw new Error("任务完成但没有返回图片");
-                patchShot(shot.id, { ...withImageVersion(shot, imageUrl, task.storageKey || "", pending.generationContext), pendingTask: undefined });
+                patchShot(shot.id, (latestShot) => ({ ...withImageVersion(latestShot, imageUrl, task.storageKey || "", pending.generationContext), pendingTask: undefined }));
                 message.success(`已恢复分镜图生成：${shot.shotNo}`);
                 return;
             }
             if (isFilmImageTaskFailed(task.status)) {
-                patchShot(shot.id, { errorMessage: task.error?.message || task.error_detail || "分镜图生成失败", pendingTask: undefined });
+                patchShot(shot.id, () => ({ errorMessage: task.error?.message || task.error_detail || "分镜图生成失败", pendingTask: undefined }));
                 message.error(`分镜图生成失败：${shot.shotNo}`);
             }
         };
@@ -80,12 +82,11 @@ export function useFilmTaskRecovery(
             try {
                 const result = await pollFilmVideoTask(config, pending);
                 if (cancelled) return;
-                const latest = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) || shot;
-                patchShot(shot.id, { ...withVideoVersion(latest, result.videoUrl, result.storageKey, pending.generationContext), pendingTask: undefined });
+                patchShot(shot.id, (latestShot) => ({ ...withVideoVersion(latestShot, result.videoUrl, result.storageKey, pending.generationContext), pendingTask: undefined }));
                 message.success(`已恢复分镜视频生成：${shot.shotNo}`);
             } catch (error) {
                 if (error instanceof FilmVideoStoppedError) {
-                    patchShot(shot.id, { pendingTask: undefined });
+                    patchShot(shot.id, () => ({ pendingTask: undefined }));
                     return;
                 }
                 throw error;
@@ -99,36 +100,33 @@ export function useFilmTaskRecovery(
                 const imageUrl = task.image_url || task.image_urls?.[0] || task.url || "";
                 if (!imageUrl) throw new Error("任务完成但没有返回图片");
                 const storageKey = task.storageKey || "";
+                const imageRef: FilmImageRef = { id: nanoid(), url: imageUrl, storageKey, source: "generated", createdAt: new Date().toISOString() };
                 const patch: Partial<FilmAsset> = { pendingTask: undefined, errorMessage: "" };
                 if (pending.target === "view") {
-                    patch.views = [...(asset.views || []), { id: nanoid(), label: pending.label || "视图", imageUrl, storageKey }];
+                    patch.views = appendSlotImage(asset.views || createFilmImageSlot(), { ...imageRef, label: pending.label || "视图" });
                 } else if (pending.target === "part" && pending.partKey) {
                     const profile = ensureCharacterProfile(asset);
                     const key = pending.partKey;
-                    const imageRef: FilmImageRef = { id: nanoid(), url: imageUrl, storageKey, source: "generated", createdAt: new Date().toISOString() };
                     patch.character = {
                         ...profile,
-                        parts: {
-                            ...profile.parts,
-                            [key]: {
-                                ...profile.parts[key],
-                                images: [...profile.parts[key].images, imageRef].slice(-6),
-                            },
-                        },
+                        parts: { ...profile.parts, [key]: { ...profile.parts[key], slot: appendSlotImage(profile.parts[key].slot, imageRef) } },
                     };
+                } else if (pending.target === "expression") {
+                    const profile = ensureCharacterProfile(asset);
+                    patch.character = { ...profile, expressions: appendSlotImage(profile.expressions, { ...imageRef, label: pending.label || "表情" }) };
                 } else if (pending.target === "master" || pending.target === "card") {
                     const profile = ensureCharacterProfile(asset);
-                    const imageRef: FilmImageRef = { id: nanoid(), url: imageUrl, storageKey, source: "generated", createdAt: new Date().toISOString() };
-                    patch.character = {
-                        ...profile,
-                        masterViews: [...profile.masterViews, imageRef].slice(-4),
-                    };
-                    patch.imageUrl = imageUrl;
-                    patch.storageKey = storageKey;
+                    patch.character = { ...profile, master: appendSlotImage(profile.master, imageRef) };
                     patch.status = "ready";
+                } else if (pending.target === "variant") {
+                    const variants = asset.location?.variants || [];
+                    patch.location = {
+                        variants: variants.map((variant) => variant.id === pending.variantId
+                            ? { ...variant, concept: appendSlotImage(variant.concept, imageRef) }
+                            : variant),
+                    };
                 } else {
-                    patch.imageUrl = imageUrl;
-                    patch.storageKey = storageKey;
+                    patch.concept = appendSlotImage(asset.concept, imageRef);
                     patch.status = "ready";
                 }
                 patchAsset(kind, asset.id, patch);
@@ -139,7 +137,7 @@ export function useFilmTaskRecovery(
             }
             if (isFilmImageTaskFailed(task.status)) {
                 const reason = task.error?.message || task.error_detail || "设定图生成失败";
-                patchAsset(kind, asset.id, { ...(pending.target === "image" || pending.target === "master" ? { status: "failed" as const } : {}), errorMessage: reason, pendingTask: undefined });
+                patchAsset(kind, asset.id, { ...(pending.target === "concept" || pending.target === "master" ? { status: "failed" as const } : {}), errorMessage: reason, pendingTask: undefined });
                 message.error(`设定图生成失败：「${asset.name}」`);
             }
         };
@@ -156,7 +154,7 @@ export function useFilmTaskRecovery(
             for (const shot of shotTargets) {
                 const pending = shot.pendingTask!;
                 if (Date.now() - pending.startedAt > TASK_MAX_AGE) {
-                    patchShot(shot.id, { errorMessage: "生成任务已超时，请重新生成", pendingTask: undefined });
+                    patchShot(shot.id, () => ({ errorMessage: "生成任务已超时，请重新生成", pendingTask: undefined }));
                     message.warning(`${shot.shotNo} 的生成任务已超时`);
                     continue;
                 }
@@ -169,7 +167,7 @@ export function useFilmTaskRecovery(
                     const count = (errorCountRef.current.get(shot.id) || 0) + 1;
                     errorCountRef.current.set(shot.id, count);
                     if (count >= MAX_POLL_ERRORS) {
-                        patchShot(shot.id, { errorMessage: "无法恢复该生成任务，请重新生成", pendingTask: undefined });
+                        patchShot(shot.id, () => ({ errorMessage: "无法恢复该生成任务，请重新生成", pendingTask: undefined }));
                         message.warning(`${shot.shotNo} 的生成任务无法恢复，请重新生成`);
                         errorCountRef.current.delete(shot.id);
                     }
@@ -181,6 +179,9 @@ export function useFilmTaskRecovery(
             const assetTargets: Array<{ kind: FilmAssetKind; asset: FilmAsset }> = [
                 ...(current.characters || []).map((asset) => ({ kind: "character" as const, asset })),
                 ...(current.locations || []).map((asset) => ({ kind: "location" as const, asset })),
+                ...(current.props || []).map((asset) => ({ kind: "prop" as const, asset })),
+                ...(current.costumes || []).map((asset) => ({ kind: "costume" as const, asset })),
+                ...(current.style ? [{ kind: "style" as const, asset: current.style }] : []),
             ].filter(({ asset }) => asset.pendingTask
                 && !assetIds.includes(asset.id)
                 && !pollingRef.current.has(asset.id));

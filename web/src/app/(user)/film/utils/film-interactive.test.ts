@@ -8,12 +8,12 @@ function makeProject(shots: FilmShot[], variables: FilmProject["interactiveVaria
     return {
         id: "p1", title: "t", visualStyle: "", aspect: "16:9", stylePreset: "cinematic", stage: "storyboard", scriptText: "",
         episodes: [{ id: "e1", title: "第1集", scenes: [{ id: "sc1", name: "1-1 街道", location: "", time: "", mood: "", shots }] }],
-        characters: [], locations: [], interactiveVariables: variables, createdAt: "", updatedAt: "",
+        characters: [], locations: [], props: [], costumes: [], interactiveVariables: variables, createdAt: "", updatedAt: "",
     };
 }
 
 function shot(id: string, branch?: FilmShotBranch): FilmShot {
-    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], branches: branch ? [branch] : undefined };
+    return { id, shotNo: id, shotType: "WS", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", characterBindings: [], propBindings: [], branches: branch ? [branch] : undefined };
 }
 
 const variables = [

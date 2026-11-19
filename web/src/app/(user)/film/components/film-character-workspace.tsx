@@ -1,110 +1,110 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { App, Button, Checkbox, Dropdown, Image, Input, Modal, Select, Spin } from "antd";
-import { Download, FolderOpen, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { App, Button, Checkbox, Image, Input, Modal, Select, Spin } from "antd";
+import { Download, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, UserRound } from "lucide-react";
 
-import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/state-panel";
 import { useDownloadFile } from "@/hooks/use-download-file";
 import { cn } from "@/lib/utils";
 import styles from "./film-character.module.css";
-import { uploadImage } from "@/services/image-storage";
-import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProp, FilmCharacterState, FilmImageRef, FilmProject } from "@/lib/film/types";
-import { useFilmCastStore } from "@/stores/use-film-cast-store";
+import type { FilmAsset, FilmCharacterPartKey, FilmCharacterProfile, FilmCharacterState, FilmProject } from "@/lib/film/types";
 import { useFilmCharacterImage } from "../hooks/use-film-character-image";
+import { useFilmAssetLibrary } from "../hooks/use-film-asset-library";
 import { useElapsedSeconds } from "../hooks/use-elapsed-seconds";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
-import { addFilmAsset, importFilmAsset, removeFilmAsset } from "../utils/film-edits";
-import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, createCharacterState, createEmptyCharacterProfile, ensureCharacterProfile, characterPartLabel, isCharacterCardStale } from "../utils/film-character";
+import { addFilmAsset, removeFilmAsset } from "../utils/film-edits";
+import { CHARACTER_PART_DEFINITIONS, characterMasterImages, characterProgress, createCharacterState, ensureCharacterProfile, characterPartLabel, isCharacterCardStale } from "../utils/film-character";
+import { activeSlotImage } from "../utils/film-image-slot";
+import { latestFilmAssetPatch, latestFilmAssets } from "../utils/film-live-project";
 import type { CharacterCardOptions } from "../utils/film-character-card";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "./film-asset-thumbnail";
+import { FilmImageSlotEditor } from "./film-image-slot-editor";
 
 type FilmCharacterWorkspaceProps = {
     project: FilmProject;
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
+    onGenerateConcept: (asset: FilmAsset) => void;
+    onStopConcept: () => void;
+    generatingAssetId: string;
+    focusAssetId?: string;
 };
 
-type UploadTargetInput = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | { kind: "state"; stateId: string };
-type UploadTarget = (UploadTargetInput & { characterId: string }) | null;
-
-function imageSourceMenuItems(onUpload: () => void, onPick: () => void) {
-    return [
-        { key: "upload", icon: <Upload className="size-3.5" />, label: "上传本地图片", onClick: onUpload },
-        { key: "asset", icon: <FolderOpen className="size-3.5" />, label: "从素材库选择", onClick: onPick },
-    ];
-}
-
-export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
+export function FilmCharacterWorkspace({ project, onUpdate, onGenerateConcept, onStopConcept, generatingAssetId, focusAssetId }: FilmCharacterWorkspaceProps) {
     const { message } = App.useApp();
     const confirm = useConfirm();
     const { confirmDelete } = useFilmDeleteConfirm();
     const downloadFile = useDownloadFile();
     const characters = useMemo(() => project.characters || [], [project.characters]);
-    const libraryCharacters = useFilmCastStore((state) => state.characters);
-    const addLibraryAsset = useFilmCastStore((state) => state.addAsset);
-    const { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard: createCard, stopCharacterImage } = useFilmCharacterImage(project, onUpdate);
+    const projectProps = useMemo(() => project.props || [], [project.props]);
+    const projectCostumes = useMemo(() => project.costumes || [], [project.costumes]);
+    const { generatingKey, batchProgress, generatePart, generateMissingParts, generateMaster, generateCard: createCard, generateExpression, stopCharacterImage } = useFilmCharacterImage(project, onUpdate);
+    const { library: libraryCharacters, entryFor: libraryEntryFor, isOutdated: libraryOutdated, save: saveToLibrary, pull: pullFromLibrary, importToProject } = useFilmAssetLibrary(project.id, "character", characters, onUpdate);
     const [selectedId, setSelectedId] = useState("");
     const [selectedPart, setSelectedPart] = useState<FilmCharacterPartKey>("face");
     const [previewMode, setPreviewMode] = useState<"master" | "part">("master");
-    const [masterPreviewId, setMasterPreviewId] = useState("");
     const [stageZoom, setStageZoom] = useState(1);
     const [composingCard, setComposingCard] = useState(false);
     const [cardOpen, setCardOpen] = useState(false);
     const [cardPreset, setCardPreset] = useState<NonNullable<CharacterCardOptions["preset"]>>("standard");
     const [cardBackground, setCardBackground] = useState<NonNullable<CharacterCardOptions["background"]>>("white");
     const [cardIncludeProps, setCardIncludeProps] = useState(true);
+    const [cardStateId, setCardStateId] = useState("");
+    const [expressionLabel, setExpressionLabel] = useState("");
+    const [expressionPrompt, setExpressionPrompt] = useState("");
     const elapsed = useElapsedSeconds(Boolean(generatingKey));
     const [importOpen, setImportOpen] = useState(false);
-    const uploadRef = useRef<HTMLInputElement>(null);
-    const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
-    const [assetPickerOpen, setAssetPickerOpen] = useState(false);
-    const [assetPickerTarget, setAssetPickerTarget] = useState<UploadTarget>(null);
 
     useEffect(() => {
         if (selectedId && characters.some((asset) => asset.id === selectedId)) return;
         setSelectedId(characters[0]?.id || "");
     }, [characters, selectedId]);
 
+    useEffect(() => {
+        if (!focusAssetId || !characters.some((asset) => asset.id === focusAssetId)) return;
+        setSelectedId(focusAssetId);
+        setPreviewMode("master");
+    }, [focusAssetId, characters]);
+
     const selected = characters.find((asset) => asset.id === selectedId) || null;
     const profile = selected ? ensureCharacterProfile(selected) : null;
     const part = profile ? profile.parts[selectedPart] : null;
     const progress = selected ? characterProgress(selected) : null;
     const masterImages = selected ? characterMasterImages(selected) : [];
-    const partImages = part?.images || [];
-    const cardImage = selected?.character?.card;
-    const cardStale = selected ? isCharacterCardStale(selected) : false;
-    const previewImages = previewMode === "master" ? masterImages : partImages;
-    const masterPreview = masterImages.find((image) => image.id === masterPreviewId) || masterImages[masterImages.length - 1];
-    const previewImage = previewMode === "master" ? masterPreview : previewImages[previewImages.length - 1];
+    const partImages = part?.slot.images || [];
+    const cardImage = activeSlotImage(profile?.card);
+    const cardStale = selected ? isCharacterCardStale(selected, { costumes: projectCostumes, props: projectProps }) : false;
+    const masterPreview = activeSlotImage(profile?.master);
+    const partPreview = activeSlotImage(part?.slot);
+    const previewImage = previewMode === "master" ? masterPreview : partPreview;
     const generatingPart = generatingKey === `part:${selectedPart}`;
     const generatingMaster = generatingKey === "master";
+    const generatingExpression = generatingKey === "expression";
 
     const createCharacter = () => {
-        const next = addFilmAsset(characters, "character");
-        const created: FilmAsset = { ...next[next.length - 1], character: createEmptyCharacterProfile() };
-        onUpdate({ characters: [...characters, created] });
-        setSelectedId(created.id);
+        const next = addFilmAsset(latestFilmAssets(project.id, "character")?.assets || characters, "character");
+        onUpdate({ characters: next });
+        setSelectedId(next[next.length - 1].id);
         setSelectedPart("face");
         setPreviewMode("master");
     };
 
-    const updateCharacter = (patch: Partial<FilmAsset>) => {
-        if (!selected) return;
-        onUpdate({ characters: characters.map((asset) => asset.id === selected.id ? { ...asset, ...patch } : asset) });
-    };
-
     const patchCharacter = (updater: (asset: FilmAsset) => FilmAsset) => {
         if (!selected) return;
-        onUpdate({ characters: characters.map((asset) => asset.id === selected.id ? updater(asset) : asset) });
+        const patch = latestFilmAssetPatch(project.id, "character", selected.id, (asset) => updater(asset));
+        if (patch) onUpdate(patch);
     };
 
-    const patchCharacterById = (characterId: string, updater: (asset: FilmAsset) => FilmAsset) => {
-        onUpdate({ characters: characters.map((asset) => asset.id === characterId ? updater(asset) : asset) });
+    const updateCharacter = (patch: Partial<FilmAsset>) => {
+        patchCharacter((asset) => ({ ...asset, ...patch }));
     };
 
-    const updatePart = (key: FilmCharacterPartKey, patch: Partial<{ prompt: string; notes: string; locked: boolean; images: FilmImageRef[] }>) => {
+    const patchProfile = (patch: Partial<FilmCharacterProfile>) => {
+        patchCharacter((asset) => ({ ...asset, character: { ...ensureCharacterProfile(asset), ...patch } }));
+    };
+
+    const updatePart = (key: FilmCharacterPartKey, patch: Partial<{ prompt: string; notes: string }>) => {
         patchCharacter((asset) => {
             const nextProfile = ensureCharacterProfile(asset);
             return {
@@ -118,21 +118,6 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         patchCharacter((asset) => {
             const nextProfile = ensureCharacterProfile(asset);
             return { ...asset, character: { ...nextProfile, states: nextProfile.states.map((state) => state.id === stateId ? { ...state, ...patch } : state) } };
-        });
-    };
-
-    const applyImageToTarget = (target: UploadTarget, image: FilmImageRef) => {
-        if (!target) return;
-        patchCharacterById(target.characterId, (asset) => {
-            const nextProfile = ensureCharacterProfile(asset);
-            if (target.kind === "part") {
-                const currentPart = nextProfile.parts[target.key];
-                return { ...asset, character: { ...nextProfile, parts: { ...nextProfile.parts, [target.key]: { ...currentPart, images: [...currentPart.images, image] } } } };
-            }
-            if (target.kind === "prop") {
-                return { ...asset, character: { ...nextProfile, props: nextProfile.props.map((prop) => prop.id === target.propId ? { ...prop, images: [...prop.images, image] } : prop) } };
-            }
-            return { ...asset, character: { ...nextProfile, states: nextProfile.states.map((state) => state.id === target.stateId ? { ...state, referenceImage: image } : state) } };
         });
     };
 
@@ -150,43 +135,11 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         });
     };
 
-    const updateProp = (propId: string, patch: Partial<FilmCharacterProp>) => {
-        patchCharacter((asset) => {
-            const nextProfile = ensureCharacterProfile(asset);
-            return {
-                ...asset,
-                character: { ...nextProfile, props: nextProfile.props.map((prop) => prop.id === propId ? { ...prop, ...patch } : prop) },
-            };
-        });
-    };
-
-    const addProp = () => {
-        patchCharacter((asset) => {
-            const nextProfile = ensureCharacterProfile(asset);
-            const prop: FilmCharacterProp = { id: `prop-${Date.now()}`, name: "新道具", type: "accessory", description: "", images: [], locked: false };
-            return { ...asset, character: { ...nextProfile, props: [...nextProfile.props, prop] } };
-        });
-    };
-
-    const removeProp = (propId: string) => {
-        patchCharacter((asset) => {
-            const nextProfile = ensureCharacterProfile(asset);
-            return { ...asset, character: { ...nextProfile, props: nextProfile.props.filter((prop) => prop.id !== propId) } };
-        });
-    };
-
-    const saveToLibrary = () => {
-        if (!selected) return;
-        addLibraryAsset("character", selected);
-        message.success("已存入角色库");
-    };
-
     const importFromLibrary = (asset: FilmAsset) => {
-        const next = importFilmAsset(characters, asset);
-        onUpdate({ characters: next });
-        setSelectedId(next[next.length - 1].id);
-        setImportOpen(false);
-        message.success("已导入当前项目");
+        importToProject(asset, (next) => {
+            setSelectedId(next[next.length - 1].id);
+            setImportOpen(false);
+        });
     };
 
     const removeSelected = () => {
@@ -197,69 +150,10 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
             detail: selected.description || "角色 · 未填写描述",
             confirmText: "删除角色",
             onConfirm: () => {
-                onUpdate({ characters: removeFilmAsset(characters, selected.id) });
+                onUpdate({ characters: removeFilmAsset(latestFilmAssets(project.id, "character")?.assets || characters, selected.id) });
                 setSelectedId("");
             },
         });
-    };
-
-    const triggerUpload = (target: UploadTargetInput) => {
-        if (!selected) return;
-        setUploadTarget({ ...target, characterId: selected.id });
-        uploadRef.current?.click();
-    };
-
-    const openAssetPicker = (target: UploadTargetInput) => {
-        if (!selected) return;
-        setAssetPickerTarget({ ...target, characterId: selected.id });
-        setAssetPickerOpen(true);
-    };
-
-    const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file || !uploadTarget) return;
-        try {
-            const uploaded = await uploadImage(file, { localOnly: true });
-            applyImageToTarget(uploadTarget, { id: `img-${Date.now()}`, url: uploaded.url, storageKey: uploaded.storageKey, source: "upload", createdAt: new Date().toISOString() });
-        } catch {
-            message.error("图片上传失败");
-        } finally {
-            setUploadTarget(null);
-        }
-    };
-
-    const handlePickedAsset = async (payload: InsertAssetPayload) => {
-        const target = assetPickerTarget;
-        if (!target) return;
-        if (payload.kind !== "image") {
-            message.warning("请选择图片素材");
-            return;
-        }
-        setAssetPickerOpen(false);
-        setAssetPickerTarget(null);
-        try {
-            if (payload.storageKey || payload.source === "library") {
-                applyImageToTarget(target, {
-                    id: `img-${Date.now()}`,
-                    url: payload.dataUrl,
-                    storageKey: payload.storageKey,
-                    source: payload.source === "library" ? "library" : "asset",
-                    createdAt: new Date().toISOString(),
-                });
-                return;
-            }
-            const uploaded = await uploadImage(payload.dataUrl, { localOnly: true });
-            applyImageToTarget(target, {
-                id: `img-${Date.now()}`,
-                url: uploaded.url,
-                storageKey: uploaded.storageKey,
-                source: "asset",
-                createdAt: new Date().toISOString(),
-            });
-        } catch {
-            message.error("素材引入失败");
-        }
     };
 
     const selectPart = (key: FilmCharacterPartKey) => {
@@ -270,7 +164,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
     const confirmGeneratePart = async (key: FilmCharacterPartKey) => {
         if (!selected || batchProgress) return;
         const currentPart = ensureCharacterProfile(selected).parts[key];
-        if (currentPart.locked) {
+        if (currentPart.slot.locked) {
             message.warning("该部位已锁定，先解锁再生成");
             return;
         }
@@ -287,7 +181,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         if (!selected || composingCard) return;
         setComposingCard(true);
         try {
-            const ok = await createCard(selected.id, { preset: cardPreset, background: cardBackground, includeProps: cardIncludeProps });
+            const ok = await createCard(selected.id, { preset: cardPreset, background: cardBackground, includeProps: cardIncludeProps, stateId: cardStateId || undefined });
             if (ok) {
                 setCardOpen(false);
                 setPreviewMode("master");
@@ -303,20 +197,9 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         downloadFile(cardImage.url, `${selected.name}-角色卡.png`);
     };
 
-    const toggleMasterLock = () => {
-        patchCharacter((asset) => {
-            const nextProfile = ensureCharacterProfile(asset);
-            return { ...asset, character: { ...nextProfile, masterLocked: !nextProfile.masterLocked } };
-        });
-    };
-
     useEffect(() => {
         if (previewMode === "part" && !partImages.length && masterImages.length) setPreviewMode("master");
     }, [previewMode, partImages.length, masterImages.length]);
-
-    useEffect(() => {
-        setMasterPreviewId("");
-    }, [selectedId]);
 
     return (
         <>
@@ -346,7 +229,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                         <FilmAssetThumbnail asset={asset} className="size-10 shrink-0 rounded-md border border-border/60" />
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
-                                            <span className="mt-0.5 block font-mono text-[9px] text-muted-foreground/60">{info.master ? "已合成" : "未合成"}</span>
+                                            <span className="mt-0.5 block font-mono text-[9px] text-muted-foreground/60">{info.master ? "已合成" : "未合成"} · 表情 {info.expressions}</span>
                                         </span>
                                         <span className="relative grid size-8 shrink-0 place-items-center">
                                             <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90">
@@ -366,6 +249,22 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                 <Input size="small" value={selected.aliases.join("，")} placeholder="使用逗号分隔" onChange={(event) => updateCharacter({ aliases: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
                             </div>
                         ) : null}
+
+                        {selected ? (
+                            <div className="mt-3 grid gap-1.5 rounded-md border border-border/50 bg-background/25 p-2">
+                                <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/60 uppercase">标志性道具</span>
+                                <Select
+                                    size="small"
+                                    mode="multiple"
+                                    allowClear
+                                    value={profile?.propIds || []}
+                                    placeholder={projectProps.length ? "选择项目道具" : "先在道具工作台新建道具"}
+                                    options={projectProps.map((item) => ({ value: item.id, label: item.name }))}
+                                    onChange={(propIds: string[]) => patchProfile({ propIds })}
+                                />
+                            </div>
+                        ) : null}
+
                         <div className="mt-4 flex items-center gap-2">
                             <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">造型状态</span>
                             <Button size="small" type="text" icon={<Plus className="size-3.5" />} onClick={addState} disabled={!selected} aria-label="添加造型状态" />
@@ -376,40 +275,28 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                     <Input size="small" value={state.name} placeholder="状态名称" onChange={(event) => updateState(state.id, { name: event.target.value })} />
                                     <Button type="text" size="small" danger className="!h-7 !w-7 !min-w-7 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="删除造型状态" onClick={() => removeState(state.id)} />
                                 </div>
-                                <Input size="small" value={state.outfit} placeholder="服装" onChange={(event) => updateState(state.id, { outfit: event.target.value })} />
-                                <Input size="small" value={state.physicalCondition} placeholder="身体状态" onChange={(event) => updateState(state.id, { physicalCondition: event.target.value })} />
+                                <Select
+                                    size="small"
+                                    allowClear
+                                    value={state.costumeId}
+                                    placeholder={projectCostumes.length ? "选择服装" : "先在服装工作台新建服装"}
+                                    options={projectCostumes.map((item) => ({ value: item.id, label: item.name }))}
+                                    onChange={(costumeId?: string) => updateState(state.id, { costumeId })}
+                                />
+                                <Input size="small" value={state.condition} placeholder="状况：破损、血迹、湿身…" onChange={(event) => updateState(state.id, { condition: event.target.value })} />
                                 <Input size="small" value={state.description} placeholder="状态说明" onChange={(event) => updateState(state.id, { description: event.target.value })} />
-                                <Input size="small" value={state.heldProps.join("，")} placeholder="持有道具，用逗号分隔" onChange={(event) => updateState(state.id, { heldProps: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
-                                <div className="flex items-center gap-2">
-                                    {state.referenceImage ? <FilmImageThumbnail url={state.referenceImage.url} storageKey={state.referenceImage.storageKey} alt={`${state.name}参考图`} className="size-10 rounded border border-border/60" /> : <span className="grid size-10 place-items-center rounded border border-dashed border-border/60 text-muted-foreground/50"><ImagePlus className="size-3.5" /></span>}
-                                    <Dropdown trigger={["click"]} menu={{ items: imageSourceMenuItems(() => triggerUpload({ kind: "state", stateId: state.id }), () => openAssetPicker({ kind: "state", stateId: state.id })) }}>
-                                        <Button size="small" type="text" icon={<Upload className="size-3.5" />}>状态参考</Button>
-                                    </Dropdown>
-                                </div>
+                                <Select
+                                    size="small"
+                                    mode="multiple"
+                                    allowClear
+                                    value={state.heldPropIds}
+                                    placeholder="持有道具"
+                                    options={projectProps.map((item) => ({ value: item.id, label: item.name }))}
+                                    onChange={(heldPropIds: string[]) => updateState(state.id, { heldPropIds })}
+                                />
+                                <FilmImageSlotEditor slot={state.look} onChange={(look) => updateState(state.id, { look })} nextLabel={state.name} thumbClassName="h-12" />
                             </div>
                         )) : null}
-
-                        <div className="mt-4 flex items-center gap-2">
-                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">道具 / 饰品</span>
-                            <Button size="small" type="text" icon={<Plus className="size-3.5" />} onClick={addProp} disabled={!selected} aria-label="添加道具" />
-                        </div>
-                        {selected && ensureCharacterProfile(selected).props.length === 0 ? <p className="mt-1 text-[10px] leading-4 text-muted-foreground/60">还没有道具，比如发饰、武器、手部饰品。</p> : null}
-                        <div className="mt-2 grid gap-1.5">
-                            {selected ? ensureCharacterProfile(selected).props.map((prop) => (
-                                <div key={prop.id} className="flex items-center gap-1.5 rounded-md border border-border/60 bg-background/30 p-1.5">
-                                    <FilmImageThumbnail url={prop.images[0]?.url} storageKey={prop.images[0]?.storageKey} alt={prop.name} className="size-8 shrink-0 rounded border border-border/60" />
-                                    <input value={prop.name} onChange={(event) => updateProp(prop.id, { name: event.target.value })} className="min-w-0 flex-1 rounded border border-border/60 bg-background/40 px-1.5 py-1 text-[11px] text-foreground" />
-                                    <Dropdown trigger={["click"]} menu={{ items: imageSourceMenuItems(() => triggerUpload({ kind: "prop", propId: prop.id }), () => openAssetPicker({ kind: "prop", propId: prop.id })) }}>
-                                        <button type="button" aria-label="选择道具图" className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground">
-                                            <Upload className="size-3" />
-                                        </button>
-                                    </Dropdown>
-                                    <button type="button" aria-label="删除道具" className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-hot" onClick={() => removeProp(prop.id)}>
-                                        <Trash2 className="size-3" />
-                                    </button>
-                                </div>
-                            )) : null}
-                        </div>
                     </div>
                 </section>
 
@@ -417,7 +304,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2.5">
                         <span className="eyebrow">03 角色舞台</span>
                         {selected ? <Input size="small" className="h-7 max-w-40" value={selected.name} onChange={(event) => updateCharacter({ name: event.target.value })} /> : null}
-                        {progress ? <span className="ml-auto font-mono text-[10px] text-muted-foreground/60">{progress.master ? "已合成" : "未合成"} · 锁定 {progress.locked}</span> : null}
+                        {progress ? <span className="ml-auto font-mono text-[10px] text-muted-foreground/60">{progress.master ? "已合成" : "未合成"} · 锁定 {progress.locked} · 表情 {progress.expressions}</span> : null}
                     </div>
 
                     {!selected ? (
@@ -425,7 +312,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                             className="flex-1 py-10"
                             icon={<UserRound className="size-5" />}
                             title="还没有角色"
-                            description={`新建角色后按「${CHARACTER_PART_DEFINITIONS.map((part) => part.label).join(" → ")}」逐块补齐参考。`}
+                            description={`新建角色后按「${CHARACTER_PART_DEFINITIONS.map((item) => item.label).join(" → ")}」逐块补齐参考。`}
                             action={<Button size="small" type="primary" icon={<Plus className="size-3.5" />} onClick={createCharacter}>新建第一个角色</Button>}
                         />
                     ) : (
@@ -453,10 +340,10 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                                 <button type="button" aria-label="放大预览" className="grid size-4 place-items-center rounded text-muted-foreground/70 hover:text-foreground" onClick={() => setStageZoom((value) => Math.min(1.6, Number((value + 0.1).toFixed(2))))}>+</button>
                                                 <button type="button" aria-label="重置缩放" className="ml-0.5 font-mono text-[8px] text-muted-foreground/50 hover:text-foreground" onClick={() => setStageZoom(1)}>重置</button>
                                             </div>
-                                            <span className="chip">{previewImages.length} 图</span>
+                                            <span className="chip">{previewMode === "master" ? masterImages.length : partImages.length} 图</span>
                                             {cardImage ? <span className="chip chip-acid">角色卡</span> : null}
                                             {cardStale ? <button type="button" className="chip chip-acid" onClick={() => setCardOpen(true)}>角色卡需更新</button> : null}
-                                            {profile?.masterLocked ? <span className="chip">合成图已锁定</span> : null}
+                                            {profile?.master.locked ? <span className="chip">合成图已锁定</span> : null}
                                         </div>
                                     </div>
 
@@ -484,27 +371,14 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                         ) : null}
                                     </div>
 
-                                    {masterImages.length > 1 ? (
-                                        <div className="relative z-10 flex items-center gap-1.5 overflow-x-auto pb-1">
-                                            <span className="font-mono text-[9px] text-muted-foreground/50">合成历史</span>
-                                            {masterImages.map((image, index) => (
-                                                <button
-                                                    key={image.id}
-                                                    type="button"
-                                                    onClick={() => { setMasterPreviewId(image.id); setPreviewMode("master"); }}
-                                                    className={cn("relative h-10 w-14 shrink-0 overflow-hidden rounded border transition-colors", masterPreview?.id === image.id ? "border-acid" : "border-border/60 hover:border-acid/50")}
-                                                >
-                                                    <FilmImageThumbnail url={image.url} storageKey={image.storageKey} alt={`合成版本 ${index + 1}`} className="h-10 w-full" />
-                                                    <span className="absolute left-0.5 top-0.5 rounded bg-background/80 px-1 font-mono text-[7px] text-foreground/70">v{index + 1}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    ) : null}
+                                    <div className="relative z-10 rounded-md border border-border/50 bg-background/50 p-2">
+                                        <FilmImageSlotEditor slot={profile!.master} onChange={(master) => patchProfile({ master })} thumbClassName="h-12" disabled={generatingMaster} />
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-border/60 bg-background/70 p-2 backdrop-blur">
-                                    <Button size="small" type="primary" loading={generatingMaster} disabled={Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMaster(selected.id)}>生成全身合成图</Button>
-                                    <Button size="small" loading={generatingPart} disabled={Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void confirmGeneratePart(selectedPart)}>生成{characterPartLabel(selectedPart)}</Button>
+                                    <Button size="small" type="primary" loading={generatingMaster} disabled={Boolean(batchProgress) || profile?.master.locked} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMaster(selected.id)}>生成全身合成图</Button>
+                                    <Button size="small" loading={generatingPart} disabled={Boolean(batchProgress) || part?.slot.locked} icon={<Sparkles className="size-3.5" />} onClick={() => void confirmGeneratePart(selectedPart)}>生成{characterPartLabel(selectedPart)}</Button>
                                     <Button size="small" loading={Boolean(batchProgress)} disabled={generatingMaster || generatingPart} icon={<Sparkles className="size-3.5" />} onClick={() => void generateMissingParts(selected.id)}>
                                         {batchProgress ? `补齐中 ${batchProgress.done}/${batchProgress.total}` : "补齐缺失部位"}
                                     </Button>
@@ -512,8 +386,9 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                         生成角色卡
                                     </Button>
                                     <Button size="small" disabled={!cardImage} icon={<Download className="size-3.5" />} onClick={downloadCard}>下载角色卡</Button>
-                                    <Button size="small" icon={profile?.masterLocked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={toggleMasterLock}>{profile?.masterLocked ? "已锁定" : "锁定合成图"}</Button>
-                                    <Button size="small" icon={<Library className="size-3.5" />} onClick={saveToLibrary}>存入角色库</Button>
+                                    <Button size="small" icon={<Library className="size-3.5" />} onClick={() => void saveToLibrary(selected)}>{libraryEntryFor(selected) ? "更新角色库" : "存入角色库"}</Button>
+                                    {libraryEntryFor(selected) ? <Button size="small" onClick={() => void pullFromLibrary(selected)}>从库更新</Button> : null}
+                                    {libraryOutdated(selected) ? <span className="chip chip-acid">库有更新</span> : null}
                                     {generatingKey || batchProgress ? <Button size="small" danger onClick={stopCharacterImage}>停止生成</Button> : null}
                                     <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={removeSelected}>删除</Button>
                                 </div>
@@ -539,38 +414,32 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                     <div className="relative flex shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-border/60 px-4 py-3">
                         <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/40 via-border/40 to-transparent" />
                         <span className="eyebrow">04 {characterPartLabel(selectedPart)}参考</span>
-                        {part?.locked ? <span className="chip chip-acid">锁定</span> : null}
+                        {part?.slot.locked ? <span className="chip chip-acid">锁定</span> : null}
                     </div>
                     {selected ? (
                         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
                             <div className="grid gap-3">
-                                <div className="grid grid-cols-4 gap-1.5">
-                                    {partImages.map((image) => (
-                                        <div key={image.id} className="group/image relative overflow-hidden rounded-md border border-border/60">
-                                            <FilmImageThumbnail url={image.url} storageKey={image.storageKey} alt="参考图" className="h-14 w-full" />
-                                            <button
-                                                type="button"
-                                                aria-label="删除参考图"
-                                                className="absolute right-0.5 top-0.5 hidden size-4 place-items-center rounded-full border border-border bg-background text-muted-foreground hover:text-hot group-hover/image:grid"
-                                                onClick={() => updatePart(selectedPart, { images: partImages.filter((item) => item.id !== image.id) })}
-                                            >
-                                                <Trash2 className="size-2.5" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                    <Dropdown trigger={["click"]} menu={{ items: imageSourceMenuItems(() => triggerUpload({ kind: "part", key: selectedPart }), () => openAssetPicker({ kind: "part", key: selectedPart })) }}>
-                                        <button type="button" title="上传或从素材库选择" className="grid h-14 place-items-center rounded-md border border-dashed border-border/60 text-muted-foreground/50 transition-colors hover:border-acid/50 hover:text-acid">
-                                            <ImagePlus className="size-4" />
-                                        </button>
-                                    </Dropdown>
+                                <div className="grid gap-2 rounded-md border border-border/50 bg-background/25 p-2">
+                                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">角色概念图</span>
+                                    <FilmImageSlotEditor slot={selected.concept} onChange={(concept) => updateCharacter({ concept })} nextLabel="概念图" disabled={generatingAssetId === selected.id} />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Button size="small" loading={generatingAssetId === selected.id} disabled={selected.concept.locked} icon={<Sparkles className="size-3.5" />} onClick={() => onGenerateConcept(selected)}>
+                                            {selected.concept.images.length ? "重新生成概念图" : "生成概念图"}
+                                        </Button>
+                                        {generatingAssetId === selected.id ? <Button size="small" danger onClick={onStopConcept}>停止生成</Button> : null}
+                                    </div>
                                 </div>
+                                <FilmImageSlotEditor slot={part!.slot} onChange={(slot) => patchCharacter((asset) => {
+                                    const nextProfile = ensureCharacterProfile(asset);
+                                    return { ...asset, character: { ...nextProfile, parts: { ...nextProfile.parts, [selectedPart]: { ...nextProfile.parts[selectedPart], slot } } } };
+                                })} disabled={generatingPart} />
                                 <div className="flex flex-wrap items-center gap-1">
                                     <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">参考来源</span>
-                                    {selectedPart !== "face" && profile && profile.parts.face.images.length ? <span className="chip">面部 ×{profile.parts.face.images.length}</span> : null}
+                                    {selectedPart !== "face" && profile && profile.parts.face.slot.images.length ? <span className="chip">面部 ×{profile.parts.face.slot.images.length}</span> : null}
                                     {cardImage ? <span className="chip">角色卡</span> : null}
                                     {masterImages.length ? <span className="chip">全身 ×{masterImages.length}</span> : null}
                                     {partImages.length ? <span className="chip">本部位 ×{partImages.length}</span> : null}
-                                    {!(selectedPart !== "face" && profile?.parts.face.images.length) && !masterImages.length && !partImages.length ? <span className="text-[10px] text-muted-foreground/60">暂无参考，将按文字描述生成</span> : null}
+                                    {!(selectedPart !== "face" && profile?.parts.face.slot.images.length) && !masterImages.length && !partImages.length ? <span className="text-[10px] text-muted-foreground/60">暂无参考，将按文字描述生成</span> : null}
                                 </div>
                                 <label className="grid gap-1">
                                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">部位提示词</span>
@@ -580,25 +449,36 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">备注</span>
                                     <Input value={part?.notes || ""} placeholder="材质、颜色、细节补充" onChange={(event) => updatePart(selectedPart, { notes: event.target.value })} />
                                 </label>
-                                <p className="text-[11px] leading-5 text-muted-foreground/70">生成时会自动带上面部参考和全身合成图；锁定后的部位不会被后续生成覆盖。</p>
+                                <p className="text-[11px] leading-5 text-muted-foreground/70">生成时会自动带上面部与全身合成图的当前版本；锁定只拦生成，不影响选优与评分。</p>
+
+                                <div className="grid gap-2 rounded-md border border-border/50 bg-background/25 p-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">表情集</span>
+                                        <span className="font-mono text-[9px] text-muted-foreground/50">{profile?.expressions.images.length || 0} 张</span>
+                                        {profile?.expressions.locked ? <span className="chip chip-acid">锁定</span> : null}
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <Input size="small" value={expressionLabel} placeholder="表情名：喜 / 怒 / 哀 / 惊" onChange={(event) => setExpressionLabel(event.target.value)} />
+                                        <Button size="small" loading={generatingExpression} disabled={Boolean(profile?.expressions.locked)} icon={<Sparkles className="size-3.5" />} onClick={() => void generateExpression(selected.id, expressionLabel, expressionPrompt)}>生成</Button>
+                                    </div>
+                                    <Input size="small" value={expressionPrompt} placeholder="可选：补充表情提示词" onChange={(event) => setExpressionPrompt(event.target.value)} />
+                                    <FilmImageSlotEditor slot={profile!.expressions} onChange={(expressions) => patchProfile({ expressions })} nextLabel={expressionLabel || "表情"} thumbClassName="h-12" disabled={generatingExpression} />
+                                </div>
                             </div>
                         </div>
                     ) : null}
                     {selected ? (
                         <div className="flex shrink-0 items-center gap-2 border-t border-border/60 bg-background/60 px-4 py-2.5">
-                            <Button size="small" type="primary" loading={generatingPart} disabled={Boolean(part?.locked) || Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void generatePart(selected.id, selectedPart)}>生成本部位</Button>
-                            <Button size="small" icon={part?.locked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />} onClick={() => updatePart(selectedPart, { locked: !part?.locked })}>{part?.locked ? "解锁" : "锁定"}</Button>
+                            <Button size="small" type="primary" loading={generatingPart} disabled={Boolean(part?.slot.locked) || Boolean(batchProgress)} icon={<Sparkles className="size-3.5" />} onClick={() => void generatePart(selected.id, selectedPart)}>生成本部位</Button>
+                            <span className="text-[10px] text-muted-foreground/60">锁定状态在上方版本池切换。</span>
                         </div>
                     ) : (
-                        <EmptyState className="flex-1 py-10" icon={<ImagePlus className="size-5" />} title="选择一个角色" description="左侧选择角色后，这里会显示面部、身体和道具参考图。" />
+                        <EmptyState className="flex-1 py-10" icon={<ImagePlus className="size-5" />} title="选择一个角色" description="左侧选择角色后，这里会显示部位、表情与参考图。" />
                     )}
                 </section>
             </div>
 
-            <input ref={uploadRef} hidden type="file" accept="image/*" onChange={handleFile} />
-            <AssetPickerModal open={assetPickerOpen} defaultTab="my-assets" kind="image" onInsert={(payload) => void handlePickedAsset(payload)} onClose={() => { setAssetPickerOpen(false); setAssetPickerTarget(null); }} />
-
-            <Modal title="生成角色卡" open={cardOpen} onCancel={() => { if (!composingCard) setCardOpen(false); }} mask={{ closable: !composingCard }} footer={null} width={520}>
+            <Modal title="生成角色卡" open={cardOpen} onCancel={() => { if (!composingCard) setCardOpen(false); }} mask={{ closable: !composingCard }} footer={null} width={560}>
                 <div className="grid gap-3">
                     <label className="grid gap-1">
                         <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">版式</span>
@@ -619,12 +499,29 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                             options={[{ value: "white", label: "纯白" }, { value: "gray", label: "浅灰" }]}
                         />
                     </label>
-                    <Checkbox checked={cardIncludeProps} onChange={(event) => setCardIncludeProps(event.target.checked)}>包含道具 / 饰品</Checkbox>
+                    <label className="grid gap-1">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">造型（取服装与持有道具）</span>
+                        <Select
+                            allowClear
+                            value={cardStateId || undefined}
+                            placeholder="默认只取标志性道具"
+                            options={(profile?.states || []).map((state) => ({ value: state.id, label: state.name }))}
+                            onChange={(value?: string) => setCardStateId(value || "")}
+                        />
+                    </label>
+                    <Checkbox checked={cardIncludeProps} onChange={(event) => setCardIncludeProps(event.target.checked)}>包含道具</Checkbox>
                     <p className="text-[11px] leading-5 text-muted-foreground/70">
                         {masterImages.length ? "角色卡由浏览器本地拼合，不额外消耗生成次数；分镜生成默认只引用这一张。" : "还没有全身图，确认后会先生成一张全身三视图（消耗一次生成），再拼成角色卡。"}
                     </p>
+                    {profile?.card.images.length ? (
+                        <div className="grid gap-1">
+                            <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">角色卡版本</span>
+                            <FilmImageSlotEditor slot={profile.card} onChange={(card) => patchProfile({ card })} nextLabel="角色卡" thumbClassName="h-12" />
+                        </div>
+                    ) : null}
                     <div className="flex justify-end gap-2">
                         <Button onClick={() => setCardOpen(false)} disabled={composingCard}>取消</Button>
+                        {cardImage ? <Button icon={<Download className="size-4" />} onClick={downloadCard}>下载</Button> : null}
                         {composingCard ? <Button danger onClick={stopCharacterImage}>停止生成</Button> : null}
                         <Button type="primary" loading={composingCard} onClick={() => void generateCard()}>生成角色卡</Button>
                     </div>
@@ -636,10 +533,11 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                 <div className="thin-scrollbar grid max-h-[60dvh] gap-2 overflow-y-auto sm:grid-cols-2">
                     {libraryCharacters.map((asset) => (
                         <button key={asset.id} type="button" onClick={() => importFromLibrary(asset)} className="flex items-center gap-2.5 rounded-lg border border-border/70 bg-card/50 p-2 text-left transition-colors hover:border-acid/50">
-                            <FilmImageThumbnail url={asset.imageUrl} storageKey={asset.storageKey} alt={asset.name} className="size-12 shrink-0 rounded-md border border-border/60" />
+                            <FilmAssetThumbnail asset={asset} className="size-12 shrink-0 rounded-md border border-border/60" />
                             <span className="min-w-0">
                                 <span className="block truncate text-xs font-medium text-foreground">{asset.name}</span>
                                 <span className="mt-0.5 line-clamp-1 block text-[10px] leading-4 text-muted-foreground/70">{asset.description || "未填写描述"}</span>
+                                <span className="mt-0.5 block font-mono text-[9px] text-muted-foreground/50">更新于 {new Date(asset.updatedAt).toLocaleString("zh-CN", { hour12: false })}</span>
                             </span>
                         </button>
                     ))}
@@ -659,7 +557,7 @@ function PartSlot({ partKey, profile, selected, generating, onSelect, onGenerate
 }) {
     const definition = CHARACTER_PART_DEFINITIONS.find((item) => item.key === partKey)!;
     const current = profile.parts[partKey];
-    const latest = current.images[current.images.length - 1];
+    const latest = activeSlotImage(current.slot);
     return (
         <div
             role="button"
@@ -681,7 +579,7 @@ function PartSlot({ partKey, profile, selected, generating, onSelect, onGenerate
                         <ImageIcon className="size-4" aria-hidden />
                     </span>
                 )}
-                {current.locked ? <span className="absolute right-1 top-1 grid size-4 place-items-center rounded bg-background/80 text-acid"><Lock className="size-2.5" /></span> : null}
+                {current.slot.locked ? <span className="absolute right-1 top-1 grid size-4 place-items-center rounded bg-background/80 text-acid"><Lock className="size-2.5" /></span> : null}
                 {generating ? (
                     <span className="absolute inset-0 grid place-items-center bg-background/60"><Spin size="small" /></span>
                 ) : (
@@ -700,7 +598,7 @@ function PartSlot({ partKey, profile, selected, generating, onSelect, onGenerate
             </span>
             <span className="flex items-center justify-between gap-1 px-1.5 py-1">
                 <span className="truncate text-[10px] text-foreground/80">{definition.label}</span>
-                <span className="font-mono text-[9px] text-muted-foreground/50">{current.images.length}</span>
+                <span className="font-mono text-[9px] text-muted-foreground/50">{current.slot.images.length}</span>
             </span>
         </div>
     );

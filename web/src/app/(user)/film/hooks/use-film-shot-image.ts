@@ -6,11 +6,12 @@ import { App } from "antd";
 import type { SeedableImageConfig } from "@/services/api/image";
 import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import type { FilmProject, FilmShot } from "@/lib/film/types";
-import { updateFilmShot } from "../utils/film-edits";
+
 import { flattenFilmShots } from "../utils/parse-script";
 import { runImageTask, stopFilmImageTask } from "../utils/film-image-task";
 import { withImageVersion } from "../utils/film-versions";
 import { normalizeFilmAspect } from "@/lib/film/film-aspects";
+import { latestFilmShotPatch } from "../utils/film-live-project";
 import { selectFilmBatchShots } from "../utils/film-batch";
 import { previousFilmShot } from "../utils/film-continuity-sheet";
 import { buildFilmShotGenerationContext, FILM_IMAGE_REFERENCE_LIMIT } from "../utils/film-shot-generation";
@@ -45,6 +46,11 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
         return config ? { ...config, count: "1", size: normalizeFilmAspect(current.aspect) } as SeedableImageConfig : null;
     };
 
+    const patchShot = (shotId: string, updater: (shot: FilmShot) => Partial<FilmShot>) => {
+        const patch = latestFilmShotPatch(projectRef.current?.id, shotId, updater);
+        if (patch) onUpdate(patch);
+    };
+
     const generate = async (shot: FilmShot) => {
         const current = projectRef.current;
         if (!current || busy) return;
@@ -64,15 +70,12 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
             const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
             const generationContext = { ...context, missingReferenceIds };
             const { imageUrl, storageKey } = await runImageTask(config, generationContext.prompt, images, shot.id, {
-                onTask: (task) => onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now(), generationContext } }) }),
+                onTask: (task) => patchShot(shot.id, () => ({ pendingTask: { kind: "image", id: task.id, startedAt: Date.now(), generationContext } })),
             });
-            const latestShot = flattenFilmShots(projectRef.current?.episodes || []).find((item) => item.id === shot.id) ?? shot;
-            onUpdate({
-                episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey, generationContext), pendingTask: undefined }),
-            });
+            patchShot(shot.id, (latestShot) => ({ ...withImageVersion(latestShot, imageUrl, storageKey, generationContext), pendingTask: undefined }));
             message.success("分镜图已生成");
         } catch (error) {
-            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: errorMessage(error, "分镜图生成失败"), pendingTask: undefined }) });
+            patchShot(shot.id, () => ({ errorMessage: errorMessage(error, "分镜图生成失败"), pendingTask: undefined }));
             message.error(errorMessage(error, "分镜图生成失败"));
         } finally {
             setGeneratingShotId("");
@@ -121,21 +124,18 @@ export function useFilmShotImage(project: FilmProject | undefined, onUpdate: (pa
                         signal: controller.signal,
                         onTask: (task) => {
                             batchTaskIdRef.current = task.id;
-                            onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: { kind: "image", id: task.id, startedAt: Date.now(), generationContext } }) });
+                            patchShot(shot.id, () => ({ pendingTask: { kind: "image", id: task.id, startedAt: Date.now(), generationContext } }));
                         },
                     });
-                    const latestShot = flat.find((item) => item.id === shot.id) ?? shot;
-                    onUpdate({
-                        episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { ...withImageVersion(latestShot, imageUrl, storageKey, generationContext), pendingTask: undefined }),
-                    });
+                    patchShot(shot.id, (latestShot) => ({ ...withImageVersion(latestShot, imageUrl, storageKey, generationContext), pendingTask: undefined }));
                     succeeded += 1;
                 } catch (error) {
                     if (stopBatchRef.current) {
                         stopped = true;
-                        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { pendingTask: undefined }) });
+                        patchShot(shot.id, () => ({ pendingTask: undefined }));
                     } else {
                         failed += 1;
-                        onUpdate({ episodes: updateFilmShot(projectRef.current?.episodes || [], shot.id, { errorMessage: errorMessage(error, "分镜图生成失败"), pendingTask: undefined }) });
+                        patchShot(shot.id, () => ({ errorMessage: errorMessage(error, "分镜图生成失败"), pendingTask: undefined }));
                     }
                 } finally {
                     batchControllerRef.current = null;

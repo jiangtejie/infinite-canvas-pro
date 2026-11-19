@@ -5,6 +5,8 @@ import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FilmAsset } from "@/lib/film/types";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
+import { characterPackageImage } from "../utils/film-character";
+import { activeSlotImage } from "../utils/film-image-slot";
 
 export function FilmImageThumbnail({ url, storageKey, alt, className }: { url?: string; storageKey?: string; alt?: string; className?: string }) {
     const src = useFilmImageUrl(url, storageKey);
@@ -19,5 +21,6 @@ export function FilmImageThumbnail({ url, storageKey, alt, className }: { url?: 
 }
 
 export function FilmAssetThumbnail({ asset, className }: { asset: FilmAsset; className?: string }) {
-    return <FilmImageThumbnail url={asset.imageUrl} storageKey={asset.storageKey} alt={asset.name} className={className} />;
+    const image = activeSlotImage(asset.concept) || characterPackageImage(asset);
+    return <FilmImageThumbnail url={image?.url} storageKey={image?.storageKey} alt={asset.name} className={className} />;
 }

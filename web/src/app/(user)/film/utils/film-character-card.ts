@@ -2,7 +2,8 @@ import { nanoid } from "nanoid";
 
 import { resolveImageUrl, uploadImage } from "@/services/image-storage";
 import type { FilmAsset, FilmImageRef } from "@/lib/film/types";
-import { characterMasterImages, ensureCharacterProfile, filmCharacterSignature } from "./film-character";
+import { characterMasterImages, ensureCharacterProfile, filmCharacterSignature, findFilmCharacterState } from "./film-character";
+import { activeSlotImage } from "./film-image-slot";
 
 const CARD_WIDTH = 1400;
 const CARD_HEIGHT = 1600;
@@ -12,19 +13,27 @@ export type CharacterCardOptions = {
     preset?: "standard" | "threeView";
     background?: "white" | "gray";
     includeProps?: boolean;
+    /** 当前造型：用于取服装概念图与造型专用参考。 */
+    stateId?: string;
 };
 
-/** 把全身合成图、面部特写和道具拼成一张角色卡，分镜生成时默认只引用这一张。 */
-export async function composeCharacterCard(asset: FilmAsset, options: CharacterCardOptions = {}): Promise<{ card: FilmImageRef; signature: string }> {
+/** 把全身合成图、面部特写、当前造型服装与道具拼成一张角色卡，分镜生成时默认只引用这一张。 */
+export async function composeCharacterCard(asset: FilmAsset, projectProps: FilmAsset[], projectCostumes: FilmAsset[], options: CharacterCardOptions = {}): Promise<{ card: FilmImageRef; signature: string }> {
     const preset = options.preset || "standard";
     const background = options.background || "white";
     const includeProps = options.includeProps ?? true;
     const masterImages = characterMasterImages(asset);
     if (!masterImages.length) throw new Error("先生成全身合成图，再生成角色卡");
     const profile = ensureCharacterProfile(asset);
-    const face = profile.parts.face.images.slice(-1)[0];
-    const details = [profile.parts.upper.images.slice(-1)[0], profile.parts.lower.images.slice(-1)[0], profile.parts.limbs.images.slice(-1)[0]].filter((image): image is FilmImageRef => Boolean(image));
-    const props = includeProps ? profile.props.flatMap((prop) => prop.images).slice(0, 4) : [];
+    const face = activeSlotImage(profile.parts.face.slot);
+    const lookImage = activeSlotImage(findFilmCharacterState(asset, options.stateId)?.look);
+    const costumeId = findFilmCharacterState(asset, options.stateId)?.costumeId;
+    const costumeImage = costumeId ? activeSlotImage(projectCostumes.find((item) => item.id === costumeId)?.concept) : undefined;
+    const details = [costumeImage, lookImage, activeSlotImage(profile.parts.upper.slot), activeSlotImage(profile.parts.lower.slot), activeSlotImage(profile.parts.limbs.slot)].filter((image): image is FilmImageRef => Boolean(image));
+    const heldPropIds = findFilmCharacterState(asset, options.stateId)?.heldPropIds || [];
+    const props = includeProps
+        ? [...profile.propIds, ...heldPropIds].map((propId) => activeSlotImage(projectProps.find((item) => item.id === propId)?.concept)).filter((image): image is FilmImageRef => Boolean(image)).slice(0, 4)
+        : [];
 
     const canvas = document.createElement("canvas");
     canvas.width = CARD_WIDTH;
@@ -98,9 +107,9 @@ export async function composeCharacterCard(asset: FilmAsset, options: CharacterC
 
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((value) => resolve(value), "image/jpeg", 0.9));
     if (!blob) throw new Error("角色卡导出失败");
-    const uploaded = await uploadImage(blob, { localOnly: true });
+    const uploaded = await uploadImage(blob);
     const card: FilmImageRef = { id: nanoid(), url: uploaded.url, storageKey: uploaded.storageKey, source: "generated", createdAt: new Date().toISOString() };
-    return { card, signature: filmCharacterSignature(asset) };
+    return { card, signature: filmCharacterSignature(asset, { costumes: projectCostumes, props: projectProps }) };
 }
 
 async function loadImage(ref: FilmImageRef): Promise<HTMLImageElement | null> {
