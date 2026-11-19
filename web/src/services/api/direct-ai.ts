@@ -1,4 +1,5 @@
 import { readFileAsDataUrl } from "@/lib/image-utils";
+import { publicHttpUrl } from "@/services/api/public-url";
 import { apiPost } from "@/services/api/request";
 import { resolveMediaUrl, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { resolveImageUrl } from "@/services/image-storage";
@@ -25,7 +26,7 @@ const DIRECT_IMAGE_POLL_INTERVAL_MS = 2000;
 
 export async function autoDLReferenceURL(reference: ReferenceImage | ReferenceVideo | ReferenceAudio, providerName = "AutoDL") {
     for (const value of [reference.url, "dataUrl" in reference ? reference.dataUrl : ""]) {
-        const url = publicReferenceURL(value);
+        const url = publicHttpUrl(value);
         if (url) return url;
     }
     const storedUrl = await storedReferenceURL(reference.storageKey);
@@ -36,7 +37,7 @@ export async function autoDLReferenceURL(reference: ReferenceImage | ReferenceVi
         : await resolveMediaUrl(reference.storageKey, reference.url);
     if (!source) throw new Error("参考素材不可用");
     const uploaded = await uploadRemoteMediaToServer(source, reference.name || "reference");
-    const url = publicReferenceURL(uploaded.url) || await storedReferenceURL(uploaded.storageKey);
+    const url = publicHttpUrl(uploaded.url) || await storedReferenceURL(uploaded.storageKey);
     if (!url) throw new Error(`${providerName} 参考素材需要云存储提供可公开访问的地址`);
     return url;
 }
@@ -44,17 +45,7 @@ export async function autoDLReferenceURL(reference: ReferenceImage | ReferenceVi
 async function storedReferenceURL(storageKey?: string) {
     if (!storageKey?.startsWith("server:") || storageKey.startsWith("server:webdav:")) return "";
     const info = await getStorageObjectInfo(storageKey.slice("server:".length));
-    return publicReferenceURL(info.publicUrl);
-}
-
-function publicReferenceURL(value?: string) {
-    if (!value || !/^https?:\/\//i.test(value)) return "";
-    try {
-        const url = new URL(value);
-        return ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) ? "" : url.href;
-    } catch {
-        return "";
-    }
+    return publicHttpUrl(info.publicUrl);
 }
 
 export async function requestDirectImages(config: AiConfig, provider: DirectAIProvider, endpoint: "/images/generations" | "/images/edits", body: DirectRequestBody, timeoutSeconds: number, signal?: AbortSignal): Promise<DirectImageResponse> {

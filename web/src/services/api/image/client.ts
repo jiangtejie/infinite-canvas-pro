@@ -1,16 +1,15 @@
-import axios from "axios";
 import { channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { usesAccountProxy } from "../ai-request";
+import { axiosErrorInfo } from "../axios-error";
+import { redactLogMedia } from "../log-redaction";
 
 import type { ChatCompletionMessage, GeneratedImage } from "./types";
 
 
 export function readAxiosError(error: unknown, fallback: string) {
-    if (axios.isAxiosError<{ error?: { message?: string }; msg?: string; code?: number }>(error)) {
-        const responseData = error.response?.data;
-        return responseData?.msg || responseData?.error?.message || (error.response?.status ? `${fallback}：${error.response.status}` : fallback);
-    }
+    const info = axiosErrorInfo(error);
+    if (info) return info.message || (info.status ? `${fallback}：${info.status}` : fallback);
     return error instanceof Error ? error.message : fallback;
 }
 
@@ -116,32 +115,11 @@ export function stringifyLogPayload(value: unknown) {
     if (typeof value === "string") return value;
     try {
         const cloned = JSON.parse(JSON.stringify(value)) as unknown;
-        redactLogImages(cloned);
+        redactLogMedia(cloned);
         return JSON.stringify(cloned, null, 2);
     } catch {
         return String(value || "");
     }
-}
-
-function redactLogImages(value: unknown) {
-    if (!value || typeof value !== "object") return;
-    if (Array.isArray(value)) {
-        value.forEach(redactLogImages);
-        return;
-    }
-    const record = value as Record<string, unknown>;
-    for (const key of Object.keys(record)) {
-        const item = record[key];
-        if (typeof item === "string" && (item.startsWith("data:image/") || item.length > 2048 && looksLikeBase64(item))) {
-            record[key] = `[redacted image/string len=${item.length}]`;
-            continue;
-        }
-        redactLogImages(item);
-    }
-}
-
-function looksLikeBase64(value: string) {
-    return /^[A-Za-z0-9+/=]+$/.test(value.slice(0, 200));
 }
 
 export function summarizeFormData(formData: FormData) {

@@ -9,26 +9,19 @@ localforage.config({
 export const localForageStorage: StateStorage = {
     getItem: async (name) => {
         if (typeof window === "undefined") return null;
-        try {
-            return (await localforage.getItem<string>(name)) || null;
-        } catch {
-            return window.localStorage.getItem(name);
-        }
+        return (await localforage.getItem<string>(name)) || null;
     },
     setItem: async (name, value) => {
         if (typeof window === "undefined") return;
         try {
             await localforage.setItem(name, value);
-        } catch {
-            window.localStorage.setItem(name, value);
+        } catch (error) {
+            console.error("[storage] 本地数据写入失败", name, error);
+            throw error;
         }
     },
     removeItem: async (name) => {
         if (typeof window === "undefined") return;
-        try {
-            await localforage.removeItem(name);
-        } catch {
-            window.localStorage.removeItem(name);
-        }
+        await localforage.removeItem(name);
     },
 };

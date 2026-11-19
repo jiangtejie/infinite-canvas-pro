@@ -1,4 +1,5 @@
 import { normalizeTranslationAspectRatio, type TranslationInput } from "../channel-parameter-translation";
+import { publicHttpUrl } from "../public-url";
 import { dataUrlToGeminiInlineData, isTeamorouterBaseUrl } from "@/lib/gemini";
 import { imageToDataUrl } from "@/services/image-storage";
 import { channelIdForActiveModel, channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
@@ -352,14 +353,4 @@ export function applyAgnesImageSize(
     body.ratio = normalizeAgnesImage21Ratio(config.size);
 }
 
-export function publicHttpUrl(value?: string) {
-    if (!value || value.startsWith("blob:") || value.startsWith("data:")) return "";
-    try {
-        const url = new URL(value, typeof window === "undefined" ? undefined : window.location.origin);
-        if (!["http:", "https:"].includes(url.protocol)) return "";
-        if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) return "";
-        return url.href;
-    } catch {
-        return "";
-    }
-}
+export { publicHttpUrl } from "../public-url";

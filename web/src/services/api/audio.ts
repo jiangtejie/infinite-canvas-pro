@@ -15,6 +15,7 @@ import { buildApiUrl, channelIdForActiveModel, channelProtocolForConfig, localCh
 import { useUserStore } from "@/stores/use-user-store";
 
 import { aiApiUrl, aiHeaders as sharedAiHeaders, refreshRemoteUser, usesAccountProxy } from "./ai-request";
+import { axiosErrorInfo } from "./axios-error";
 
 const jsonAiHeaders = (config: AiConfig) => sharedAiHeaders(config, { contentType: "application/json", requireRemoteLogin: false });
 import type { ReferenceAudio } from "@/types/media";
@@ -460,10 +461,8 @@ async function assertAudioBlob(blob: Blob) {
 }
 
 function readAxiosError(error: unknown, fallback: string) {
-    if (axios.isAxiosError<{ error?: { message?: string }; msg?: string; code?: number }>(error)) {
-        const responseData = error.response?.data;
-        return responseData?.msg || responseData?.error?.message || statusMessage(error.response?.status, fallback);
-    }
+    const info = axiosErrorInfo(error);
+    if (info) return info.message || statusMessage(info.status, fallback);
     return error instanceof Error ? error.message : fallback;
 }
 

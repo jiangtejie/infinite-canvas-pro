@@ -1,5 +1,6 @@
 import { useUserStore } from "@/stores/use-user-store";
-import { canUseGlobalStorage, getImageBlob, loadStorageConfig, loadUserStorageProvider, uploadImage } from "@/services/image-storage";
+import { canUseGlobalStorage, getImageBlob, loadUserStorageProvider, uploadImage } from "@/services/image-storage";
+import { loadStorageConfig } from "@/services/storage-config";
 import { getMediaBlob, uploadMediaBlob } from "@/services/file-storage";
 
 export type MediaPromotionKind = "image" | "media";

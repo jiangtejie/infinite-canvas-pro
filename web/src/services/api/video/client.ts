@@ -1,7 +1,8 @@
-import axios from "axios";
 import { localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { usesAccountProxy } from "../ai-request";
+import { axiosErrorInfo } from "../axios-error";
+import { redactLogMedia } from "../log-redaction";
 
 import { VideoRequestError } from "./types";
 
@@ -14,10 +15,8 @@ export function withoutVideoModel(body: FormData | Record<string, unknown>) {
 
 export function readAxiosError(error: unknown, fallback: string) {
     if (error instanceof VideoRequestError) return { message: error.message, detail: error.detail || error.stack || error.message };
-    if (axios.isAxiosError<{ error?: { message?: string }; msg?: string; code?: number }>(error)) {
-        const responseData = error.response?.data;
-        return { message: responseData?.msg || responseData?.error?.message || (error.response?.status ? `${fallback}：${error.response.status}` : fallback), detail: responseData || error.message };
-    }
+    const info = axiosErrorInfo(error);
+    if (info) return { message: info.message || (info.status ? `${fallback}：${info.status}` : fallback), detail: info.payload || info.axiosMessage };
     return { message: error instanceof Error ? error.message : fallback, detail: error instanceof Error ? error.stack || error.message : error };
 }
 
@@ -70,27 +69,6 @@ export function stringifyLogPayload(value: unknown) {
     } catch {
         return String(value || "");
     }
-}
-
-function redactLogMedia(value: unknown) {
-    if (!value || typeof value !== "object") return;
-    if (Array.isArray(value)) {
-        value.forEach(redactLogMedia);
-        return;
-    }
-    const record = value as Record<string, unknown>;
-    for (const key of Object.keys(record)) {
-        const item = record[key];
-        if (typeof item === "string" && (item.startsWith("data:image/") || item.startsWith("data:video/") || item.startsWith("data:audio/") || item.includes("data:image/") || item.includes("data:video/") || item.includes("data:audio/") || item.length > 2048 && looksLikeBase64(item))) {
-            record[key] = `[redacted media/string len=${item.length}]`;
-            continue;
-        }
-        redactLogMedia(item);
-    }
-}
-
-function looksLikeBase64(value: string) {
-    return /^[A-Za-z0-9+/=]+$/.test(value.slice(0, 200));
 }
 
 export function firstString(...values: unknown[]) {

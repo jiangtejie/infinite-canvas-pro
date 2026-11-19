@@ -38,18 +38,13 @@ description: 当前项目后续值得处理的事项
 - 【后端测试】`go test ./handler/` 的 `TestModelProtocolChannelFlow` 与 `TestParameterTranslationChannelFlow` 共 22 个子测试失败，属测试基建缺陷：契约测试用 `blockProtocolNetwork` 把 `http.DefaultTransport` 换成函数型 RoundTripper，但 AI 代理客户端走 `service/outbound_proxy.go:34` 的 `outboundHTTPTransport()`，其中 `http.DefaultTransport.(*http.Transport)` 断言失败后新建真实 transport 并被 `sync.Once` 缓存，mock 被绕过；真实 transport 的 `resolveOutboundProxy` 在环境变量为空时回落 Windows 注册表系统代理，请求真的发往 `upstream.invalid` 并 EOF（清空 `HTTP(S)_PROXY`、设 `NO_PROXY=*` 均无效；无系统代理的机器则变成 DNS 失败）。修法：断言失败时直接复用该 RoundTripper，或给契约测试提供 client/transport 注入点；改动涉及生产出网路径，需回归真实渠道调用与代理行为。
 - 【算力点】缺少 AI 代理扣点/退款的 handler 集成测试（本地代理环境会影响 upstream mock）；前端估算依赖已加载的 public 模型单价，后台改价后需刷新；用户停止任务按「不退还已开始执行任务」处理，如需退款要按未开始执行条件实现幂等退款。方案见 [ai-film-plan.md](ai-film-plan.md)。
 - 【antd 弹层】Select / AutoComplete / Tooltip 与已修的 Dropdown 共用 rc-trigger 定位，在「减少动态效果」或动画被压缩的环境中可能同样停在隐藏坐标。逐页确认后，若确实失效再改成自绘，或给 ConfigProvider 注入定位兜底。
-- 【localforage】写失败静默降级 localStorage 的读写不对称仍保留，风险高，需单独评估。
 
 ## 冗余收敛剩余项
 
 A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收敛，见 pending-test；Kling 的视频侧判定（`video/history.ts` ↔ `protocols/kling-models.ts`，request payload 第三份）也已在「技术债清理」轮收敛为协议单一口径。以下未动：
 
 - 【A5 视频参数】归一化跨层双写且语义相反：`user/video/history.ts` 保留 `"-1"`，`api/video/payload/shared.ts` 把它算成 6；size 的 `"auto"` 一处返回 `"auto"` 一处返回 `null`。
-- 【A6 日志脱敏】`api/image/client.ts` 的 `redactLogImages` 只挡 `data:image/`，`api/video/client.ts` 的 `redactLogMedia` 还挡 video/audio；同一份上报逻辑两份，脱敏口径不一致（涉及隐私，优先）。
-- 【A7 publicHttpUrl】`api/image/payload.ts` 与 `api/video/payload/shared.ts` 逐字相同两份；`api/direct-ai.ts` 的 `publicReferenceURL` 是分歧变体（正则、不处理相对地址）。
-- 【B8 上传/删除双写】`services/image-storage.ts` 与 `services/file-storage.ts` 整条服务端上传/删除链路逐行同构，分歧只在失败 return null 还是 throw；牵涉存储链路，需单独一轮加回归。
-- 【B9 storageConfig 双缓存】两个存储文件各缓存同一个 GET、各导出 `clearStorageConfigCache`，调用方被迫同时清两个，漏清一个就是脏配置。
-- 【B10 小双写】`readAxiosError` 三份（image/video/audio client）兜底已分歧；两个 TTS 音色选择器近整份复制；storageKey→URL 的 effect 四份。后台筛选条已统一为共享组件。
+- 【B10 小双写】两个 TTS 音色选择器近整份复制；storageKey→URL 的 effect 四份。后台筛选条已统一为共享组件。
 - 【C 组小重复】`connection()` 在 canvas-source-remix 与 canvas-source-plan 逐字相同；「有素材」判定三份（hook/卡片/面板）；作者/统计行 UI 卡片与面板重复拼装；`formatBytes` 至少三份且精度单位表不同；节点摘要两套字段抽取（`canvasAgentNodeSummary` 与 `summarizeNode`）。
 - 【seedance sd2】别名在 lib 音频/参考图判定里有、摘要时长档位里没有，属 A 组同类分歧。
 
@@ -61,7 +56,7 @@ A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收
 - 【工作流】`components/workflows/creative-workflow-workspace.tsx` 2702 行，是当前最大的单文件；继续拆分需保持真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。
 - 【样式】`app/globals.css` 1251 行；画布/后台/提示词/影视私有样式已抽到 `styles/`，剩余工作台私有样式继续移出，globals 只留 token、reset、共享原语和通用 antd 覆写。`PunkAura` 已从 WebGL 着色器改为纯 CSS 静态多层渐变，不再有持续渲染开销。
 - 【React Compiler】规则逐条启用（purity / refs / set-state-in-effect），先做白名单再扩大。
-- 【测试】前端 88 个文件、504 条（`bun test`）；后续补任务合并、连接校验的边界用例。
+- 【测试】前端 105 个文件、587 条（`bun test`）；后续补任务合并、连接校验的边界用例。
 - 【后台】概览 AI 日志全量扫描的缓存/统计索引、概览与列表的行级深链、浅色主题逐项视觉；AI 日志页已接入共享列表抽象，其余页面按需继续组件化。
 - 【视觉】FilterTagGroup 可考虑增加 density/variant（当前用 `.prompt-filter-tag` 全局覆盖）；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。
 - 【无障碍】节点目前采用自然 Tab 序列而非单锚点 roving，是否改 roving tabindex 待评估。

@@ -4,12 +4,13 @@ import { useComicStore } from "@/app/(user)/comic/stores/use-comic-store";
 import { useScriptStore, SCRIPT_STORE_KEY } from "@/app/(user)/script/stores/use-script-store";
 import type { ScriptProject } from "@/app/(user)/script/types";
 import type { FilmProject } from "@/lib/film/types";
-import { mergeFilmLibrary, mergeFilmProjects, type FilmLibrarySnapshot } from "@/lib/film/film-account-merge";
-import { mergeRecordsById } from "@/lib/account-domain-merge";
+import type { FilmLibrarySnapshot } from "@/lib/film/film-account-merge";
+import { mergeListedSnapshot, parseTombstones, type Tombstones } from "@/lib/account-domain-merge";
 import { currentAccountId } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { useSaveStatusStore } from "@/lib/persisted-store";
 import { waitForStoreHydration } from "@/lib/store-hydration";
+import { readTombstones, recordRemovedRecords, writeTombstones } from "@/lib/sync-tombstones";
 import { COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { useFilmStore } from "@/stores/use-film-store";
@@ -18,21 +19,24 @@ import { applyFilmMediaPromotionsToLibrary, applyFilmMediaPromotionsToProjects, 
 import { applyMediaPromotions, collectMediaPromotions, collectMediaRefsFromValue, mediaNeedsPromotion, type MediaPromotionReplacement } from "@/services/media-promotion";
 
 type ComicCastSnapshot = { characters: ComicLibraryCharacter[]; locations: ComicLibraryLocation[] };
+type DomainValue = Record<string, unknown>;
+type DomainSnapshot = { value: DomainValue; deleted: Tombstones };
 
 type SyncDomain = {
     key: string;
-    load: (token: string) => Promise<unknown>;
-    save: (token: string, value: unknown) => Promise<unknown>;
-    merge: (remote: unknown, local: unknown) => { value: unknown; shouldPush: boolean };
-    read: () => unknown;
-    write: (value: unknown) => void;
+    listKeys: readonly string[];
+    load: (token: string) => Promise<DomainSnapshot>;
+    save: (token: string, value: DomainValue, deleted: Tombstones) => Promise<unknown>;
+    merge: (remote: DomainSnapshot, local: DomainSnapshot) => { value: DomainValue; deleted: Tombstones; shouldPush: boolean };
+    read: () => DomainValue;
+    write: (value: DomainValue) => void;
     ready: () => Promise<void>;
-    subscribe: (notify: () => void) => () => void;
-    guest?: { key: string; extract: (state: Record<string, unknown>) => unknown | null };
+    subscribe: (notify: (previous: DomainValue, next: DomainValue) => void) => () => void;
+    guest?: { key: string; extract: (state: Record<string, unknown>) => DomainValue | null };
     media?: {
-        needs: (value: unknown) => boolean;
-        collect: (value: unknown, token: string) => Promise<Map<string, MediaPromotionReplacement>>;
-        apply: (value: unknown, replacements: Map<string, MediaPromotionReplacement>) => { value: unknown; changed: boolean };
+        needs: (value: DomainValue) => boolean;
+        collect: (value: DomainValue, token: string) => Promise<Map<string, MediaPromotionReplacement>>;
+        apply: (value: DomainValue, replacements: Map<string, MediaPromotionReplacement>) => { value: DomainValue; changed: boolean };
     };
 };
 
@@ -72,14 +76,8 @@ function comicCast(value: Partial<ComicCastSnapshot> | null | undefined): ComicC
     };
 }
 
-function mergeComicCast(remote: ComicCastSnapshot, local: ComicCastSnapshot) {
-    const characters = mergeRecordsById(remote.characters, local.characters);
-    const locations = mergeRecordsById(remote.locations, local.locations);
-    return { value: { characters: characters.value, locations: locations.value }, shouldPush: characters.shouldPush || locations.shouldPush };
-}
-
-function applyComicProjectMedia(value: unknown, replacements: Map<string, MediaPromotionReplacement>) {
-    const projects = value as ComicProject[];
+function applyComicProjectMedia(value: DomainValue, replacements: Map<string, MediaPromotionReplacement>) {
+    const projects = (value.projects || []) as ComicProject[];
     let changed = false;
     const next = projects.map((project) => {
         const applied = applyMediaPromotions(project, replacements);
@@ -87,11 +85,11 @@ function applyComicProjectMedia(value: unknown, replacements: Map<string, MediaP
         changed = true;
         return { ...applied.value, updatedAt: new Date().toISOString() };
     });
-    return { value: changed ? next : projects, changed };
+    return { value: changed ? { projects: next } : value, changed };
 }
 
-function applyComicCastMedia(value: unknown, replacements: Map<string, MediaPromotionReplacement>) {
-    const cast = value as ComicCastSnapshot;
+function applyComicCastMedia(value: DomainValue, replacements: Map<string, MediaPromotionReplacement>) {
+    const cast = comicCast(value as Partial<ComicCastSnapshot>);
     let changed = false;
     const applyList = <T extends { updatedAt?: string }>(items: T[]) => items.map((item) => {
         const applied = applyMediaPromotions(item, replacements);
@@ -99,8 +97,7 @@ function applyComicCastMedia(value: unknown, replacements: Map<string, MediaProm
         changed = true;
         return { ...applied.value, updatedAt: new Date().toISOString() };
     });
-    const next = { characters: applyList(cast.characters), locations: applyList(cast.locations) };
-    return { value: changed ? next : cast, changed };
+    return { value: changed ? { characters: applyList(cast.characters), locations: applyList(cast.locations) } : value, changed };
 }
 
 const comicMedia: NonNullable<SyncDomain["media"]> = {
@@ -115,50 +112,51 @@ const comicMedia: NonNullable<SyncDomain["media"]> = {
 const domains: SyncDomain[] = [
     {
         key: "film-projects",
-        load: async (token) => (await fetchUserFilmProjects<{ projects?: FilmProject[] }>(token)).projects || [],
-        save: (token, value) => syncUserFilmProjects(token, { projects: value }),
-        merge: (remote, local) => {
-            const merged = mergeFilmProjects(remote as FilmProject[], local as FilmProject[]);
-            return { value: merged.projects, shouldPush: merged.shouldPush };
+        listKeys: ["projects"],
+        load: async (token) => {
+            const payload = await fetchUserFilmProjects<{ projects?: FilmProject[]; deleted?: unknown }>(token);
+            return { value: { projects: payload.projects || [] }, deleted: parseTombstones(payload.deleted) };
         },
-        read: () => useFilmStore.getState().projects,
-        write: (value) => useFilmStore.setState({ projects: value as FilmProject[] }),
+        save: (token, value, deleted) => syncUserFilmProjects(token, { projects: value.projects, deleted }),
+        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["projects"], remote.deleted, local.deleted),
+        read: () => ({ projects: useFilmStore.getState().projects }),
+        write: (value) => useFilmStore.setState({ projects: value.projects as FilmProject[] }),
         ready: () => waitForStoreHydration(useFilmStore),
         subscribe: (notify) => useFilmStore.subscribe((state, previous) => {
-            if (state.projects !== previous.projects) notify();
+            if (state.projects !== previous.projects) notify(previous as unknown as DomainValue, state as unknown as DomainValue);
         }),
         guest: {
             key: `${FILM_STORE_KEY}:guest`,
-            extract: (state) => Array.isArray(state.projects) ? state.projects : null,
+            extract: (state) => Array.isArray(state.projects) ? { projects: state.projects } : null,
         },
         media: {
-            needs: (value) => filmMediaNeedsPromotion(value as FilmProject[], []),
-            collect: (value, token) => collectFilmMediaPromotions(value as FilmProject[], [], token),
+            needs: (value) => filmMediaNeedsPromotion(value.projects as FilmProject[], []),
+            collect: (value, token) => collectFilmMediaPromotions(value.projects as FilmProject[], [], token),
             apply: (value, replacements) => {
-                const applied = applyFilmMediaPromotionsToProjects(value as FilmProject[], replacements);
-                return { value: applied.projects, changed: applied.changed };
+                const applied = applyFilmMediaPromotionsToProjects(value.projects as FilmProject[], replacements);
+                return { value: applied.changed ? { projects: applied.projects } : value, changed: applied.changed };
             },
         },
     },
     {
         key: "film-library",
-        load: async (token) => filmLibrary(await fetchUserFilmLibrary<Partial<FilmLibrarySnapshot>>(token)),
-        save: (token, value) => syncUserFilmLibrary(token, value),
-        merge: (remote, local) => {
-            const merged = mergeFilmLibrary(remote as FilmLibrarySnapshot, local as FilmLibrarySnapshot);
-            return { value: merged.snapshot, shouldPush: merged.shouldPush };
+        listKeys: ["characters", "locations", "props", "costumes", "styles"],
+        load: async (token) => {
+            const payload = await fetchUserFilmLibrary<Partial<FilmLibrarySnapshot> & { deleted?: unknown }>(token);
+            return { value: { ...filmLibrary(payload) }, deleted: parseTombstones(payload.deleted) };
         },
+        save: (token, value, deleted) => syncUserFilmLibrary(token, { ...value, deleted }),
+        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["characters", "locations", "props", "costumes", "styles"], remote.deleted, local.deleted),
         read: () => {
             const state = useFilmCastStore.getState();
             return { characters: state.characters, locations: state.locations, props: state.props, costumes: state.costumes, styles: state.styles };
         },
-        write: (value) => {
-            const snapshot = value as FilmLibrarySnapshot;
-            useFilmCastStore.setState({ ...snapshot });
-        },
+        write: (value) => useFilmCastStore.setState({ ...(value as unknown as FilmLibrarySnapshot) }),
         ready: () => waitForStoreHydration(useFilmCastStore),
         subscribe: (notify) => useFilmCastStore.subscribe((state, previous) => {
-            if (state.characters !== previous.characters || state.locations !== previous.locations || state.props !== previous.props || state.costumes !== previous.costumes || state.styles !== previous.styles) notify();
+            if (state.characters !== previous.characters || state.locations !== previous.locations || state.props !== previous.props || state.costumes !== previous.costumes || state.styles !== previous.styles) {
+                notify(previous as unknown as DomainValue, state as unknown as DomainValue);
+            }
         }),
         guest: {
             key: `${FILM_CAST_STORE_KEY}:guest`,
@@ -166,33 +164,37 @@ const domains: SyncDomain[] = [
         },
         media: {
             needs: (value) => {
-                const snapshot = value as FilmLibrarySnapshot;
+                const snapshot = filmLibrary(value as Partial<FilmLibrarySnapshot>);
                 return filmMediaNeedsPromotion([], [...snapshot.characters, ...snapshot.locations, ...snapshot.props, ...snapshot.costumes, ...snapshot.styles]);
             },
             collect: (value, token) => {
-                const snapshot = value as FilmLibrarySnapshot;
+                const snapshot = filmLibrary(value as Partial<FilmLibrarySnapshot>);
                 return collectFilmMediaPromotions([], [...snapshot.characters, ...snapshot.locations, ...snapshot.props, ...snapshot.costumes, ...snapshot.styles], token);
             },
             apply: (value, replacements) => {
-                const applied = applyFilmMediaPromotionsToLibrary(value as FilmLibrarySnapshot, replacements);
-                return { value: applied.library, changed: applied.changed };
+                const applied = applyFilmMediaPromotionsToLibrary(filmLibrary(value as Partial<FilmLibrarySnapshot>), replacements);
+                return { value: applied.changed ? { ...applied.library } : value, changed: applied.changed };
             },
         },
     },
     {
         key: "comic-projects",
-        load: async (token) => (await fetchUserComicProjects<{ projects?: ComicProject[] }>(token)).projects || [],
-        save: (token, value) => syncUserComicProjects(token, { projects: value }),
-        merge: (remote, local) => mergeRecordsById(remote as ComicProject[], local as ComicProject[]),
-        read: () => useComicStore.getState().projects,
-        write: (value) => useComicStore.setState({ projects: value as ComicProject[] }),
+        listKeys: ["projects"],
+        load: async (token) => {
+            const payload = await fetchUserComicProjects<{ projects?: ComicProject[]; deleted?: unknown }>(token);
+            return { value: { projects: payload.projects || [] }, deleted: parseTombstones(payload.deleted) };
+        },
+        save: (token, value, deleted) => syncUserComicProjects(token, { projects: value.projects, deleted }),
+        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["projects"], remote.deleted, local.deleted),
+        read: () => ({ projects: useComicStore.getState().projects }),
+        write: (value) => useComicStore.setState({ projects: value.projects as ComicProject[] }),
         ready: () => waitForStoreHydration(useComicStore),
         subscribe: (notify) => useComicStore.subscribe((state, previous) => {
-            if (state.projects !== previous.projects) notify();
+            if (state.projects !== previous.projects) notify(previous as unknown as DomainValue, state as unknown as DomainValue);
         }),
         guest: {
             key: `${COMIC_STORE_KEY}:guest`,
-            extract: (state) => Array.isArray(state.projects) ? state.projects : null,
+            extract: (state) => Array.isArray(state.projects) ? { projects: state.projects } : null,
         },
         media: {
             needs: comicMedia.needs,
@@ -202,20 +204,26 @@ const domains: SyncDomain[] = [
     },
     {
         key: "comic-cast",
-        load: async (token) => comicCast(await fetchUserComicCast<Partial<ComicCastSnapshot>>(token)),
-        save: (token, value) => syncUserComicCast(token, value),
-        merge: (remote, local) => mergeComicCast(remote as ComicCastSnapshot, local as ComicCastSnapshot),
+        listKeys: ["characters", "locations"],
+        load: async (token) => {
+            const payload = await fetchUserComicCast<Partial<ComicCastSnapshot> & { deleted?: unknown }>(token);
+            return { value: { ...comicCast(payload) }, deleted: parseTombstones(payload.deleted) };
+        },
+        save: (token, value, deleted) => syncUserComicCast(token, { characters: value.characters, locations: value.locations, deleted }),
+        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["characters", "locations"], remote.deleted, local.deleted),
         read: () => {
             const state = useComicCastStore.getState();
             return { characters: state.characters, locations: state.locations };
         },
         write: (value) => {
-            const cast = value as ComicCastSnapshot;
+            const cast = value as unknown as ComicCastSnapshot;
             useComicCastStore.setState({ characters: cast.characters, locations: cast.locations });
         },
         ready: () => waitForStoreHydration(useComicCastStore),
         subscribe: (notify) => useComicCastStore.subscribe((state, previous) => {
-            if (state.characters !== previous.characters || state.locations !== previous.locations) notify();
+            if (state.characters !== previous.characters || state.locations !== previous.locations) {
+                notify(previous as unknown as DomainValue, state as unknown as DomainValue);
+            }
         }),
         guest: {
             key: `${COMIC_CAST_STORE_KEY}:guest`,
@@ -229,24 +237,32 @@ const domains: SyncDomain[] = [
     },
     {
         key: "script-projects",
-        load: async (token) => (await fetchUserScriptProjects<{ projects?: ScriptProject[] }>(token)).projects || [],
-        save: (token, value) => syncUserScriptProjects(token, { projects: value }),
-        merge: (remote, local) => mergeRecordsById(remote as ScriptProject[], local as ScriptProject[]),
-        read: () => useScriptStore.getState().projects,
-        write: (value) => useScriptStore.setState({ projects: value as ScriptProject[] }),
+        listKeys: ["projects"],
+        load: async (token) => {
+            const payload = await fetchUserScriptProjects<{ projects?: ScriptProject[]; deleted?: unknown }>(token);
+            return { value: { projects: payload.projects || [] }, deleted: parseTombstones(payload.deleted) };
+        },
+        save: (token, value, deleted) => syncUserScriptProjects(token, { projects: value.projects, deleted }),
+        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["projects"], remote.deleted, local.deleted),
+        read: () => ({ projects: useScriptStore.getState().projects }),
+        write: (value) => useScriptStore.setState({ projects: value.projects as ScriptProject[] }),
         ready: () => waitForStoreHydration(useScriptStore),
         subscribe: (notify) => useScriptStore.subscribe((state, previous) => {
-            if (state.projects !== previous.projects) notify();
+            if (state.projects !== previous.projects) notify(previous as unknown as DomainValue, state as unknown as DomainValue);
         }),
         guest: {
             key: `${SCRIPT_STORE_KEY}:guest`,
-            extract: (state) => Array.isArray(state.projects) ? state.projects : null,
+            extract: (state) => Array.isArray(state.projects) ? { projects: state.projects } : null,
         },
     },
 ];
 
 function domainByKey(key: string) {
     return domains.find((domain) => domain.key === key);
+}
+
+function localSnapshot(domain: SyncDomain): DomainSnapshot {
+    return { value: domain.read(), deleted: readTombstones(domain.key) };
 }
 
 function refreshSyncStatus() {
@@ -269,10 +285,11 @@ function finishSyncOp(key: string, ok: boolean) {
     refreshSyncStatus();
 }
 
-function writeSafely(domain: SyncDomain, value: unknown) {
+function writeSafely(domain: SyncDomain, snapshot: DomainSnapshot) {
     applyingRemote = true;
     try {
-        domain.write(value);
+        domain.write(snapshot.value);
+        writeTombstones(domain.key, snapshot.deleted);
     } finally {
         applyingRemote = false;
     }
@@ -299,8 +316,17 @@ async function flush(key: string, attempt: number) {
     dirty.delete(key);
     startSyncOp();
     try {
-        let value = domain.read();
-        if (domain.media) {
+        // 先拉远端再合并写入，避免陈旧设备整域覆盖掉远端的新记录或删除墓碑。
+        const remote = await domain.load(token);
+        if (token !== syncToken) {
+            activeSyncOps = Math.max(0, activeSyncOps - 1);
+            return;
+        }
+        const merged = domain.merge(remote, localSnapshot(domain));
+        let value = merged.value;
+        let changed = merged.shouldPush;
+        writeSafely(domain, { value, deleted: merged.deleted });
+        if (domain.media?.needs(value)) {
             const replacements = await domain.media.collect(value, token);
             if (token !== syncToken) {
                 activeSyncOps = Math.max(0, activeSyncOps - 1);
@@ -308,11 +334,12 @@ async function flush(key: string, attempt: number) {
             }
             const applied = domain.media.apply(domain.read(), replacements);
             if (applied.changed) {
-                writeSafely(domain, applied.value);
-                value = domain.read();
+                value = applied.value;
+                writeSafely(domain, { value, deleted: merged.deleted });
+                changed = true;
             }
         }
-        await domain.save(token, value);
+        if (changed) await domain.save(token, value, merged.deleted);
         if (token !== syncToken) {
             activeSyncOps = Math.max(0, activeSyncOps - 1);
             return;
@@ -350,8 +377,8 @@ async function pullRemote() {
             continue;
         }
         failures.delete(domain.key);
-        const merged = domain.merge(remote, domain.read());
-        writeSafely(domain, merged.value);
+        const merged = domain.merge(remote, localSnapshot(domain));
+        writeSafely(domain, merged);
         if (merged.shouldPush || domain.media?.needs(merged.value)) schedule(domain.key, 0);
     }
     refreshSyncStatus();
@@ -367,8 +394,9 @@ function registerListeners() {
     if (listenersReady || typeof window === "undefined") return;
     listenersReady = true;
     for (const domain of domains) {
-        domain.subscribe(() => {
-            if (applyingRemote || hydrating) return;
+        domain.subscribe((previous, next) => {
+            if (!syncEnabled || applyingRemote || hydrating) return;
+            recordRemovedRecords(domain.key, previous, next, domain.listKeys);
             schedule(domain.key);
         });
     }
@@ -400,8 +428,8 @@ async function consumeGuestDomains() {
             if (!state) continue;
             const extracted = domain.guest.extract(state);
             if (extracted !== null) {
-                const merged = domain.merge(domain.read(), extracted);
-                writeSafely(domain, merged.value);
+                const merged = domain.merge(localSnapshot(domain), { value: extracted, deleted: {} });
+                writeSafely(domain, merged);
             }
             await localForageStorage.removeItem(domain.guest.key);
         } catch {
@@ -440,8 +468,8 @@ export async function hydrateCreativeAccountSync(token: string, enabled: boolean
                 failures.add(domain.key);
                 continue;
             }
-            const merged = domain.merge(remote, domain.read());
-            writeSafely(domain, merged.value);
+            const merged = domain.merge(remote, localSnapshot(domain));
+            writeSafely(domain, merged);
             if (merged.shouldPush || domain.media?.needs(merged.value)) pushKeys.add(domain.key);
         }
         hydratedToken = token;

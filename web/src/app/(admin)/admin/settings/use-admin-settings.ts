@@ -7,8 +7,7 @@ import { useAutoDLWorkflowNames } from "@/hooks/use-autodl-workflow";
 import { isWorkflowProtocol, modelChannelApiKeyUrls } from "@/lib/model-channel";
 import { startTokenDanceOAuth } from "@/lib/tokendance-oauth";
 import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, saveAdminSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings } from "@/services/api/admin";
-import { clearStorageConfigCache as clearMediaStorageConfigCache } from "@/services/file-storage";
-import { clearStorageConfigCache as clearImageStorageConfigCache } from "@/services/image-storage";
+import { clearStorageConfigCache } from "@/services/storage-config";
 import { useUserStore } from "@/stores/use-user-store";
 import { filterChannelModelsByCapability, type ModelCapabilities } from "@/stores/use-config-store";
 
@@ -103,8 +102,7 @@ export function useAdminSettings() {
 
     /** 保存成功后统一收尾：清存储缓存、回填被隐藏的 API Key，并同步渠道/单价/已知模型。 */
     function applySavedSettings(saved: AdminSettings, currentChannels: AdminModelChannel[]) {
-        clearImageStorageConfigCache();
-        clearMediaStorageConfigCache();
+        clearStorageConfigCache();
         const merged = mergeChannelApiKeys(currentChannels, saved);
         setChannels(merged.private.channels);
         setModelCosts(merged.public.modelChannel.modelCosts);

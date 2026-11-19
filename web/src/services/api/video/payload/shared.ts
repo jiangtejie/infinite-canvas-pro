@@ -1,3 +1,4 @@
+import { publicHttpUrl } from "../../public-url";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { resolveMediaUrl } from "@/services/file-storage";
 import { imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
@@ -43,17 +44,7 @@ export async function imageToAgnesReference(image: ReferenceImage) {
     return imageToDataUrl(image);
 }
 
-export function publicHttpUrl(value?: string) {
-    if (!value || value.startsWith("blob:") || value.startsWith("data:")) return "";
-    try {
-        const url = new URL(value, typeof window === "undefined" ? undefined : window.location.origin);
-        if (!["http:", "https:"].includes(url.protocol)) return "";
-        if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) return "";
-        return url.href;
-    } catch {
-        return "";
-    }
-}
+export { publicHttpUrl } from "../../public-url";
 
 export function normalizeVideoSeconds(value: string) {
     const seconds = Math.floor(Number(value) || 6);

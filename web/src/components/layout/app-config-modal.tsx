@@ -13,8 +13,8 @@ import { MiniMaxTtsVoiceSelect } from "@/components/minimax-tts-voice-select";
 import { ModelPicker } from "@/components/model-picker";
 import { fetchImageModels } from "@/services/api/image";
 import { fetchUserConfig, measureUserStorageProvider, syncUserModelConfig, syncUserStorageProvider } from "@/services/api/user-config";
-import { clearStorageConfigCache as clearFileStorageCache } from "@/services/file-storage";
-import { clearStorageConfigCache as clearImageStorageCache, defaultUserStorageProvider, defaultUserWebDAVStorageProvider, loadStorageConfig, loadUserS3StorageProvider, loadUserWebDAVStorageProvider, saveUserStorageProvider, saveUserWebDAVStorageProvider, type UserStorageProvider } from "@/services/image-storage";
+import { defaultUserStorageProvider, defaultUserWebDAVStorageProvider, loadUserS3StorageProvider, loadUserWebDAVStorageProvider, saveUserStorageProvider, saveUserWebDAVStorageProvider, type UserStorageProvider } from "@/services/image-storage";
+import { clearStorageConfigCache, loadStorageConfig } from "@/services/storage-config";
 import { audioFormatOptions, audioVoiceOptions, glmTtsFormatOptions, glmTtsVoiceOptions, isGlmTtsModel, normalizeAudioSpeedValue, normalizeGlmTtsFormat, normalizeGlmTtsSpeed, normalizeGlmTtsVoice } from "@/lib/audio-generation";
 import { grokTtsFormatOptions, grokTtsLanguageOptions, isGrok2APITtsConfig, normalizeGrokTtsFormat, normalizeGrokTtsLanguage, normalizeGrokTtsSpeed } from "@/lib/grok-tts";
 import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
@@ -236,8 +236,7 @@ export function AppConfigModal() {
                 setRemoteStorageSyncEnabled(config.syncStorageConfig);
                 setRemoteWebDAVStorageSyncEnabled(config.syncWebDAVStorageConfig);
             }
-            clearImageStorageCache();
-            clearFileStorageCache();
+            clearStorageConfigCache();
             const continueAction = useConfigStore.getState().continueAction;
             setConfigDialogOpen(false);
             if ((config.syncStorageConfig || config.syncWebDAVStorageConfig) && !token) message.warning("请登录后再同步配置");

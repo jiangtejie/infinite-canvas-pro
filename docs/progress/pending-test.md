@@ -3,6 +3,38 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 公共 URL 与 axios 错误解析单一口径（A7 / B10）
+
+- `publicHttpUrl` 从生图 / 视频 payload 中抽出为 `services/api/public-url.ts` 单一实现，直连 AI 的 `publicReferenceURL` 并入同一函数；相对地址统一按当前站点补全，仍拒绝 localhost、blob、data 与非 http(s) 地址。
+- `axiosErrorInfo` 收敛 `services/api/axios-error.ts`：生图、视频、音频三处 `readAxiosError` 共用 axios 响应解析，各自保留返回形状、状态码兜底与鉴权 / 限流文案。
+- 验证：`bun test` 105 文件 / 587 条通过（新增公共 URL 2 条与 axios 错误解析 1 条）；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。
+- 未实测：真实生图 / 视频 / 音频请求失败时的错误文案，以及直连 AI 收到相对参考地址时的实际表现（行为由拒绝改为按站点补全）。
+
+## 存储上传/删除网络原语收敛（B8 第一阶段）
+
+- 新增 `services/server-file.ts` 统一服务端文件网络原语：WebDAV 直连上传/删除、`POST /api/v1/files` 表单上传与 `DELETE /api/v1/files/:id`；图片与视频存储各自保留配置判断、匿名上传与本地缓存策略。
+- `image-storage` 的两条服务端上传路径（远程图片转存、自动云同步）与 `file-storage` 的媒体上传改为调用共享原语；删除链路同样复用，WebDAV 直连/匿名分支的本地清理抽成各自的小助手。
+- 验证：`bun test` 103 文件 / 584 条通过（新增 4 条 mock fetch 用例：表单与 provider、服务端错误优先、DELETE provider、 DELETE 错误）；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测我的素材、生图、视频页正常加载，无运行时错误。
+- 未实测：真实 S3 / WebDAV 上传与删除、匿名存储上传删除、Direct WebDAV 直连；本轮只收敛网络原语，配置与匿名分支策略仍按各域保留。
+
+## 账号同步删除墓碑（跨设备删除）
+
+- 五个创意同步域的远端 JSON 增加 `deleted`（id → 删除时间）墓碑；store 中记录被移除时写入当前账号的本地墓碑。合并规则：墓碑晚于记录更新时间则删除，记录在删除后又被更新则复活并清掉墓碑。
+- 每次推送前先拉取远端、合并后再保存，避免陈旧设备整域覆盖远端墓碑或其他设备的新记录；拉取与登录合并会回写墓碑，远端仍保留的已删除记录由下一次推送清理。
+- 墓碑保存在 `infinite-canvas:sync-tombstones:<domain>:<accountId>` 本地小配置中，账号隔离；当前不做过期清理。
+- 验证：`bun test` 102 文件 / 580 条通过（新增墓碑合并、陈旧副本、复活、移除检测测试）；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测：创建漫画项目后删除，远端变为 `{"projects":[],"deleted":{"<id>":时间}}` 且本地墓碑写入；再把旧项目写回 IndexedDB 并清掉本地墓碑模拟陈旧设备，刷新后本地项目被移除、远端保持删除、本地墓碑恢复；测试项目与墓碑已清理。
+- 未实测：真实第二台设备 / 独立浏览器配置下的删除传播、长期墓碑增长、与真实 S3 媒体升级同时发生时的删除时序。
+- 当前限制：墓碑不清理；远端已删除记录依赖下一次推送清理。
+
+## 数据可靠性收敛（本地写盘 / 日志脱敏 / 存储配置）
+
+- `localforage-storage` 移除写失败时静默改写 localStorage 的降级：读写统一走 IndexedDB，失败会记录错误并抛出；画布、影视、漫画与剧本等已有保存状态的位置会显示保存失败，不再出现「写入落在 localStorage、读取仍读旧 IndexedDB」的不对称。项目未上线，旧版本因失败落入 localStorage 的数据不做迁移。
+- 生图与视频请求日志脱敏合并为 `services/api/log-redaction.ts`，统一覆盖 `data:image/`、`data:video/`、`data:audio/`（含字符串内嵌）与超过 2KB 的裸 base64；新增 2 条单测。
+- 云存储配置改为 `services/storage-config.ts` 单缓存：图片与视频存储共用一次 `GET /api/storage/config`，获取失败不再把 rejected Promise 永久缓存；用户配置弹窗与后台设置保存后只清一次缓存。
+- 验证：`bun test` 103 文件 / 578 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测漫画页与配置弹窗正常加载、存储与同步分区可见且无获取配置错误；在新任务空间中发现另一浏览器分区带着已删除的测试项目重新补传，已在当前分区删除并确认远端 comic-projects / comic-cast / script-projects 为空，影视「机械纪元」保留。
+- 未实测：强制 IndexedDB 写入失败后的保存状态与重试、真实 S3 / WebDAV 配置切换后的缓存刷新。
+- 当前限制：图片与视频的服务端上传 / 删除网络原语已由上方「B8 第一阶段」收敛，配置判断与匿名上传策略仍各自保留；本轮复现的删除复活问题已由「账号同步删除墓碑」修复。
+
 ## 第 1 期统一素材选择入口
 
 - 素材选择器从画布目录迁到共享层：`AssetPickerModal` 放到 `components/assets/`，`InsertAssetPayload` 与素材/素材库载荷映射放到 `lib/asset-picker.ts`，我的素材与素材库浏览 hooks 放到 `hooks/use-asset-browser.ts`；画布、生图、视频、影视、工作流与首页统一引用，删除 `canvas-asset-query`。
