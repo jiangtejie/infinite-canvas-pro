@@ -41,9 +41,8 @@ description: 当前项目后续值得处理的事项
 
 ## 冗余收敛剩余项
 
-A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收敛，见 pending-test；Kling 的视频侧判定（`video/history.ts` ↔ `protocols/kling-models.ts`，request payload 第三份）也已在「技术债清理」轮收敛为协议单一口径。以下未动：
+A 组、B 组与 Seedance 别名已收敛，见 pending-test；Kling 的视频侧判定（`video/history.ts` ↔ `protocols/kling-models.ts`，request payload 第三份）也已在「技术债清理」轮收敛为协议单一口径。剩余：
 
-- 【B10 小双写】storageKey→URL 的 effect 四份。后台筛选条已统一为共享组件。
 - 【C 组小重复】「有素材」判定三份（hook/卡片/面板）；作者/统计行 UI 卡片与面板重复拼装；节点摘要两套字段抽取（`canvasAgentNodeSummary` 与 `summarizeNode`）。
 
 ## 结构与工程

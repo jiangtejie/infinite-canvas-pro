@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Wrench } from "lucide-react";
 import { App, Button, Input } from "antd";
 
-import { resolveImageUrl, uploadImage } from "@/services/image-storage";
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import { errorMessage } from "@/lib/utils";
+import { uploadImage } from "@/services/image-storage";
 
 type AgentSkillCoverProps = {
     name: string;
@@ -22,27 +23,15 @@ type AgentSkillCoverEditorProps = AgentSkillCoverProps & {
 };
 
 export function AgentSkillCover({ name, coverUrl = "", coverStorageKey = "", size = 32, iconSize = 16, borderColor, background }: AgentSkillCoverProps) {
-    const [src, setSrc] = useState(coverUrl);
+    const resolved = useResolvedMediaSrc(coverUrl, coverStorageKey);
+    const [failed, setFailed] = useState(false);
 
-    useEffect(() => {
-        let active = true;
-        setSrc(coverUrl);
-        if (coverStorageKey) void resolveImageUrl(coverStorageKey, coverUrl)
-            .then((url) => {
-                if (active) setSrc(url);
-            })
-            .catch(() => {
-                if (active) setSrc(coverUrl);
-            });
-        return () => {
-            active = false;
-        };
-    }, [coverStorageKey, coverUrl]);
+    useEffect(() => setFailed(false), [resolved]);
 
     return (
         <span className="relative grid shrink-0 place-items-center overflow-hidden rounded-lg border" style={{ width: size, height: size, borderColor, background }}>
-            {src
-                ? <img loading="lazy" decoding="async" src={src} alt={name} draggable={false} className="size-full object-contain" onError={() => setSrc("")} />
+            {resolved && !failed
+                ? <img loading="lazy" decoding="async" src={resolved} alt={name} draggable={false} className="size-full object-contain" onError={() => setFailed(true)} />
                 : <Wrench aria-hidden style={{ width: iconSize, height: iconSize }} />}
         </span>
     );

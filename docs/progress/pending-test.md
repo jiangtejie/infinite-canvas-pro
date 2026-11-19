@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## B10 媒体 URL 解析 Hook 收敛
+
+- 新增 `hooks/use-resolved-media-src.ts`：挂载后把 `storageKey` 解析成可用地址，图片 / 视频共用一个 hook。
+- 影视图片与视频 hook、漫画图片 hook、Skill 封面与后台 Skill 卡片改用同一实现；图片加载失败时仍回退图标 / 空态。画布项目卡带预览缓存与缩略图生成，保留原逻辑。
+- 验证：`bun test` 109 文件 / 598 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测后台 Skill、漫画库、影视资产页正常加载，无运行时错误。
+- 未实测：带 `storageKey` 的影视分镜图 / 漫画参考图在刷新后的实际恢复（当前测试库为空，未触发解析链路）。
+
 ## B10 TTS 音色选择器收敛
 
 - Grok 与 MiniMax 音色选择器合并为 `components/tts-voice-select.tsx`：调用方只传 `provider`，数据源、显示字段、默认音色与画布设置面板的弹层定位集中在一份实现；删除两个近整份复制的组件。

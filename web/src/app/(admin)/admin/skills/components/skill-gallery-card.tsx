@@ -5,27 +5,15 @@ import { Button, Tag } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import type { AgentSkill } from "@/services/api/agent-skills";
-import { resolveImageUrl } from "@/services/image-storage";
 
 function SkillCover({ skill }: { skill: AgentSkill }) {
-    const [src, setSrc] = useState(skill.coverUrl);
-    useEffect(() => {
-        let active = true;
-        setSrc(skill.coverUrl);
-        if (skill.coverStorageKey) {
-            void resolveImageUrl(skill.coverStorageKey, skill.coverUrl)
-                .then((url) => {
-                    if (active) setSrc(url);
-                })
-                .catch(() => {
-                    if (active) setSrc(skill.coverUrl);
-                });
-        }
-        return () => {
-            active = false;
-        };
-    }, [skill.coverStorageKey, skill.coverUrl]);
+    const resolved = useResolvedMediaSrc(skill.coverUrl, skill.coverStorageKey);
+    const [failed, setFailed] = useState(false);
+
+    useEffect(() => setFailed(false), [resolved]);
+    const src = failed ? "" : resolved;
 
     if (!src) {
         const initial = skill.name.trim().slice(0, 1).toUpperCase() || "S";
@@ -36,7 +24,7 @@ function SkillCover({ skill }: { skill: AgentSkill }) {
             </div>
         );
     }
-    return <img src={src} alt={skill.name} loading="lazy" decoding="async" className="size-full object-cover" onError={() => setSrc("")} />;
+    return <img src={src} alt={skill.name} loading="lazy" decoding="async" className="size-full object-cover" onError={() => setFailed(true)} />;
 }
 
 export function SkillGalleryCard({ skill, onEdit, onDelete }: { skill: AgentSkill; onEdit: (skill: AgentSkill) => void; onDelete: (skill: AgentSkill) => void }) {
