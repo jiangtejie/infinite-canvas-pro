@@ -6,9 +6,10 @@ description: 当前版本已实现但仍需人工验证的变更项
 ## 结构与工程：画布库派生分页 / 概览最近日志
 
 - 画布库移除「页码超出后 setPage」的派生 state effect：当前页直接由 `page` 与总页数推导，删除画布后不会再触发一次额外落盘/渲染。
-- 后台概览的最近 AI 日志改为单次遍历取 Top 6，不再为 6 条记录全量排序；时间相同保持原日志顺序。仍然全量读取日志文件，缓存/统计索引未做。
-- 验证：`bun test` 109 文件 / 598 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过；新增 `go test ./service -run TestLatestAILogs` 通过，`go build ./...` 通过。ego-browser 实测画布库与后台概览页正常加载。
-- 未实测：大日志量下的概览耗时、删除/新增画布后分页页码的连续交互。
+- 后台概览的最近 AI 日志改为单次遍历取 Top 6，不再为 6 条记录全量排序；时间相同保持原日志顺序。
+- 概览 AI 统计增加进程内缓存：按日志文件名、大小、修改时间与当前日期生成签名，任意写入或跨天自动失效；返回副本避免调用方修改缓存。缓存命中时不再读取日志文件。
+- 验证：`bun test` 109 文件 / 598 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过；`go test ./service -run 'TestLatestAILogs|TestAILogCacheSignature'` 通过（含 Top-N 顺序、相同时间稳定性、跨天签名变化），`go build ./...` 通过。ego-browser 实测画布库与后台概览页正常加载。
+- 未实测：大日志量下的缓存命中耗时、并发刷新概览、删除/新增画布后分页页码的连续交互。
 
 ## C 组冗余收敛
 

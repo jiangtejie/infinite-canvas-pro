@@ -2,6 +2,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 )
@@ -21,6 +22,20 @@ func TestLatestAILogsKeepsNewestInOrder(t *testing.T) {
 		if got[index].ID != id {
 			t.Fatalf("expected %s at %d, got %s", id, index, got[index].ID)
 		}
+	}
+}
+
+func TestAILogCacheSignatureChangesAcrossDays(t *testing.T) {
+	first, err := aiLogCacheSignature(time.Date(2026, 1, 1, 23, 59, 0, 0, time.Local))
+	if err != nil {
+		t.Fatalf("signature failed: %v", err)
+	}
+	second, err := aiLogCacheSignature(time.Date(2026, 1, 2, 0, 1, 0, 0, time.Local))
+	if err != nil {
+		t.Fatalf("signature failed: %v", err)
+	}
+	if first == second {
+		t.Fatal("expected signature to change across days")
 	}
 }
 

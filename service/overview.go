@@ -1,14 +1,25 @@
 package service
 
 import (
+	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"github.com/jiangtejie/infinite-canvas-pro/repository"
 )
+
+var overviewAILogCache struct {
+	sync.Mutex
+	loaded    bool
+	signature string
+	ai        model.AdminOverviewAI
+	recent    []model.AdminOverviewRecentAILog
+}
 
 // AdminOverview 汇总后台概览数据：用户、AI 调用、算力、内容与运行状态。
 func AdminOverview() (model.AdminOverview, error) {
@@ -117,6 +128,19 @@ func AdminOverview() (model.AdminOverview, error) {
 }
 
 func summarizeAILogs(now time.Time) (model.AdminOverviewAI, []model.AdminOverviewRecentAILog, error) {
+	signature, err := aiLogCacheSignature(now)
+	if err != nil {
+		return model.AdminOverviewAI{}, nil, err
+	}
+	overviewAILogCache.Lock()
+	if overviewAILogCache.loaded && overviewAILogCache.signature == signature {
+		ai := cloneOverviewAI(overviewAILogCache.ai)
+		recent := append([]model.AdminOverviewRecentAILog(nil), overviewAILogCache.recent...)
+		overviewAILogCache.Unlock()
+		return ai, recent, nil
+	}
+	overviewAILogCache.Unlock()
+
 	items, err := readAICallLogs()
 	if err != nil {
 		return model.AdminOverviewAI{}, nil, err
@@ -180,7 +204,37 @@ func summarizeAILogs(now time.Time) (model.AdminOverviewAI, []model.AdminOvervie
 			CreatedAt:       item.CreatedAt,
 		})
 	}
+	overviewAILogCache.Lock()
+	overviewAILogCache.loaded = true
+	overviewAILogCache.signature = signature
+	overviewAILogCache.ai = cloneOverviewAI(ai)
+	overviewAILogCache.recent = append([]model.AdminOverviewRecentAILog(nil), recent...)
+	overviewAILogCache.Unlock()
 	return ai, recent, nil
+}
+
+// aiLogCacheSignature 由日志文件大小、修改时间与当前日期组成；任意写入或跨天都会失效。
+func aiLogCacheSignature(now time.Time) (string, error) {
+	files, err := aiLogFiles()
+	if err != nil {
+		return "", err
+	}
+	var builder strings.Builder
+	for _, file := range files {
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(&builder, "%s:%d:%d;", file, info.Size(), info.ModTime().UnixNano())
+	}
+	builder.WriteString(now.Format("2006-01-02"))
+	return builder.String(), nil
+}
+
+func cloneOverviewAI(ai model.AdminOverviewAI) model.AdminOverviewAI {
+	cloned := ai
+	cloned.Trend = append([]model.AdminOverviewAITrend(nil), ai.Trend...)
+	return cloned
 }
 
 // latestAILogs 单次遍历取最近 N 条，避免为概览全量排序；时间相同保持原文件顺序。
