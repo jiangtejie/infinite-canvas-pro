@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## B10 TTS 音色选择器收敛
+
+- Grok 与 MiniMax 音色选择器合并为 `components/tts-voice-select.tsx`：调用方只传 `provider`，数据源、显示字段、默认音色与画布设置面板的弹层定位集中在一份实现；删除两个近整份复制的组件。
+- 验证：`bun test` 109 文件 / 598 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测配置弹窗正常打开，无运行时错误。
+- 未实测：真实 Grok / MiniMax 音色列表加载与切换（当前配置未切到对应 TTS 模型，未触发选择器挂载）。
+
 ## A5 视频时长与尺寸归一化收敛
 
 - 新增 `lib/video-params.ts` 作为时长 / 尺寸唯一口径：`normalizeVideoSeconds` 保留智能时长 `-1`，`normalizeVideoSecondsForModel` 对 Seedance 2.5 / wan3 保留 `-1`，其余模型回落默认或最近合法档位。

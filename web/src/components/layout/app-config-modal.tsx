@@ -8,8 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChannelModelSelectorModal } from "@/components/channel-model-selector-modal";
 import { CreditSymbol } from "@/constant/credits";
 import type { WorkflowChannelSettings } from "@/components/workflow/workflow-channel-pane";
-import { GrokTtsVoiceSelect } from "@/components/grok-tts-voice-select";
-import { MiniMaxTtsVoiceSelect } from "@/components/minimax-tts-voice-select";
+import { TtsVoiceSelect } from "@/components/tts-voice-select";
 import { ModelPicker } from "@/components/model-picker";
 import { fetchImageModels } from "@/services/api/image";
 import { fetchUserConfig, measureUserStorageProvider, syncUserModelConfig, syncUserStorageProvider } from "@/services/api/user-config";
@@ -624,7 +623,7 @@ export function AppConfigModal() {
                             </Form.Item>
                         ) : isMimoTtsModel(config.audioModel) ? null : (
                             <Form.Item label="默认音频声音" className="mb-4">
-                                {grokTts ? <GrokTtsVoiceSelect config={audioConfig} model={config.audioModel} value={config.grokTtsVoice} enabled={isConfigOpen} onChange={(value) => updateConfig("grokTtsVoice", value)} /> : officialMiniMaxTts ? <MiniMaxTtsVoiceSelect config={audioConfig} model={config.audioModel} value={normalizeMiniMaxTtsVoice(config.miniMaxTtsVoice)} enabled={isConfigOpen} onChange={(value) => updateConfig("miniMaxTtsVoice", value)} /> : <Select showSearch={miniMaxTts} optionFilterProp="label" value={glmTts ? normalizeGlmTtsVoice(config.glmTtsVoice) : miniMaxTts ? normalizeMiniMaxTtsVoice(config.miniMaxTtsVoice) : config.audioVoice} options={glmTts ? glmTtsVoiceOptions : miniMaxTts ? miniMaxTtsVoiceOptions : audioVoiceOptions} onChange={(value) => updateConfig(glmTts ? "glmTtsVoice" : miniMaxTts ? "miniMaxTtsVoice" : "audioVoice", value)} />}
+                                {grokTts ? <TtsVoiceSelect provider="grok" config={audioConfig} model={config.audioModel} value={config.grokTtsVoice} enabled={isConfigOpen} onChange={(value) => updateConfig("grokTtsVoice", value)} /> : officialMiniMaxTts ? <TtsVoiceSelect provider="minimax" config={audioConfig} model={config.audioModel} value={normalizeMiniMaxTtsVoice(config.miniMaxTtsVoice)} enabled={isConfigOpen} onChange={(value) => updateConfig("miniMaxTtsVoice", value)} /> : <Select showSearch={miniMaxTts} optionFilterProp="label" value={glmTts ? normalizeGlmTtsVoice(config.glmTtsVoice) : miniMaxTts ? normalizeMiniMaxTtsVoice(config.miniMaxTtsVoice) : config.audioVoice} options={glmTts ? glmTtsVoiceOptions : miniMaxTts ? miniMaxTtsVoiceOptions : audioVoiceOptions} onChange={(value) => updateConfig(glmTts ? "glmTtsVoice" : miniMaxTts ? "miniMaxTtsVoice" : "audioVoice", value)} />}
                             </Form.Item>
                         )}
                         {grokTts ? (

@@ -3,8 +3,7 @@
 import { Select } from "antd";
 import { type ReactNode } from "react";
 
-import { GrokTtsVoiceSelect } from "@/components/grok-tts-voice-select";
-import { MiniMaxTtsVoiceSelect } from "@/components/minimax-tts-voice-select";
+import { TtsVoiceSelect } from "@/components/tts-voice-select";
 import { ImageSettingsTheme } from "@/components/image-settings-panel";
 import { audioFormatOptions, audioSpeedLabel, audioVoiceOptions, glmTtsFormatOptions, glmTtsVoiceOptions, isGlmTtsModel, normalizeAudioFormatValue, normalizeAudioSpeedValue, normalizeAudioVoiceValue, normalizeGlmTtsFormat, normalizeGlmTtsSpeed, normalizeGlmTtsVoice } from "@/lib/audio-generation";
 import { grokTtsFormatOptions, grokTtsLanguageOptions, isGrok2APITtsConfig, normalizeGrokTtsFormat, normalizeGrokTtsLanguage, normalizeGrokTtsSpeed } from "@/lib/grok-tts";
@@ -119,9 +118,9 @@ function AudioSpeechSettings({ config, model, glm, grok, miniMax, onConfigChange
     return (
         <>
             <SettingGroup title="声音" color={theme.node.muted}>
-                {grok ? <GrokTtsVoiceSelect config={config} model={model} value={voice} onChange={(value) => onConfigChange("grokTtsVoice", value)} /> : miniMax ? (
+                {grok ? <TtsVoiceSelect provider="grok" config={config} model={model} value={voice} onChange={(value) => onConfigChange("grokTtsVoice", value)} /> : miniMax ? (
                     officialMiniMax ? (
-                        <MiniMaxTtsVoiceSelect config={config} model={model} value={voice} onChange={(value) => onConfigChange("miniMaxTtsVoice", value)} />
+                        <TtsVoiceSelect provider="minimax" config={config} model={model} value={voice} onChange={(value) => onConfigChange("miniMaxTtsVoice", value)} />
                     ) : (
                         <Select className="w-full" value={voice} options={miniMaxTtsVoiceOptions} showSearch optionFilterProp="label" styles={{ popup: { root: { zIndex: 1300 } } }} getPopupContainer={(trigger) => trigger.closest(".canvas-image-settings-popover") as HTMLElement | null || document.body} onChange={(value) => onConfigChange("miniMaxTtsVoice", value)} />
                     )
