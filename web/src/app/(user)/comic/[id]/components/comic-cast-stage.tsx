@@ -13,6 +13,7 @@ import type { ComicCharacter, ComicImageRef, ComicImageSlot, ComicLibraryCharact
 import { copyComicCharacterForProject } from "../../utils/comic-character-binding";
 import { createComicCharacter, createComicLocation, invalidateComicPageCompositions, invalidateComicPagesForCharacter } from "../../utils/comic-project";
 import { activeComicSlotImage } from "../../utils/comic-image-slot";
+import { applyComicCharacterLibraryEntry, applyComicLocationLibraryEntry, comicLibraryEntryIsNewer } from "../../utils/comic-library-entry";
 
 const EMPTY_SLOT: ComicImageSlot = { images: [] };
 
@@ -50,6 +51,18 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
         message.success(`「${location.name}」已存入场景库`);
     };
 
+    const updateCharacterFromLibrary = (character: ComicCharacter, entry: ComicLibraryCharacter) => {
+        const next = applyComicCharacterLibraryEntry(character, entry);
+        onChange(invalidateComicPagesForCharacter({ ...project, characters: characters.map((item) => item.id === character.id ? next : item) }, character.id));
+        message.success(`已从角色库更新「${next.name}」`);
+    };
+
+    const updateLocationFromLibrary = (location: ComicLocation, entry: ComicLibraryLocation) => {
+        const next = applyComicLocationLibraryEntry(location, entry);
+        onChange(invalidateComicPageCompositions({ ...project, locations: locations.map((item) => item.id === location.id ? next : item) }));
+        message.success(`已从场景库更新「${next.name}」`);
+    };
+
     const importCharacter = (item: ComicLibraryCharacter) => {
         const copy = copyComicCharacterForProject(item);
         onChange({ ...project, characters: [...characters, copy] });
@@ -63,6 +76,7 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
             ...item,
             id: base.id,
             sourceLibraryLocationId: item.id,
+            sourceLibraryUpdatedAt: item.updatedAt || "",
             image: item.image ? { ...item.image, images: item.image.images.map((image) => ({ ...image })) } : undefined,
         } as ComicLocation;
         onChange({ ...project, locations: [...locations, copy] });
@@ -85,18 +99,24 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
                     </div>
                 </div>
                 <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                    {characters.map((character) => (
-                        <article key={character.id} className="rounded-lg border border-border/60 bg-background/30 p-3">
-                            <ComicCharacterEditor
-                                character={character}
-                                onChange={(next) => patchCharacter(character.id, next)}
-                                actions={<>
-                                    <Button type="text" size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Library className="size-3.5" />} aria-label="存入角色库" title="存入角色库" onClick={() => saveCharacterToLibrary(character)} />
-                                    <Button type="text" danger size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="删除角色" onClick={() => void removeCharacter(character)} />
-                                </>}
-                            />
-                        </article>
-                    ))}
+                    {characters.map((character) => {
+                        const libraryEntry = character.sourceLibraryCharacterId ? libraryCharacters.find((item) => item.id === character.sourceLibraryCharacterId) : undefined;
+                        return (
+                            <article key={character.id} className="rounded-lg border border-border/60 bg-background/30 p-3">
+                                <ComicCharacterEditor
+                                    character={character}
+                                    onChange={(next) => patchCharacter(character.id, next)}
+                                    actions={<>
+                                        {libraryEntry && comicLibraryEntryIsNewer(libraryEntry, character) ? (
+                                            <Button type="text" size="small" className="!h-8 !px-1.5 !text-[10px] !text-acid" onClick={() => updateCharacterFromLibrary(character, libraryEntry)}>库有更新</Button>
+                                        ) : null}
+                                        <Button type="text" size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Library className="size-3.5" />} aria-label="存入角色库" title="存入角色库" onClick={() => saveCharacterToLibrary(character)} />
+                                        <Button type="text" danger size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="删除角色" onClick={() => void removeCharacter(character)} />
+                                    </>}
+                                />
+                            </article>
+                        );
+                    })}
                     {!characters.length ? <EmptyCast icon={<UserRound className="size-5" />} text="还没有角色，先添加主角和关键配角。" /> : null}
                 </div>
             </section>
@@ -114,10 +134,15 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
                     </div>
                 </div>
                 <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                    {locations.map((location) => (
+                    {locations.map((location) => {
+                        const libraryEntry = location.sourceLibraryLocationId ? libraryLocations.find((item) => item.id === location.sourceLibraryLocationId) : undefined;
+                        return (
                         <article key={location.id} className="rounded-lg border border-border/60 bg-background/30 p-3">
                             <div className="flex items-center gap-2">
                                 <Input value={location.name} maxLength={100} placeholder="场景名" onChange={(event) => patchLocation(location.id, { name: event.target.value })} />
+                                {libraryEntry && comicLibraryEntryIsNewer(libraryEntry, location) ? (
+                                    <Button type="text" size="small" className="!h-8 !px-1.5 !text-[10px] !text-acid" onClick={() => updateLocationFromLibrary(location, libraryEntry)}>库有更新</Button>
+                                ) : null}
                                 <Button type="text" size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Library className="size-3.5" />} aria-label="存入场景库" title="存入场景库" onClick={() => saveLocationToLibrary(location)} />
                                 <Button type="text" danger size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="删除场景" onClick={() => void removeLocation(location)} />
                             </div>
@@ -130,7 +155,8 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
                                 <label className="block space-y-1 text-xs"><span className="text-muted-foreground">其他设定</span><Input.TextArea rows={2} value={location.notes} maxLength={2000} onChange={(event) => patchLocation(location.id, { notes: event.target.value })} /></label>
                             </div>
                         </article>
-                    ))}
+                        );
+                    })}
                     {!locations.length ? <EmptyCast icon={<MapPin className="size-5" />} text="还没有场景，先建立主要地点。" /> : null}
                 </div>
             </section>

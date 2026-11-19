@@ -86,6 +86,7 @@ export type ComicCharacter = {
     };
     variants: ComicCharacterVariant[];
     sourceLibraryCharacterId?: string;
+    sourceLibraryUpdatedAt?: string;
 };
 
 export type ComicLocation = {
@@ -96,6 +97,7 @@ export type ComicLocation = {
     notes: string;
     image?: ComicImageSlot;
     sourceLibraryLocationId?: string;
+    sourceLibraryUpdatedAt?: string;
 };
 
 export type ComicLibraryCharacter = ComicCharacter & { createdAt: string; updatedAt?: string };

@@ -149,6 +149,7 @@ export function normalizeComicCharacter(character: LegacyComicCharacter, fallbac
         },
         variants,
         sourceLibraryCharacterId: character.sourceLibraryCharacterId,
+        sourceLibraryUpdatedAt: typeof character.sourceLibraryUpdatedAt === "string" ? character.sourceLibraryUpdatedAt : undefined,
     };
 }
 
@@ -194,6 +195,7 @@ export function normalizeComicProject(project: LegacyComicProject, projectId: st
             notes: location.notes || "",
             image: normalizeComicImageSlot(location.image, `${id}:image`),
             sourceLibraryLocationId: typeof location.sourceLibraryLocationId === "string" ? location.sourceLibraryLocationId : undefined,
+            sourceLibraryUpdatedAt: typeof location.sourceLibraryUpdatedAt === "string" ? location.sourceLibraryUpdatedAt : undefined,
         };
     });
     return {

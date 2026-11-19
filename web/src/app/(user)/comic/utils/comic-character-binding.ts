@@ -135,5 +135,6 @@ export function copyComicCharacterForProject(source: ComicCharacter): ComicChara
             referenceImage: copyReference(variant.referenceImage),
         })),
         sourceLibraryCharacterId: source.id,
+        sourceLibraryUpdatedAt: (source as ComicCharacter & { updatedAt?: string }).updatedAt || "",
     };
 }
