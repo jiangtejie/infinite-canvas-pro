@@ -11,7 +11,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
-import { canvasNodeDisplayStatus } from "../[id]/lib/canvas-node-meta";
+import { canvasNodeDisplayStatus, sourceNodeHasMaterial } from "../[id]/lib/canvas-node-meta";
 import { NODE_DEFAULT_SIZE } from "../constants";
 import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "../types";
 import { isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panorama";
@@ -166,7 +166,7 @@ export function CanvasNodeHoverToolbar({
     const isRemixPlan = isText && node.metadata?.remixRole === "plan";
     const isConfig = node.type === CanvasNodeType.Config;
     const isSource = node.type === CanvasNodeType.Source;
-    const hasSourceMaterial = isSource && Boolean(node.metadata?.sourceTitle?.trim() || node.metadata?.sourceText?.trim() || node.metadata?.sourceImages?.length || node.metadata?.sourceCoverUrl?.trim());
+    const hasSourceMaterial = isSource && sourceNodeHasMaterial(node.metadata);
     const sourceExpanded = node.metadata?.sourceExpanded === true;
     const isPublish = node.type === CanvasNodeType.Publish;
     const canOpenDialog = (isText && !isRemixPlan) || hasImage || isVideo;

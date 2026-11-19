@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type Set
 import { parseContentSource } from "@/services/api/content";
 import { fitSourceNodeSize } from "../../utils/canvas-node-size";
 import type { CanvasConnection, CanvasNodeData, CanvasNodeMetadata } from "../../types";
+import { sourceNodeHasMaterial } from "../lib/canvas-node-meta";
 import { planSourceMaterialSync, pruneSourceDerivedNodes } from "../lib/canvas-source-plan";
 import { errorMessage } from "@/lib/utils";
 
@@ -24,14 +25,6 @@ type ParseSnapshot = {
     hasMaterial: boolean;
 };
 
-function hasSourceMaterial(metadata?: CanvasNodeMetadata) {
-    return Boolean(
-        metadata?.sourceTitle?.trim() ||
-        metadata?.sourceText?.trim() ||
-        metadata?.sourceImages?.length ||
-        metadata?.sourceCoverUrl?.trim(),
-    );
-}
 
 function fallbackSuccessStatus(status: CanvasNodeMetadata["sourceStatus"]) {
     return status === "success" || status === "loading" ? "success" : status;
@@ -66,7 +59,7 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
             nodeId,
             status: node.metadata?.sourceStatus,
             error: node.metadata?.sourceError,
-            hasMaterial: hasSourceMaterial(node.metadata),
+            hasMaterial: sourceNodeHasMaterial(node.metadata),
         };
         parseSnapshotRef.current = snapshot;
         setNodes((prev) => patchSourceMetadata(prev, nodeId, {
@@ -171,7 +164,7 @@ export function useCanvasSource({ nodesRef, connectionsRef, setNodes, setConnect
     const handleExpandSource = useCallback((nodeId: string): CanvasSourceActionResult => {
         const source = nodesRef.current.find((item) => item.id === nodeId);
         if (!source) return { ok: false, reason: "素材源节点已不存在" };
-        if (!hasSourceMaterial(source.metadata)) {
+        if (!sourceNodeHasMaterial(source.metadata)) {
             return { ok: false, reason: "还没有可展开的素材，请先解析或手动填入文字" };
         }
 

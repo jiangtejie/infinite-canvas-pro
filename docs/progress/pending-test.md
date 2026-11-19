@@ -3,6 +3,14 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## C 组冗余收敛
+
+- 「素材源是否有内容」判定收敛为 `sourceNodeHasMaterial`，解析 hook、节点悬浮工具栏与解析面板共用；三处原先逐字重复。
+- Agent 工具结果与默认上下文的节点字段抽取收敛为 `canvasNodeSummaryFields`：正文、来源原图、媒体地址、状态、任务与错误等只提取一份；上下文中的素材源状态与错误也统一按素材源字段读取。
+- 作者 / 统计行目前只剩素材源卡片一处实现，写入 todo 时提到的第二处已不存在，按现状收口。
+- 验证：`bun test` 109 文件 / 598 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测画布页面正常加载。
+- 未实测：真实素材源节点解析后的卡片/工具栏/面板交互，以及 Agent 会话中的节点摘要输出。
+
 ## B10 媒体 URL 解析 Hook 收敛
 
 - 新增 `hooks/use-resolved-media-src.ts`：挂载后把 `storageKey` 解析成可用地址，图片 / 视频共用一个 hook。

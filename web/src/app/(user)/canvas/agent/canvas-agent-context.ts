@@ -4,7 +4,7 @@ import { isGeminiConfig, isGeminiTtsModel } from "@/lib/gemini";
 import { supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { type AiConfig } from "@/stores/use-config-store";
 import { CanvasNodeType, type CanvasAgentState, type CanvasConnection, type CanvasNodeData } from "../types";
-import { canvasNodeDisplayStatus, publishDraftText, sourceNodeText } from "../[id]/lib/canvas-node-meta";
+import { canvasNodeSummaryFields } from "../[id]/lib/canvas-node-summary-fields";
 import { canvasRecoverableTaskId } from "../[id]/lib/canvas-task-helpers";
 import { collectSourceMaterialNodes } from "../[id]/lib/canvas-source-remix";
 
@@ -175,33 +175,29 @@ export function serializeCanvasAgentContext(context: CanvasAgentContext) {
  * 其余节点只保留定位信息，正文与提示词通过 get_node / query_canvas_nodes 按需读取。
  */
 function summarizeNode(node: CanvasNodeData, detailed = false): CanvasAgentContextNode {
-    const content = node.metadata?.content || "";
-    const isText = node.type === CanvasNodeType.Text;
-    const isSource = node.type === CanvasNodeType.Source;
-    const isPublish = node.type === CanvasNodeType.Publish;
-    const mediaUrl = !isText && !isSource && !isPublish && content && !content.startsWith("data:") ? content : undefined;
+    const fields = canvasNodeSummaryFields(node, MAX_TEXT_LENGTH);
     const base: CanvasAgentContextNode = {
         id: node.id,
         type: node.type,
         title: node.title,
-        hasMedia: !isText && !isPublish ? Boolean(content) : undefined,
-        status: isPublish ? canvasNodeDisplayStatus(node) : node.metadata?.status,
-        groupId: node.metadata?.groupId,
-        remixRunId: node.metadata?.remixRunId,
-        remixRole: node.metadata?.remixRole,
+        hasMedia: fields.hasMedia,
+        status: fields.status,
+        groupId: fields.groupId,
+        remixRunId: fields.remixRunId,
+        remixRole: fields.remixRole,
     };
     if (!detailed) return base;
     return {
         ...base,
-        text: isText && content ? content.slice(0, MAX_TEXT_LENGTH) : isSource ? sourceNodeText(node).slice(0, MAX_TEXT_LENGTH) : isPublish ? publishDraftText(node).slice(0, MAX_TEXT_LENGTH) : undefined,
-        sourceImageCount: isSource ? (node.metadata?.sourceImages || []).filter((image) => image.url).length : undefined,
-        mediaUrl,
-        prompt: node.metadata?.prompt?.slice(0, MAX_TEXT_LENGTH),
-        model: node.metadata?.model,
-        size: node.metadata?.size,
-        seconds: node.metadata?.seconds,
-        generateAudio: node.metadata?.generateAudio,
-        taskId: canvasRecoverableTaskId(node) || undefined,
-        error: isPublish ? node.metadata?.publishError : node.metadata?.errorDetails,
+        text: fields.text,
+        sourceImageCount: fields.sourceImages?.length,
+        mediaUrl: fields.mediaUrl,
+        prompt: fields.prompt,
+        model: fields.model,
+        size: fields.size,
+        seconds: fields.seconds,
+        generateAudio: fields.generateAudio,
+        taskId: fields.taskId,
+        error: fields.error,
     };
 }

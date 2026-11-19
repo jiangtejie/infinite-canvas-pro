@@ -39,12 +39,6 @@ description: 当前项目后续值得处理的事项
 - 【算力点】缺少 AI 代理扣点/退款的 handler 集成测试（本地代理环境会影响 upstream mock）；前端估算依赖已加载的 public 模型单价，后台改价后需刷新；用户停止任务按「不退还已开始执行任务」处理，如需退款要按未开始执行条件实现幂等退款。方案见 [ai-film-plan.md](ai-film-plan.md)。
 - 【antd 弹层】Select / AutoComplete / Tooltip 与已修的 Dropdown 共用 rc-trigger 定位，在「减少动态效果」或动画被压缩的环境中可能同样停在隐藏坐标。逐页确认后，若确实失效再改成自绘，或给 ConfigProvider 注入定位兜底。
 
-## 冗余收敛剩余项
-
-A 组、B 组与 Seedance 别名已收敛，见 pending-test；Kling 的视频侧判定（`video/history.ts` ↔ `protocols/kling-models.ts`，request payload 第三份）也已在「技术债清理」轮收敛为协议单一口径。剩余：
-
-- 【C 组小重复】「有素材」判定三份（hook/卡片/面板）；作者/统计行 UI 卡片与面板重复拼装；节点摘要两套字段抽取（`canvasAgentNodeSummary` 与 `summarizeNode`）。
-
 ## 结构与工程
 
 - 【画布】`canvas/[id]/canvas-client-page.tsx` 现 2051 行；任务/视口/选中/生成 hooks 与纯函数已迁出，剩余可选项是把主组件拆成容器 + 侧栏 + 工具栏，以及页面 model 类型继续收敛。z-index 档位未合并（合并会改遮挡，需专门回归）；`canvas/page.tsx` 与侧栏的派生 state useEffect 待收敛。

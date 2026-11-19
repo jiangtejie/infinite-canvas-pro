@@ -6,6 +6,7 @@ import { Button, Input, theme as antdTheme } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { sourceNodeHasMaterial } from "../[id]/lib/canvas-node-meta";
 import type { CanvasNodeData, CanvasNodeMetadata } from "../types";
 
 export type CanvasSourceNodePanelProps = {
@@ -29,7 +30,7 @@ export function CanvasSourceNodePanel({ node, parsing, parseEnabled, onParse, on
     const status = node.metadata?.sourceStatus || "idle";
     const errorText = node.metadata?.sourceError || "";
     const showErrorBlock = Boolean(errorText) || status === "error";
-    const hasMaterial = Boolean(node.metadata?.sourceTitle?.trim() || node.metadata?.sourceText?.trim() || node.metadata?.sourceImages?.length || node.metadata?.sourceCoverUrl?.trim());
+    const hasMaterial = sourceNodeHasMaterial(node.metadata);
     const stopPointer = (event: { stopPropagation: () => void }) => event.stopPropagation();
 
     const applyManualText = () => {

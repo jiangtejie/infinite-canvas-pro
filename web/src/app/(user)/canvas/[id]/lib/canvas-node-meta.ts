@@ -12,6 +12,16 @@ export function sourceNodeText(node: CanvasNodeData) {
     return [node.metadata?.sourceTitle, node.metadata?.sourceText, tags].map((part) => part?.trim()).filter(Boolean).join("\n\n");
 }
 
+/** 素材源是否已有可展示内容；节点卡片、悬浮工具栏与解析面板共用。 */
+export function sourceNodeHasMaterial(metadata?: CanvasNodeData["metadata"]) {
+    return Boolean(
+        metadata?.sourceTitle?.trim()
+        || metadata?.sourceText?.trim()
+        || metadata?.sourceImages?.length
+        || metadata?.sourceCoverUrl?.trim(),
+    );
+}
+
 /** 发布草稿正文唯一口径：标题 + 正文 + 规范化 #话题，段间空行。Agent 摘要、默认上下文与关键词搜索共用。 */
 export function publishDraftText(node: CanvasNodeData) {
     const draft = node.metadata?.publishDraft;
