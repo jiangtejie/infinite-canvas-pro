@@ -4,7 +4,7 @@
 @import "../styles/canvas.css";
 @import "../styles/account.css";
 @import "../styles/admin.css";
-@import "../styles/prompts.css";
+@import "../styles/filter-tags.css";
 @import "../styles/film.css";
 
 @custom-variant dark (&:is(.dark *));

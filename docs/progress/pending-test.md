@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：共享筛选样式归属
+
+- 共享筛选标签样式从 `styles/prompts.css` 迁到 `styles/filter-tags.css`，类名由 `.prompt-filter-tag` 改为 `.filter-tag`；`FilterTagGroup` 不再依赖提示词页私有样式，`prompts.css` 已删除。
+- 样式内容逐字迁移，选中下划线、移动端横向滚动与筛选区限高保持不变。
+- 验证：`bun test` 109 文件 / 598 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测我的素材页筛选标签计算样式为无边框、13px、透明底，提示词页 26 个标签正常渲染。为让新 CSS import 生效，按项目约定重启前端 dev 并清理 `.next/dev`。
+- 未实测：全部使用 FilterTagGroup 的页面逐一视觉回归、浅色主题与移动端。
+
 ## 结构与工程：画布库派生分页 / 概览最近日志
 
 - 画布库移除「页码超出后 setPage」的派生 state effect：当前页直接由 `page` 与总页数推导，删除画布后不会再触发一次额外落盘/渲染。

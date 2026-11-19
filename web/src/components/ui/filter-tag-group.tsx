@@ -42,7 +42,7 @@ export function FilterTagGroup({ label, options, isSelected, onSelect, className
             >
                 <Tag.CheckableTag
                     checked={isSelected(value)}
-                    className={cn("prompt-filter-tag", isSelected(value) && "is-active")}
+                    className={cn("filter-tag", isSelected(value) && "is-active")}
                     onChange={() => onSelect(value)}
                 >
                     {text}
