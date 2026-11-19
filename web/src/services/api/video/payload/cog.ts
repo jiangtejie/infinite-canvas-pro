@@ -6,7 +6,9 @@ import { ReferenceImage } from "@/types/image";
 import { VideoRequestError } from "../types";
 import { VideoReferenceInput } from "../types";
 
-import { normalizeVideoResolution, normalizeVideoSize } from "./shared";
+import { normalizeVideoSize } from "@/lib/video-params";
+
+import { normalizeVideoResolution } from "./shared";
 
 
 export async function createCogVideoX3RequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
@@ -27,7 +29,7 @@ export async function createCogVideoX3RequestBody(config: AiConfig, model: strin
 
 function normalizeCogVideoX3Size(resolutionValue: string, sizeValue: string) {
     const exactSize = normalizeVideoSize(sizeValue);
-    if (exactSize && ["1280x720", "720x1280", "1024x1024", "1920x1080", "1080x1920", "2048x1080", "3840x2160"].includes(exactSize)) return exactSize;
+    if (exactSize !== "auto" && ["1280x720", "720x1280", "1024x1024", "1920x1080", "1080x1920", "2048x1080", "3840x2160"].includes(exactSize)) return exactSize;
     const resolution = normalizeVideoResolution(resolutionValue);
     const ratio = normalizeSeedanceRatio(sizeValue);
     if (ratio === "1:1") return "1024x1024";

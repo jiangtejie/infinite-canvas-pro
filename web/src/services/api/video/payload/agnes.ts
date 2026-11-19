@@ -1,4 +1,5 @@
 import { normalizeSeedanceRatio } from "@/lib/seedance-video";
+import { normalizeVideoSecondsForModel } from "@/lib/video-params";
 import { resolveMediaUrl } from "@/services/file-storage";
 import { resolveImageUrl } from "@/services/image-storage";
 import { type AiConfig } from "@/stores/use-config-store";
@@ -7,7 +8,7 @@ import { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { VideoRequestError } from "../types";
 import { VideoReferenceInput } from "../types";
 
-import { normalizeVideoSeconds, publicHttpUrl } from "./shared";
+import { publicHttpUrl } from "./shared";
 
 
 export function agnesBaseUrl(baseUrl: string) {
@@ -25,7 +26,7 @@ export async function createAgnesVideoV25RequestBody(config: AiConfig, model: st
         model,
         prompt,
         mode: hasFrames ? "keyframe" : hasReferences ? "reference" : "text",
-        seconds: String(Math.min(12, Math.max(4, Math.floor(Number(config.videoSeconds) || 5)))),
+        seconds: String(Math.min(12, Math.max(4, Math.floor(Number(normalizeVideoSecondsForModel(model, config.videoSeconds)) || 5)))),
         size: "720P",
         aspect_ratio: ratio === "adaptive" ? "16:9" : ratio,
     };
@@ -50,12 +51,12 @@ async function agnesVideoV25ReferenceUrl(reference: ReferenceImage | ReferenceVi
 }
 
 export function agnesFrameRate(secondsValue: string) {
-    const seconds = Number(normalizeVideoSeconds(secondsValue));
+    const seconds = Number(secondsValue) || 6;
     return seconds > 18 ? Math.max(1, Math.floor(440 / seconds)) : 24;
 }
 
 export function agnesNumFrames(secondsValue: string, frameRate: number) {
-    const target = Math.round(Number(normalizeVideoSeconds(secondsValue)) * frameRate) + 1;
+    const target = Math.round((Number(secondsValue) || 6) * frameRate) + 1;
     const capped = Math.min(441, Math.max(9, target));
     return capped - ((capped - 1) % 8);
 }

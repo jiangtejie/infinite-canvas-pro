@@ -5,7 +5,8 @@ import axios from "axios";
 import { SEEDANCE_REFERENCE_LIMITS, boolConfig, isSeedanceVideoConfig, normalizeSeedanceRatio } from "@/lib/seedance-video";
 import { isAutoDLConfig } from "@/lib/autodl";
 import { isCogVideoX3Model, normalizeCogVideoX3Duration } from "@/lib/video-model-capabilities";
-import { isKIEKlingV3Config, kieKlingOmniVariant, normalizeVideoSizeValue } from "@/components/video-settings-panel";
+import { isKIEKlingV3Config, kieKlingOmniVariant } from "@/components/video-settings-panel";
+import { normalizeVideoSecondsForModel, normalizeVideoSize } from "@/lib/video-params";
 import type { VideoElementItem, VideoElementReference } from "@/stores/use-config-store";
 import type { VideoResponse } from "@/services/api/video";
 import { VideoRequestError } from "@/services/api/video";
@@ -754,7 +755,7 @@ export function buildVideoConfig(config: AiConfig, model: string): AiConfig {
         videoChannelId,
         activeChannelId: videoChannelId,
         size: kling ? normalizeKlingV26Ratio(config.size) : seedance ? normalizeSeedanceRatio(config.size) : normalizeVideoSize(config.size),
-        videoSeconds: cogVideoX3 ? normalizeCogVideoX3Duration(config.videoSeconds) : klingV3 ? normalizeKlingV3Seconds(config.videoSeconds) : klingV26 ? normalizeKlingV26Seconds(config.videoSeconds) : normalizeVideoSeconds(config.videoSeconds),
+        videoSeconds: cogVideoX3 ? normalizeCogVideoX3Duration(config.videoSeconds) : klingV3 ? normalizeKlingV3Seconds(config.videoSeconds) : klingV26 ? normalizeKlingV26Seconds(config.videoSeconds) : normalizeVideoSecondsForModel(model, config.videoSeconds),
         videoMode,
         videoNegativePrompt: kieKlingV3 ? "" : config.videoNegativePrompt || "",
         videoMultiShot: klingV3 && kieKlingOmni !== "transformation" ? String(boolConfig(config.videoMultiShot, false)) : "false",
@@ -883,16 +884,6 @@ export function normalizeKlingV26Seconds(value: string) {
 export function normalizeKlingV3Seconds(value: string) {
     const seconds = Math.floor(Number(value) || 3);
     return String(Math.max(3, Math.min(15, seconds)));
-}
-
-export function normalizeVideoSeconds(value: string) {
-    if (String(value).trim() === "-1") return "-1";
-    const seconds = Math.floor(Number(value) || 6);
-    return String(Math.max(1, Math.min(30, seconds)));
-}
-
-export function normalizeVideoSize(value: string) {
-    return normalizeVideoSizeValue(value);
 }
 
 export function normalizeResolution(value: string) {

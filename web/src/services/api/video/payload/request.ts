@@ -4,6 +4,7 @@ import { boolConfig, isSeedance25Model, isSeedanceVideoConfig, normalizeSeedance
 import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "../../protocols/kling-models";
 import { autoDLBaseUrl, getAutoDLCapabilities } from "@/lib/autodl";
 import { fetchAutoDLWorkflow } from "../../autodl";
+import { normalizeVideoSecondsForModel, normalizeVideoSize } from "@/lib/video-params";
 import { isAgnesVideoV25Model, isCogVideoX3Model, isWan3VideoModel, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { videoReferenceCapacity } from "@/lib/video-reference-limits";
 import { localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
@@ -14,13 +15,13 @@ import { VideoReferenceInput, VideoResponse } from "../types";
 import { agnesBaseUrl, agnesFrameRate, agnesNumFrames, createAgnesVideoV25RequestBody, isAgnesVideoModel } from "./agnes";
 import { createArkSeedanceVideoRequestBody } from "./ark";
 import { createCogVideoX3RequestBody } from "./cog";
-import { createGeminiVeoRequestBody, isGeminiOmniFlashVideoModel, normalizeVideoSecondsForModel } from "./gemini";
+import { createGeminiVeoRequestBody, isGeminiOmniFlashVideoModel } from "./gemini";
 import { createGrok2APIVideoRequestBody, isGrok2APIVideoConfig, normalizeGrokVideoMode } from "./grok";
 import { isAPIMartKlingMotionControlVideoConfig, isAPIMartKlingV26VideoConfig, isAPIMartKlingV3VideoConfig, isKIEKlingMotionControlVideoConfig, normalizeAPIMartKlingMotionControlMode, normalizeCharacterOrientation, normalizeKIEKlingElementList, normalizeKIEKlingMultiPrompt, normalizeKlingElementList, normalizeKlingMultiPrompt, normalizeKlingShotType, normalizeKlingV26AspectRatio, normalizeKlingV26Duration, normalizeKlingV26Mode, normalizeKlingV3Duration, normalizeKlingV3Mode } from "./kling";
 import { createMiniMaxH3VideoRequestBody, miniMaxApiUrl } from "./minimax";
 import { createOpenAICloudVideoRequestBody } from "./openai";
 import { createTeamoVideoRequestBody, isTeamoVideoConfig } from "./teamo";
-import { imageReferenceToFormValue, imageToAgnesReference, mediaReferenceToFormValue, normalizeVideoResolution, normalizeVideoSize, videoChannelProtocol } from "./shared";
+import { imageReferenceToFormValue, imageToAgnesReference, mediaReferenceToFormValue, normalizeVideoResolution, videoChannelProtocol } from "./shared";
 
 
 
@@ -79,12 +80,13 @@ export async function createVideoRequestBody(config: AiConfig, model: string, pr
     if (isAgnesVideoModel(model)) {
         const references = input.references;
         const inputReferences = await Promise.all(references.slice(0, 7).map(imageToAgnesReference));
-        const dimensions = size ? parseVideoDimensions(size) : null;
-        const frameRate = agnesFrameRate(config.videoSeconds);
+        const dimensions = size !== "auto" ? parseVideoDimensions(size) : null;
+        const seconds = normalizeVideoSecondsForModel(model, config.videoSeconds);
+        const frameRate = agnesFrameRate(seconds);
         const body: Record<string, unknown> = {
             model,
             prompt,
-            num_frames: agnesNumFrames(config.videoSeconds, frameRate),
+            num_frames: agnesNumFrames(seconds, frameRate),
             frame_rate: frameRate,
         };
         if (dimensions) {
@@ -139,7 +141,7 @@ export async function createVideoRequestBody(config: AiConfig, model: string, pr
             body.append("seconds", seconds);
         }
         if (tokenDance || isSeedanceVideoConfig(config)) body.append("size", normalizeSeedanceRatio(config.size));
-        else if (size) body.append("size", size);
+        else if (size !== "auto") body.append("size", size);
         const resolution = normalizeVideoResolution(config.vquality);
         body.append("resolution_name", resolution);
         if (videoChannelProtocol(config, model) === "openai") body.append("resolution", resolution);

@@ -1,9 +1,10 @@
 import { normalizeSeedanceRatio } from "@/lib/seedance-video";
+import { normalizeVideoSecondsForModel } from "@/lib/video-params";
 import { imageToDataUrl } from "@/services/image-storage";
 import { type AiConfig } from "@/stores/use-config-store";
 import { VideoReferenceInput } from "../types";
 
-import { normalizeVideoResolution, normalizeVideoSeconds, videoChannelProtocol } from "./shared";
+import { normalizeVideoResolution, videoChannelProtocol } from "./shared";
 
 
 export function isGrok2APIVideoConfig(config: AiConfig, model: string) {
@@ -15,7 +16,7 @@ export async function createGrok2APIVideoRequestBody(config: AiConfig, model: st
     const body: Record<string, unknown> = {
         model,
         prompt,
-        duration: Number(normalizeVideoSeconds(config.videoSeconds)),
+        duration: Number(normalizeVideoSecondsForModel(model, config.videoSeconds)),
         resolution: normalizeVideoResolution(config.vquality),
     };
     const aspectRatio = normalizeSeedanceRatio(config.size);

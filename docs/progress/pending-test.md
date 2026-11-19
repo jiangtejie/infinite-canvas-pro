@@ -3,6 +3,14 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## A5 视频时长与尺寸归一化收敛
+
+- 新增 `lib/video-params.ts` 作为时长 / 尺寸唯一口径：`normalizeVideoSeconds` 保留智能时长 `-1`，`normalizeVideoSecondsForModel` 对 Seedance 2.5 / wan3 保留 `-1`，其余模型回落默认或最近合法档位。
+- 视频历史配置、底部创作栏、通用请求、Grok 与 Agnes 共用该口径；Seedance 1.x 超过 15 秒会在历史配置阶段就收敛为 15，不再出现「历史 16 秒、请求 15 秒」。
+- `normalizeVideoSize` 统一返回 `auto` 字符串；请求层对 `auto` 省略尺寸参数（Cog / Agnes 按自适应处理），不再出现配置 `auto`、请求 `null` 的双语义。
+- 验证：`bun test` 109 文件 / 598 条通过（新增 3 条时长/尺寸归一化用例）；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测视频工作台正常加载。
+- 未实测：Grok / Agnes / Veo / wan3 真实请求参数；不支持的智能时长从 1 秒改为 6 秒的实际模型表现。
+
 ## 冗余收敛：Seedance 2.5 别名 / 字节格式化 / 画布连线
 
 - Seedance 2.5（含 `sd2-5` 别名）统一由 `lib/seedance-video.ts` 的 `isSeedance25Model` 判定，画布 Agent 时长提示与校验、视频参数面板、ARK / OpenAI / 通用请求的 30 秒上限共用；Agent 时长判定改用 `isSeedanceVideoModel`，`sd2` 系列不再落到通用 1-30 秒档。

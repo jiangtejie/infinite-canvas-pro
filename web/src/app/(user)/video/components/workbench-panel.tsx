@@ -22,7 +22,8 @@ import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
 import type { AssetPickerTarget, UpdateAiConfig } from "../history";
-import { characterOrientationOptions, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, normalizeCharacterOrientation, normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount, normalizeVideoSeconds, videoChannelProtocol } from "../history";
+import { normalizeVideoSecondsForModel } from "@/lib/video-params";
+import { characterOrientationOptions, isAPIMartKlingMotionControlConfig, isKIEKlingMotionControlConfig, normalizeCharacterOrientation, normalizeKlingV26Ratio, normalizeKlingV26Seconds, normalizeVideoCount, videoChannelProtocol } from "../history";
 import { ReferenceAudioStrip, ReferenceImageStrip, ReferenceVideoStrip } from "./reference-strips";
 import { FrameReferenceStrip, GenerationSettings, ReferenceQuickActions } from "./workbench-controls";
 
@@ -180,7 +181,7 @@ export function VideoWorkbenchPanel({
                                 <>
                                     <QuickSelect label="清晰度" value={normalizeVideoResolutionValue(config.vquality)} options={isSeedanceVideoConfig(config) ? videoResolutionOptions.slice(0, 3) : videoResolutionOptions} onChange={(value) => { updateConfig("vquality", value); updateConfig("size", videoSizeForResolution(value, config.size)); }} />
                                     <QuickSelect label="尺寸" value={videoSizeForResolution(config.vquality, config.size)} options={videoSizeOptions(config.vquality)} onChange={(value) => updateConfig("size", value)} />
-                                    {cogVideoX3 ? <QuickSelect label="秒数" value={normalizeCogVideoX3Duration(config.videoSeconds)} options={cogVideoX3DurationOptions} onChange={(value) => updateConfig("videoSeconds", value)} /> : <QuickNumber label="秒数" value={autodl ? config.videoSeconds ?? "" : normalizeVideoSeconds(config.videoSeconds)} min={1} max={30} onChange={(value) => updateConfig("videoSeconds", value)} clampOnChange={!autodl} normalizeOnBlur={autodl ? (value) => normalizeAutoDLDuration(value, autodlWorkflow) : undefined} />}
+                                    {cogVideoX3 ? <QuickSelect label="秒数" value={normalizeCogVideoX3Duration(config.videoSeconds)} options={cogVideoX3DurationOptions} onChange={(value) => updateConfig("videoSeconds", value)} /> : <QuickNumber label="秒数" value={autodl ? config.videoSeconds ?? "" : normalizeVideoSecondsForModel(model, config.videoSeconds)} min={1} max={30} onChange={(value) => updateConfig("videoSeconds", value)} clampOnChange={!autodl} normalizeOnBlur={autodl ? (value) => normalizeAutoDLDuration(value, autodlWorkflow) : undefined} />}
                                     {audioGenerationEnabled ? <QuickSwitch label="生成音频" checked={generateAudio} onChange={(checked) => updateConfig("videoGenerateAudio", String(checked))} /> : null}
                                     {motionControl ? <QuickSelect label="角色朝向参考" value={normalizeCharacterOrientation(config.videoCharacterOrientation)} options={characterOrientationOptions} onChange={(value) => updateConfig("videoCharacterOrientation", value)} /> : null}
                                 </>

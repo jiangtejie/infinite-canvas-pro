@@ -1,27 +1,14 @@
 import { dataUrlToGeminiInlineData } from "@/lib/gemini";
 import { isGeminiVeo31Model, normalizeGeminiVideoDuration, normalizeGeminiVideoRatio, normalizeGeminiVideoResolution } from "@/lib/gemini-video";
-import { modelKey, videoDurationOptionsForModel } from "@/lib/video-model-capabilities";
+import { modelKey } from "@/lib/video-model-capabilities";
 import { imageToDataUrl } from "@/services/image-storage";
 import { type AiConfig } from "@/stores/use-config-store";
 import { VideoRequestError } from "../types";
 import { VideoReferenceInput } from "../types";
 
-import { normalizeVideoSeconds } from "./shared";
-
 
 export function isGeminiOmniFlashVideoModel(model: string) {
     return modelKey(model) === "gemini-omni-flash-preview";
-}
-
-export function normalizeVideoSecondsForModel(model: string, value: string) {
-    const options = videoDurationOptionsForModel(model);
-    if (options?.includes(-1) && value.trim() === "-1") return "-1";
-    const seconds = Number(normalizeVideoSeconds(value));
-    return options ? closestAllowedSeconds(seconds, options) : String(seconds);
-}
-
-function closestAllowedSeconds(seconds: number, allowed: number[]) {
-    return String(allowed.reduce((best, item) => Math.abs(item - seconds) < Math.abs(best - seconds) ? item : best, allowed[0]));
 }
 
 export async function createGeminiVeoRequestBody(config: AiConfig, model: string, prompt: string, input: Required<VideoReferenceInput>) {
