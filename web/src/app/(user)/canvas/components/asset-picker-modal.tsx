@@ -20,11 +20,12 @@ export type AssetPickerTab = "my-assets" | "library";
 type Props = {
     open: boolean;
     defaultTab?: AssetPickerTab;
+    kind?: AssetKind;
     onInsert: (payload: InsertAssetPayload) => void;
     onClose: () => void;
 };
 
-export function AssetPickerModal({ open, defaultTab = "my-assets", onInsert, onClose }: Props) {
+export function AssetPickerModal({ open, defaultTab = "my-assets", kind, onInsert, onClose }: Props) {
     const [activeTab, setActiveTab] = useState<AssetPickerTab>(defaultTab);
 
     useEffect(() => {
@@ -32,13 +33,13 @@ export function AssetPickerModal({ open, defaultTab = "my-assets", onInsert, onC
     }, [open, defaultTab]);
 
     return (
-        <Modal title="选择素材" open={open} onCancel={onClose} footer={null} width={860} destroyOnHidden styles={{ body: { padding: "0 24px 24px", minHeight: 480 } }}>
+        <Modal title={kind === "image" ? "选择图片" : "选择素材"} open={open} onCancel={onClose} footer={null} width={860} destroyOnHidden styles={{ body: { padding: "0 24px 24px", minHeight: 480 } }}>
             <Tabs
                 activeKey={activeTab}
                 onChange={(key) => setActiveTab(key as AssetPickerTab)}
                 items={[
-                    { key: "my-assets", label: "我的素材", children: <MyAssetsTab onInsert={onInsert} /> },
-                    { key: "library", label: "素材库", children: <LibraryTab onInsert={onInsert} /> },
+                    { key: "my-assets", label: "我的素材", children: <MyAssetsTab onInsert={onInsert} kind={kind} /> },
+                    { key: "library", label: "素材库", children: <LibraryTab onInsert={onInsert} kind={kind} /> },
                 ]}
             />
         </Modal>
@@ -78,8 +79,8 @@ function KindFilter({ kind, onChange }: { kind: string; onChange: (value: string
     );
 }
 
-function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => void }) {
-    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, query, items, categories, availableTags, total } = useLibraryAssetBrowser(PAGE_SIZE, "asset-picker-library");
+function LibraryTab({ onInsert, kind: fixedKind }: { onInsert: (payload: InsertAssetPayload) => void; kind?: AssetKind }) {
+    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, query, items, categories, availableTags, total } = useLibraryAssetBrowser(PAGE_SIZE, "asset-picker-library", fixedKind);
 
     return (
         <div className="space-y-4">
@@ -93,7 +94,7 @@ function LibraryTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => v
                     allowClear
                     onChange={(event) => setKeyword(event.target.value)}
                 />
-                <KindFilter kind={kind} onChange={setKind} />
+                {fixedKind ? null : <KindFilter kind={kind} onChange={setKind} />}
             </div>
             <AssetFilters categories={categories} tags={availableTags} category={category} selectedTags={tags} onCategoryChange={setCategory} onTagsChange={setTags} />
 
@@ -145,8 +146,8 @@ function PickerCard({ title, kind, cover, onClick }: { title: string; kind: Asse
     );
 }
 
-function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => void }) {
-    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, categories, availableTags, items, total } = useMyAssetBrowser(PAGE_SIZE);
+function MyAssetsTab({ onInsert, kind: fixedKind }: { onInsert: (payload: InsertAssetPayload) => void; kind?: AssetKind }) {
+    const { keyword, setKeyword, kind, setKind, category, setCategory, tags, setTags, page, setPage, categories, availableTags, items, total } = useMyAssetBrowser(PAGE_SIZE, fixedKind);
     const [createOpen, setCreateOpen] = useState(false);
 
     return (
@@ -161,7 +162,7 @@ function MyAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) => 
                     allowClear
                     onChange={(event) => setKeyword(event.target.value)}
                 />
-                <KindFilter kind={kind} onChange={setKind} />
+                {fixedKind ? null : <KindFilter kind={kind} onChange={setKind} />}
                 <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => setCreateOpen(true)}>
                     新增素材
                 </Button>

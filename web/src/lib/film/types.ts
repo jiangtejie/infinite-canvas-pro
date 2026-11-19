@@ -6,7 +6,7 @@ export type FilmImageRef = {
     id: string;
     url: string;
     storageKey?: string;
-    source?: "upload" | "generated";
+    source?: "upload" | "generated" | "asset" | "library";
     createdAt?: string;
 };
 

@@ -23,9 +23,9 @@ export function libraryInsertPayload(asset: AssetLibraryItem): InsertAssetPayloa
     return { kind: "audio", url: asset.url, title: asset.title, assetId: asset.id, source: "library" };
 }
 
-function useAssetFilterState() {
+function useAssetFilterState(initialKind?: Asset["kind"]) {
     const [keyword, setKeyword] = useState("");
-    const [kind, setKind] = useState("");
+    const [kind, setKind] = useState(initialKind || "");
     const [category, setCategory] = useState("");
     const [tags, setTags] = useState<string[]>([]);
     const [page, setPage] = useState(1);
@@ -36,9 +36,9 @@ function useAssetFilterState() {
 }
 
 /** 我的素材：本地数组筛选 + 分页，搜索覆盖标题、分类和标签。 */
-export function useMyAssetBrowser(pageSize: number) {
+export function useMyAssetBrowser(pageSize: number, initialKind?: Asset["kind"]) {
     const assets = useAssetStore((state) => state.assets);
-    const filters = useAssetFilterState();
+    const filters = useAssetFilterState(initialKind);
     const { keyword, kind, category, tags, page, setPage } = filters;
 
     const categories = useMemo(() => Array.from(new Set(assets.flatMap((asset) => (asset.category ? [asset.category] : [])))), [assets]);
@@ -62,8 +62,8 @@ export function useMyAssetBrowser(pageSize: number) {
 }
 
 /** 素材库：服务端分页查询，queryKey 由调用方区分缓存。 */
-export function useLibraryAssetBrowser(pageSize: number, queryKey: string) {
-    const filters = useAssetFilterState();
+export function useLibraryAssetBrowser(pageSize: number, queryKey: string, initialKind?: Asset["kind"]) {
+    const filters = useAssetFilterState(initialKind);
     const { keyword, kind, category, tags, page } = filters;
 
     const query = useQuery({

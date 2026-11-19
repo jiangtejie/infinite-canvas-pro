@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { App, Button, Checkbox, Image, Input, Modal, Select, Spin } from "antd";
-import { Download, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
+import { App, Button, Checkbox, Dropdown, Image, Input, Modal, Select, Spin } from "antd";
+import { Download, FolderOpen, ImageIcon, ImagePlus, Library, Lock, Plus, Sparkles, Trash2, Unlock, Upload, UserRound } from "lucide-react";
 
+import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/state-panel";
 import { useDownloadFile } from "@/hooks/use-download-file";
@@ -25,7 +26,15 @@ type FilmCharacterWorkspaceProps = {
     onUpdate: (patch: Partial<Omit<FilmProject, "id" | "createdAt">>) => void;
 };
 
-type UploadTarget = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | { kind: "state"; stateId: string } | null;
+type UploadTargetInput = { kind: "part"; key: FilmCharacterPartKey } | { kind: "prop"; propId: string } | { kind: "state"; stateId: string };
+type UploadTarget = (UploadTargetInput & { characterId: string }) | null;
+
+function imageSourceMenuItems(onUpload: () => void, onPick: () => void) {
+    return [
+        { key: "upload", icon: <Upload className="size-3.5" />, label: "上传本地图片", onClick: onUpload },
+        { key: "asset", icon: <FolderOpen className="size-3.5" />, label: "从素材库选择", onClick: onPick },
+    ];
+}
 
 export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorkspaceProps) {
     const { message } = App.useApp();
@@ -50,6 +59,8 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
     const [importOpen, setImportOpen] = useState(false);
     const uploadRef = useRef<HTMLInputElement>(null);
     const [uploadTarget, setUploadTarget] = useState<UploadTarget>(null);
+    const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+    const [assetPickerTarget, setAssetPickerTarget] = useState<UploadTarget>(null);
 
     useEffect(() => {
         if (selectedId && characters.some((asset) => asset.id === selectedId)) return;
@@ -89,6 +100,10 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         onUpdate({ characters: characters.map((asset) => asset.id === selected.id ? updater(asset) : asset) });
     };
 
+    const patchCharacterById = (characterId: string, updater: (asset: FilmAsset) => FilmAsset) => {
+        onUpdate({ characters: characters.map((asset) => asset.id === characterId ? updater(asset) : asset) });
+    };
+
     const updatePart = (key: FilmCharacterPartKey, patch: Partial<{ prompt: string; notes: string; locked: boolean; images: FilmImageRef[] }>) => {
         patchCharacter((asset) => {
             const nextProfile = ensureCharacterProfile(asset);
@@ -103,6 +118,21 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         patchCharacter((asset) => {
             const nextProfile = ensureCharacterProfile(asset);
             return { ...asset, character: { ...nextProfile, states: nextProfile.states.map((state) => state.id === stateId ? { ...state, ...patch } : state) } };
+        });
+    };
+
+    const applyImageToTarget = (target: UploadTarget, image: FilmImageRef) => {
+        if (!target) return;
+        patchCharacterById(target.characterId, (asset) => {
+            const nextProfile = ensureCharacterProfile(asset);
+            if (target.kind === "part") {
+                const currentPart = nextProfile.parts[target.key];
+                return { ...asset, character: { ...nextProfile, parts: { ...nextProfile.parts, [target.key]: { ...currentPart, images: [...currentPart.images, image] } } } };
+            }
+            if (target.kind === "prop") {
+                return { ...asset, character: { ...nextProfile, props: nextProfile.props.map((prop) => prop.id === target.propId ? { ...prop, images: [...prop.images, image] } : prop) } };
+            }
+            return { ...asset, character: { ...nextProfile, states: nextProfile.states.map((state) => state.id === target.stateId ? { ...state, referenceImage: image } : state) } };
         });
     };
 
@@ -173,32 +203,62 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
         });
     };
 
-    const triggerUpload = (target: UploadTarget) => {
-        setUploadTarget(target);
+    const triggerUpload = (target: UploadTargetInput) => {
+        if (!selected) return;
+        setUploadTarget({ ...target, characterId: selected.id });
         uploadRef.current?.click();
+    };
+
+    const openAssetPicker = (target: UploadTargetInput) => {
+        if (!selected) return;
+        setAssetPickerTarget({ ...target, characterId: selected.id });
+        setAssetPickerOpen(true);
     };
 
     const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         event.target.value = "";
-        if (!file || !uploadTarget || !selected) return;
+        if (!file || !uploadTarget) return;
         try {
             const uploaded = await uploadImage(file, { localOnly: true });
-            const image: FilmImageRef = { id: `img-${Date.now()}`, url: uploaded.url, storageKey: uploaded.storageKey, source: "upload", createdAt: new Date().toISOString() };
-            if (uploadTarget.kind === "part") {
-                const key = uploadTarget.key;
-                const currentImages = ensureCharacterProfile(selected).parts[key].images;
-                updatePart(key, { images: [...currentImages, image] });
-            } else if (uploadTarget.kind === "prop") {
-                const prop = ensureCharacterProfile(selected).props.find((item) => item.id === uploadTarget.propId);
-                if (prop) updateProp(prop.id, { images: [...prop.images, image] });
-            } else {
-                updateState(uploadTarget.stateId, { referenceImage: image });
-            }
+            applyImageToTarget(uploadTarget, { id: `img-${Date.now()}`, url: uploaded.url, storageKey: uploaded.storageKey, source: "upload", createdAt: new Date().toISOString() });
         } catch {
             message.error("图片上传失败");
         } finally {
             setUploadTarget(null);
+        }
+    };
+
+    const handlePickedAsset = async (payload: InsertAssetPayload) => {
+        const target = assetPickerTarget;
+        if (!target) return;
+        if (payload.kind !== "image") {
+            message.warning("请选择图片素材");
+            return;
+        }
+        setAssetPickerOpen(false);
+        setAssetPickerTarget(null);
+        try {
+            if (payload.storageKey || payload.source === "library") {
+                applyImageToTarget(target, {
+                    id: `img-${Date.now()}`,
+                    url: payload.dataUrl,
+                    storageKey: payload.storageKey,
+                    source: payload.source === "library" ? "library" : "asset",
+                    createdAt: new Date().toISOString(),
+                });
+                return;
+            }
+            const uploaded = await uploadImage(payload.dataUrl, { localOnly: true });
+            applyImageToTarget(target, {
+                id: `img-${Date.now()}`,
+                url: uploaded.url,
+                storageKey: uploaded.storageKey,
+                source: "asset",
+                createdAt: new Date().toISOString(),
+            });
+        } catch {
+            message.error("素材引入失败");
         }
     };
 
@@ -322,7 +382,9 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                 <Input size="small" value={state.heldProps.join("，")} placeholder="持有道具，用逗号分隔" onChange={(event) => updateState(state.id, { heldProps: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
                                 <div className="flex items-center gap-2">
                                     {state.referenceImage ? <FilmImageThumbnail url={state.referenceImage.url} storageKey={state.referenceImage.storageKey} alt={`${state.name}参考图`} className="size-10 rounded border border-border/60" /> : <span className="grid size-10 place-items-center rounded border border-dashed border-border/60 text-muted-foreground/50"><ImagePlus className="size-3.5" /></span>}
-                                    <Button size="small" type="text" icon={<Upload className="size-3.5" />} onClick={() => triggerUpload({ kind: "state", stateId: state.id })}>状态参考</Button>
+                                    <Dropdown trigger={["click"]} menu={{ items: imageSourceMenuItems(() => triggerUpload({ kind: "state", stateId: state.id }), () => openAssetPicker({ kind: "state", stateId: state.id })) }}>
+                                        <Button size="small" type="text" icon={<Upload className="size-3.5" />}>状态参考</Button>
+                                    </Dropdown>
                                 </div>
                             </div>
                         )) : null}
@@ -337,9 +399,11 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                 <div key={prop.id} className="flex items-center gap-1.5 rounded-md border border-border/60 bg-background/30 p-1.5">
                                     <FilmImageThumbnail url={prop.images[0]?.url} storageKey={prop.images[0]?.storageKey} alt={prop.name} className="size-8 shrink-0 rounded border border-border/60" />
                                     <input value={prop.name} onChange={(event) => updateProp(prop.id, { name: event.target.value })} className="min-w-0 flex-1 rounded border border-border/60 bg-background/40 px-1.5 py-1 text-[11px] text-foreground" />
-                                    <button type="button" aria-label="上传道具图" className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground" onClick={() => triggerUpload({ kind: "prop", propId: prop.id })}>
-                                        <Upload className="size-3" />
-                                    </button>
+                                    <Dropdown trigger={["click"]} menu={{ items: imageSourceMenuItems(() => triggerUpload({ kind: "prop", propId: prop.id }), () => openAssetPicker({ kind: "prop", propId: prop.id })) }}>
+                                        <button type="button" aria-label="选择道具图" className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground">
+                                            <Upload className="size-3" />
+                                        </button>
+                                    </Dropdown>
                                     <button type="button" aria-label="删除道具" className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-hot" onClick={() => removeProp(prop.id)}>
                                         <Trash2 className="size-3" />
                                     </button>
@@ -494,9 +558,11 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
                                             </button>
                                         </div>
                                     ))}
-                                    <button type="button" className="grid h-14 place-items-center rounded-md border border-dashed border-border/60 text-muted-foreground/50 transition-colors hover:border-acid/50 hover:text-acid" onClick={() => triggerUpload({ kind: "part", key: selectedPart })}>
-                                        <ImagePlus className="size-4" />
-                                    </button>
+                                    <Dropdown trigger={["click"]} menu={{ items: imageSourceMenuItems(() => triggerUpload({ kind: "part", key: selectedPart }), () => openAssetPicker({ kind: "part", key: selectedPart })) }}>
+                                        <button type="button" title="上传或从素材库选择" className="grid h-14 place-items-center rounded-md border border-dashed border-border/60 text-muted-foreground/50 transition-colors hover:border-acid/50 hover:text-acid">
+                                            <ImagePlus className="size-4" />
+                                        </button>
+                                    </Dropdown>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-1">
                                     <span className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground/50 uppercase">参考来源</span>
@@ -530,6 +596,7 @@ export function FilmCharacterWorkspace({ project, onUpdate }: FilmCharacterWorks
             </div>
 
             <input ref={uploadRef} hidden type="file" accept="image/*" onChange={handleFile} />
+            <AssetPickerModal open={assetPickerOpen} defaultTab="my-assets" kind="image" onInsert={(payload) => void handlePickedAsset(payload)} onClose={() => { setAssetPickerOpen(false); setAssetPickerTarget(null); }} />
 
             <Modal title="生成角色卡" open={cardOpen} onCancel={() => { if (!composingCard) setCardOpen(false); }} mask={{ closable: !composingCard }} footer={null} width={520}>
                 <div className="grid gap-3">
