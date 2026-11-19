@@ -1,5 +1,6 @@
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata } from "../../types";
+import { canvasConnection } from "./canvas-connection";
 import { sourceNodeText } from "./canvas-node-meta";
 
 export type CanvasSourcePlan = {
@@ -133,7 +134,7 @@ export function buildSourceMaterialPlan(source: CanvasNodeData): CanvasSourcePla
             height: MATERIAL_TEXT_SIZE.height,
             metadata: { content: materialText, status: "success", fontSize: 14, sourceMaterialRole: "text" },
         });
-        connections.push(connection(source.id, materialTextId));
+        connections.push(canvasConnection(source.id, materialTextId));
     }
 
     const materialImagesX = materialText ? materialTextPosition.x + MATERIAL_TEXT_SIZE.width + MATERIAL_GAP : materialTextPosition.x;
@@ -161,7 +162,7 @@ export function buildSourceMaterialPlan(source: CanvasNodeData): CanvasSourcePla
                 status: "success",
             },
         });
-        connections.push(connection(source.id, id));
+        connections.push(canvasConnection(source.id, id));
     });
 
     sourcePatch.sourceExpandedNodeSignatures = Object.fromEntries(nodes.map((node) => [node.id, sourceMaterialNodeSignature(node)]));
@@ -179,10 +180,6 @@ function fitMaterialImageSize(width?: number, height?: number) {
     if (!width || !height || width <= 0 || height <= 0) return MATERIAL_IMAGE_FALLBACK_SIZE;
     const scale = Math.min(1, MATERIAL_IMAGE_MAX_WIDTH / width, MATERIAL_IMAGE_MAX_HEIGHT / height);
     return { width: Math.round(width * scale), height: Math.round(height * scale) };
-}
-
-function connection(fromNodeId: string, toNodeId: string): CanvasConnection {
-    return { id: `${fromNodeId}->${toNodeId}`, fromNodeId, toNodeId };
 }
 
 export type CanvasSourcePrunePlan = {

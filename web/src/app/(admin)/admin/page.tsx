@@ -7,6 +7,7 @@ import { Activity, ChevronRight, Coins, Gauge, RefreshCw, UserPlus } from "lucid
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { formatBytes } from "@/lib/image-utils";
 import { cn, errorMessage } from "@/lib/utils";
 import { fetchAdminOverview } from "@/services/api/admin";
 import { CREDIT_TYPE_LABELS } from "@/services/api/account";
@@ -59,8 +60,8 @@ export default function AdminOverviewPage() {
         <span className="flex flex-col items-end gap-0.5">
             <span>{overview.storage.configured} 个配置</span>
             <span className="text-[10px] text-muted-foreground">
-                已用 {formatBytes(overview.storage.usedBytes)}
-                {overview.storage.limitBytes > 0 ? ` / ${formatBytes(overview.storage.limitBytes)}` : ""}
+                已用 {formatBytes(overview.storage.usedBytes, "0 B")}
+                {overview.storage.limitBytes > 0 ? ` / ${formatBytes(overview.storage.limitBytes, "0 B")}` : ""}
             </span>
             {overview.storage.exceeded > 0 ? <span className="text-[10px] text-[var(--hot)]">{overview.storage.exceeded} 个超限</span> : null}
         </span>
@@ -250,18 +251,6 @@ function formatCredits(value: number) {
 function formatDuration(ms: number) {
     if (!Number.isFinite(ms) || ms <= 0) return "-";
     return ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
-}
-
-function formatBytes(value: number) {
-    if (!Number.isFinite(value) || value <= 0) return "0 B";
-    const units = ["B", "KB", "MB", "GB", "TB"];
-    let size = value;
-    let index = 0;
-    while (size >= 1024 && index < units.length - 1) {
-        size /= 1024;
-        index++;
-    }
-    return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
 function formatTime(value: string) {

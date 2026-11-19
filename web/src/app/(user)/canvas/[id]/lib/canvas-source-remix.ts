@@ -3,6 +3,7 @@ import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import type { RemixInput, RemixRun, SourceRemixPlan } from "../../remix-types";
 import { REMIX_CORE_VERSION } from "../../remix-policy";
+import { canvasConnection } from "./canvas-connection";
 import { sourceMaterialSignature } from "./canvas-source-plan";
 
 export function collectSourceMaterialNodes(nodes: CanvasNodeData[], sourceId: string) {
@@ -70,9 +71,8 @@ export function planSourceRemix({ source, nodes, connections, run }: { source: C
         { id: planNodeId, type: CanvasNodeType.Text, ...spec, title: "复刻策划", position: { x: materialRight + 96, y: top }, metadata: { ...base, remixRole: "plan", remixRun: run, content: "正在准备组级策划", status: "idle", fontSize: 14 } },
         { id: copyNodeId, type: CanvasNodeType.Text, ...spec, title: "复刻文案", position: { x: materialRight + spec.width + 192, y: top }, metadata: { ...base, remixRole: "copy", content: "", status: "idle", fontSize: 14 } },
     ];
-    const edge = (fromNodeId: string, toNodeId: string): CanvasConnection => ({ id: `${fromNodeId}->${toNodeId}`, fromNodeId, toNodeId });
     // 运行主链：素材源 → 策划 → 文案 / 配图；配图的参考图数据边在 applySourceRemixPlan 里补齐。
-    const newConnections = [edge(source.id, planNodeId), edge(planNodeId, copyNodeId)];
+    const newConnections = [canvasConnection(source.id, planNodeId), canvasConnection(planNodeId, copyNodeId)];
     const imageNodeIds: string[] = [];
     for (let index = 0; index < Math.max(1, run.input.sourceImages.length); index++) {
         const original = run.input.sourceImages[index];
@@ -80,7 +80,7 @@ export function planSourceRemix({ source, nodes, connections, run }: { source: C
         const id = `${prefix}-image-${index}`;
         imageNodeIds.push(id);
         additions.push({ id, type: CanvasNodeType.Image, title: `复刻配图 ${index + 1}`, position: { x: materialRight + spec.width * 2 + 288 + index % 2 * 340, y: top + Math.floor(index / 2) * 440 }, width: size.width, height: size.height, metadata: { ...base, remixRole: "image", remixIndex: index + 1, prompt: "", size: size.size, count: 1, status: "idle" } });
-        newConnections.push(edge(planNodeId, id));
+        newConnections.push(canvasConnection(planNodeId, id));
     }
     for (const [index, asset] of (run.input.marketing?.assets || []).entries()) {
         const serverObject = asset.storageKey.startsWith("server:") && !asset.storageKey.startsWith("server:webdav:");
@@ -100,14 +100,14 @@ export function applySourceRemixPlan(nodes: CanvasNodeData[], connections: Canva
     const nextConnections = connections.filter((edge) => !affectedIds.has(edge.toNodeId) || edge.fromNodeId === planNodeId);
     plan.visual.images.forEach((image, index) => {
         const referenceIds = [image.sourceImageId, ...image.referenceAssetIds.map((id) => nodes.find((node) => node.metadata?.remixRunId === runId && node.metadata.marketingAssetId === id && node.metadata.remixRole === "reference")?.id || "")].filter(Boolean);
-        referenceIds.forEach((fromNodeId) => nextConnections.push({ id: `${fromNodeId}->${imageIds[index]}`, fromNodeId, toNodeId: imageIds[index] }));
+        referenceIds.forEach((fromNodeId) => nextConnections.push(canvasConnection(fromNodeId, imageIds[index])));
         if (!nextConnections.some((edge) => edge.fromNodeId === planNodeId && edge.toNodeId === imageIds[index])) {
-            nextConnections.push({ id: `${planNodeId}->${imageIds[index]}`, fromNodeId: planNodeId, toNodeId: imageIds[index] });
+            nextConnections.push(canvasConnection(planNodeId, imageIds[index]));
         }
     });
     const copyNode = findSourceRemixTextNode(nodes, runId);
     if (copyNode && !nextConnections.some((edge) => edge.fromNodeId === planNodeId && edge.toNodeId === copyNode.id)) {
-        nextConnections.push({ id: `${planNodeId}->${copyNode.id}`, fromNodeId: planNodeId, toNodeId: copyNode.id });
+        nextConnections.push(canvasConnection(planNodeId, copyNode.id));
     }
     return {
         nodes: nodes.map((node): CanvasNodeData => {

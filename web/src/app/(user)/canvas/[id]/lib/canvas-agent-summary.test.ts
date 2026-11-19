@@ -58,8 +58,12 @@ test("video seconds validation respects each model family", () => {
     assert.equal(validateCanvasAgentVideoSeconds("seedance-2-5", 30), "");
     assert.equal(validateCanvasAgentVideoSeconds("seedance-2-5", -1), "");
     assert.match(validateCanvasAgentVideoSeconds("seedance-2-5", 31), /4-30/);
+    assert.equal(validateCanvasAgentVideoSeconds("sd2-5", 30), "");
+    assert.match(validateCanvasAgentVideoSeconds("sd2-5", 31), /4-30/);
     assert.equal(validateCanvasAgentVideoSeconds("seedance-1-0", 15), "");
     assert.match(validateCanvasAgentVideoSeconds("seedance-1-0", 16), /4-15/);
+    assert.equal(validateCanvasAgentVideoSeconds("sd2-video", 15), "");
+    assert.match(validateCanvasAgentVideoSeconds("sd2-video", 16), /4-15/);
     assert.equal(validateCanvasAgentVideoSeconds("kling-v3", 15), "");
     assert.match(validateCanvasAgentVideoSeconds("kling-v3", 2), /3-15/);
     assert.equal(validateCanvasAgentVideoSeconds("kling-v2-6", 5), "");
@@ -72,7 +76,9 @@ test("video seconds validation respects each model family", () => {
 test("video duration hints match the model family", () => {
     assert.match(canvasAgentVideoDurationHint("cogvideox-3").range, /5 或 10/);
     assert.match(canvasAgentVideoDurationHint("seedance-2-5").range, /4-30/);
+    assert.match(canvasAgentVideoDurationHint("sd2-5").range, /4-30/);
     assert.match(canvasAgentVideoDurationHint("seedance-1-0").range, /4-15/);
+    assert.match(canvasAgentVideoDurationHint("sd2-video").range, /4-15/);
     assert.match(canvasAgentVideoDurationHint("kling-v3").range, /3-15/);
     assert.match(canvasAgentVideoDurationHint("kling-v2-6").range, /5 或 10/);
 });

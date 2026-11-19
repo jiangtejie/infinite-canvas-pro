@@ -1,5 +1,4 @@
-import { boolConfig, normalizeSeedanceDuration, normalizeSeedanceRatio } from "@/lib/seedance-video";
-import { modelKey } from "@/lib/video-model-capabilities";
+import { boolConfig, isSeedance25Model, normalizeSeedanceDuration, normalizeSeedanceRatio } from "@/lib/seedance-video";
 import { imageToDataUrl } from "@/services/image-storage";
 import { type AiConfig } from "@/stores/use-config-store";
 import { ReferenceImage } from "@/types/image";
@@ -27,7 +26,7 @@ export async function createOpenAICloudVideoRequestBody(config: AiConfig, model:
     for (const audio of input.audioReferences) {
         if (audio.url) content.push({ type: "audio_url", audio_url: { url: audio.url }, role: "reference_audio" });
     }
-    const seconds = normalizeSeedanceDuration(config.videoSeconds, (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5")) ? 30 : 15);
+    const seconds = normalizeSeedanceDuration(config.videoSeconds, isSeedance25Model(model) ? 30 : 15);
     const ratio = normalizeSeedanceRatio(config.size);
     return {
         model,

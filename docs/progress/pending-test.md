@@ -3,6 +3,14 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 冗余收敛：Seedance 2.5 别名 / 字节格式化 / 画布连线
+
+- Seedance 2.5（含 `sd2-5` 别名）统一由 `lib/seedance-video.ts` 的 `isSeedance25Model` 判定，画布 Agent 时长提示与校验、视频参数面板、ARK / OpenAI / 通用请求的 30 秒上限共用；Agent 时长判定改用 `isSeedanceVideoModel`，`sd2` 系列不再落到通用 1-30 秒档。
+- `formatBytes` 统一到 `lib/image-utils.ts`（补 TB 与可选零值文案）；用户配置与后台概览不再各自维护格式。后台概览仍显示 `0 B`。
+- 画布结构连线抽成 `canvasConnection`，素材展开与复刻运行共用，去掉两份 `from->to` 拼装。
+- 验证：`bun test` 108 文件 / 595 条通过（补充 `sd2-5` / `sd2-*` 时长用例）；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测视频页与后台概览正常加载。
+- 未实测：真实 `sd2-*` 模型请求、复刻运行视觉回归（结构逻辑已有单测）。
+
 ## 漫画库更新提示与从库更新
 
 - 导入角色 / 场景副本时记录库条目 `updatedAt` 快照；库条目后续被修改后，项目设定卡片显示「库有更新」，点击即用库内容覆盖副本并保留副本 id、来源关系与来源快照，同时让相关页格按既有规则失效。

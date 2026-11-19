@@ -90,6 +90,12 @@ export function isSeedanceVideoModel(model: string) {
     return value.includes("seedance") || value.includes("doubao-seedance") || value.includes("sd2");
 }
 
+/** Seedance 2.5 系列（含 sd2-5 别名），用于 30 秒时长上限等能力判定。 */
+export function isSeedance25Model(model: string) {
+    const value = model.toLowerCase();
+    return value.includes("seedance-2-5") || value.includes("seedance2-5") || value.includes("sd2-5");
+}
+
 export function isSeedanceFastOrMiniModel(model: string) {
     const value = model.toLowerCase();
     return isSeedanceVideoModel(value) && (value.includes("fast") || value.includes("mini"));

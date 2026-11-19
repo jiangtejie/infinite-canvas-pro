@@ -1,5 +1,4 @@
-import { boolConfig, normalizeSeedanceDuration, normalizeSeedanceRatio } from "@/lib/seedance-video";
-import { modelKey } from "@/lib/video-model-capabilities";
+import { boolConfig, isSeedance25Model, normalizeSeedanceDuration, normalizeSeedanceRatio } from "@/lib/seedance-video";
 import { type AiConfig } from "@/stores/use-config-store";
 import { VideoReferenceInput } from "../types";
 
@@ -17,7 +16,7 @@ export async function createArkSeedanceVideoRequestBody(config: AiConfig, model:
     return {
         model,
         prompt,
-        seconds: normalizeSeedanceDuration(config.videoSeconds, (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5") || modelKey(model).includes("sd2-5")) ? 30 : 15),
+        seconds: normalizeSeedanceDuration(config.videoSeconds, isSeedance25Model(model) ? 30 : 15),
         size: normalizeSeedanceRatio(config.size),
         resolution_name: normalizeVideoResolution(config.vquality),
         video_generate_audio: boolConfig(config.videoGenerateAudio, false),

@@ -1,10 +1,10 @@
 import { isMiniMaxH3Config } from "@/lib/minimax-video";
 import { geminiOperationUrl, isGeminiConfig, isGeminiVideoModel } from "@/lib/gemini";
-import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio } from "@/lib/seedance-video";
+import { boolConfig, isSeedance25Model, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio } from "@/lib/seedance-video";
 import { isKIEGrokVideoModel, isKIEKlingV3Config, kieKlingOmniVariant } from "../../protocols/kling-models";
 import { autoDLBaseUrl, getAutoDLCapabilities } from "@/lib/autodl";
 import { fetchAutoDLWorkflow } from "../../autodl";
-import { isAgnesVideoV25Model, isCogVideoX3Model, isWan3VideoModel, modelKey, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
+import { isAgnesVideoV25Model, isCogVideoX3Model, isWan3VideoModel, supportsVideoAudioGeneration } from "@/lib/video-model-capabilities";
 import { videoReferenceCapacity } from "@/lib/video-reference-limits";
 import { localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { aiApiUrl, usesAccountProxy } from "../../ai-request";
@@ -134,7 +134,7 @@ export async function createVideoRequestBody(config: AiConfig, model: string, pr
     } else {
         if (!kieMotionControl && !isGeminiOmniFlashVideoModel(model)) {
             const seconds = isSeedanceVideoConfig(config)
-                ? String(normalizeSeedanceDuration(config.videoSeconds, (modelKey(model).includes("seedance-2-5") || modelKey(model).includes("seedance2-5") || modelKey(model).includes("sd2-5")) ? 30 : 15))
+                ? String(normalizeSeedanceDuration(config.videoSeconds, isSeedance25Model(model) ? 30 : 15))
                 : normalizeVideoSecondsForModel(model, config.videoSeconds);
             body.append("seconds", seconds);
         }

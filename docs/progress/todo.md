@@ -45,8 +45,7 @@ A 组 1–4（素材源正文、发布草稿、任务 ID、Kling 判定）已收
 
 - 【A5 视频参数】归一化跨层双写且语义相反：`user/video/history.ts` 保留 `"-1"`，`api/video/payload/shared.ts` 把它算成 6；size 的 `"auto"` 一处返回 `"auto"` 一处返回 `null`。
 - 【B10 小双写】两个 TTS 音色选择器近整份复制；storageKey→URL 的 effect 四份。后台筛选条已统一为共享组件。
-- 【C 组小重复】`connection()` 在 canvas-source-remix 与 canvas-source-plan 逐字相同；「有素材」判定三份（hook/卡片/面板）；作者/统计行 UI 卡片与面板重复拼装；`formatBytes` 至少三份且精度单位表不同；节点摘要两套字段抽取（`canvasAgentNodeSummary` 与 `summarizeNode`）。
-- 【seedance sd2】别名在 lib 音频/参考图判定里有、摘要时长档位里没有，属 A 组同类分歧。
+- 【C 组小重复】「有素材」判定三份（hook/卡片/面板）；作者/统计行 UI 卡片与面板重复拼装；节点摘要两套字段抽取（`canvasAgentNodeSummary` 与 `summarizeNode`）。
 
 ## 结构与工程
 
