@@ -168,7 +168,7 @@ export function ImageWorkbenchPanel({
                 <div className="-ml-1 flex flex-wrap items-center gap-1">
                     <Button size="small" type="text" className="!h-7 !px-2 !text-[11px] !text-foreground/65 hover:!text-foreground" icon={<ClipboardPaste className="size-3.5" />} onClick={onPasteReferences}>剪切板</Button>
                     <Button size="small" className="!h-7 !px-2.5 !text-[11px]" icon={<Upload className="size-3.5" />} onClick={onUploadReferences}>上传</Button>
-                    <Button size="small" type="text" className="!h-7 !px-2 !text-[11px] !text-foreground/65 hover:!text-foreground" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>从素材库选择</Button>
+                    <Button size="small" type="text" className="!h-7 !px-2 !text-[11px] !text-foreground/65 hover:!text-foreground" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>选择素材</Button>
                 </div>
                 <ReferenceStrip references={references} onRemoveReference={onRemoveReference} uploadingCount={uploadingCount} />
             </WorkbenchSection>

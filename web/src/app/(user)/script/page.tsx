@@ -140,7 +140,7 @@ export default function ScriptListPage() {
                     <PageHeader
                         eyebrow="创作工作台"
                         title="剧本创作"
-                        description="先写故事，再写剧本：用故事圣经、人物引擎、结构板和场景卡，把想法推进成可拍摄的舞台；数据仅保存在本机浏览器。"
+                        description="先写故事，再写剧本：用故事圣经、人物引擎、结构板和场景卡，把想法推进成可拍摄的舞台；本机自动保存，登录后同步到账号，未登录或断网时仅保留本机。"
                         meta={
                             <>
                                 <span className="chip">{projects.length} 个剧本</span>

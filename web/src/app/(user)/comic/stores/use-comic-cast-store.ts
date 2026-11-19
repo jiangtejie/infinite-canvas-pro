@@ -29,10 +29,16 @@ export const useComicCastStore = create<ComicCastStore>()(
             characters: [],
             locations: [],
             markHydrated: () => set({ hydrated: true }),
-            addCharacter: (character) => set((state) => ({ characters: [{ ...character, id: nanoid(), createdAt: new Date().toISOString() }, ...state.characters] })),
-            addLocation: (location) => set((state) => ({ locations: [{ ...location, id: nanoid(), createdAt: new Date().toISOString() }, ...state.locations] })),
-            updateCharacter: (id, patch) => set((state) => ({ characters: state.characters.map((item) => item.id === id ? { ...item, ...patch } : item) })),
-            updateLocation: (id, patch) => set((state) => ({ locations: state.locations.map((item) => item.id === id ? { ...item, ...patch } : item) })),
+            addCharacter: (character) => set((state) => {
+                const now = new Date().toISOString();
+                return { characters: [{ ...character, id: nanoid(), createdAt: now, updatedAt: now }, ...state.characters] };
+            }),
+            addLocation: (location) => set((state) => {
+                const now = new Date().toISOString();
+                return { locations: [{ ...location, id: nanoid(), createdAt: now, updatedAt: now }, ...state.locations] };
+            }),
+            updateCharacter: (id, patch) => set((state) => ({ characters: state.characters.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item) })),
+            updateLocation: (id, patch) => set((state) => ({ locations: state.locations.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item) })),
             removeCharacter: (id) => set((state) => ({ characters: state.characters.filter((item) => item.id !== id) })),
             removeLocation: (id) => set((state) => ({ locations: state.locations.filter((item) => item.id !== id) })),
         }),

@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { App, Button, Input, Modal } from "antd";
-import { ImagePlus, Library, Plus, Trash2, UserRound, MapPin } from "lucide-react";
+import { App, Button, Dropdown, Input, Modal } from "antd";
+import { FolderOpen, ImagePlus, Library, Plus, Trash2, Upload, UserRound, MapPin } from "lucide-react";
 
+import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { uploadImage } from "@/services/image-storage";
 import { useComicImageSrc } from "../../hooks/use-comic-image-src";
@@ -13,6 +14,7 @@ import { ComicCharacterEditor } from "../../components/comic-character-editor";
 import type { ComicCharacter, ComicImageRef, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation, ComicProject } from "../../types";
 import { copyComicCharacterForProject } from "../../utils/comic-character-binding";
 import { createComicCharacter, createComicLocation, invalidateComicPageCompositions, invalidateComicPagesForCharacter } from "../../utils/comic-project";
+import { comicImageFromPickedAsset } from "../../utils/comic-reference";
 
 type UploadTarget = { kind: "location"; id: string };
 
@@ -21,6 +23,7 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
     const confirm = useConfirm();
     const fileRef = useRef<HTMLInputElement>(null);
     const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
+    const [pickerTarget, setPickerTarget] = useState<UploadTarget | null>(null);
     const [uploading, setUploading] = useState(false);
     const [importKind, setImportKind] = useState<"character" | "location" | null>(null);
     const libraryCharacters = useComicCastStore((state) => state.characters);
@@ -53,6 +56,21 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
         } finally {
             setUploading(false);
             setUploadTarget(null);
+        }
+    };
+
+    const handlePickedLocationImage = async (payload: InsertAssetPayload) => {
+        const target = pickerTarget;
+        setPickerTarget(null);
+        if (!target) return;
+        setUploading(true);
+        try {
+            patchLocation(target.id, { image: await comicImageFromPickedAsset(payload) });
+            message.success("参考图已更新");
+        } catch (error) {
+            message.error(errorMessage(error, "素材引入失败"));
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -138,7 +156,7 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
                     {locations.map((location) => (
                         <article key={location.id} className="rounded-lg border border-border/60 bg-background/30 p-3">
                             <div className="flex gap-3">
-                                <CastImage image={location.image} label={location.name} onPick={() => pickImage({ kind: "location", id: location.id })} />
+                                <LocationImagePicker image={location.image} label={location.name} target={{ kind: "location", id: location.id }} onUpload={pickImage} onPick={setPickerTarget} />
                                 <div className="min-w-0 flex-1 space-y-2">
                                     <div className="flex items-center gap-2">
                                         <Input value={location.name} maxLength={100} placeholder="场景名" onChange={(event) => patchLocation(location.id, { name: event.target.value })} />
@@ -159,6 +177,7 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
             </section>
 
             <input ref={fileRef} hidden type="file" accept="image/*" onChange={(event) => void uploadCastImage(event)} />
+            <AssetPickerModal open={Boolean(pickerTarget)} defaultTab="my-assets" kind="image" onInsert={(payload) => void handlePickedLocationImage(payload)} onClose={() => setPickerTarget(null)} />
             {uploading ? <div className="text-[11px] text-muted-foreground">正在上传参考图…</div> : null}
 
             <Modal title={importKind === "character" ? "从角色库导入" : "从场景库导入"} open={Boolean(importKind)} onCancel={() => setImportKind(null)} footer={null} width={540} destroyOnHidden>
@@ -187,12 +206,24 @@ function LibraryThumb({ image, name }: { image?: ComicImageRef; name: string }) 
     return <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border/60 bg-background/40 text-muted-foreground">{src ? <img src={src} alt={name} className="size-full object-cover" /> : <ImagePlus className="size-4" />}</span>;
 }
 
-function CastImage({ image, label, onPick }: { image?: ComicImageRef; label: string; onPick: () => void }) {
+function LocationImagePicker({ image, label, target, onUpload, onPick }: { image?: ComicImageRef; label: string; target: UploadTarget; onUpload: (target: UploadTarget) => void; onPick: (target: UploadTarget) => void }) {
     const src = useComicImageSrc(image);
     return (
-        <button type="button" className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground transition hover:border-acid/50 hover:text-foreground" aria-label={`上传${label}参考图`} onClick={onPick}>
-            {src ? <img src={src} alt={label} className="size-full object-cover" /> : <ImagePlus className="size-5" />}
-        </button>
+        <Dropdown
+            trigger={["click"]}
+            menu={{
+                items: [
+                    { key: "upload", icon: <Upload className="size-3.5" />, label: "上传本地图片", onClick: () => onUpload(target) },
+                    { key: "asset", icon: <FolderOpen className="size-3.5" />, label: "从我的素材 / 素材库选择", onClick: () => onPick(target) },
+                ],
+            }}
+        >
+            <span className="block shrink-0">
+                <button type="button" className="grid size-20 place-items-center overflow-hidden rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground transition hover:border-acid/50 hover:text-foreground" aria-label={`设置${label}参考图`}>
+                    {src ? <img src={src} alt={label} className="size-full object-cover" /> : <ImagePlus className="size-5" />}
+                </button>
+            </span>
+        </Dropdown>
     );
 }
 

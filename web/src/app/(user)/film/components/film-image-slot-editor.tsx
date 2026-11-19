@@ -4,7 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { App, Button, Dropdown } from "antd";
 import { FolderOpen, ImagePlus, Lock, Star, Trash2, Unlock, Upload } from "lucide-react";
 
-import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
+import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import { cn } from "@/lib/utils";
 import { uploadImage } from "@/services/image-storage";
 import type { FilmImageRef, FilmImageSlot } from "@/lib/film/types";
@@ -85,7 +85,7 @@ export function FilmImageSlotEditor({ slot, onChange, nextLabel, thumbClassName,
                         menu={{
                             items: [
                                 { key: "upload", icon: <Upload className="size-3.5" />, label: "上传本地图片", onClick: () => uploadRef.current?.click() },
-                                { key: "asset", icon: <FolderOpen className="size-3.5" />, label: "从素材库选择", onClick: () => setPickerOpen(true) },
+                                { key: "asset", icon: <FolderOpen className="size-3.5" />, label: "从我的素材 / 素材库选择", onClick: () => setPickerOpen(true) },
                             ],
                         }}
                     >
@@ -142,7 +142,7 @@ export function FilmImageSlotEditor({ slot, onChange, nextLabel, thumbClassName,
                         删除当前
                     </Button>
                 </div>
-            ) : <p className="text-[10px] leading-4 text-muted-foreground/60">还没有图片，可以上传、从素材库选择或生成。</p>}
+            ) : <p className="text-[10px] leading-4 text-muted-foreground/60">还没有图片，可以上传、选择素材或生成。</p>}
             <input ref={uploadRef} hidden type="file" accept="image/*" onChange={handleFile} />
             <AssetPickerModal open={pickerOpen} defaultTab="my-assets" kind="image" onInsert={(payload) => void handlePickedAsset(payload)} onClose={() => setPickerOpen(false)} />
         </div>

@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { FailureDetailModal, TaskErrorLine } from "@/components/workbench/task-result";
-import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
+import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { batchCanvasImageTaskStatus, createCanvasImageTask, requestEdit, requestGeneration, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";

@@ -2,7 +2,7 @@
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { CanvasAssistantPanel } from "../../components/canvas-assistant-panel";
-import { type AssetPickerTab } from "../../components/asset-picker-modal";
+import { type AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import { type CanvasAgentConfig, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasNodeData, type CanvasPendingAgentRequest, type Position } from "../../types";
 import type { CanvasSidePanelState } from "../../stores/use-canvas-store";
 import type { CanvasAgentState } from "../../types";

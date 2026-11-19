@@ -21,7 +21,7 @@ import { useImageHistorySync } from "./hooks/use-image-history-sync";
 import { CATEGORY_STORE_KEY, logStore, categoryStore, shouldDeleteReferenceFile, disposableLogStorageKeys, createWorkflowResultId, updateResult, mergePendingLogResults, imageLogIdentityKeys, dedupeGenerationLogs, readStoredLogs, readStoredCategories, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition } from "./history";
 import { readWorkbenchDraft, saveWorkbenchDraft } from "./draft";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
-import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
+import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/app/(user)/canvas/components/canvas-node-mask-edit-dialog";
 import { IMAGE_MASK_EDIT_PROMPT_PREFIX } from "@/lib/image-reference-prompt";
 import type { WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess } from "@/components/workflows/creative-workflow-workspace";

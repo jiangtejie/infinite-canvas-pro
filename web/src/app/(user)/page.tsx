@@ -16,7 +16,7 @@ import { cn, errorMessage } from "@/lib/utils";
 import { uploadAssetMediaFile } from "@/services/file-storage";
 import { uploadImage } from "@/services/image-storage";
 import { useEffectiveConfig } from "@/stores/use-config-store";
-import { AssetPickerModal } from "./canvas/components/asset-picker-modal";
+import { AssetPickerModal } from "@/components/assets/asset-picker-modal";
 import { CanvasAssistantComposer } from "./canvas/components/canvas-assistant-composer";
 import { useCanvasStore, nextCanvasProjectTitle } from "./canvas/stores/use-canvas-store";
 import { canvasResourceLabel } from "./canvas/utils/canvas-resource-references";

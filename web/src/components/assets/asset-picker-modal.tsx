@@ -8,12 +8,12 @@ import { AssetFormModal } from "@/components/assets/asset-form-modal";
 import { ASSET_KIND_OPTIONS, assetKindLabel } from "@/components/assets/asset-browser";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { EmptyState, ErrorState } from "@/components/ui/state-panel";
+import { useLibraryAssetBrowser, useMyAssetBrowser } from "@/hooks/use-asset-browser";
+import { assetInsertPayload, libraryInsertPayload, type InsertAssetPayload } from "@/lib/asset-picker";
 import { errorMessage } from "@/lib/utils";
 import type { AssetKind } from "@/stores/use-asset-store";
-import { assetInsertPayload, libraryInsertPayload, useLibraryAssetBrowser, useMyAssetBrowser } from "../lib/canvas-asset-query";
-import type { InsertAssetPayload } from "../types";
 
-export type { InsertAssetPayload } from "../types";
+export type { InsertAssetPayload } from "@/lib/asset-picker";
 
 export type AssetPickerTab = "my-assets" | "library";
 

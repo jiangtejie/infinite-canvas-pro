@@ -108,6 +108,21 @@ async function serverStorageAvailable() {
     return canUseGlobalStorage(config) || Boolean(config.allowUserProvider && loadUserStorageProvider());
 }
 
+/** 从任意对象树里收集带 storageKey/url/dataUrl 的媒体引用，供漫画等通用场景使用。 */
+export function collectMediaRefsFromValue(value: unknown, kind: MediaPromotionKind = "image", refs: MediaPromotionRef[] = []) {
+    if (!value || typeof value !== "object") return refs;
+    if (Array.isArray(value)) {
+        value.forEach((item) => collectMediaRefsFromValue(item, kind, refs));
+        return refs;
+    }
+    const record = value as Record<string, unknown>;
+    const storageKey = typeof record.storageKey === "string" ? record.storageKey : "";
+    const url = typeof record.url === "string" ? record.url : typeof record.dataUrl === "string" ? record.dataUrl : "";
+    if (storageKey || url) refs.push({ storageKey: storageKey || undefined, url: url || undefined, kind });
+    Object.values(record).forEach((item) => collectMediaRefsFromValue(item, kind, refs));
+    return refs;
+}
+
 export function mediaNeedsPromotion(refs: MediaPromotionRef[]) {
     return refs.some((ref) => isLocalKey(ref.storageKey) || (!ref.storageKey && isLocalUrl(ref.url)));
 }

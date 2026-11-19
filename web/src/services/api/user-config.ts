@@ -77,6 +77,30 @@ export async function syncUserFilmLibrary<T>(token: string, data: T) {
     return apiPost<T>("/api/v1/user-data/film-library", { data }, token);
 }
 
+export async function fetchUserComicProjects<T>(token: string) {
+    return apiGet<T>("/api/v1/user-data/comic-projects", undefined, token);
+}
+
+export async function syncUserComicProjects<T>(token: string, data: T) {
+    return apiPost<T>("/api/v1/user-data/comic-projects", { data }, token);
+}
+
+export async function fetchUserComicCast<T>(token: string) {
+    return apiGet<T>("/api/v1/user-data/comic-cast", undefined, token);
+}
+
+export async function syncUserComicCast<T>(token: string, data: T) {
+    return apiPost<T>("/api/v1/user-data/comic-cast", { data }, token);
+}
+
+export async function fetchUserScriptProjects<T>(token: string) {
+    return apiGet<T>("/api/v1/user-data/script-projects", undefined, token);
+}
+
+export async function syncUserScriptProjects<T>(token: string, data: T) {
+    return apiPost<T>("/api/v1/user-data/script-projects", { data }, token);
+}
+
 export type CreativeWorkflowRecord<T = unknown> = {
     id: string;
     ownerUserId?: string;

@@ -11,7 +11,7 @@ import { CanvasNodeContextMenu } from "../../components/canvas-context-menu";
 import { CanvasNodeHoverToolbar } from "../../components/canvas-node-hover-toolbar";
 import { Minimap } from "../../components/canvas-mini-map";
 import { CanvasToolbar, type CanvasAlignKind } from "../../components/canvas-toolbar";
-import { type AssetPickerTab } from "../../components/asset-picker-modal";
+import { type AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import { CanvasZoomControls } from "../../components/canvas-zoom-controls";
 import { CanvasBatchProgress } from "./canvas-batch-progress";
 import { CANVAS_Z } from "../lib/canvas-layer";

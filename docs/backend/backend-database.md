@@ -91,6 +91,9 @@ MySQL 建库默认使用 `utf8mb4 / utf8mb4_bin`，与 SQLite 的 BINARY 比较�
 | `asset_data` | text | 用户素材同步数据 |
 | `film_project_data` | 大文本 | 影视项目列表同步数据，结构为 `{ "projects": [...] }` |
 | `film_library_data` | 大文本 | 影视五类资产库同步数据，结构为 `{ "characters": [], "locations": [], "props": [], "costumes": [], "styles": [] }` |
+| `comic_project_data` | 大文本 | 漫画项目列表同步数据，结构为 `{ "projects": [...] }` |
+| `comic_cast_data` | 大文本 | 漫画角色/场景库同步数据，结构为 `{ "characters": [], "locations": [] }` |
+| `script_project_data` | 大文本 | 剧本项目列表同步数据，结构为 `{ "projects": [...] }` |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 

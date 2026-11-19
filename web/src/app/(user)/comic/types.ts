@@ -83,8 +83,8 @@ export type ComicLocation = {
     image?: ComicImageRef;
 };
 
-export type ComicLibraryCharacter = ComicCharacter & { createdAt: string };
-export type ComicLibraryLocation = ComicLocation & { createdAt: string };
+export type ComicLibraryCharacter = ComicCharacter & { createdAt: string; updatedAt?: string };
+export type ComicLibraryLocation = ComicLocation & { createdAt: string; updatedAt?: string };
 
 export type ComicPanelCharacterBinding = {
     characterId: string;

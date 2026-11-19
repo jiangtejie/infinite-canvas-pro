@@ -44,7 +44,7 @@ export function ReferenceStrip({ references, compact = false, className = "", on
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-dashed border-border/70 bg-background/40">
                         <ImagePlus className="size-3.5" aria-hidden />
                     </span>
-                    <span className="text-[11px]">暂无参考图，可粘贴、上传或从素材库选择</span>
+                    <span className="text-[11px]">暂无参考图，可粘贴、上传或选择素材</span>
                 </div>
             ) : null}
         </ReferenceStripShell>

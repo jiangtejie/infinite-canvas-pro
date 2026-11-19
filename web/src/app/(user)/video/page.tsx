@@ -7,7 +7,7 @@ import { App, Button } from "antd";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
 
-import { AssetPickerModal, type InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
+import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import type { WorkbenchLayout } from "@/components/workbench-header";
 import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
 import { LoadingState } from "@/components/ui/state-panel";

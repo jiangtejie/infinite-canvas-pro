@@ -10,7 +10,7 @@ import { CanvasNodeMaskEditDialog } from "../../components/canvas-node-mask-edit
 import { CanvasNodeSplitDialog } from "../../components/canvas-node-split-dialog";
 import { CanvasNodeUpscaleDialog } from "../../components/canvas-node-upscale-dialog";
 import { CanvasNodeInfoModal } from "../../components/canvas-node-hover-toolbar";
-import { AssetPickerModal, type AssetPickerTab } from "../../components/asset-picker-modal";
+import { AssetPickerModal, type AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import { FullscreenPreview } from "./fullscreen-preview";
 import { CanvasNodeType, type CanvasNodeData, type InsertAssetPayload, type Position } from "../../types";
 import type { CanvasProject } from "../../stores/use-canvas-store";

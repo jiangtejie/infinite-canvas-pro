@@ -25,7 +25,7 @@ import { InfiniteCanvas } from "../../components/infinite-canvas";
 import { CanvasNode } from "../../components/canvas-node";
 import { CanvasNodePromptPanel, type CanvasVideoFrameOption } from "../../components/canvas-node-prompt-panel";
 import type { CanvasVideoResourceOption } from "../../components/canvas-video-settings-popover";
-import { type AssetPickerTab } from "../../components/asset-picker-modal";
+import { type AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import { ConnectionCreateMenu, NodeCreateMenu } from "./canvas-create-menus";
 import { isCanvasReferenceNode } from "../../utils/canvas-resource-references";
 import { fitSourceNodeSize } from "../../utils/canvas-node-size";

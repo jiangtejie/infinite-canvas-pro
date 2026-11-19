@@ -32,12 +32,12 @@ export function useSessionBootstrap() {
         if (!isReady) return;
         if (!userId) {
             wasLoggedOutRef.current = true;
-            void import("@/services/film-sync").then((module) => module.stopFilmAccountSync());
+            void import("@/services/creative-sync").then((module) => module.stopCreativeAccountSync());
             return;
         }
         if (!token) return;
         if (isAdminRoute) {
-            void import("@/services/film-sync").then((module) => module.stopFilmAccountSync());
+            void import("@/services/creative-sync").then((module) => module.stopCreativeAccountSync());
         }
         const syncCanvasAfterLogin = wasLoggedOutRef.current;
         wasLoggedOutRef.current = false;
@@ -62,8 +62,8 @@ export function useSessionBootstrap() {
                     }
                     const { useAssetStore } = await import("@/stores/use-asset-store");
                     void useAssetStore.getState().hydrateAccountAssets(accountToken, syncEnabled);
-                    const { hydrateFilmAccountSync } = await import("@/services/film-sync");
-                    void hydrateFilmAccountSync(accountToken, syncEnabled);
+                    const { hydrateCreativeAccountSync } = await import("@/services/creative-sync");
+                    void hydrateCreativeAccountSync(accountToken, syncEnabled);
                 }
                 // TokenDance 回调页只同步画布与素材，模型配置交给回调页自行写入。
                 if (isTokenDanceCallback) return;

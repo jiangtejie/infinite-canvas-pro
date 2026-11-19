@@ -25,7 +25,7 @@ const TEXT = {
     referenceImage: "首尾帧",
     clipboard: "剪贴板",
     upload: "上传",
-    chooseAsset: "从素材库选择",
+    chooseAsset: "选择素材",
     model: "模型",
     mode: "模式选择",
     size: "尺寸",

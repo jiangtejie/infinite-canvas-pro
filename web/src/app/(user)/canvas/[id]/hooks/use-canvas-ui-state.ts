@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { UploadedImage } from "@/services/image-storage";
-import type { AssetPickerTab } from "../../components/asset-picker-modal";
+import type { AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import type { ContextMenuState, Position } from "../../types";
 
 export type PendingPanoramaImport = {

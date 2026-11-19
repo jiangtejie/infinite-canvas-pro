@@ -106,7 +106,7 @@ export default function ComicListPage() {
                 <PageHeader
                     eyebrow="创作工作台"
                     title="漫画工作台"
-                    description="企划、剧本、页格到成书，按职业漫画流程推进的项目工作台；本批先做项目壳与企划/剧本，数据暂存本机浏览器。"
+                    description="企划、剧本、页格到成书，按职业漫画流程推进的项目工作台；本机自动保存，登录后同步到账号，未登录或断网时仅保留本机。"
                     meta={
                         <>
                             <span className="chip chip-acid inline-flex items-center gap-1.5"><BookOpen className="size-3" />{projects.length} 个项目</span>

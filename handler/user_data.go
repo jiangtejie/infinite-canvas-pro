@@ -128,6 +128,45 @@ func SaveUserFilmLibraryData(w http.ResponseWriter, r *http.Request) {
 	saveUserDataField(w, r, service.SaveCurrentUserFilmLibraryData)
 }
 
+func UserComicProjectData(w http.ResponseWriter, r *http.Request) {
+	data, err := service.CurrentUserComicProjectData(r.Context())
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, json.RawMessage(data))
+}
+
+func SaveUserComicProjectData(w http.ResponseWriter, r *http.Request) {
+	saveUserDataField(w, r, service.SaveCurrentUserComicProjectData)
+}
+
+func UserComicCastData(w http.ResponseWriter, r *http.Request) {
+	data, err := service.CurrentUserComicCastData(r.Context())
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, json.RawMessage(data))
+}
+
+func SaveUserComicCastData(w http.ResponseWriter, r *http.Request) {
+	saveUserDataField(w, r, service.SaveCurrentUserComicCastData)
+}
+
+func UserScriptProjectData(w http.ResponseWriter, r *http.Request) {
+	data, err := service.CurrentUserScriptProjectData(r.Context())
+	if err != nil {
+		FailError(w, err)
+		return
+	}
+	OK(w, json.RawMessage(data))
+}
+
+func SaveUserScriptProjectData(w http.ResponseWriter, r *http.Request) {
+	saveUserDataField(w, r, service.SaveCurrentUserScriptProjectData)
+}
+
 func saveUserDataField(w http.ResponseWriter, r *http.Request, save func(context.Context, json.RawMessage) (json.RawMessage, error)) {
 	var request struct {
 		Data json.RawMessage `json:"data"`

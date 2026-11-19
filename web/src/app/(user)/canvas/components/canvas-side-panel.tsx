@@ -9,7 +9,9 @@ import { motion } from "motion/react";
 
 import { AssetFormModal } from "@/components/assets/asset-form-modal";
 import { PromptDetailDialog } from "@/components/prompts/prompt-detail-dialog";
+import { useLibraryAssetBrowser, useMyAssetBrowser } from "@/hooks/use-asset-browser";
 import { useCopyText } from "@/hooks/use-copy-text";
+import { assetInsertPayload, libraryInsertPayload, type InsertAssetPayload } from "@/lib/asset-picker";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
@@ -20,10 +22,8 @@ import type { Asset } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 
 import { canvasNodeDisplayStatus, publishDraftText, sourceNodeText } from "../[id]/lib/canvas-node-meta";
-import { assetInsertPayload, libraryInsertPayload, useLibraryAssetBrowser, useMyAssetBrowser } from "../lib/canvas-asset-query";
 import { CanvasNodeType, type CanvasNodeData } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
-import type { InsertAssetPayload } from "./asset-picker-modal";
 
 export const CANVAS_ASSET_DRAG_TYPE = "application/x-infinite-canvas-asset";
 
