@@ -41,14 +41,14 @@ description: 当前项目后续值得处理的事项
 
 ## 结构与工程
 
-- 【画布】`canvas/[id]/canvas-client-page.tsx` 现 2051 行；任务/视口/选中/生成 hooks 与纯函数已迁出，剩余可选项是把主组件拆成容器 + 侧栏 + 工具栏，以及页面 model 类型继续收敛。z-index 档位未合并（合并会改遮挡，需专门回归）；`canvas/page.tsx` 与侧栏的派生 state useEffect 待收敛。
+- 【画布】`canvas/[id]/canvas-client-page.tsx` 现 2051 行；任务/视口/选中/生成 hooks 与纯函数已迁出，剩余可选项是把主组件拆成容器 + 侧栏 + 工具栏，以及页面 model 类型继续收敛。z-index 档位未合并（合并会改遮挡，需专门回归）。画布库派生分页已收敛；侧栏剩余 effect 为动画与选中滚动，属真实副作用。
 - 【素材选择器】查询、筛选与插入载荷已收敛到共享层（`hooks/use-asset-browser.ts`、`lib/asset-picker.ts`），弹窗卡片与侧栏卡片 UI 仍是两套（侧栏画布主题加拖拽插入，弹窗语义 token 加点击插入），合并需先定产品语义。
 - 【生图/视频】`image/page.tsx` 1088 行、`video/page.tsx` 1099 行，主链路已抽页面私有 hooks；剩余 retry / mask edit 为薄编排，不再为拆而拆。Kling 面板 TEXT 字典/Section/OptionGrid/参考图条与共享实现视觉文案不同，统一需先定设计；视频页生成失败/删除流程仍与生图页不同构，抽页面私有 hook 前先定是否统一删除语义。
 - 【工作流】`components/workflows/creative-workflow-workspace.tsx` 2702 行，是当前最大的单文件；继续拆分需保持真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。
 - 【样式】`app/globals.css` 1251 行；画布/后台/提示词/影视私有样式已抽到 `styles/`，剩余工作台私有样式继续移出，globals 只留 token、reset、共享原语和通用 antd 覆写。`PunkAura` 已从 WebGL 着色器改为纯 CSS 静态多层渐变，不再有持续渲染开销。
 - 【React Compiler】规则逐条启用（purity / refs / set-state-in-effect），先做白名单再扩大。
 - 【测试】前端 109 个文件、598 条（`bun test`）；后续补任务合并、连接校验的边界用例。
-- 【后台】概览 AI 日志全量扫描的缓存/统计索引、概览与列表的行级深链、浅色主题逐项视觉；AI 日志页已接入共享列表抽象，其余页面按需继续组件化。
+- 【后台】概览 AI 日志已避免全量排序，但仍全量读取日志文件；缓存或统计索引、概览与列表行级深链、浅色主题逐项视觉仍待做。AI 日志页已接入共享列表抽象，其余页面按需继续组件化。
 - 【视觉】FilterTagGroup 可考虑增加 density/variant（当前用 `.prompt-filter-tag` 全局覆盖）；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。
 - 【无障碍】节点目前采用自然 Tab 序列而非单锚点 roving，是否改 roving tabindex 待评估。
 - 【导演台】工具栏收纳需产品确认。

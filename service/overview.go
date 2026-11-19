@@ -165,14 +165,9 @@ func summarizeAILogs(now time.Time) (model.AdminOverviewAI, []model.AdminOvervie
 		ai.AvgDurationMs = durationTotal / durationCount
 	}
 
-	sort.SliceStable(items, func(i, j int) bool {
-		return items[i].CreatedAt > items[j].CreatedAt
-	})
-	recent := make([]model.AdminOverviewRecentAILog, 0, 6)
-	for _, item := range items {
-		if len(recent) >= 6 {
-			break
-		}
+	recentItems := latestAILogs(items, 6)
+	recent := make([]model.AdminOverviewRecentAILog, 0, len(recentItems))
+	for _, item := range recentItems {
 		recent = append(recent, model.AdminOverviewRecentAILog{
 			ID:              item.ID,
 			UserID:          item.UserID,
@@ -186,6 +181,27 @@ func summarizeAILogs(now time.Time) (model.AdminOverviewAI, []model.AdminOvervie
 		})
 	}
 	return ai, recent, nil
+}
+
+// latestAILogs 单次遍历取最近 N 条，避免为概览全量排序；时间相同保持原文件顺序。
+func latestAILogs(items []model.AICallLog, limit int) []model.AICallLog {
+	if limit <= 0 {
+		return nil
+	}
+	latest := make([]model.AICallLog, 0, limit)
+	for _, item := range items {
+		if len(latest) == limit && item.CreatedAt <= latest[limit-1].CreatedAt {
+			continue
+		}
+		index := sort.Search(len(latest), func(i int) bool { return latest[i].CreatedAt < item.CreatedAt })
+		latest = append(latest, model.AICallLog{})
+		copy(latest[index+1:], latest[index:])
+		latest[index] = item
+		if len(latest) > limit {
+			latest = latest[:limit]
+		}
+	}
+	return latest
 }
 
 func parseAILogTime(value string) (time.Time, bool) {

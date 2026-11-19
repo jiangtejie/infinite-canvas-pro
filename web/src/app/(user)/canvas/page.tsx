@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { App, Button, Input, Pagination } from "antd";
 import { Download, FileUp, Plus, Trash2 } from "lucide-react";
@@ -36,11 +36,8 @@ export default function CanvasPage() {
         return keyword ? projects.filter((project) => project.title.toLowerCase().includes(keyword)) : projects;
     }, [projects, query]);
     const maxPage = Math.max(1, Math.ceil(filteredProjects.length / pageSize));
-    const visibleProjects = filteredProjects.slice((page - 1) * pageSize, page * pageSize);
-
-    useEffect(() => {
-        setPage((current) => Math.min(current, maxPage));
-    }, [maxPage]);
+    const currentPage = Math.min(page, maxPage);
+    const visibleProjects = filteredProjects.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     const enterProject = (id: string) => {
         router.push(`/canvas/${id}`);
@@ -141,7 +138,7 @@ export default function CanvasPage() {
                                 <CanvasProjectCard key={project.id} project={project} index={index} />
                             ))}
                         </div>
-                        {filteredProjects.length > pageSize ? <Pagination className="justify-center" current={page} pageSize={pageSize} total={filteredProjects.length} showSizeChanger={false} onChange={setPage} /> : null}
+                        {filteredProjects.length > pageSize ? <Pagination className="justify-center" current={currentPage} pageSize={pageSize} total={filteredProjects.length} showSizeChanger={false} onChange={setPage} /> : null}
                     </>
                 ) : (
                     <EmptyState

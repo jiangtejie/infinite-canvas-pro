@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：画布库派生分页 / 概览最近日志
+
+- 画布库移除「页码超出后 setPage」的派生 state effect：当前页直接由 `page` 与总页数推导，删除画布后不会再触发一次额外落盘/渲染。
+- 后台概览的最近 AI 日志改为单次遍历取 Top 6，不再为 6 条记录全量排序；时间相同保持原日志顺序。仍然全量读取日志文件，缓存/统计索引未做。
+- 验证：`bun test` 109 文件 / 598 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过；新增 `go test ./service -run TestLatestAILogs` 通过，`go build ./...` 通过。ego-browser 实测画布库与后台概览页正常加载。
+- 未实测：大日志量下的概览耗时、删除/新增画布后分页页码的连续交互。
+
 ## C 组冗余收敛
 
 - 「素材源是否有内容」判定收敛为 `sourceNodeHasMaterial`，解析 hook、节点悬浮工具栏与解析面板共用；三处原先逐字重复。
