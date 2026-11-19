@@ -62,6 +62,24 @@ test("config connections choose the correct direction", () => {
     assert.deepEqual(normalizeConnection("config", "image", nodes, "target"), { fromNodeId: "image", toNodeId: "config" });
 });
 
+test("director accepts panorama images and rejects video/audio", () => {
+    const extra = [
+        ...nodes,
+        node("panorama", CanvasNodeType.Panorama),
+        node("video", CanvasNodeType.Video),
+        node("audio", CanvasNodeType.Audio),
+    ];
+    assert.deepEqual(normalizeConnection("panorama", "director", extra, "source"), { fromNodeId: "panorama", toNodeId: "director" });
+    assert.equal(normalizeConnection("video", "director", extra, "source"), null);
+    assert.equal(normalizeConnection("audio", "director", extra, "source"), null);
+});
+
+test("publish accepts panorama images as upstream", () => {
+    const extra = [...nodes, node("panorama", CanvasNodeType.Panorama), node("video", CanvasNodeType.Video)];
+    assert.deepEqual(normalizeConnection("panorama", "publish", extra, "source"), { fromNodeId: "panorama", toNodeId: "publish" });
+    assert.equal(normalizeConnection("video", "publish", extra, "source"), null);
+});
+
 test("default normalization keeps the drag direction", () => {
     assert.deepEqual(normalizeConnection("text", "image", nodes, "source"), { fromNodeId: "text", toNodeId: "image" });
     assert.deepEqual(normalizeConnection("text", "image", nodes, "target"), { fromNodeId: "text", toNodeId: "image" });

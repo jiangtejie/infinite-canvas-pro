@@ -3,6 +3,11 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：任务合并与连接校验边界测试
+
+- 补 5 条边界用例：无本地日志时直接采用后端任务；生成中日志可被后端失败覆盖并合并耗时；`stopping` 结果在日志已完成后不被改写；导演台接受全景图、拒绝视频/音频；发布节点接受全景图作为上游。
+- 验证：`bun test` 109 文件 / 603 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。纯测试补充，无运行时改动。
+
 ## 结构与工程：React Hooks 规则白名单
 
 - ESLint 启用 9 条 React Hooks 规则：`static-components`、`use-memo`、`preserve-manual-memoization`、`globals`、`error-boundaries`、`set-state-in-render`、`config`、`gating`，以及本轮清零后启用的 `immutability`。

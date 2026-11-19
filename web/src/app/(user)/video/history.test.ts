@@ -86,6 +86,26 @@ test("video history keeps stopped/completed logs when merging backend tasks", ()
     assert.equal(merged.video?.id, "video-0");
 });
 
+test("video history adopts a backend task when no local log exists", () => {
+    const incoming = makeLog({ id: "backend-1", status: "生成中", task: { id: "task-1" } as never, config: {} as never });
+    assert.equal(mergeBackendTaskIntoLog(undefined, incoming, incoming.task!), incoming);
+});
+
+test("video history applies backend failures over a generating log", () => {
+    const pending = makeLog({ id: "log-a", status: "生成中", createdAt: 1, durationMs: 3, task: { id: "task-1" } as never, config: {} as never });
+    const failed = makeLog({ id: "backend-1", status: "失败", createdAt: 2, durationMs: 8, error: "上游失败", config: {} as never });
+    const merged = mergeBackendTaskIntoLog(pending, failed, failed.task!);
+    assert.equal(merged.status, "失败");
+    assert.equal(merged.error, "上游失败");
+    assert.equal(merged.durationMs, 8);
+});
+
+test("video history keeps a stopping result while its log is no longer stopping", () => {
+    const result = { id: "log-a", taskLogId: "log-a", status: "stopping" } as unknown as GenerationResult;
+    const completedLog = makeLog({ id: "log-a", status: "成功", video: { id: "video-1", url: "u" } as never, config: {} as never });
+    assert.equal(mergePendingLogResults([result], [completedLog])[0].status, "stopping");
+});
+
 test("video history dedupes chained duplicates across one pass", () => {
     const success = makeLog({ id: "log-a", status: "成功", createdAt: 1, task: { id: "task-1" } as never, video: { id: "video-1", url: "u" } as never, config: {} as never });
     const pending = makeLog({ id: "log-b", status: "生成中", createdAt: 2, task: { id: "task-1" } as never, config: {} as never });
