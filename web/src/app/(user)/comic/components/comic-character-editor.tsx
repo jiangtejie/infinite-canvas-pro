@@ -1,31 +1,23 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { App, Button, Dropdown, Input } from "antd";
-import { FolderOpen, ImagePlus, Plus, Trash2, Upload } from "lucide-react";
+import type { ReactNode } from "react";
+import { Button, Input } from "antd";
+import { Plus, Trash2 } from "lucide-react";
 
-import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
-import { errorMessage } from "@/lib/utils";
-import { uploadImage } from "@/services/image-storage";
-import { useComicImageSrc } from "../hooks/use-comic-image-src";
-import type { ComicCharacter, ComicCharacterReference } from "../types";
+import type { ComicCharacter, ComicImageSlot } from "../types";
 import { createComicCharacterVariant } from "../utils/comic-project";
-import { comicImageFromPickedAsset } from "../utils/comic-reference";
+import { applyComicReferenceSlot } from "../utils/comic-image-slot";
+import { ComicImageSlotEditor } from "./comic-image-slot-editor";
 
 type ReferenceSlot = "primary" | "face" | "fullBody";
-type UploadTarget = { kind: "base"; slot: ReferenceSlot } | { kind: "variant"; variantId: string };
+
+const EMPTY_SLOT: ComicImageSlot = { images: [] };
 
 export function ComicCharacterEditor({ character, onChange, actions }: {
     character: ComicCharacter;
     onChange: (character: ComicCharacter) => void;
     actions?: ReactNode;
 }) {
-    const { message } = App.useApp();
-    const fileRef = useRef<HTMLInputElement>(null);
-    const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
-    const [pickerTarget, setPickerTarget] = useState<UploadTarget | null>(null);
-    const [uploading, setUploading] = useState(false);
-
     const patchIdentity = (patch: Partial<ComicCharacter["visualIdentity"]>) => onChange({ ...character, visualIdentity: { ...character.visualIdentity, ...patch } });
     const patchLook = (patch: Partial<ComicCharacter["defaultLook"]>) => onChange({ ...character, defaultLook: { ...character.defaultLook, ...patch } });
     const patchBehavior = (patch: Partial<ComicCharacter["behavior"]>) => onChange({ ...character, behavior: { ...character.behavior, ...patch } });
@@ -35,58 +27,11 @@ export function ComicCharacterEditor({ character, onChange, actions }: {
         variants: character.variants.map((variant) => variant.id === id ? { ...variant, ...patch, updatedAt: new Date().toISOString() } : variant),
     });
 
-    const pickReference = (target: UploadTarget) => {
-        setUploadTarget(target);
-        fileRef.current?.click();
-    };
-
-    const applyReference = (target: UploadTarget, image: Omit<ComicCharacterReference, "id" | "revision">) => {
-        if (target.kind === "base") {
-            const existing = character.references[target.slot];
-            onChange({
-                ...character,
-                references: {
-                    ...character.references,
-                    [target.slot]: { ...image, id: existing?.id || `${character.id}:${target.slot}`, revision: (existing?.revision ?? -1) + 1 },
-                },
-            });
-            return;
-        }
-        const variant = character.variants.find((item) => item.id === target.variantId);
-        if (!variant) return;
-        patchVariant(variant.id, { referenceImage: { ...image, id: variant.referenceImage?.id || `${variant.id}:reference`, revision: (variant.referenceImage?.revision ?? -1) + 1 } });
-    };
-
-    const uploadReference = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file || !uploadTarget) return;
-        setUploading(true);
-        try {
-            const uploaded = await uploadImage(file);
-            applyReference(uploadTarget, { url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width, height: uploaded.height });
-            message.success("参考图已更新");
-        } catch (error) {
-            message.error(errorMessage(error, "参考图上传失败"));
-        } finally {
-            setUploading(false);
-            setUploadTarget(null);
-        }
-    };
-
-    const handlePickedReference = async (payload: InsertAssetPayload) => {
-        const target = pickerTarget;
-        setPickerTarget(null);
-        if (!target) return;
-        setUploading(true);
-        try {
-            applyReference(target, await comicImageFromPickedAsset(payload));
-            message.success("参考图已更新");
-        } catch (error) {
-            message.error(errorMessage(error, "素材引入失败"));
-        } finally {
-            setUploading(false);
-        }
+    const updateReference = (slotName: ReferenceSlot, slot: ComicImageSlot) => {
+        const references = { ...character.references };
+        if (!slot.images.length) delete references[slotName];
+        else references[slotName] = applyComicReferenceSlot(character.references[slotName], `${character.id}:${slotName}`, slot);
+        onChange({ ...character, references });
     };
 
     return (
@@ -129,12 +74,11 @@ export function ComicCharacterEditor({ character, onChange, actions }: {
             <section className="rounded-lg border border-border/60 bg-background/20 p-3">
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium text-muted-foreground">角色参考图包</span>
-                    {uploading ? <span className="text-[11px] text-muted-foreground">正在上传…</span> : null}
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                    <ReferenceSlotPicker label="主参考" image={character.references.primary} target={{ kind: "base", slot: "primary" }} onUpload={pickReference} onPick={setPickerTarget} />
-                    <ReferenceSlotPicker label="脸部" image={character.references.face} target={{ kind: "base", slot: "face" }} onUpload={pickReference} onPick={setPickerTarget} />
-                    <ReferenceSlotPicker label="全身" image={character.references.fullBody} target={{ kind: "base", slot: "fullBody" }} onUpload={pickReference} onPick={setPickerTarget} />
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <ComicImageSlotEditor label="主参考" slot={character.references.primary?.slot || EMPTY_SLOT} onChange={(slot) => updateReference("primary", slot)} />
+                    <ComicImageSlotEditor label="脸部" slot={character.references.face?.slot || EMPTY_SLOT} onChange={(slot) => updateReference("face", slot)} />
+                    <ComicImageSlotEditor label="全身" slot={character.references.fullBody?.slot || EMPTY_SLOT} onChange={(slot) => updateReference("fullBody", slot)} />
                 </div>
             </section>
 
@@ -157,47 +101,23 @@ export function ComicCharacterEditor({ character, onChange, actions }: {
                             <Field label="道具 / 造型变化"><Input value={variant.propChanges} maxLength={500} onChange={(event) => patchVariant(variant.id, { propChanges: event.target.value })} /></Field>
                             <Field label="当前状态"><Input value={variant.stateDescription} maxLength={1000} placeholder="受伤、湿身、伪装等" onChange={(event) => patchVariant(variant.id, { stateDescription: event.target.value })} /></Field>
                         </div>
-                        <div className="mt-2 max-w-[180px]">
-                            <ReferenceSlotPicker label="变体参考" image={variant.referenceImage} target={{ kind: "variant", variantId: variant.id }} onUpload={pickReference} onPick={setPickerTarget} />
+                        <div className="mt-2 max-w-[260px]">
+                            <ComicImageSlotEditor
+                                label="变体参考"
+                                slot={variant.referenceImage?.slot || EMPTY_SLOT}
+                                onChange={(slot) => patchVariant(variant.id, {
+                                    referenceImage: slot.images.length ? applyComicReferenceSlot(variant.referenceImage, `${variant.id}:reference`, slot) : undefined,
+                                })}
+                            />
                         </div>
                     </article>
                 ))}
             </section>
 
-            <input ref={fileRef} hidden type="file" accept="image/*" onChange={(event) => void uploadReference(event)} />
-            <AssetPickerModal open={Boolean(pickerTarget)} defaultTab="my-assets" kind="image" onInsert={(payload) => void handlePickedReference(payload)} onClose={() => setPickerTarget(null)} />
         </div>
     );
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
     return <label className="block space-y-1 text-xs"><span className="text-muted-foreground">{label}</span>{children}</label>;
-}
-
-function ReferenceSlotPicker({ label, image, target, onUpload, onPick }: { label: string; image?: ComicCharacterReference; target: UploadTarget; onUpload: (target: UploadTarget) => void; onPick: (target: UploadTarget) => void }) {
-    return (
-        <Dropdown
-            trigger={["click"]}
-            menu={{
-                items: [
-                    { key: "upload", icon: <Upload className="size-3.5" />, label: "上传本地图片", onClick: () => onUpload(target) },
-                    { key: "asset", icon: <FolderOpen className="size-3.5" />, label: "从我的素材 / 素材库选择", onClick: () => onPick(target) },
-                ],
-            }}
-        >
-            <span className="block"><ReferenceSlotButton label={label} image={image} /></span>
-        </Dropdown>
-    );
-}
-
-function ReferenceSlotButton({ label, image }: { label: string; image?: ComicCharacterReference }) {
-    const src = useComicImageSrc(image);
-    return (
-        <button type="button" className="flex w-full flex-col items-center gap-1.5 rounded-md border border-dashed border-border/70 bg-background/30 p-2 text-[11px] text-muted-foreground transition hover:border-acid/50 hover:text-foreground">
-            <span className="grid aspect-square w-full place-items-center overflow-hidden rounded bg-background/40">
-                {src ? <img src={src} alt={label} className="size-full object-cover" /> : <ImagePlus className="size-4" />}
-            </span>
-            <span>{label}</span>
-        </button>
-    );
 }

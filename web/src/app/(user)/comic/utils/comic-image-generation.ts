@@ -1,6 +1,7 @@
 import type { ReferenceImage } from "@/types/image";
 import { imageToDataUrl } from "@/services/image-storage";
 import type { ComicCharacter, ComicCharacterReference, ComicGeneratedPanelImage, ComicGenerationContext, ComicGenerationReference, ComicImageRef, ComicLocation, ComicPage, ComicPanel, ComicProject } from "../types";
+import { activeComicSlotImage } from "./comic-image-slot";
 
 export const COMIC_COMPILER_VERSION = "1";
 const MAX_REFERENCES = 5;
@@ -83,8 +84,10 @@ function characterBehavior(character: ComicCharacter) {
     ]);
 }
 
-function descriptor(reference: ComicCharacterReference, role: ComicGenerationReference["role"], label: string): ComicReferenceDescriptor {
-    return { id: reference.id, revision: String(reference.revision), role, image: reference, label };
+function descriptor(reference: ComicCharacterReference | undefined, role: ComicGenerationReference["role"], label: string): ComicReferenceDescriptor | null {
+    const image = activeComicSlotImage(reference?.slot);
+    if (!reference || !image) return null;
+    return { id: reference.id, revision: String(reference.revision), role, image, label };
 }
 
 export function buildComicPanelGenerationContext(project: ComicProject, page: ComicPage, panel: ComicPanel, options: ComicPanelGenerationOptions = {}): ComicPanelGenerationContext {
@@ -129,27 +132,30 @@ export function buildComicPanelGenerationContext(project: ComicProject, page: Co
     const sceneLines = matchedLocations.map((location) => `- ${location.name}：${parts([location.description, location.atmosphere && `气氛：${location.atmosphere}`])}`);
 
     for (const { character } of boundCharacters) {
-        const primary = character.references.primary;
-        const face = character.references.face;
-        const fullBody = character.references.fullBody;
-        if (primary) addReference(descriptor(primary, "character-primary", `${character.name}主参考`));
-        else if (face) addReference(descriptor(face, "character-face", `${character.name}脸部参考`));
-        else if (fullBody) addReference(descriptor(fullBody, "character-full-body", `${character.name}全身参考`));
+        const primary = descriptor(character.references.primary, "character-primary", `${character.name}主参考`);
+        const face = descriptor(character.references.face, "character-face", `${character.name}脸部参考`);
+        const fullBody = descriptor(character.references.fullBody, "character-full-body", `${character.name}全身参考`);
+        if (primary) addReference(primary);
+        else if (face) addReference(face);
+        else if (fullBody) addReference(fullBody);
         else warnings.push(`${character.name} 没有可用的主/脸部/全身参考图`);
     }
     for (const { character, variantId } of boundCharacters) {
         const variant = character.variants.find((item) => item.id === variantId);
-        if (variant?.referenceImage) addReference(descriptor(variant.referenceImage, "character-variant", `${character.name}变体参考`));
+        const reference = descriptor(variant?.referenceImage, "character-variant", `${character.name}变体参考`);
+        if (reference) addReference(reference);
     }
     if (boundCharacters.length === 1) {
         const character = boundCharacters[0]!.character;
-        if (character.references.face) addReference(descriptor(character.references.face, "character-face", `${character.name}脸部参考`));
-        if (character.references.fullBody) addReference(descriptor(character.references.fullBody, "character-full-body", `${character.name}全身参考`));
+        const face = descriptor(character.references.face, "character-face", `${character.name}脸部参考`);
+        const fullBody = descriptor(character.references.fullBody, "character-full-body", `${character.name}全身参考`);
+        if (face) addReference(face);
+        if (fullBody) addReference(fullBody);
     }
     for (const location of matchedLocations) {
-        if (!location.image) continue;
-        const revision = location.image.storageKey || "unversioned";
-        addReference({ id: `location:${location.id}`, revision, role: "location", image: location.image, label: `${location.name}场景参考` });
+        const image = activeComicSlotImage(location.image);
+        if (!image) continue;
+        addReference({ id: `location:${location.id}`, revision: image.storageKey || image.id, role: "location", image, label: `${location.name}场景参考` });
     }
     if (options.anchor) {
         addReference({
@@ -207,7 +213,10 @@ export function buildComicPanelGenerationContext(project: ComicProject, page: Co
                 } : null,
             };
         }),
-        scenes: matchedLocations.map((location) => ({ id: location.id, name: location.name, description: location.description, atmosphere: location.atmosphere, imageKey: location.image?.storageKey || "unversioned" })),
+        scenes: matchedLocations.map((location) => {
+            const image = activeComicSlotImage(location.image);
+            return { id: location.id, name: location.name, description: location.description, atmosphere: location.atmosphere, imageKey: image?.storageKey || image?.id || "unversioned" };
+        }),
         references: referenceDescriptors.map((item) => ({ id: item.id, revision: item.revision, role: item.role })),
         anchor: options.anchor ? { panelId: options.anchor.panelId, inputSignature: options.anchor.inputSignature } : null,
         model: options.model || "",

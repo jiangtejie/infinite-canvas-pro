@@ -3,10 +3,11 @@ import test from "node:test";
 
 import { createComicCharacter, createComicPage, createComicProject } from "./comic-project";
 import { assertComicPageCompositionConfirmed, buildComicPanelGenerationContext, comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, currentComicPanelInputSignature, resolveComicPanelImageState } from "./comic-image-generation";
+import { activeComicSlotImage } from "./comic-image-slot";
 import type { ComicCharacter, ComicCharacterReference } from "../types";
 
 function reference(id: string, revision = 0): ComicCharacterReference {
-    return { id, revision, url: `blob:${id}`, storageKey: `image:${id}`, width: 800, height: 1000 };
+    return { id, revision, slot: { images: [{ id: `${id}:image`, url: `blob:${id}`, storageKey: `image:${id}`, width: 800, height: 1000 }], activeImageId: `${id}:image` } };
 }
 
 function character(name: string, id: string, withImages = true): ComicCharacter {
@@ -82,7 +83,7 @@ test("reference budget prioritizes role identities, then variants, then anchor",
         { characterId: "c1", variantId: "c1:variant", source: "manual", characterNameSnapshot: "林夏" },
         { characterId: "c2", variantId: "c2:variant", source: "manual", characterNameSnapshot: "阿明" },
     ];
-    const anchor = { panelId: "anchor-panel", inputSignature: "anchor-signature", image: reference("anchor-image", 8) };
+    const anchor = { panelId: "anchor-panel", inputSignature: "anchor-signature", image: activeComicSlotImage(reference("anchor-image", 8).slot)! };
     const compiled = buildComicPanelGenerationContext(project, page, page.panels[0]!, { anchor, model: "m1", size: "1k" });
     assert.deepEqual(compiled.referenceDescriptors.map((item) => item.role), ["character-primary", "character-primary", "character-variant", "character-variant", "panel-anchor"]);
     assert.equal(compiled.referenceDescriptors.length, 5);

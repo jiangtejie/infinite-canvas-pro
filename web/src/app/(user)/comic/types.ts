@@ -17,9 +17,23 @@ export type ComicImageRef = {
     height?: number;
 };
 
-export type ComicCharacterReference = ComicImageRef & {
+export type ComicSlotImage = ComicImageRef & {
+    id: string;
+    rating?: number;
+    label?: string;
+    createdAt?: string;
+};
+
+export type ComicImageSlot = {
+    images: ComicSlotImage[];
+    activeImageId?: string;
+    locked?: boolean;
+};
+
+export type ComicCharacterReference = {
     id: string;
     revision: number;
+    slot: ComicImageSlot;
 };
 
 export type ComicCharacterVariant = {
@@ -80,7 +94,8 @@ export type ComicLocation = {
     description: string;
     atmosphere: string;
     notes: string;
-    image?: ComicImageRef;
+    image?: ComicImageSlot;
+    sourceLibraryLocationId?: string;
 };
 
 export type ComicLibraryCharacter = ComicCharacter & { createdAt: string; updatedAt?: string };

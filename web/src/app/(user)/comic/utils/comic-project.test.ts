@@ -20,7 +20,7 @@ test("legacy character and panel data normalize deterministically", () => {
     assert.equal(once.characters[0]?.behavior.expressionBaseline, "克制");
     assert.equal(once.characters[0]?.references.primary?.id, "legacy:project-1:character:0:primary");
     assert.equal(once.characters[0]?.references.primary?.revision, 0);
-    assert.equal(once.characters[0]?.references.primary?.storageKey, "image:a");
+    assert.equal(once.characters[0]?.references.primary?.slot.images[0]?.storageKey, "image:a");
     assert.deepEqual(once.chapters[0]?.pages[0]?.panels[0]?.characterBindings, []);
     assert.equal(once.chapters[0]?.pages[0]?.panels[0]?.image, undefined);
 });
@@ -136,13 +136,13 @@ test("character consistency data survives backup round trip", () => {
     character.id = "character-1";
     character.name = "林夏";
     character.aliases = ["小夏"];
-    character.references.primary = { id: "character-1:primary", revision: 2, url: "blob:portrait", storageKey: "image:portrait" };
+    character.references.primary = { id: "character-1:primary", revision: 2, slot: { images: [{ id: "character-1:primary:image", url: "blob:portrait", storageKey: "image:portrait" }], activeImageId: "character-1:primary:image" } };
     character.variants = [{
         id: "variant-1",
         name: "校服",
         description: "故事前期",
         outfitOverride: "白衬衫与藏青百褶裙",
-        referenceImage: { id: "variant-1:reference", revision: 1, url: "blob:uniform", storageKey: "image:uniform" },
+        referenceImage: { id: "variant-1:reference", revision: 1, slot: { images: [{ id: "variant-1:reference:image", url: "blob:uniform", storageKey: "image:uniform" }], activeImageId: "variant-1:reference:image" } },
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
     }];
@@ -171,7 +171,7 @@ test("character consistency data survives backup round trip", () => {
     assert.equal(restored.characters[0]?.references.primary?.id, "character-1:primary");
     assert.equal(restored.characters[0]?.references.primary?.revision, 2);
     assert.equal(restored.characters[0]?.variants[0]?.outfitOverride, "白衬衫与藏青百褶裙");
-    assert.equal(restored.characters[0]?.variants[0]?.referenceImage?.storageKey, "image:uniform");
+    assert.equal(restored.characters[0]?.variants[0]?.referenceImage?.slot.images[0]?.storageKey, "image:uniform");
     assert.deepEqual(restored.chapters[0]?.pages[0]?.panels[0]?.characterBindings, panel.characterBindings);
     assert.deepEqual(restored.chapters[0]?.pages[0]?.panels[0]?.characterSuggestions, panel.characterSuggestions);
     assert.deepEqual(restored.chapters[0]?.pages[0]?.panels[0]?.image?.generationContext, panel.image.generationContext);

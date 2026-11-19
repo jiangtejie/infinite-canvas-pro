@@ -111,7 +111,7 @@ export function removeComicPanelCharacterBinding(project: ComicProject, chapterI
 }
 
 function copyReference(reference: ComicCharacterReference | undefined) {
-    return reference ? { ...reference, id: nanoid() } : undefined;
+    return reference ? { ...reference, id: nanoid(), slot: { ...reference.slot, images: reference.slot.images.map((image) => ({ ...image })) } } : undefined;
 }
 
 export function copyComicCharacterForProject(source: ComicCharacter): ComicCharacter {

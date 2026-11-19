@@ -46,10 +46,10 @@ export const useComicStore = create<ComicStore>()(
         {
             name: COMIC_STORE_KEY,
             storage: comicStorage,
-            version: 1,
+            version: 2,
             migrate: (persistedState, version) => {
                 const state = persistedState as { projects?: LegacyComicProject[] } | undefined;
-                if (!state || version >= 1) return persistedState as StorageValue<ComicStore>["state"];
+                if (!state || version >= 2) return persistedState as StorageValue<ComicStore>["state"];
                 return {
                     ...state,
                     projects: (state.projects || []).map((project, index) => normalizeComicProject(project, project.id || `legacy:project:${index}`)),

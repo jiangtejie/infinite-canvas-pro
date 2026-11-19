@@ -1,30 +1,24 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { App, Button, Dropdown, Input, Modal } from "antd";
-import { FolderOpen, ImagePlus, Library, Plus, Trash2, Upload, UserRound, MapPin } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { App, Button, Input, Modal } from "antd";
+import { ImagePlus, Library, Plus, Trash2, UserRound, MapPin } from "lucide-react";
 
-import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { uploadImage } from "@/services/image-storage";
 import { useComicImageSrc } from "../../hooks/use-comic-image-src";
 import { useComicCastStore } from "../../stores/use-comic-cast-store";
-import { errorMessage } from "@/lib/utils";
 import { ComicCharacterEditor } from "../../components/comic-character-editor";
-import type { ComicCharacter, ComicImageRef, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation, ComicProject } from "../../types";
+import { ComicImageSlotEditor } from "../../components/comic-image-slot-editor";
+import type { ComicCharacter, ComicImageRef, ComicImageSlot, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation, ComicProject } from "../../types";
 import { copyComicCharacterForProject } from "../../utils/comic-character-binding";
 import { createComicCharacter, createComicLocation, invalidateComicPageCompositions, invalidateComicPagesForCharacter } from "../../utils/comic-project";
-import { comicImageFromPickedAsset } from "../../utils/comic-reference";
+import { activeComicSlotImage } from "../../utils/comic-image-slot";
 
-type UploadTarget = { kind: "location"; id: string };
+const EMPTY_SLOT: ComicImageSlot = { images: [] };
 
 export function ComicCastStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
     const { message } = App.useApp();
     const confirm = useConfirm();
-    const fileRef = useRef<HTMLInputElement>(null);
-    const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
-    const [pickerTarget, setPickerTarget] = useState<UploadTarget | null>(null);
-    const [uploading, setUploading] = useState(false);
     const [importKind, setImportKind] = useState<"character" | "location" | null>(null);
     const libraryCharacters = useComicCastStore((state) => state.characters);
     const libraryLocations = useComicCastStore((state) => state.locations);
@@ -35,44 +29,6 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
 
     const patchCharacter = (id: string, patch: Partial<ComicCharacter>) => onChange(invalidateComicPagesForCharacter({ ...project, characters: characters.map((item) => item.id === id ? { ...item, ...patch } : item) }, id));
     const patchLocation = (id: string, patch: Partial<ComicLocation>) => onChange(invalidateComicPageCompositions({ ...project, locations: locations.map((item) => item.id === id ? { ...item, ...patch } : item) }));
-
-    const pickImage = (target: UploadTarget) => {
-        setUploadTarget(target);
-        fileRef.current?.click();
-    };
-
-    const uploadCastImage = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file || !uploadTarget) return;
-        setUploading(true);
-        try {
-            const uploaded = await uploadImage(file);
-            const image: ComicImageRef = { url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width, height: uploaded.height };
-            patchLocation(uploadTarget.id, { image });
-            message.success("参考图已更新");
-        } catch (error) {
-            message.error(errorMessage(error, "参考图上传失败"));
-        } finally {
-            setUploading(false);
-            setUploadTarget(null);
-        }
-    };
-
-    const handlePickedLocationImage = async (payload: InsertAssetPayload) => {
-        const target = pickerTarget;
-        setPickerTarget(null);
-        if (!target) return;
-        setUploading(true);
-        try {
-            patchLocation(target.id, { image: await comicImageFromPickedAsset(payload) });
-            message.success("参考图已更新");
-        } catch (error) {
-            message.error(errorMessage(error, "素材引入失败"));
-        } finally {
-            setUploading(false);
-        }
-    };
 
     const removeCharacter = async (character: ComicCharacter) => {
         const accepted = await confirm({ title: `删除角色「${character.name}」？`, description: "角色设定和参考图会一起删除。", confirmText: "删除角色", tone: "danger" });
@@ -103,7 +59,12 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
 
     const importLocation = (item: ComicLibraryLocation) => {
         const base = createComicLocation(locations.length + 1);
-        const copy = { ...item, id: base.id } as ComicLocation;
+        const copy = {
+            ...item,
+            id: base.id,
+            sourceLibraryLocationId: item.id,
+            image: item.image ? { ...item.image, images: item.image.images.map((image) => ({ ...image })) } : undefined,
+        } as ComicLocation;
         onChange({ ...project, locations: [...locations, copy] });
         setImportKind(null);
         message.success(`已导入「${item.name}」`);
@@ -155,16 +116,14 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
                 <div className="mt-4 grid gap-3 xl:grid-cols-2">
                     {locations.map((location) => (
                         <article key={location.id} className="rounded-lg border border-border/60 bg-background/30 p-3">
-                            <div className="flex gap-3">
-                                <LocationImagePicker image={location.image} label={location.name} target={{ kind: "location", id: location.id }} onUpload={pickImage} onPick={setPickerTarget} />
-                                <div className="min-w-0 flex-1 space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <Input value={location.name} maxLength={100} placeholder="场景名" onChange={(event) => patchLocation(location.id, { name: event.target.value })} />
-                                        <Button type="text" size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Library className="size-3.5" />} aria-label="存入场景库" title="存入场景库" onClick={() => saveLocationToLibrary(location)} />
-                                        <Button type="text" danger size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="删除场景" onClick={() => void removeLocation(location)} />
-                                    </div>
-                                    <Input.TextArea rows={2} value={location.description} maxLength={3000} placeholder="空间结构、关键道具、可用机位" onChange={(event) => patchLocation(location.id, { description: event.target.value })} />
-                                </div>
+                            <div className="flex items-center gap-2">
+                                <Input value={location.name} maxLength={100} placeholder="场景名" onChange={(event) => patchLocation(location.id, { name: event.target.value })} />
+                                <Button type="text" size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Library className="size-3.5" />} aria-label="存入场景库" title="存入场景库" onClick={() => saveLocationToLibrary(location)} />
+                                <Button type="text" danger size="small" className="!h-8 !w-8 !min-w-8 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="删除场景" onClick={() => void removeLocation(location)} />
+                            </div>
+                            <Input.TextArea rows={2} className="mt-2" value={location.description} maxLength={3000} placeholder="空间结构、关键道具、可用机位" onChange={(event) => patchLocation(location.id, { description: event.target.value })} />
+                            <div className="mt-2">
+                                <ComicImageSlotEditor label="场景参考" slot={location.image || EMPTY_SLOT} onChange={(slot) => patchLocation(location.id, { image: slot.images.length ? slot : undefined })} />
                             </div>
                             <div className="mt-3 grid gap-2 sm:grid-cols-2">
                                 <label className="block space-y-1 text-xs"><span className="text-muted-foreground">光线 / 气氛</span><Input.TextArea rows={2} value={location.atmosphere} maxLength={2000} onChange={(event) => patchLocation(location.id, { atmosphere: event.target.value })} /></label>
@@ -176,14 +135,10 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
                 </div>
             </section>
 
-            <input ref={fileRef} hidden type="file" accept="image/*" onChange={(event) => void uploadCastImage(event)} />
-            <AssetPickerModal open={Boolean(pickerTarget)} defaultTab="my-assets" kind="image" onInsert={(payload) => void handlePickedLocationImage(payload)} onClose={() => setPickerTarget(null)} />
-            {uploading ? <div className="text-[11px] text-muted-foreground">正在上传参考图…</div> : null}
-
             <Modal title={importKind === "character" ? "从角色库导入" : "从场景库导入"} open={Boolean(importKind)} onCancel={() => setImportKind(null)} footer={null} width={540} destroyOnHidden>
                 <div className="thin-scrollbar max-h-[60dvh] space-y-2 overflow-y-auto py-1">
-                    {importKind === "character" ? libraryCharacters.map((item) => <ImportRow key={item.id} image={item.references.primary} name={item.name} subtitle={[item.role, item.visualIdentity.description].filter(Boolean).join(" · ")} onClick={() => importCharacter(item)} />) : null}
-                    {importKind === "location" ? libraryLocations.map((item) => <ImportRow key={item.id} image={item.image} name={item.name} subtitle={[item.description, item.atmosphere].filter(Boolean).join(" · ")} onClick={() => importLocation(item)} />) : null}
+                    {importKind === "character" ? libraryCharacters.map((item) => <ImportRow key={item.id} image={activeComicSlotImage(item.references.primary?.slot)} name={item.name} subtitle={[item.role, item.visualIdentity.description].filter(Boolean).join(" · ")} onClick={() => importCharacter(item)} />) : null}
+                    {importKind === "location" ? libraryLocations.map((item) => <ImportRow key={item.id} image={activeComicSlotImage(item.image)} name={item.name} subtitle={[item.description, item.atmosphere].filter(Boolean).join(" · ")} onClick={() => importLocation(item)} />) : null}
                     {(importKind === "character" ? libraryCharacters.length : libraryLocations.length) === 0 ? <p className="m-0 py-8 text-center text-xs text-muted-foreground">库里还没有条目，先在项目设定里点「存入库」。</p> : null}
                 </div>
             </Modal>
@@ -204,27 +159,6 @@ function ImportRow({ image, name, subtitle, onClick }: { image?: ComicImageRef; 
 function LibraryThumb({ image, name }: { image?: ComicImageRef; name: string }) {
     const src = useComicImageSrc(image);
     return <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border/60 bg-background/40 text-muted-foreground">{src ? <img src={src} alt={name} className="size-full object-cover" /> : <ImagePlus className="size-4" />}</span>;
-}
-
-function LocationImagePicker({ image, label, target, onUpload, onPick }: { image?: ComicImageRef; label: string; target: UploadTarget; onUpload: (target: UploadTarget) => void; onPick: (target: UploadTarget) => void }) {
-    const src = useComicImageSrc(image);
-    return (
-        <Dropdown
-            trigger={["click"]}
-            menu={{
-                items: [
-                    { key: "upload", icon: <Upload className="size-3.5" />, label: "上传本地图片", onClick: () => onUpload(target) },
-                    { key: "asset", icon: <FolderOpen className="size-3.5" />, label: "从我的素材 / 素材库选择", onClick: () => onPick(target) },
-                ],
-            }}
-        >
-            <span className="block shrink-0">
-                <button type="button" className="grid size-20 place-items-center overflow-hidden rounded-lg border border-dashed border-border/70 bg-background/40 text-muted-foreground transition hover:border-acid/50 hover:text-foreground" aria-label={`设置${label}参考图`}>
-                    {src ? <img src={src} alt={label} className="size-full object-cover" /> : <ImagePlus className="size-5" />}
-                </button>
-            </span>
-        </Dropdown>
-    );
 }
 
 function EmptyCast({ icon, text }: { icon: ReactNode; text: string }) {

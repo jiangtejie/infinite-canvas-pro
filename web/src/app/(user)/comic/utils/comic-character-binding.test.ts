@@ -66,7 +66,7 @@ test("library imports are independent character copies that keep media reference
     const source = createComicCharacter(1);
     source.id = "library-1";
     source.name = "林夏";
-    source.references.primary = { id: "library-1:primary", revision: 3, url: "blob:portrait", storageKey: "image:portrait" };
+    source.references.primary = { id: "library-1:primary", revision: 3, slot: { images: [{ id: "library-1:primary:image", url: "blob:portrait", storageKey: "image:portrait" }], activeImageId: "library-1:primary:image" } };
     source.variants = [{
         id: "library-variant-1",
         name: "校服",
@@ -75,7 +75,7 @@ test("library imports are independent character copies that keep media reference
         paletteOverride: "",
         propChanges: "",
         stateDescription: "",
-        referenceImage: { id: "library-variant-1:reference", revision: 2, url: "blob:uniform", storageKey: "image:uniform" },
+        referenceImage: { id: "library-variant-1:reference", revision: 2, slot: { images: [{ id: "library-variant-1:reference:image", url: "blob:uniform", storageKey: "image:uniform" }], activeImageId: "library-variant-1:reference:image" } },
         createdAt: "",
         updatedAt: "",
     }];
@@ -85,8 +85,8 @@ test("library imports are independent character copies that keep media reference
     assert.notEqual(copy.variants[0]?.id, source.variants[0]?.id);
     assert.notEqual(copy.variants[0]?.referenceImage?.id, source.variants[0]?.referenceImage?.id);
     assert.equal(copy.references.primary?.id === source.references.primary?.id, false);
-    assert.equal(copy.references.primary?.storageKey, "image:portrait");
-    assert.equal(copy.variants[0]?.referenceImage?.storageKey, "image:uniform");
+    assert.equal(copy.references.primary?.slot.images[0]?.storageKey, "image:portrait");
+    assert.equal(copy.variants[0]?.referenceImage?.slot.images[0]?.storageKey, "image:uniform");
 });
 
 test("legacy suggestions use unique exact names and aliases without pronouns or substring collisions", () => {

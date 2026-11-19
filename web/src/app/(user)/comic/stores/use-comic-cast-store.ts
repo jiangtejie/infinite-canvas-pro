@@ -5,7 +5,7 @@ import { persist, type StorageValue } from "zustand/middleware";
 import { createDebouncedJSONStorage } from "@/lib/persisted-store";
 import { COMIC_CAST_STORE_KEY } from "@/lib/storage-keys";
 import type { ComicCharacter, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation } from "../types";
-import { normalizeComicCharacter, type LegacyComicCharacter } from "../utils/comic-project";
+import { normalizeComicCharacter, normalizeComicImageSlot, type LegacyComicCharacter } from "../utils/comic-project";
 
 type ComicCastStore = {
     hydrated: boolean;
@@ -45,15 +45,19 @@ export const useComicCastStore = create<ComicCastStore>()(
         {
             name: COMIC_CAST_STORE_KEY,
             storage: castStorage,
-            version: 1,
+            version: 2,
             migrate: (persistedState, version) => {
                 const state = persistedState as { characters?: Array<LegacyComicCharacter & { createdAt?: string }>; locations?: ComicLibraryLocation[] } | undefined;
-                if (!state || version >= 1) return persistedState as StorageValue<ComicCastStore>["state"];
+                if (!state || version >= 2) return persistedState as StorageValue<ComicCastStore>["state"];
                 return {
                     ...state,
                     characters: (state.characters || []).map((character, index) => ({
                         ...normalizeComicCharacter(character, character.id || `legacy:cast:${index}`),
                         createdAt: character.createdAt || "",
+                    })),
+                    locations: (state.locations || []).map((location) => ({
+                        ...location,
+                        image: normalizeComicImageSlot(location.image, `${location.id}:image`),
                     })),
                 } as StorageValue<ComicCastStore>["state"];
             },

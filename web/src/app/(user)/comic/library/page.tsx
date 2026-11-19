@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Input, Modal } from "antd";
 import { ArrowLeft, BookOpen, ImagePlus, Library, MapPin, Pencil, Search, Trash2, UserRound } from "lucide-react";
 
@@ -10,7 +10,10 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ComicCharacterEditor } from "../components/comic-character-editor";
 import { useComicImageSrc } from "../hooks/use-comic-image-src";
 import { useComicCastStore } from "../stores/use-comic-cast-store";
+import { useComicStore } from "../stores/use-comic-store";
 import type { ComicImageRef, ComicLibraryCharacter } from "../types";
+import { activeComicSlotImage } from "../utils/comic-image-slot";
+import { comicCharacterLibraryUsageIndex, comicLocationLibraryUsageIndex } from "../utils/comic-library-usage";
 
 export default function ComicLibraryPage() {
     const confirm = useConfirm();
@@ -20,19 +23,34 @@ export default function ComicLibraryPage() {
     const updateCharacter = useComicCastStore((state) => state.updateCharacter);
     const removeCharacter = useComicCastStore((state) => state.removeCharacter);
     const removeLocation = useComicCastStore((state) => state.removeLocation);
+    const projects = useComicStore((state) => state.projects);
     const [query, setQuery] = useState("");
     const [editing, setEditing] = useState<ComicLibraryCharacter | null>(null);
+    const characterUsage = useMemo(() => comicCharacterLibraryUsageIndex(projects), [projects]);
+    const locationUsage = useMemo(() => comicLocationLibraryUsageIndex(projects), [projects]);
     const keyword = query.trim().toLowerCase();
     const filteredCharacters = keyword
         ? characters.filter((item) => [item.name, item.role, item.visualIdentity.description, ...item.aliases].some((value) => value.toLowerCase().includes(keyword)))
         : characters;
 
     const deleteCharacter = async (id: string, name: string) => {
-        const accepted = await confirm({ title: `从库中删除「${name}」？`, description: "已导入到漫画项目里的副本不受影响。", confirmText: "从库中删除", tone: "danger" });
+        const used = characterUsage.get(id)?.projects || 0;
+        const accepted = await confirm({
+            title: `从库中删除「${name}」？`,
+            description: used ? `已被 ${used} 个漫画项目引用；删除库条目不影响项目里的副本。` : "已导入到漫画项目里的副本不受影响。",
+            confirmText: "从库中删除",
+            tone: "danger",
+        });
         if (accepted) removeCharacter(id);
     };
     const deleteLocation = async (id: string, name: string) => {
-        const accepted = await confirm({ title: `从库中删除「${name}」？`, description: "已导入到漫画项目里的副本不受影响。", confirmText: "从库中删除", tone: "danger" });
+        const used = locationUsage.get(id)?.projects || 0;
+        const accepted = await confirm({
+            title: `从库中删除「${name}」？`,
+            description: used ? `已被 ${used} 个漫画项目引用；删除库条目不影响项目里的副本。` : "已导入到漫画项目里的副本不受影响。",
+            confirmText: "从库中删除",
+            tone: "danger",
+        });
         if (accepted) removeLocation(id);
     };
 
@@ -56,7 +74,7 @@ export default function ComicLibraryPage() {
                             {filteredCharacters.map((item) => (
                                 <article key={item.id} className="rounded-xl border border-border/70 bg-card/40 p-4">
                                     <div className="flex items-start gap-3">
-                                        <LibraryImage image={item.references.primary} name={item.name} />
+                                        <LibraryImage image={activeComicSlotImage(item.references.primary?.slot)} name={item.name} />
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
                                                 <h3 className="min-w-0 flex-1 truncate text-base font-semibold">{item.name}</h3>
@@ -68,7 +86,8 @@ export default function ComicLibraryPage() {
                                         </div>
                                     </div>
                                     {item.defaultLook.outfit || item.behavior.personality ? <p className="mt-3 line-clamp-2 border-t border-border/60 pt-2 text-[11px] leading-5 text-muted-foreground">{[item.defaultLook.outfit, item.behavior.personality].filter(Boolean).join(" · ")}</p> : null}
-                                    <p className="mt-2 text-[10px] text-muted-foreground/60">{item.variants.length} 个变体 · {[item.references.primary, item.references.face, item.references.fullBody].filter(Boolean).length} 张基础参考</p>
+                                    <p className="mt-2 text-[10px] text-muted-foreground/60">{item.variants.length} 个变体 · {Object.values(item.references).filter((reference) => activeComicSlotImage(reference?.slot)).length} 张基础参考</p>
+                                    <UsageLine usage={characterUsage.get(item.id)} bindings />
                                 </article>
                             ))}
                         </div>
@@ -83,20 +102,21 @@ export default function ComicLibraryPage() {
                             {locations.map((item) => (
                                 <article key={item.id} className="rounded-xl border border-border/70 bg-card/40 p-4">
                                     <div className="flex items-start gap-3">
-                                        <LibraryImage image={item.image} name={item.name} />
+                                        <LibraryImage image={activeComicSlotImage(item.image)} name={item.name} />
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2"><h3 className="min-w-0 flex-1 truncate text-base font-semibold">{item.name}</h3><Button type="text" size="small" danger className="!h-7 !w-7 !min-w-7 !p-0" icon={<Trash2 className="size-3.5" />} aria-label="从库中删除场景" onClick={() => void deleteLocation(item.id, item.name)} /></div>
                                             <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.atmosphere || "未填写气氛"}</p>
                                             <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description || "未填写空间结构"}</p>
                                         </div>
                                     </div>
+                                    <UsageLine usage={locationUsage.get(item.id)} />
                                 </article>
                             ))}
                         </div>
                     </section>
                 ) : null}
 
-                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60"><BookOpen className="size-3.5" />库与本机浏览器绑定；换设备或清缓存前请导出项目备份。</p>
+                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground/60"><BookOpen className="size-3.5" />库本机自动保存，登录后同步到账号；重要内容仍建议导出项目备份。</p>
             </div>
 
             <Modal
@@ -111,6 +131,15 @@ export default function ComicLibraryPage() {
                 <p className="mb-0 mt-3 text-[11px] leading-5 text-muted-foreground">只更新角色库条目；已经导入项目的角色副本不会跟着变化。</p>
             </Modal>
         </main>
+    );
+}
+
+function UsageLine({ usage, bindings }: { usage?: { projects: number; copies: number; bindings: number }; bindings?: boolean }) {
+    if (!usage?.projects) return null;
+    return (
+        <p className="mt-2 text-[10px] text-muted-foreground/60">
+            {usage.projects} 个项目 · {usage.copies} 份副本{bindings && usage.bindings ? ` · ${usage.bindings} 个页格引用` : ""}
+        </p>
     );
 }
 

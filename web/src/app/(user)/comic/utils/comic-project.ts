@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { ComicChapter, ComicCharacter, ComicCharacterReference, ComicCharacterVariant, ComicImageRef, ComicLocation, ComicPanel, ComicPanelLayout, ComicPage, ComicProject, ComicReviewStatus } from "../types";
+import type { ComicChapter, ComicCharacter, ComicCharacterReference, ComicCharacterVariant, ComicImageRef, ComicImageSlot, ComicLocation, ComicPanel, ComicPanelLayout, ComicPage, ComicProject, ComicReviewStatus, ComicSlotImage } from "../types";
 
 type CreateComicProjectInput = {
     title: string;
@@ -51,15 +51,45 @@ function normalizeLayout(layout: Partial<ComicPanelLayout> | undefined): ComicPa
     };
 }
 
-function normalizeReference(reference: Partial<ComicCharacterReference> | undefined, fallbackId: string): ComicCharacterReference | undefined {
-    if (!reference || typeof reference.url !== "string" || !reference.url) return undefined;
+function normalizeSlotImage(value: unknown, fallbackId: string): ComicSlotImage | undefined {
+    if (!value || typeof value !== "object") return undefined;
+    const image = value as Partial<ComicSlotImage>;
+    if (typeof image.url !== "string" || !image.url) return undefined;
     return {
-        id: typeof reference.id === "string" && reference.id ? reference.id : fallbackId,
-        revision: Number.isFinite(reference.revision) ? Math.max(0, Math.trunc(reference.revision as number)) : 0,
-        url: reference.url,
-        storageKey: typeof reference.storageKey === "string" ? reference.storageKey : undefined,
-        width: Number.isFinite(reference.width) ? Number(reference.width) : undefined,
-        height: Number.isFinite(reference.height) ? Number(reference.height) : undefined,
+        id: typeof image.id === "string" && image.id ? image.id : fallbackId,
+        url: image.url,
+        storageKey: typeof image.storageKey === "string" ? image.storageKey : undefined,
+        width: Number.isFinite(image.width) ? Number(image.width) : undefined,
+        height: Number.isFinite(image.height) ? Number(image.height) : undefined,
+        rating: Number.isFinite(image.rating) ? Math.min(3, Math.max(0, Math.trunc(image.rating as number))) : undefined,
+        label: typeof image.label === "string" && image.label ? image.label : undefined,
+        createdAt: typeof image.createdAt === "string" ? image.createdAt : undefined,
+    };
+}
+
+export function normalizeComicImageSlot(value: unknown, fallbackId: string): ComicImageSlot | undefined {
+    if (!value || typeof value !== "object") return undefined;
+    const candidate = value as Partial<ComicImageSlot> & ComicImageRef;
+    const rawImages = Array.isArray(candidate.images) ? candidate.images : [candidate];
+    const images = rawImages
+        .map((image, index) => normalizeSlotImage(image, `${fallbackId}:image:${index}`))
+        .filter((image): image is ComicSlotImage => Boolean(image));
+    if (!images.length) return undefined;
+    const activeImageId = typeof candidate.activeImageId === "string" && images.some((image) => image.id === candidate.activeImageId)
+        ? candidate.activeImageId
+        : images[images.length - 1]!.id;
+    return { images, activeImageId, locked: candidate.locked === true || undefined };
+}
+
+function normalizeReference(reference: unknown, fallbackId: string): ComicCharacterReference | undefined {
+    if (!reference || typeof reference !== "object") return undefined;
+    const value = reference as Partial<ComicCharacterReference>;
+    const slot = normalizeComicImageSlot(value.slot ?? value, `${fallbackId}:slot`);
+    if (!slot) return undefined;
+    return {
+        id: typeof value.id === "string" && value.id ? value.id : fallbackId,
+        revision: Number.isFinite(value.revision) ? Math.max(0, Math.trunc(value.revision as number)) : 0,
+        slot,
     };
 }
 
@@ -154,14 +184,18 @@ export function normalizeComicProject(project: LegacyComicProject, projectId: st
         return { id: chapterId, title: chapter.title || `第 ${chapterIndex + 1} 章`, summary: chapter.summary || "", pages };
     });
     const characters = (project.characters || []).map((character, index) => normalizeComicCharacter(character, `legacy:${projectId}:character:${index}`));
-    const locations = (project.locations || []).map((location, index) => ({
-        id: location.id || `legacy:${projectId}:location:${index}`,
-        name: location.name || `场景 ${index + 1}`,
-        description: location.description || "",
-        atmosphere: location.atmosphere || "",
-        notes: location.notes || "",
-        image: location.image,
-    }));
+    const locations = (project.locations || []).map((location, index) => {
+        const id = location.id || `legacy:${projectId}:location:${index}`;
+        return {
+            id,
+            name: location.name || `场景 ${index + 1}`,
+            description: location.description || "",
+            atmosphere: location.atmosphere || "",
+            notes: location.notes || "",
+            image: normalizeComicImageSlot(location.image, `${id}:image`),
+            sourceLibraryLocationId: typeof location.sourceLibraryLocationId === "string" ? location.sourceLibraryLocationId : undefined,
+        };
+    });
     return {
         id: projectId,
         title: project.title?.trim() || "未命名漫画",
