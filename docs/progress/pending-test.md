@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：React Hooks 规则白名单
+
+- ESLint 启用 8 条当前零违规的 React Hooks 规则：`static-components`、`use-memo`、`preserve-manual-memoization`、`globals`、`error-boundaries`、`set-state-in-render`、`config`、`gating`。后续重构若引入这些模式会直接报错。
+- 仍需分批清理的规则保持关闭：`purity`（约 21 处）、`refs`（约 32 处）、`set-state-in-effect`（约 99 处）、`immutability`（6 处）。
+- 验证：`bun run lint --max-warnings=0`、`bun run typecheck`、`bun test`（109 文件 / 598 条）通过；无需浏览器回归。
+
 ## 结构与工程：共享筛选样式归属
 
 - 共享筛选标签样式从 `styles/prompts.css` 迁到 `styles/filter-tags.css`，类名由 `.prompt-filter-tag` 改为 `.filter-tag`；`FilterTagGroup` 不再依赖提示词页私有样式，`prompts.css` 已删除。
