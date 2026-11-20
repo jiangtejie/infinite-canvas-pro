@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：画布派生索引下沉
+
+- 画布页面私有 `use-canvas-derived` 接管可见节点、节点索引、浮层目标、右键菜单能力、批量子节点计数、连线高亮、生成/发布输入、导演全景、引用连接与视频帧/资源选项等纯派生索引；主文件从 1952 行降到约 1795 行。
+- 仅计算位置调整，数据流与交互行为不变；画布容器、侧栏、顶栏此前已拆分，无需重复容器化。
+- 验证：`bun test` 111 文件 / 607 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测打开空白画布项目、侧栏与工具栏渲染、添加节点菜单正常。
+- 未实测：有节点、批量、连线、导演台等复杂画布状态的交互回归（本轮项目为空画布）。
+
 ## 后端契约测试出网 mock 修复
 
 - `outboundHTTPTransport` 在 `http.DefaultTransport` 不是标准 `*http.Transport` 时直接复用该 RoundTripper，不再新建真实 transport 并使用 `sync.Once` 缓存；标准 transport 仍克隆后注入环境变量/系统代理解析。
