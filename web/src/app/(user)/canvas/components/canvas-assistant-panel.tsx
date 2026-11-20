@@ -109,6 +109,7 @@ type CanvasAssistantPanelProps = {
     onOpenAssets: () => void;
     getAgentContext: (state: CanvasAgentState) => CanvasAgentContext;
     onExecuteAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[], execution?: CanvasAgentExecutionContext) => Promise<CanvasAgentToolResult>;
+    onRetryNode: (node: CanvasNodeData) => void;
     onBatchStart?: () => void;
     onBatchEnd?: (summary: CanvasAgentBatchSummary) => void;
     onCollapseStart: () => void;
@@ -143,6 +144,7 @@ export function CanvasAssistantPanel({
     onOpenAssets,
     getAgentContext,
     onExecuteAction,
+    onRetryNode,
     onBatchStart,
     onBatchEnd,
     onCollapseStart,
@@ -535,7 +537,7 @@ export function CanvasAssistantPanel({
                             onDelete={(id) => setDeleteChatIds([id])}
                         />
                     ) : messages.length ? (
-                        <AssistantMessages messages={messages} nodeById={nodeById} onFocusNode={onFocusNode} onRetry={retryMessage} />
+                        <AssistantMessages messages={messages} nodeById={nodeById} onFocusNode={onFocusNode} onRetry={retryMessage} onRetryNode={onRetryNode} />
                     ) : (
                         <div className="flex h-full flex-col items-center justify-center px-8 text-center">
                             <div className="grid size-12 place-items-center rounded-2xl" style={{ background: theme.node.fill }}>
@@ -698,7 +700,7 @@ function AssistantMarkdown({ children, components }: { children: string; compone
     );
 }
 
-function AssistantMessages({ messages, nodeById, onFocusNode, onRetry }: { messages: CanvasAssistantMessage[]; nodeById: ReadonlyMap<string, CanvasNodeData>; onFocusNode: (nodeId: string) => void; onRetry: (message: CanvasAssistantMessage) => void }) {
+function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, onRetryNode }: { messages: CanvasAssistantMessage[]; nodeById: ReadonlyMap<string, CanvasNodeData>; onFocusNode: (nodeId: string) => void; onRetry: (message: CanvasAssistantMessage) => void; onRetryNode: (node: CanvasNodeData) => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const copyText = useCopyText();
     const markdownComponents = useMemo<Components>(() => ({
@@ -768,17 +770,32 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry }: { messa
                                         {message.batch.nodeIds.map((nodeId) => {
                                             const node = nodeById.get(nodeId);
                                             if (!node) return null;
+                                            const status = node.metadata?.status || "idle";
+                                            const statusLabel = status === "loading"
+                                                ? node.metadata?.progress != null ? `生成中 ${Math.round(node.metadata.progress)}%` : "生成中"
+                                                : status === "error" ? "失败"
+                                                    : status === "stopped" ? "已停止"
+                                                        : status === "stopping" ? "停止中"
+                                                            : status === "success" ? "已完成"
+                                                                : "待生成";
+                                            const canRetry = status === "error" || status === "stopped";
                                             return (
-                                                <button
-                                                    key={nodeId}
-                                                    type="button"
-                                                    className="max-w-[160px] cursor-pointer truncate rounded-full border px-2 py-0.5 text-[11px] opacity-70 transition-opacity hover:opacity-100"
-                                                    style={{ borderColor: theme.node.stroke, color: theme.node.text }}
-                                                    onClick={() => onFocusNode(node.id)}
-                                                    title={`定位到「${node.title}」`}
-                                                >
-                                                    {node.title}
-                                                </button>
+                                                <span key={nodeId} className="flex max-w-[220px] items-center gap-1 rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+                                                    <button
+                                                        type="button"
+                                                        className="min-w-0 cursor-pointer truncate opacity-80 transition-opacity hover:opacity-100"
+                                                        onClick={() => onFocusNode(node.id)}
+                                                        title={`定位到「${node.title}」`}
+                                                    >
+                                                        {node.title}
+                                                    </button>
+                                                    <span className="shrink-0 opacity-55">{statusLabel}</span>
+                                                    {canRetry ? (
+                                                        <button type="button" className="grid size-4 shrink-0 place-items-center cursor-pointer rounded-full opacity-60 transition-opacity hover:opacity-100" aria-label={`重试「${node.title}」`} title="重试" onClick={() => onRetryNode(node)}>
+                                                            <RotateCcw className="size-3" />
+                                                        </button>
+                                                    ) : null}
+                                                </span>
                                             );
                                         })}
                                     </div>

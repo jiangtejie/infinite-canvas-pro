@@ -32,6 +32,7 @@ export type CanvasAssistantModel = {
     pasteAssistantImage: (file: File) => void;
     getCanvasAgentContext: (agentState: CanvasAgentState) => CanvasAgentContext;
     executeCanvasAgentAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[], execution?: CanvasAgentExecutionContext) => Promise<CanvasAgentToolResult>;
+    handleRetryNode: (node: CanvasNodeData) => Promise<void> | void;
     beginCanvasAgentBatch: () => void;
     endCanvasAgentBatch: (summary: { rolledBack: boolean }) => void;
     initialAgentRequest: { prompt: CanvasPendingAgentRequest["prompt"]; references: CanvasAssistantReference[]; skills: CanvasPendingAgentRequest["skills"]; } | null;
@@ -64,6 +65,7 @@ export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) 
         pasteAssistantImage,
         getCanvasAgentContext,
         executeCanvasAgentAction,
+        handleRetryNode,
         beginCanvasAgentBatch,
         endCanvasAgentBatch,
         initialAgentRequest,
@@ -95,6 +97,7 @@ export function CanvasAssistantPane({ model }: { model: CanvasAssistantModel }) 
                     }}
                     getAgentContext={getCanvasAgentContext}
                     onExecuteAction={executeCanvasAgentAction}
+                    onRetryNode={(node) => void handleRetryNode(node)}
                     onBatchStart={beginCanvasAgentBatch}
                     onBatchEnd={endCanvasAgentBatch}
                     onCollapseStart={() =>
