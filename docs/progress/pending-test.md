@@ -3,10 +3,10 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
-## 结构与工程：工作流模型类型抽离
+## 结构与工程：工作流模型类型与纯逻辑抽离
 
-- 工作流的变量、配置、任务、历史日志与对外任务事件类型从 `creative-workflow-workspace.tsx` 迁到 `creative-workflow-types.ts`；生图页改为从新模块引用对外任务类型。
-- 仅类型搬家，无运行逻辑变化；主组件仍保留任务提交、轮询、恢复与 UI 编排。
+- 工作流的变量、配置、任务、历史日志与对外任务事件类型迁到 `creative-workflow-types.ts`；创建、归一化、变量/提示词渲染、系列草稿解析与来源记录转换迁到 `creative-workflow-model.ts`。
+- 工作流主文件由约 2534 行降到 2265 行；仅代码搬家，无运行逻辑变化，主组件仍保留任务提交、轮询、恢复与 UI 编排。
 - 验证：`bun test` 109 文件 / 603 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测工作流页与生图页正常加载。
 - 未实测：工作流真实提交 → 轮询 → 完成/停止/重试回归（本轮未改运行逻辑）。
 
