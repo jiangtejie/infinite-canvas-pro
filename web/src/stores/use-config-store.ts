@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 import { create } from "zustand";
+
+import { resolveSystemPrompts } from "@/lib/system-prompts";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { accountLocalStorage } from "@/lib/account-storage";
@@ -213,6 +215,7 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
             localChannels,
             models: normalizeModelList(modelChannels.flatMap((channel) => channel.models)),
             publicChannels: modelChannel?.channels || [],
+            systemPrompts: resolveSystemPrompts(config.systemPrompts, modelChannel?.systemPrompts),
         };
     }
     const models = modelChannel.availableModels;
@@ -239,6 +242,7 @@ function resolveEffectiveConfig(config: AiConfig, modelChannel: AdminPublicSetti
         textModel: textModels.includes(config.textModel) ? config.textModel : fallbackTextModel || fallbackModel,
         audioModel: audioModels.includes(config.audioModel) ? config.audioModel : fallbackAudioModel,
         publicChannels: modelChannel.channels || [],
+        systemPrompts: resolveSystemPrompts(config.systemPrompts, modelChannel.systemPrompts),
     };
 }
 

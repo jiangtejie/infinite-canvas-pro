@@ -50,4 +50,4 @@ description: 当前项目后续值得处理的事项
 - 【视觉】FilterTagGroup 可考虑增加 density/variant；结果/历史卡片元信息密度与影视面板内部分区留白需具体截图指认。
 - 【无障碍】节点目前采用自然 Tab 序列而非单锚点 roving，是否改 roving tabindex 待评估。
 - 【导演台】工具栏收纳需产品确认。
-- 【配置】后台公开配置「系统提示词」的 image / video / text / workflow 四项前端未消费：生成链路读本地 `config.systemPrompts.*`，只有 `workflowAgent` 在后端 `service/workflow_agent.go` 生效。需先定产品意图（管理员统一推送 vs 用户本地自填），再决定是否接入 `resolveEffectiveConfig`。
+- 【配置】后台系统提示词已按「本地非空优先、否则后台兜底」接入生成链路；管理员强制统一推送模式（不允许用户覆盖）尚未实现，需产品确认。

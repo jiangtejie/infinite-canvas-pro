@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 配置：后台系统提示词兜底
+
+- `resolveEffectiveConfig` 现在合并系统提示词：本地非空优先，否则使用后台公开配置的 `systemPrompts`（image / video / text / workflow / workflowAgent）；本地与远程渠道模式都生效。
+- 行为变化：本地提示词为空的用户会开始使用后台公开配置；如需完全空提示词，需要填写一个本地占位值覆盖。后台“强制统一推送”模式未实现。
+- 验证：`bun test` 111 文件 / 607 条通过（新增 2 条提示词优先级测试）；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测生图页正常加载。
+- 未实测：真实生图 / 视频 / 文本请求中后台提示词的实际注入效果。
+
 ## 结构与工程：画布 Overlay 状态 Hook
 
 - 画布页的 `activeOverlay`、蒙版编辑模型/渠道与打开/关闭/切换提示词浮层动作收敛到 `use-canvas-overlay-state.ts`；主文件约 1952 行。
