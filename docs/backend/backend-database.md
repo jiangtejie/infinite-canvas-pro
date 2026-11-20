@@ -73,10 +73,12 @@ MySQL 建库默认使用 `utf8mb4 / utf8mb4_bin`，与 SQLite 的 BINARY 比较�
 | `github_id` | string | GitHub 用户 ID |
 | `wechat_id` | string | 微信用户 ID |
 | `status` | string | 用户状态：`active`、`ban` |
-| `last_login_at` | string | 最近登录时间 |
+| `last_login_at` | string | 最近登录时间，索引列 |
 | `extra` | json | 扩展信息，第三方资料按平台命名空间保存 |
-| `created_at` | string | 创建时间 |
+| `created_at` | string | 创建时间，索引列 |
 | `updated_at` | string | 更新时间 |
+
+索引：`idx_users_created_at`、`idx_users_last_login_at`；`username`、`aff_code` 为唯一索引。
 
 ### user_configs
 
@@ -540,7 +542,9 @@ RunningHub/ComfyUI 不加入上述普通模型筛选：系统工作流公开列�
 | `related_id` | string | 关联业务 ID，可为空 |
 | `remark` | string | 备注 |
 | `extra` | json | 扩展信息 |
-| `created_at` | string | 创建时间 |
+| `created_at` | string | 创建时间，索引列 |
+
+索引：`idx_credit_logs_created_at`、`idx_credit_logs_user_id`。后台概览按天汇总与流水列表的日期筛选使用 `created_at` 前缀范围查询，命中该索引。
 
 `type` 当前取值：
 

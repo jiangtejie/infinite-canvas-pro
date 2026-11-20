@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 后台统计日期索引
+
+- `users.created_at`、`users.last_login_at`、`credit_logs.created_at` 新增索引；AutoMigrate 会在下次后端启动时为现有库补建。
+- 概览的新增用户、活跃用户、算力每日汇总，以及算力流水的日期筛选，从 `SUBSTR(...)` 改为 RFC3339 前缀范围查询，避免索引失效。
+- 验证：`go test ./repository ./service -count=1` 通过（新增日期边界、跨天排除、索引存在性与流水日期筛选测试）；`go build ./...` 通过。
+- 未实测：现有 SQLite/MySQL 库启动后的 AutoMigrate 耗时与真实大数据量下的查询计划；未接入真实后台页面回归。
+
 ## 结构与工程：画布派生索引下沉
 
 - 画布页面私有 `use-canvas-derived` 接管可见节点、节点索引、浮层目标、右键菜单能力、批量子节点计数、连线高亮、生成/发布输入、导演全景、引用连接与视频帧/资源选项等纯派生索引；主文件从 1952 行降到约 1795 行。

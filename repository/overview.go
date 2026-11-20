@@ -1,15 +1,23 @@
 package repository
 
-import "github.com/jiangtejie/infinite-canvas-pro/model"
+import (
+	"time"
 
-// CountUsersCreatedOn 统计指定日期（按 created_at 前 10 位）新增的用户数。
+	"github.com/jiangtejie/infinite-canvas-pro/model"
+)
+
+// CountUsersCreatedOn 统计指定日期新增的用户数；按 RFC3339 前缀范围过滤以命中 created_at 索引。
 func CountUsersCreatedOn(date string) (int64, error) {
 	db, err := DB()
 	if err != nil {
 		return 0, err
 	}
+	end, err := nextDay(date)
+	if err != nil {
+		return 0, err
+	}
 	var total int64
-	err = db.Model(&model.User{}).Where("SUBSTR(created_at, 1, 10) = ?", date).Count(&total).Error
+	err = db.Model(&model.User{}).Where("created_at >= ? AND created_at < ?", date, end).Count(&total).Error
 	return total, err
 }
 
@@ -31,7 +39,7 @@ func CountUsersActiveSince(date string) (int64, error) {
 		return 0, err
 	}
 	var total int64
-	err = db.Model(&model.User{}).Where("SUBSTR(last_login_at, 1, 10) >= ?", date).Count(&total).Error
+	err = db.Model(&model.User{}).Where("last_login_at >= ?", date).Count(&total).Error
 	return total, err
 }
 
@@ -47,16 +55,28 @@ func ListCreditDailyTotals(startDate, endDate string) ([]CreditDailyTotal, error
 	if err != nil {
 		return nil, err
 	}
+	end, err := nextDay(endDate)
+	if err != nil {
+		return nil, err
+	}
 	var rows []CreditDailyTotal
 	err = db.Raw(`
 		SELECT SUBSTR(created_at, 1, 10) AS log_day,
 			COALESCE(SUM(CASE WHEN type = ? AND amount < 0 THEN -amount ELSE 0 END), 0) AS consumed,
 			COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS granted
 		FROM credit_logs
-		WHERE SUBSTR(created_at, 1, 10) >= ? AND SUBSTR(created_at, 1, 10) <= ?
+		WHERE created_at >= ? AND created_at < ?
 		GROUP BY SUBSTR(created_at, 1, 10)
-	`, string(model.CreditLogTypeAIConsume), startDate, endDate).Scan(&rows).Error
+	`, string(model.CreditLogTypeAIConsume), startDate, end).Scan(&rows).Error
 	return rows, err
+}
+
+func nextDay(date string) (string, error) {
+	parsed, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return "", err
+	}
+	return parsed.AddDate(0, 0, 1).Format("2006-01-02"), nil
 }
 
 type OverviewContentCounts struct {

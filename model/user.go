@@ -31,9 +31,9 @@ type User struct {
 	GithubID    string     `json:"githubId"`
 	WechatID    string     `json:"wechatId"`
 	Status      UserStatus `json:"status"`
-	LastLoginAt string     `json:"lastLoginAt"`
+	LastLoginAt string     `json:"lastLoginAt" gorm:"index:idx_users_last_login_at"`
 	Extra       string     `json:"extra"`
-	CreatedAt   string     `json:"createdAt"`
+	CreatedAt   string     `json:"createdAt" gorm:"index:idx_users_created_at"`
 	UpdatedAt   string     `json:"updatedAt"`
 }
 
@@ -95,7 +95,7 @@ type CreditLog struct {
 	RelatedID string        `json:"relatedId"`
 	Remark    string        `json:"remark"`
 	Extra     string        `json:"extra"`
-	CreatedAt string        `json:"createdAt"`
+	CreatedAt string        `json:"createdAt" gorm:"index:idx_credit_logs_created_at"`
 
 	UserDisplayName string `json:"userDisplayName" gorm:"->;-:migration"`
 }

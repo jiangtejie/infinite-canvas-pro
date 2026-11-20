@@ -197,7 +197,11 @@ func ListCreditLogs(q model.Query) ([]model.CreditLog, int64, error) {
 		tx = tx.Where("credit_logs.id LIKE ? OR user_id LIKE ? OR type LIKE ? OR remark LIKE ? OR related_id LIKE ? OR users.username LIKE ? OR users.display_name LIKE ?", like, like, like, like, like, like, like)
 	}
 	if q.Date != "" {
-		tx = tx.Where("SUBSTR(credit_logs.created_at, 1, 10) = ?", q.Date)
+		end, err := nextDay(q.Date)
+		if err != nil {
+			return nil, 0, err
+		}
+		tx = tx.Where("credit_logs.created_at >= ? AND credit_logs.created_at < ?", q.Date, end)
 	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
