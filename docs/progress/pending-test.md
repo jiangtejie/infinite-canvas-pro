@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## React Compiler：purity 规则启用
+
+- ESLint 启用第 10 条 React Hooks 规则 `react-hooks/purity`；21 处 `Date.now` / `performance.now` 违规清零：组件状态初始化改为惰性初始化，事件与异步回调统一走 `lib/now.ts`。
+- 覆盖画布主页面、画布节点加载态、发布节点面板、生图页、配置弹窗与工作流运行/轮询耗时。
+- 验证：`bun run lint --max-warnings=0`、`bun run typecheck`、`bun test`（607 条）通过；ego-browser 实测画布库、生图工作台、工作流页正常加载。
+- 未实测：生成中计时、视频进度、工作流运行耗时、发布二维码倒计时的实际刷新；refs 与 set-state-in-effect 仍保持关闭。
+
 ## 支付配置移除硬编码默认值
 
 - `LX_PAY_SERVER_URL`、`LX_PAY_APP_ID`、`LX_PAY_APP_SECRET`、`LX_PAY_NOTIFY_URL`、`LX_PAY_API_V3_KEY` 不再内置默认值；未配置且后台未保存支付配置时，充值接口返回「微信支付尚未配置」。

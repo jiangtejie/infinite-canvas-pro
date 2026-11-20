@@ -65,7 +65,7 @@ export function CanvasPublishNodePanel({ node, inputs, compact = false, onChange
     const [draggingImageId, setDraggingImageId] = useState("");
     const [dragOverImageId, setDragOverImageId] = useState("");
     const [publishedUrl, setPublishedUrl] = useState(node.metadata?.publishRecord?.publishedUrl || "");
-    const [now, setNow] = useState(Date.now());
+    const [now, setNow] = useState(() => Date.now());
     const uploadCacheRef = useRef(new Map<string, PublishMedia>());
     const record = node.metadata?.publishRecord;
     const recordId = record?.id || "";

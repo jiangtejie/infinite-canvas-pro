@@ -25,6 +25,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import { errorMessage } from "@/lib/utils";
+import { nowMs, nowPerformanceMs } from "@/lib/now";
 
 import { buildImageHistoryLog, buildRunConfig, buildSeriesPromptDraftRequest, createBlankWorkflow, createDefaultInputValues, createStarterWorkflows, describeModelSelection, isDisposableReferenceFile, isFailedCanvasImageTask, isFinishedCanvasImageTask, isWorkflowBackedLog, normalizeAgentDraft, normalizeSeriesDraft, normalizeWorkflow, parseSeriesPromptDrafts, recordToWorkflow, referenceUsedByWorkflowTask, renderWorkflowPrompt, resolveWorkflowRuntime, serializeHistoryLog, serializeSeriesDraft, seriesDraftStorageKey, workflowForRetry, workflowResultsFromStoredLog, workflowTaskFromStoredLogs, workflowTaskImagesFromCanvasTask, workflowTaskParentId, workflowTaskParentIndex, workflowToRecord, type PersistedSeriesDraft } from "./creative-workflow-model";
 import type { CreativeWorkflow, GenerationCategory, ImageHistoryLog, SeriesPromptDraft, TrackedWorkflowTaskState, WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess, WorkflowGenerationConfig, WorkflowRunResult, WorkflowTask } from "./creative-workflow-types";
@@ -107,7 +108,7 @@ export function CreativeWorkflowWorkspace({
     const [seriesDrafts, setSeriesDrafts] = useState<SeriesPromptDraft[]>([]);
     const [seriesDraftLoading, setSeriesDraftLoading] = useState(false);
     const [seriesBatchAppend, setSeriesBatchAppend] = useState("");
-    const [now, setNow] = useState(Date.now());
+    const [now, setNow] = useState(() => nowMs());
     const [query, setQuery] = useState("");
     const [workflowCategory, setWorkflowCategory] = useState("all");
     const [workflowPage, setWorkflowPage] = useState(1);
@@ -181,7 +182,7 @@ export function CreativeWorkflowWorkspace({
 
     useEffect(() => {
         if (!runningTaskCount) return;
-        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        const timer = window.setInterval(() => setNow(nowMs()), 1000);
         return () => window.clearInterval(timer);
     }, [runningTaskCount]);
 
@@ -400,7 +401,7 @@ export function CreativeWorkflowWorkspace({
             message.error("请输入提示词模板");
             return;
         }
-        const now = Date.now();
+        const now = nowMs();
         let normalized = normalizeWorkflow({ ...workflow, name: workflow.name.trim(), category: workflow.category.trim(), updatedAt: now, createdAt: workflow.createdAt || now });
         try {
             if (token && workflowSyncEnabledRef.current) {
@@ -422,7 +423,7 @@ export function CreativeWorkflowWorkspace({
     };
 
     const duplicateWorkflow = async (workflow: CreativeWorkflow) => {
-        const now = Date.now();
+        const now = nowMs();
         const copy = normalizeWorkflow({ ...workflow, id: nanoid(), ownerUserId: undefined, editable: true, scope: "private", name: `${workflow.name} 副本`, createdAt: now, updatedAt: now, lastRunAt: undefined });
         try {
             if (token && workflowSyncEnabledRef.current) {
@@ -615,8 +616,8 @@ export function CreativeWorkflowWorkspace({
             return;
         }
 
-        const startedAt = Date.now();
-        const performanceStartedAt = performance.now();
+        const startedAt = nowMs();
+        const performanceStartedAt = nowPerformanceMs();
         const count = Math.max(1, Math.min(10, countOverride || Number(runConfig.count) || 1));
         const taskId = nanoid();
         const taskConfig = { ...workflow.config, model, imageModel: model, imageChannelId: runtime.channelId, apiMode: runtime.apiMode, count: String(count) };
@@ -678,7 +679,7 @@ export function CreativeWorkflowWorkspace({
     };
 
     const applyRecoveredCanvasTask = async (log: ImageHistoryLog, task: CanvasImageTask, submitted = false) => {
-        const finishedAt = Date.now();
+        const finishedAt = nowMs();
         const durationMs = Math.max(0, finishedAt - log.createdAt);
         if (isFailedCanvasImageTask(task)) {
             const errorText = task.error?.message || "工作流运行失败";
@@ -728,7 +729,7 @@ export function CreativeWorkflowWorkspace({
             recoveredTaskLogIdsRef.current.delete(logId);
             recoveredTaskMissesRef.current.delete(logId);
         });
-        const endedAt = Date.now();
+        const endedAt = nowMs();
         const durationMs = Math.max(0, endedAt - state.startedAt);
         if (state.images.length) {
             if (state.seriesDraftId) updateSeriesDraft(state.seriesDraftId, { status: "success", resultIds: state.images.map((image) => image.id) });
@@ -779,13 +780,13 @@ export function CreativeWorkflowWorkspace({
                     recoveredTaskMissesRef.current.set(log.id, misses);
                     if (misses < 3) continue;
                     const errorText = "图片任务不存在或未创建成功";
-                    const nextLog: ImageHistoryLog = { ...log, status: "失败", durationMs: Math.max(0, Date.now() - log.createdAt), failCount: 1, errors: [errorText], task: undefined, lastPolledAt: Date.now() };
+                    const nextLog: ImageHistoryLog = { ...log, status: "失败", durationMs: Math.max(0, nowMs() - log.createdAt), failCount: 1, errors: [errorText], task: undefined, lastPolledAt: nowMs() };
                     await saveWorkflowTaskLog(nextLog);
                     const parentTaskId = trackedTaskLogRef.current.get(log.id);
                     if (parentTaskId) {
                         completeTrackedWorkflowTask(parentTaskId, "failed", nextLog);
                     } else {
-                        setWorkflowTasks((value) => value.map((item) => item.id === log.id ? { ...item, status: "failed", endedAt: Date.now(), error: errorText } : item));
+                        setWorkflowTasks((value) => value.map((item) => item.id === log.id ? { ...item, status: "failed", endedAt: nowMs(), error: errorText } : item));
                         recoveredTaskLogIdsRef.current.delete(log.id);
                         recoveredTaskMissesRef.current.delete(log.id);
                         failedCount += 1;
@@ -864,7 +865,7 @@ export function CreativeWorkflowWorkspace({
                 await pollRecoveredTasksRef.current();
                 return;
             }
-            const endedAt = Date.now();
+            const endedAt = nowMs();
             const durationMs = Math.max(0, endedAt - task.startedAt);
             const seriesDraftId = submitted?.seriesDraftId;
             untrackWorkflowTask(task.id);
@@ -987,12 +988,12 @@ export function CreativeWorkflowWorkspace({
             taskLogs.map(async (log, index) => {
                 try {
                     const task = await createCanvasImageTask({ ...runConfig, seedIndex: index, seedCount: count, count: "1" }, prompt, references, { source: "workflow", sourceId: log.id, clientTaskId: log.task?.id || `${taskId}:${index}` });
-                    const savedLog = { ...log, task, lastPolledAt: Date.now() };
+                    const savedLog = { ...log, task, lastPolledAt: nowMs() };
                     await saveWorkflowTaskLog(savedLog);
                     createdLogs.push(savedLog);
                 } catch (error) {
                     const messageText = errorMessage(error, "工作流图片任务创建失败");
-                    await saveWorkflowTaskLog({ ...log, status: "失败", durationMs: Date.now() - startedAt, failCount: 1, errors: [messageText], lastPolledAt: Date.now() });
+                    await saveWorkflowTaskLog({ ...log, status: "失败", durationMs: nowMs() - startedAt, failCount: 1, errors: [messageText], lastPolledAt: nowMs() });
                     throw error;
                 }
             }),
@@ -1003,8 +1004,8 @@ export function CreativeWorkflowWorkspace({
         if (!createdCount) {
             const messageText = "工作流图片任务创建失败";
             if (seriesDraftId) updateSeriesDraft(seriesDraftId, { status: "failed", error: messageText });
-            setWorkflowTasks((value) => value.map((task) => (task.id === taskId ? { ...task, status: "failed", endedAt: Date.now(), durationMs: Date.now() - startedAt, error: messageText } : task)));
-            onWorkflowTaskFailure?.({ taskId, error: messageText, durationMs: Date.now() - startedAt, endedAt: Date.now() });
+            setWorkflowTasks((value) => value.map((task) => (task.id === taskId ? { ...task, status: "failed", endedAt: nowMs(), durationMs: nowMs() - startedAt, error: messageText } : task)));
+            onWorkflowTaskFailure?.({ taskId, error: messageText, durationMs: nowMs() - startedAt, endedAt: nowMs() });
             message.error(messageText);
             return;
         }
@@ -1047,7 +1048,7 @@ export function CreativeWorkflowWorkspace({
             const images = await Promise.all(Array.from({ length: count }, () => (references.length ? requestEdit({ ...runConfig, count: "1" }, prompt, references) : requestGeneration({ ...runConfig, count: "1" }, prompt))));
             const flattened = images.flat();
             if (!flattened.length) throw new Error("接口没有返回图片");
-            const durationMs = performance.now() - performanceStartedAt;
+            const durationMs = nowPerformanceMs() - performanceStartedAt;
             const storedImages = await Promise.all(
                 flattened.map(async (image) => {
                     const meta = image.width && image.height && image.mimeType ? { width: image.width, height: image.height, mimeType: image.mimeType } : await readImageMeta(image.dataUrl);
@@ -1080,7 +1081,7 @@ export function CreativeWorkflowWorkspace({
             });
             await imageLogStore.setItem(log.id, serializeHistoryLog(log));
             onGenerationLogSaved?.();
-            const finishedAt = Date.now();
+            const finishedAt = nowMs();
             setWorkflows((value) => {
                 const next = value.map((item) => (item.id === workflow.id ? { ...item, lastRunAt: finishedAt, updatedAt: finishedAt } : item)).sort((a, b) => b.updatedAt - a.updatedAt);
                 void workflowStore.setItem(WORKFLOW_STORE_KEY, next);
@@ -1122,7 +1123,7 @@ export function CreativeWorkflowWorkspace({
             onWorkflowTaskSuccess?.({ taskId, images: nextResults, durationMs, endedAt: finishedAt });
             message.success("工作流运行完成，结果已写入生图历史");
         } catch (error) {
-            const finishedAt = Date.now();
+            const finishedAt = nowMs();
             const messageText = errorMessage(error, "工作流运行失败");
             if (seriesDraftId) {
                 updateSeriesDraft(seriesDraftId, { status: "failed", error: messageText });
@@ -1480,7 +1481,7 @@ async function ensureWorkflowCategory(name: string) {
     const categories = (await categoryStore.getItem<GenerationCategory[]>(CATEGORY_STORE_KEY)) || [];
     const existing = categories.find((item) => item.name === trimmed);
     if (existing) return existing;
-    const nextCategory = { id: nanoid(), name: trimmed, createdAt: Date.now() };
+    const nextCategory = { id: nanoid(), name: trimmed, createdAt: nowMs() };
     await categoryStore.setItem(CATEGORY_STORE_KEY, [...categories, nextCategory]);
     return nextCategory;
 }

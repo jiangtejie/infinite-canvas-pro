@@ -24,6 +24,7 @@ import { miniMaxTtsVoiceOptions } from "@/lib/minimax-tts-voices";
 import { isMimoPresetTtsModel, isMimoTtsModel, isMimoVoiceCloneModel, isMimoVoiceDesignModel, mimoTtsFormatOptions, mimoTtsVoiceOptions } from "@/lib/mimo-tts";
 import { isWorkflowProtocol, modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions } from "@/lib/model-channel";
 import { startTokenDanceOAuth } from "@/lib/tokendance-oauth";
+import { nowMs } from "@/lib/now";
 import type { WorkflowChannelData, WorkflowEntry } from "@/lib/workflow-channel";
 import { listWorkflowChannels, readWorkflowChannel, replaceWorkflowChannels, saveWorkflowChannel } from "@/services/workflow-channel-storage";
 import { channelProtocolForConfig, filterChannelModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type LocalModelChannel, type ModelCapabilities, type ModelCapability } from "@/stores/use-config-store";
@@ -310,7 +311,7 @@ export function AppConfigModal() {
     };
 
     const addLocalChannel = () => {
-        updateLocalChannels([...normalizeLocalChannels(config), { id: "local-" + Date.now(), protocol: "openai", name: "新渠道", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [] }]);
+        updateLocalChannels([...normalizeLocalChannels(config), { id: "local-" + nowMs(), protocol: "openai", name: "新渠道", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [] }]);
     };
 
     const removeLocalChannel = (id: string) => {

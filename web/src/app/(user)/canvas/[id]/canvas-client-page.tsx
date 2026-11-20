@@ -151,7 +151,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [titleDraft, setTitleDraft] = useState("");
     const [collapsingBatchIds, setCollapsingBatchIds] = useState<Set<string>>(new Set());
     const [openingBatchIds, setOpeningBatchIds] = useState<Set<string>>(new Set());
-    const [canvasNow, setCanvasNow] = useState(Date.now());
+    const [canvasNow, setCanvasNow] = useState(() => Date.now());
     const resolvedAgentConfig = useMemo<CanvasAgentConfig>(
         () => {
             const defaults = { textApiMode: "chat" as const, autoGenerateMedia: false, confirmMediaGeneration: true };

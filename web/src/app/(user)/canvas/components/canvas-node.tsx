@@ -557,15 +557,15 @@ const nodeContentRenderers = {
 } satisfies Partial<Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>>;
 
 function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "node" | "theme" | "now">) {
-    const startTimeRef = useRef(Date.now());
-    const [localNow, setLocalNow] = useState(Date.now());
+    const [startTime] = useState(() => Date.now());
+    const [localNow, setLocalNow] = useState(() => Date.now());
     useEffect(() => {
         if (now !== undefined) return;
         const timer = window.setInterval(() => setLocalNow(Date.now()), 1000);
         return () => window.clearInterval(timer);
     }, [now]);
     const currentNow = now ?? localNow;
-    const startedAt = typeof node.metadata?.startedAt === "number" ? node.metadata.startedAt : startTimeRef.current;
+    const startedAt = typeof node.metadata?.startedAt === "number" ? node.metadata.startedAt : startTime;
     const elapsedMs = Math.max(0, currentNow - startedAt);
     const progress = Math.max(0, Math.min(100, Math.round(node.metadata?.progress || 0)));
     const stopLabel = node.metadata?.status === "stopping" ? node.metadata.errorDetails ? "停止失败，请重试停止" : "正在停止" : "";
