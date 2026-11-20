@@ -51,6 +51,7 @@ import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
 import { useCanvasSource } from "./hooks/use-canvas-source";
 import { useCanvasAudioTrim } from "./hooks/use-canvas-audio-trim";
+import { useCanvasOverlayState } from "./hooks/use-canvas-overlay-state";
 import { CanvasWorkspace, type CanvasWorkspaceModel } from "./components/canvas-workspace";
 import { buildNodeGenerationInputs, type NodeGenerationInput } from "../components/canvas-node-generation";
 import { type CanvasVideoFrameOption } from "../components/canvas-node-prompt-panel";
@@ -62,7 +63,7 @@ import { CANVAS_ASSET_DRAG_TYPE } from "../components/canvas-side-panel";
 import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, nextCanvasProjectTitle, useCanvasStore } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { buildNodeMentionReferences, isCanvasReferenceNode } from "../utils/canvas-resource-references";
-import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasOverlay, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
+import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
 
@@ -143,16 +144,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const [projectLoaded, setProjectLoaded] = useState(false);
     const [toolbarNodeId, setToolbarNodeId] = useState<string | null>(null);
     const [nodeImageSettingsOpen, setNodeImageSettingsOpen] = useState(false);
-    const [activeOverlay, setActiveOverlay] = useState<CanvasOverlay | null>(null);
+    const { activeOverlay, setActiveOverlay, openOverlay, closeOverlay, togglePromptOverlay, maskEditModel, setMaskEditModel, maskEditChannelId, setMaskEditChannelId } = useCanvasOverlayState();
     const dialogNodeId = activeOverlay?.kind === "prompt" ? activeOverlay.nodeId : null;
     const referencePickerNodeId = activeOverlay?.kind === "referencePicker" ? activeOverlay.nodeId : null;
     const directorNodeId = activeOverlay?.kind === "director" ? activeOverlay.nodeId : null;
-    const openOverlay = useCallback((overlay: CanvasOverlay) => setActiveOverlay(overlay), []);
-    const closeOverlay = useCallback(() => setActiveOverlay(null), []);
-    const togglePromptOverlay = useCallback((nodeId: string) => setActiveOverlay((current) => current?.kind === "prompt" && current.nodeId === nodeId ? null : { kind: "prompt", nodeId }), []);
     const [trimmingAudio, setTrimmingAudio] = useState(false);
-    const [maskEditModel, setMaskEditModel] = useState("");
-    const [maskEditChannelId, setMaskEditChannelId] = useState("");
     const [agentPanel, setAgentPanel] = useState(DEFAULT_CANVAS_AGENT_PANEL);
     const [assistantMounted, setAssistantMounted] = useState(false);
     const [titleEditing, setTitleEditing] = useState(false);
@@ -192,7 +188,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         setSelectedConnectionId(null);
         setContextMenu(null);
         setActiveOverlay((current) => (current?.kind === "referencePicker" ? null : current));
-    }, [clearSelection, setSelectedConnectionId, setContextMenu]);
+    }, [clearSelection, setSelectedConnectionId, setContextMenu, setActiveOverlay]);
 
     const { historyRef, lastHistoryRef, historyPausedRef, historyState, cleanupCanvasFiles, cancelPendingHistoryCommit, resetHistory, undoCanvas, redoCanvas } = useCanvasHistory({
         projectLoaded,
@@ -291,7 +287,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setProjectLoaded(true);
         };
         void restore();
-    }, [hydrated, openProject, projectId, resetHistory, nodeTaskRunsRef, router, setViewport]);
+    }, [hydrated, openProject, projectId, resetHistory, nodeTaskRunsRef, router, setViewport, setActiveOverlay]);
 
     useEffect(() => {
         if (!projectLoaded) return;
@@ -430,7 +426,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         } else {
             openOverlay({ kind: "prompt", nodeId });
         }
-    }, [closeOverlay, openOverlay]);
+    }, [closeOverlay, openOverlay, setActiveOverlay]);
 
     const closeNodeCreateMenu = useCallback(() => setNodeCreatePosition(null), [setNodeCreatePosition]);
 
@@ -811,7 +807,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setContextMenu((current) => (current?.type === "node" && allIds.has(current.nodeId) ? null : current));
             cleanupCanvasFiles({ projectId, nodes: nextNodes, chatSessions });
         },
-        [chatSessions, cleanupCanvasFiles, historyRef, lastHistoryRef, message, projectId, clearSelection, selectedNodeIdsRef, setRunningNodeId, setSelectedConnectionId, setContextMenu],
+        [chatSessions, cleanupCanvasFiles, historyRef, lastHistoryRef, message, projectId, clearSelection, selectedNodeIdsRef, setRunningNodeId, setSelectedConnectionId, setContextMenu, setActiveOverlay],
     );
 
     const deleteConnection = useCallback((connectionId: string) => {
@@ -1359,7 +1355,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         setSelectedConnectionId(null);
         setContextMenu(null);
         setToolbarNodeId(null);
-    }, [selectOnly, setSelectedConnectionId, setContextMenu]);
+    }, [selectOnly, setSelectedConnectionId, setContextMenu, setActiveOverlay]);
 
     const exitNodeReferenceSelection = useCallback(() => {
         if (!referencePickerNodeId) return;

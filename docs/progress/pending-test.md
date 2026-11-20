@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：画布 Overlay 状态 Hook
+
+- 画布页的 `activeOverlay`、蒙版编辑模型/渠道与打开/关闭/切换提示词浮层动作收敛到 `use-canvas-overlay-state.ts`；主文件约 1952 行。
+- 相关回调依赖补上 `setActiveOverlay`，仅状态位置调整，无行为变化。
+- 验证：`bun test` 110 文件 / 605 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测画布页正常加载。
+
 ## 后台 AI 日志列表缓存
 
 - `ListAICallLogs` 增加文件指纹缓存：按日志文件名、大小与修改时间复用解析结果，写入或清理日志后自动失效；返回副本，排序/筛选不会污染缓存。
