@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { App } from "antd";
+import { useEffect, useRef } from "react";
 
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { deleteAdminCreditLog, fetchAdminCreditLogs, saveAdminCreditLog, type AdminCreditLog, type AdminCreditLogListResponse } from "@/services/api/admin";
@@ -20,6 +21,14 @@ export function useAdminCreditLogs() {
         errorFallback: "读取日志失败",
     });
     const token = list.token;
+    const applyFilters = list.applyFilters;
+    const appliedDeepLinkRef = useRef(false);
+    useEffect(() => {
+        if (appliedDeepLinkRef.current) return;
+        appliedDeepLinkRef.current = true;
+        const keyword = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("keyword") || "";
+        if (keyword) applyFilters({ keyword, date: "" });
+    }, [applyFilters]);
 
     const saveMutation = useMutation({
         mutationFn: (log: Partial<AdminCreditLog>) => saveAdminCreditLog(token, log),

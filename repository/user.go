@@ -194,7 +194,7 @@ func ListCreditLogs(q model.Query) ([]model.CreditLog, int64, error) {
 	tx := db.Model(&model.CreditLog{}).Joins("LEFT JOIN users ON users.id = credit_logs.user_id")
 	if keyword := strings.TrimSpace(q.Keyword); keyword != "" {
 		like := "%" + keyword + "%"
-		tx = tx.Where("user_id LIKE ? OR type LIKE ? OR remark LIKE ? OR related_id LIKE ? OR users.username LIKE ? OR users.display_name LIKE ?", like, like, like, like, like, like)
+		tx = tx.Where("credit_logs.id LIKE ? OR user_id LIKE ? OR type LIKE ? OR remark LIKE ? OR related_id LIKE ? OR users.username LIKE ? OR users.display_name LIKE ?", like, like, like, like, like, like, like)
 	}
 	if q.Date != "" {
 		tx = tx.Where("SUBSTR(credit_logs.created_at, 1, 10) = ?", q.Date)

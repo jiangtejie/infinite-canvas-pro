@@ -172,7 +172,7 @@ export default function AdminOverviewPage() {
                     {overview.recentCreditLogs.length ? (
                         <div className="flex flex-col">
                             {overview.recentCreditLogs.map((log) => (
-                                <div key={log.id} className="flex items-center justify-between gap-3 border-b border-border/50 py-2.5 last:border-0">
+                                <Link key={log.id} href={`/admin/credit-logs?keyword=${encodeURIComponent(log.id)}`} className="flex items-center justify-between gap-3 border-b border-border/50 py-2.5 transition-colors last:border-0 hover:bg-muted/40">
                                     <div className="min-w-0">
                                         <p className="truncate text-[12px] font-medium text-foreground">{log.userDisplayName || "未知用户"}</p>
                                         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
@@ -185,7 +185,7 @@ export default function AdminOverviewPage() {
                                         </p>
                                         <p className="mt-0.5 text-[10px] text-muted-foreground">余额 {formatCredits(log.balance)}</p>
                                     </div>
-                                </div>
+                                </Link>
                             ))}
                         </div>
                     ) : (
