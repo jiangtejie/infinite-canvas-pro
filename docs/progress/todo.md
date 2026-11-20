@@ -41,7 +41,7 @@ description: 当前项目后续值得处理的事项
 
 ## 结构与工程
 
-- 【画布】`canvas/[id]/canvas-client-page.tsx` 现 2051 行；任务/视口/选中/生成 hooks 与纯函数已迁出，剩余可选项是把主组件拆成容器 + 侧栏 + 工具栏，以及页面 model 类型继续收敛。z-index 档位未合并（合并会改遮挡，需专门回归）。画布库派生分页已收敛；侧栏剩余 effect 为动画与选中滚动，属真实副作用。
+- 【画布】`canvas/[id]/canvas-client-page.tsx` 约 1970 行；任务/视口/选中/生成/音频裁剪 hooks 与媒体恢复已迁出，剩余可选项是把主组件拆成容器 + 侧栏 + 工具栏，以及页面 model 类型继续收敛。z-index 档位未合并（合并会改遮挡，需专门回归）。画布库派生分页已收敛；侧栏剩余 effect 为动画与选中滚动，属真实副作用。
 - 【素材选择器】查询、筛选与插入载荷已收敛到共享层（`hooks/use-asset-browser.ts`、`lib/asset-picker.ts`），弹窗卡片与侧栏卡片 UI 仍是两套（侧栏画布主题加拖拽插入，弹窗语义 token 加点击插入），合并需先定产品语义。
 - 【生图/视频】`image/page.tsx` 1088 行、`video/page.tsx` 1099 行，主链路已抽页面私有 hooks；剩余 retry / mask edit 为薄编排，不再为拆而拆。Kling 面板 TEXT 字典/Section/OptionGrid/参考图条与共享实现视觉文案不同，统一需先定设计；视频页生成失败/删除流程仍与生图页不同构，抽页面私有 hook 前先定是否统一删除语义。
 - 【工作流】模型类型与纯逻辑已抽离，`creative-workflow-workspace.tsx` 约 1992 行；仍保留任务提交、轮询、恢复与 UI 编排，继续拆分需保持真实「提交 → 轮询 → 完成 / 停止 / 重试」回归。

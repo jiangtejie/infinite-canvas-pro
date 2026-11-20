@@ -28,6 +28,7 @@ import { normalizeConnection } from "./lib/canvas-connections";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
 import { buildGenerationConfig } from "./lib/canvas-generation-config";
 import { cloneCanvasNodes } from "./lib/canvas-clone";
+import { hydrateCanvasImages } from "./lib/canvas-media-hydrate";
 import { createCanvasNode } from "./lib/canvas-node-factory";
 import { collectPublishInputs } from "./lib/canvas-publish";
 import { syncAssistantReferences } from "./lib/canvas-assistant-references";
@@ -49,6 +50,7 @@ import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
 import { useCanvasSource } from "./hooks/use-canvas-source";
+import { useCanvasAudioTrim } from "./hooks/use-canvas-audio-trim";
 import { CanvasWorkspace, type CanvasWorkspaceModel } from "./components/canvas-workspace";
 import { buildNodeGenerationInputs, type NodeGenerationInput } from "../components/canvas-node-generation";
 import { type CanvasVideoFrameOption } from "../components/canvas-node-prompt-panel";
@@ -162,12 +164,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const openOverlay = useCallback((overlay: CanvasOverlay) => setActiveOverlay(overlay), []);
     const closeOverlay = useCallback(() => setActiveOverlay(null), []);
     const togglePromptOverlay = useCallback((nodeId: string) => setActiveOverlay((current) => current?.kind === "prompt" && current.nodeId === nodeId ? null : { kind: "prompt", nodeId }), []);
-    const [audioTrimStart, setAudioTrimStart] = useState(0);
-    const [audioTrimEnd, setAudioTrimEnd] = useState(0);
-    const [audioTrimDuration, setAudioTrimDuration] = useState(0);
-    const [audioTrimPlaying, setAudioTrimPlaying] = useState(false);
     const [trimmingAudio, setTrimmingAudio] = useState(false);
-    const audioTrimRef = useRef<HTMLAudioElement | null>(null);
     const [maskEditModel, setMaskEditModel] = useState("");
     const [maskEditChannelId, setMaskEditChannelId] = useState("");
     const [agentPanel, setAgentPanel] = useState(DEFAULT_CANVAS_AGENT_PANEL);
@@ -543,58 +540,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const infoNode = activeOverlay?.kind === "info" ? overlayNode : null;
     const cropNode = activeOverlay?.kind === "crop" ? overlayNode : null;
     const audioTrimNode = activeOverlay?.kind === "audioTrim" ? overlayNode : null;
-    const audioTrimTooShort = Math.round((audioTrimEnd - audioTrimStart) * 100) < 50;
-
-    useEffect(() => {
-        setAudioTrimPlaying(false);
-        const src = audioTrimNode?.metadata?.content;
-        if (!src) return;
-
-        const audio = new Audio(src);
-        audioTrimRef.current = audio;
-        audio.preload = "metadata";
-        setAudioTrimStart(0);
-        setAudioTrimEnd(0);
-        setAudioTrimDuration(0);
-
-        audio.onloadedmetadata = () => {
-            const duration = Number.isFinite(audio.duration)
-                ? Math.floor(audio.duration * 100) / 100
-                : 0;
-            setAudioTrimDuration(duration);
-            setAudioTrimEnd(duration);
-        };
-        audio.onplay = () => setAudioTrimPlaying(true);
-        audio.onpause = () => setAudioTrimPlaying(false);
-        audio.onended = () => setAudioTrimPlaying(false);
-        audio.onerror = () => message.error("音频加载失败");
-
-        return () => {
-            audio.pause();
-            audio.removeAttribute("src");
-            audio.load();
-            audioTrimRef.current = null;
-        };
-    }, [audioTrimNode?.id, audioTrimNode?.metadata?.content, message]);
-
-    useEffect(() => {
-        if (!audioTrimPlaying) return;
-
-        let frame = 0;
-        const checkEnd = () => {
-            const audio = audioTrimRef.current;
-            if (!audio || audio.paused) return;
-
-            if (audio.currentTime >= audioTrimEnd) {
-                audio.pause();
-            } else {
-                frame = requestAnimationFrame(checkEnd);
-            }
-        };
-
-        frame = requestAnimationFrame(checkEnd);
-        return () => cancelAnimationFrame(frame);
-    }, [audioTrimPlaying, audioTrimEnd]);
+    const { audioTrimStart, setAudioTrimStart, audioTrimEnd, setAudioTrimEnd, audioTrimDuration, audioTrimPlaying, audioTrimTooShort, audioTrimRef } = useCanvasAudioTrim(audioTrimNode, message);
 
     const maskEditNode = activeOverlay?.kind === "maskEdit" ? overlayNode : null;
     const maskEditConfig = maskEditNode ? buildGenerationConfig(effectiveConfig, maskEditNode, "image") : null;
@@ -2022,15 +1968,3 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     </>;
 }
 
-async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
-    return Promise.all(
-        nodes.map(async (node) => {
-            const content = node.metadata?.content;
-            if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
-            if (!isCanvasImageNodeType(node.type) || (!content && !node.metadata?.storageKey)) return node;
-            if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content) } };
-            if (!content || !content.startsWith("data:image/")) return node;
-            return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content, { localOnly: true })) } };
-        }),
-    );
-}

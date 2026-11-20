@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：画布音频裁剪与媒体恢复抽离
+
+- 画布页的音频裁剪状态、音频元数据加载与播放区间检测迁到 `use-canvas-audio-trim.ts`；本地图片/视频/音频的 storageKey 恢复迁到 `lib/canvas-media-hydrate.ts`。
+- 画布主文件由 2051 行降到 1970 行；仅代码搬家，无声画行为变化。
+- 验证：`bun test` 109 文件 / 603 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测画布页正常加载。
+- 未实测：真实音频节点裁剪的加载、播放区间停止与保存链路。
+
 ## 结构与工程：工作流模型类型与纯逻辑抽离
 
 - 工作流的变量、配置、任务、历史日志与对外任务事件类型迁到 `creative-workflow-types.ts`；创建、归一化、变量/提示词渲染、系列草稿解析、任务图片映射、来源记录转换、运行配置与历史日志构造迁到 `creative-workflow-model.ts`。
