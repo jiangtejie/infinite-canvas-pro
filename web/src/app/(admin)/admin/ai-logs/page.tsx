@@ -3,7 +3,7 @@
 import { MoreOutlined } from "@ant-design/icons";
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
 import { App, Button, InputNumber, Popover, Space, Tag, Typography } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { deleteAdminAICallLogs, fetchAdminAICallLogs, fetchAdminSettings, saveAdminSettings, type AdminAICallLog } from "@/services/api/admin";
 
@@ -33,6 +33,14 @@ export default function AdminAICallLogsPage() {
     const [localDirectReportEnabled, setLocalDirectReportEnabled] = useState(false);
     const [savingLocalDirectReport, setSavingLocalDirectReport] = useState(false);
     const total = query.data?.total || 0;
+
+    const appliedDeepLinkRef = useRef(false);
+    useEffect(() => {
+        if (appliedDeepLinkRef.current) return;
+        appliedDeepLinkRef.current = true;
+        const keyword = new URLSearchParams(window.location.search).get("keyword") || "";
+        if (keyword) applyFilters({ keyword });
+    }, [applyFilters]);
 
     useEffect(() => {
         if (!token) return;

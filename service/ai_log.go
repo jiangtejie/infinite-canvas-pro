@@ -303,7 +303,7 @@ func startOfDay(value time.Time) time.Time {
 }
 
 func aiLogMatchesKeyword(item model.AICallLog, keyword string) bool {
-	fields := []string{item.UserID, item.UserDisplayName, item.Endpoint, item.Method, item.Model, item.ChannelID, item.ChannelName, item.RequestBody, item.ResponseBody, item.Error, strconv.Itoa(item.Status)}
+	fields := []string{item.ID, item.UserID, item.UserDisplayName, item.Endpoint, item.Method, item.Model, item.ChannelID, item.ChannelName, item.RequestBody, item.ResponseBody, item.Error, strconv.Itoa(item.Status)}
 	for _, field := range fields {
 		if strings.Contains(strings.ToLower(field), keyword) {
 			return true

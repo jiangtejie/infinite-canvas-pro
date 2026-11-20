@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：概览 AI 日志行级深链
+
+- 后端 AI 日志关键词匹配纳入日志 ID；概览「最近 AI 调用」每行可跳转到 `/admin/ai-logs?keyword=<id>`。
+- AI 日志页在挂载后一次性读取 URL 关键词并应用筛选，避开 SSR 读不到 `window` 的问题；后续手动改筛选不会被覆盖。
+- 验证：`bun test` 109 文件 / 603 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过；`go test ./service -run TestAILogMatchesKeyword` 通过，`go build ./...` 通过。ego-browser 实测概览链接包含日志 ID，URL 关键词能正确过滤（无匹配关键词显示 0 条与空态）。
+- 未实测：运行中的后端仍未重启，ID 关键词过滤仅经 Go 单测验证；算力日志行级深链未做。
+
 ## 结构与工程：画布音频裁剪与媒体恢复抽离
 
 - 画布页的音频裁剪状态、音频元数据加载与播放区间检测迁到 `use-canvas-audio-trim.ts`；本地图片/视频/音频的 storageKey 恢复迁到 `lib/canvas-media-hydrate.ts`。

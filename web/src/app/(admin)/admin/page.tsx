@@ -142,7 +142,7 @@ export default function AdminOverviewPage() {
                             {overview.recentAiLogs.map((log) => {
                                 const ok = !log.failed && log.status >= 200 && log.status < 400;
                                 return (
-                                    <div key={log.id} className="flex items-center justify-between gap-3 border-b border-border/50 py-2.5 last:border-0">
+                                    <Link key={log.id} href={`/admin/ai-logs?keyword=${encodeURIComponent(log.id)}`} className="flex items-center justify-between gap-3 border-b border-border/50 py-2.5 transition-colors last:border-0 hover:bg-muted/40">
                                         <div className="min-w-0">
                                             <p className="truncate text-[12px] font-medium text-foreground">{log.model || "-"}</p>
                                             <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
@@ -156,7 +156,7 @@ export default function AdminOverviewPage() {
                                             <span className="w-12 text-right tabular-nums text-muted-foreground">{formatDuration(log.durationMs)}</span>
                                             <span className="w-10 text-right tabular-nums text-foreground">{formatCredits(log.credits)}</span>
                                         </div>
-                                    </div>
+                                    </Link>
                                 );
                             })}
                         </div>
