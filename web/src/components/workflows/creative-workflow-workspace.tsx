@@ -21,15 +21,15 @@ import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "
 import { batchCanvasImageTaskStatus, createCanvasImageTask, requestEdit, requestGeneration, requestImageQuestion, type CanvasImageTask } from "@/services/api/image";
 import { stopCanvasTask } from "@/services/api/canvas-tasks";
 import { fetchImageGenerationLogs, saveImageGenerationLogs } from "@/services/api/generation-logs";
-import { deleteUserWorkflow, draftUserWorkflow, fetchUserConfig, fetchUserWorkflows, saveUserWorkflow, type CreativeWorkflowRecord } from "@/services/api/user-config";
+import { deleteUserWorkflow, draftUserWorkflow, fetchUserConfig, fetchUserWorkflows, saveUserWorkflow } from "@/services/api/user-config";
 import { deleteStoredImages, imageToDataUrl, uploadImage } from "@/services/image-storage";
-import { channelProtocolForConfig, defaultConfig, localChannelForActiveModel, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { channelProtocolForConfig, defaultConfig, localChannelForActiveModel, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import { errorMessage } from "@/lib/utils";
 
-import { buildSeriesPromptDraftRequest, createBlankWorkflow, createDefaultInputValues, createStarterWorkflows, createVariable, describeModelSelection, inferVariableOptions, normalizeAgentDraft, normalizeSeriesDraft, normalizeVariable, normalizeWorkflow, parseSeriesPromptDrafts, parseVariableOptions, renderWorkflowPrompt, serializeSeriesDraft, seriesDraftStorageKey, type PersistedSeriesDraft } from "./creative-workflow-model";
+import { buildImageHistoryLog, buildRunConfig, buildSeriesPromptDraftRequest, createBlankWorkflow, createDefaultInputValues, createStarterWorkflows, createVariable, describeModelSelection, formatDate, inferVariableOptions, isDisposableReferenceFile, isFailedCanvasImageTask, isFinishedCanvasImageTask, isWorkflowBackedLog, normalizeAgentDraft, normalizeSeriesDraft, normalizeVariable, normalizeWorkflow, parseSeriesPromptDrafts, parseVariableOptions, recordToWorkflow, referenceUsedByWorkflowTask, renderWorkflowPrompt, resolveWorkflowRuntime, serializeHistoryLog, serializeSeriesDraft, seriesDraftStorageKey, workflowForRetry, workflowResultsFromStoredLog, workflowTaskFromStoredLogs, workflowTaskImagesFromCanvasTask, workflowTaskParentId, workflowTaskParentIndex, workflowToRecord, type PersistedSeriesDraft } from "./creative-workflow-model";
 import type { CreativeWorkflow, GenerationCategory, ImageHistoryLog, SeriesPromptDraft, TrackedWorkflowTaskState, WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess, WorkflowGenerationConfig, WorkflowMode, WorkflowRunResult, WorkflowSeriesConfig, WorkflowTask, WorkflowVariable, WorkflowVariableType } from "./creative-workflow-types";
 
 const WORKFLOW_STORE_KEY = "infinite-canvas:creative-workflows";
@@ -39,118 +39,6 @@ const imageLogStore = accountScopedStore("image_generation_logs");
 const categoryStore = accountScopedStore("image_generation_categories");
 
 const WORKFLOW_TASK_POLL_INTERVAL_MS = 10000;
-
-function isFinishedCanvasImageTask(task: CanvasImageTask) {
-    return Boolean(task.image_url || task.url || task.image_urls?.length) || ["completed", "complete", "done", "succeeded", "success"].includes((task.status || "").toLowerCase());
-}
-
-function isFailedCanvasImageTask(task: CanvasImageTask) {
-    return ["failed", "fail", "error", "cancelled", "canceled"].includes((task.status || "").toLowerCase());
-}
-
-/** 已存任务对应的图片记录：优先使用后端同步后的 storage，保证刷新恢复后还能下载/展示。 */
-function workflowTaskImagesFromCanvasTask(task: CanvasImageTask, durationMs: number): ImageHistoryLog["images"] {
-    const storages = task.imageStorage || [];
-    const urls = (task.image_urls?.length ? task.image_urls : [task.image_url || task.url || ""]).filter(Boolean);
-    return urls.map((url, index) => {
-        const stored = storages[index] || undefined;
-        return {
-            id: `${task.id}:${index}`,
-            dataUrl: stored?.url || url,
-            storageKey: stored?.storageKey || (index === 0 ? task.storageKey || "" : ""),
-            durationMs,
-            width: stored?.width || (index === 0 ? task.width || 0 : 0),
-            height: stored?.height || (index === 0 ? task.height || 0 : 0),
-            bytes: stored?.bytes || (index === 0 ? task.bytes || 0 : 0),
-            mimeType: stored?.mimeType || task.mimeType || "image/png",
-        };
-    });
-}
-
-function workflowResultsFromStoredLog(log: ImageHistoryLog): WorkflowRunResult[] {
-    return log.images.map((image, index) => ({
-        id: image.id || `${log.id}:${index}`,
-        workflowId: log.workflowId || "",
-        workflowName: log.workflowName || "工作流任务",
-        prompt: log.prompt,
-        imageUrl: image.dataUrl,
-        storageKey: image.storageKey,
-        width: image.width,
-        height: image.height,
-        bytes: image.bytes,
-        mimeType: image.mimeType,
-        durationMs: log.durationMs || 0,
-        createdAt: log.createdAt,
-    }));
-}
-
-const WORKFLOW_IMAGE_TASK_PREFIX = "client_workflow_image_task_";
-
-/** 模板不在本地时的临时重试上下文：只带 id 与日志快照配置，不写回工作流列表。 */
-function workflowForRetry(task: WorkflowTask): CreativeWorkflow | null {
-    const workflowId = (task.workflowId || "").trim();
-    if (!workflowId) return null;
-    return {
-        id: workflowId,
-        scope: "private",
-        editable: false,
-        mode: "single_image",
-        name: task.workflowName?.trim() || "工作流任务",
-        category: "",
-        description: "",
-        variables: [],
-        config: task.config,
-        seriesConfig: { targetCount: "1", promptModel: "", promptChannelId: "", promptInstruction: "", reviewRequired: false, concurrency: "1" },
-        createdAt: task.startedAt,
-        updatedAt: Date.now(),
-    };
-}
-
-/** 从服务端任务 id 还原父任务 id（创建时把 client_workflow_image_task_<父id>_<序号> 作为服务端任务 id）。 */
-function workflowTaskParentId(task?: CanvasImageTask) {
-    const id = task?.id || "";
-    if (!id.startsWith(WORKFLOW_IMAGE_TASK_PREFIX)) return "";
-    const match = id.slice(WORKFLOW_IMAGE_TASK_PREFIX.length).match(/^(.+)_(\d+)$/);
-    return match ? match[1] : "";
-}
-
-function workflowTaskParentIndex(task?: CanvasImageTask) {
-    const id = task?.id || "";
-    const match = id.slice(WORKFLOW_IMAGE_TASK_PREFIX.length).match(/^(.+)_(\d+)$/);
-    return match ? Number(match[2]) : 0;
-}
-
-/** 把恢复出的多张图片日志按父任务聚合成一张任务卡，和同会话提交展示一致。 */
-function workflowTaskFromStoredLogs(parentTaskId: string, logs: ImageHistoryLog[]): WorkflowTask {
-    const first = logs[0];
-    const inputs = Object.fromEntries(
-        Object.entries(first.workflowInputs || {})
-            .filter(([key]) => key !== "seriesTitle" && key !== "seriesIndex")
-            .map(([key, value]) => [key, String(value ?? "")]),
-    );
-    const seriesTitle = logs.map((log) => log.workflowInputs?.seriesTitle).find((value): value is string => typeof value === "string");
-    const seriesIndex = logs.map((log) => log.workflowInputs?.seriesIndex).find((value): value is number => typeof value === "number");
-    const completedImages = logs.filter((log) => log.status === "成功").flatMap((log) => workflowResultsFromStoredLog(log));
-    const failedCount = logs.filter((log) => log.status === "失败").length;
-    return {
-        id: parentTaskId,
-        status: "running",
-        workflowId: first.workflowId || "",
-        workflowName: first.workflowName?.trim() || "工作流任务",
-        prompt: first.prompt,
-        inputs,
-        references: first.references || [],
-        model: first.model,
-        apiMode: first.config?.apiMode || "images",
-        config: first.config,
-        count: logs.length,
-        startedAt: Math.min(...logs.map((log) => log.createdAt)),
-        images: completedImages,
-        failedCount: failedCount || undefined,
-        seriesTitle,
-        seriesIndex,
-    };
-}
 
 async function readWorkflowGenerationLogs(): Promise<ImageHistoryLog[]> {
     try {
@@ -179,10 +67,6 @@ async function mergeRemoteWorkflowLogs(token: string, localLogs: ImageHistoryLog
 }
 
 /** 带工作流信息的图片日志（本页创建或后端工作流任务恢复）：由工作流 workspace 统一轮询。 */
-function isWorkflowBackedLog(log: ImageHistoryLog) {
-    return Boolean(log.workflowId) || log.task?.source === "workflow";
-}
-
 const variableTypeOptions: Array<{ value: WorkflowVariableType; label: string }> = [
     { value: "text", label: "短文本" },
     { value: "textarea", label: "长文本" },
@@ -2095,136 +1979,6 @@ function InfoPill({ label, value }: { label: string; value: string }) {
     );
 }
 
-function workflowToRecord(workflow: CreativeWorkflow): CreativeWorkflowRecord<CreativeWorkflow> {
-    return {
-        id: workflow.id,
-        ownerUserId: workflow.ownerUserId,
-        scope: workflow.scope === "public" ? "public" : "private",
-        name: workflow.name,
-        category: workflow.category,
-        description: workflow.description,
-        data: workflow,
-        createdAt: new Date(workflow.createdAt).toISOString(),
-        updatedAt: new Date(workflow.updatedAt).toISOString(),
-        lastRunAt: workflow.lastRunAt ? new Date(workflow.lastRunAt).toISOString() : undefined,
-        editable: workflow.editable !== false,
-    };
-}
-
-function recordToWorkflow(record: CreativeWorkflowRecord<CreativeWorkflow>): CreativeWorkflow {
-    const data = record.data || ({} as CreativeWorkflow);
-    return normalizeWorkflow({
-        ...data,
-        id: record.id || data.id,
-        ownerUserId: record.ownerUserId,
-        scope: record.scope === "public" ? "public" : "private",
-        editable: record.editable,
-        name: record.name || data.name || "",
-        category: record.category || data.category || "",
-        description: record.description || data.description || "",
-        createdAt: record.createdAt ? Date.parse(record.createdAt) : data.createdAt,
-        updatedAt: record.updatedAt ? Date.parse(record.updatedAt) : data.updatedAt,
-        lastRunAt: record.lastRunAt ? Date.parse(record.lastRunAt) : data.lastRunAt,
-    });
-}
-
-function resolveWorkflowRuntime(workflow: CreativeWorkflow, baseConfig: AiConfig) {
-    const workflowModel = workflow.config.imageModel || workflow.config.model;
-    const fallbackModel = baseConfig.imageModel || baseConfig.model;
-    const fallbackChannelId = resolveWorkflowImageChannelId(baseConfig, fallbackModel, baseConfig.imageChannelId, baseConfig.activeChannelId);
-    if (!workflowModel) return { model: fallbackModel, apiMode: baseConfig.apiMode, channelId: fallbackChannelId };
-    if (baseConfig.channelMode === "remote" && workflowModel !== fallbackModel && (!baseConfig.models.length || !baseConfig.models.includes(workflowModel))) {
-        return { model: fallbackModel, apiMode: baseConfig.apiMode, channelId: fallbackChannelId };
-    }
-    return { model: workflowModel, apiMode: workflow.config.apiMode || baseConfig.apiMode, channelId: resolveWorkflowImageChannelId(baseConfig, workflowModel, workflow.config.imageChannelId, baseConfig.imageChannelId, baseConfig.activeChannelId) };
-}
-
-function resolveWorkflowImageChannelId(config: AiConfig, model: string, ...preferredIds: Array<string | undefined>) {
-    const channels = config.channelMode === "remote"
-        ? config.publicChannels.map((channel) => ({ id: channel.id || "", models: channel.models || [] }))
-        : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, models: channel.models }));
-    for (const id of preferredIds) {
-        const channelId = (id || "").trim();
-        if (channelId && channels.some((channel) => channel.id === channelId && channel.models.includes(model))) return channelId;
-    }
-    return channels.find((channel) => channel.models.includes(model))?.id || "";
-}
-
-function buildRunConfig(baseConfig: AiConfig, workflowConfig: WorkflowGenerationConfig, runtime: { model: string; apiMode: AiConfig["apiMode"]; channelId: string }): AiConfig {
-    return {
-        ...baseConfig,
-        ...workflowConfig,
-        model: runtime.model,
-        imageModel: runtime.model,
-        imageChannelId: runtime.channelId,
-        activeChannelId: runtime.channelId,
-        apiMode: runtime.apiMode,
-        systemPrompt: workflowConfig.systemPrompt || baseConfig.systemPrompts.workflow || baseConfig.systemPrompt,
-        count: workflowConfig.count || "1",
-    };
-}
-
-function buildImageHistoryLog({
-    id,
-    workflow,
-    prompt,
-    config,
-    model,
-    images,
-    durationMs,
-    inputs,
-    references,
-    categoryIds,
-    seriesTitle,
-    seriesIndex,
-    status = "成功",
-    task,
-    lastPolledAt,
-}: {
-    id?: string;
-    workflow: CreativeWorkflow;
-    prompt: string;
-    config: ImageHistoryLog["config"];
-    model: string;
-    images: ImageHistoryLog["images"];
-    durationMs: number;
-    inputs: Record<string, unknown>;
-    references: ReferenceImage[];
-    categoryIds: string[];
-    seriesTitle?: string;
-    seriesIndex?: number;
-    status?: ImageHistoryLog["status"];
-    task?: CanvasImageTask;
-    lastPolledAt?: number;
-}): ImageHistoryLog {
-    return {
-        id: id || nanoid(),
-        createdAt: Date.now(),
-        title: seriesTitle ? `${workflow.name} · ${seriesTitle}` : workflow.name,
-        prompt,
-        time: new Date().toLocaleString("zh-CN", { hour12: false }),
-        model,
-        config,
-        references,
-        durationMs,
-        successCount: status === "成功" ? images.length : 0,
-        failCount: status === "失败" ? 1 : 0,
-        imageCount: status === "生成中" ? 0 : images.length,
-        size: config.size,
-        quality: config.quality,
-        status,
-        images,
-        thumbnails: images.map((image) => image.dataUrl),
-        errors: [],
-        categoryIds,
-        workflowId: workflow.id,
-        workflowName: workflow.name,
-        workflowInputs: { ...inputs, ...(seriesTitle ? { seriesTitle, seriesIndex } : {}) },
-        task,
-        lastPolledAt,
-    };
-}
-
 async function ensureWorkflowCategory(name: string) {
     const trimmed = name.trim();
     if (!trimmed) return null;
@@ -2235,31 +1989,4 @@ async function ensureWorkflowCategory(name: string) {
     await categoryStore.setItem(CATEGORY_STORE_KEY, [...categories, nextCategory]);
     return nextCategory;
 }
-
-function serializeHistoryLog(log: ImageHistoryLog): ImageHistoryLog {
-    return {
-        ...log,
-        images: log.images.map((image) => ({ ...image, dataUrl: image.dataUrl?.startsWith("http") ? image.dataUrl : "" })),
-        thumbnails: log.images.map((image) => (image.dataUrl?.startsWith("http") ? image.dataUrl : "")),
-    };
-}
-
-function isDisposableReferenceFile(reference: ReferenceImage) {
-    const item = reference as ReferenceImage & { temporary?: boolean; source?: string };
-    return item.temporary === true || item.source === "upload" || item.source === "clipboard";
-}
-
-function referenceUsedByWorkflowTask(reference: ReferenceImage, tasks: WorkflowTask[]) {
-    if (!reference.storageKey) return false;
-    return tasks.some((task) => task.references.some((item) => item.storageKey === reference.storageKey));
-}
-
-function formatDate(value: number) {
-    return new Date(value).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-
-
-
-
 
