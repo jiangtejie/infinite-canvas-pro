@@ -1,13 +1,12 @@
 "use client";
 
 import { App, Button, Image, Input, Modal, Pagination, Select, Tag, Typography } from "antd";
-import { Bot, Copy, Download, Globe2, Layers3, LoaderCircle, LockKeyhole, Play, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Bot, Copy, Download, Layers3, LoaderCircle, Play, Plus, Sparkles, Trash2 } from "lucide-react";
 import { accountScopedStore } from "@/lib/account-storage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ModelPicker } from "@/components/model-picker";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/state-panel";
@@ -29,6 +28,7 @@ import { errorMessage } from "@/lib/utils";
 
 import { buildImageHistoryLog, buildRunConfig, buildSeriesPromptDraftRequest, createBlankWorkflow, createDefaultInputValues, createStarterWorkflows, describeModelSelection, isDisposableReferenceFile, isFailedCanvasImageTask, isFinishedCanvasImageTask, isWorkflowBackedLog, normalizeAgentDraft, normalizeSeriesDraft, normalizeWorkflow, parseSeriesPromptDrafts, recordToWorkflow, referenceUsedByWorkflowTask, renderWorkflowPrompt, resolveWorkflowRuntime, serializeHistoryLog, serializeSeriesDraft, seriesDraftStorageKey, workflowForRetry, workflowResultsFromStoredLog, workflowTaskFromStoredLogs, workflowTaskImagesFromCanvasTask, workflowTaskParentId, workflowTaskParentIndex, workflowToRecord, type PersistedSeriesDraft } from "./creative-workflow-model";
 import type { CreativeWorkflow, GenerationCategory, ImageHistoryLog, SeriesPromptDraft, TrackedWorkflowTaskState, WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess, WorkflowGenerationConfig, WorkflowRunResult, WorkflowTask } from "./creative-workflow-types";
+import { WorkflowAgentModal } from "./workflow-agent-modal";
 import { SeriesPromptDraftCard, WorkflowCard, WorkflowTaskCard } from "./workflow-cards";
 import { WorkflowEditorModal, WorkflowVariableInput } from "./workflow-editor-modal";
 
@@ -120,7 +120,6 @@ export function CreativeWorkflowWorkspace({
     const [agentDraft, setAgentDraft] = useState<CreativeWorkflow | null>(null);
     const [agentWarnings, setAgentWarnings] = useState<string[]>([]);
     const [agentReferences, setAgentReferences] = useState<ReferenceImage[]>([]);
-    const agentReferenceInputRef = useRef<HTMLInputElement>(null);
     const [agentAssetPickerOpen, setAgentAssetPickerOpen] = useState(false);
     const workflowSyncEnabledRef = useRef(false);
     const seriesDraftsLoadedRef = useRef(false);
@@ -1298,139 +1297,32 @@ export function CreativeWorkflowWorkspace({
                 onCancel={() => setEditingWorkflow(null)}
                 onSave={(workflow) => void saveWorkflow(workflow)}
             />
-            <Modal title="AI 创建工作流" open={agentOpen} width={980} onCancel={() => setAgentOpen(false)} footer={null} destroyOnHidden>
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm font-medium">描述你要沉淀的创作流程</div>
-                            <div className="flex min-w-0 items-center gap-2">
-                                <div className="hidden min-w-[220px] max-w-[360px] sm:block">
-                                    <ModelPicker
-                                        config={effectiveConfig}
-                                        fullWidth
-                                        capability="text"
-                                        value={agentModel}
-                                        channelId={agentChannelId}
-                                        placeholder="选择 Agent 文本模型"
-                                        onChange={(model, channelId) => {
-                                            setAgentTextModel(model);
-                                            setAgentTextChannelId(channelId || "");
-                                        }}
-                                        onMissingConfig={() => openConfigDialog(true)}
-                                    />
-                                </div>
-                                <div className="hidden min-w-0 max-w-[220px] truncate rounded-md border border-border px-2 py-1 text-xs text-muted-foreground lg:block" title={`${agentModelInfo.channelName} · ${agentModelInfo.modelName}`}>
-                                    {agentModelInfo.channelName}
-                                </div>
-                                <div className="inline-flex rounded-md border border-border p-0.5">
-                                    <button type="button" title="个人工作流" className={`inline-flex size-8 items-center justify-center rounded ${agentScope === "private" ? "border border-foreground text-foreground " : "text-muted-foreground"}`} onClick={() => setAgentScope("private")}>
-                                        <LockKeyhole className="size-4" />
-                                    </button>
-                                    <button type="button" title="公开工作流" className={`inline-flex size-8 items-center justify-center rounded ${agentScope === "public" ? "border border-foreground text-foreground " : "text-muted-foreground"}`} onClick={() => setAgentScope("public")}>
-                                        <Globe2 className="size-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="sm:hidden">
-                            <ModelPicker
-                                config={effectiveConfig}
-                                fullWidth
-                                capability="text"
-                                value={agentModel}
-                                channelId={agentChannelId}
-                                placeholder="选择 Agent 文本模型"
-                                onChange={(model, channelId) => {
-                                    setAgentTextModel(model);
-                                    setAgentTextChannelId(channelId || "");
-                                }}
-                                onMissingConfig={() => openConfigDialog(true)}
-                            />
-                        </div>
-                        <Input.TextArea value={agentPrompt} autoSize={{ minRows: 14, maxRows: 22 }} placeholder="例如：创建一个电商海报工作流，只需要输入产品名称、核心卖点、活动信息，固定商业摄影质感和营销文案结构。" onChange={(event) => setAgentPrompt(event.target.value)} />
-                        <div className="rounded-lg border border-border p-3">
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <div className="text-sm font-medium">参考图</div>
-                                    <div className="mt-1 text-xs text-muted-foreground">可上传样例图，作为创建工作流的视觉参考。</div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button size="small" onClick={() => setAgentAssetPickerOpen(true)}>
-                                        我的素材
-                                    </Button>
-                                    <Button size="small" onClick={() => agentReferenceInputRef.current?.click()}>
-                                        上传
-                                    </Button>
-                                </div>
-                            </div>
-                            <input
-                                ref={agentReferenceInputRef}
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={(event) => {
-                                    const input = event.currentTarget;
-                                    void addAgentReferences(input.files).finally(() => {
-                                        input.value = "";
-                                    });
-                                }}
-                            />
-                            {agentReferences.length ? (
-                                <div className="mt-3 grid grid-cols-5 gap-2">
-                                    {agentReferences.map((image) => (
-                                        <div key={image.id} className="group relative overflow-hidden rounded-md border border-border">
-                                            <img loading="lazy" decoding="async" src={image.dataUrl} alt={image.name} className="aspect-square w-full object-cover" />
-                                            <button
-                                                type="button"
-                                                className="absolute right-1 top-1 grid size-6 place-items-center rounded bg-black/65 text-white opacity-0 transition group-hover:opacity-100"
-                                                onClick={() => void removeAgentReference(image.id)}
-                                                aria-label="删除参考图"
-                                            >
-                                                <Trash2 className="size-3.5" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : null}
-                        </div>
-                        <Button block type="primary" loading={agentLoading} icon={<Sparkles className="size-4" />} onClick={() => void runWorkflowAgent()}>
-                            生成工作流草稿
-                        </Button>
-                    </div>
-                    <aside className="space-y-3 rounded-lg border border-border p-3">
-                        <div className="text-sm font-medium">草稿预览</div>
-                        {agentDraft ? (
-                            <>
-                                <div>
-                                    <div className="text-base font-semibold">{agentDraft.name}</div>
-                                    <div className="mt-1 flex flex-wrap gap-1">
-                                        <Tag className="m-0">{agentDraft.category || "未分类"}</Tag>
-                                        <Tag className="m-0">{agentDraft.variables.length} 个变量</Tag>
-                                        <Tag className="m-0">{agentDraft.scope === "public" ? "公开" : "个人"}</Tag>
-                                    </div>
-                                </div>
-                                <p className="text-sm text-muted-foreground">{agentDraft.description || "暂无描述"}</p>
-                                <div className="max-h-60 overflow-y-auto rounded-md bg-muted p-3 text-xs dark:bg-background">
-                                    <div className="whitespace-pre-wrap">{agentDraft.config.promptTemplate}</div>
-                                </div>
-                                {agentWarnings.length ? (
-                                    <div className="space-y-1 text-xs text-amber-600 dark:text-amber-300">
-                                        {agentWarnings.map((item) => (
-                                            <div key={item}>{item}</div>
-                                        ))}
-                                    </div>
-                                ) : null}
-                                <Button block type="primary" onClick={applyAgentDraft}>
-                                    应用到编辑器
-                                </Button>
-                            </>
-                        ) : (
-                            <EmptyState className="py-8" title="暂无草稿" description="生成后在这里预览草稿。" />
-                        )}
-                    </aside>
-                </div>
-            </Modal>
+            <WorkflowAgentModal
+                open={agentOpen}
+                onClose={() => setAgentOpen(false)}
+                effectiveConfig={effectiveConfig}
+                openConfigDialog={openConfigDialog}
+                agentPrompt={agentPrompt}
+                onPromptChange={setAgentPrompt}
+                agentScope={agentScope}
+                onScopeChange={setAgentScope}
+                agentModel={agentModel}
+                agentChannelId={agentChannelId}
+                onModelChange={(model, channelId) => {
+                    setAgentTextModel(model);
+                    setAgentTextChannelId(channelId || "");
+                }}
+                agentModelInfo={agentModelInfo}
+                agentReferences={agentReferences}
+                onAddReferences={addAgentReferences}
+                onRemoveReference={removeAgentReference}
+                onOpenAssetPicker={() => setAgentAssetPickerOpen(true)}
+                agentLoading={agentLoading}
+                onGenerate={runWorkflowAgent}
+                agentDraft={agentDraft}
+                agentWarnings={agentWarnings}
+                onApplyDraft={applyAgentDraft}
+            />
             <Modal title={runningWorkflow?.name || "运行工作流"} open={Boolean(runningWorkflow)} width={980} onCancel={closeRunner} footer={null} destroyOnHidden>
                 {runningWorkflow ? (
                     <div className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
