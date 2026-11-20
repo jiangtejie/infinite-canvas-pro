@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -21,6 +22,19 @@ func TestNormalizeDockerSQLiteDSNUsesMountedDataDir(t *testing.T) {
 	want := filepath.Join(root, "data", "infinite-canvas.db") + "?_pragma=busy_timeout(5000)"
 	if Cfg.DatabaseDSN != want {
 		t.Fatalf("DatabaseDSN = %q, want %q", Cfg.DatabaseDSN, want)
+	}
+}
+
+func TestPaymentConfigHasNoHardcodedDefaults(t *testing.T) {
+	configType := reflect.TypeOf(Config{})
+	for _, name := range []string{"LXPayServerURL", "LXPayAppID", "LXPayAppSecret", "LXPayNotifyURL", "LXPayAPIV3Key"} {
+		field, ok := configType.FieldByName(name)
+		if !ok {
+			t.Fatalf("config field %s is missing", name)
+		}
+		if value := field.Tag.Get("envDefault"); value != "" {
+			t.Fatalf("payment field %s must not have a built-in default, got %q", name, value)
+		}
 	}
 }
 

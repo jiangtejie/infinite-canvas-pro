@@ -21,11 +21,11 @@ type Config struct {
 	DatabaseDSN           string `env:"DATABASE_DSN" envDefault:"data/infinite-canvas.db"`
 	AILogDir              string `env:"AI_LOG_DIR" envDefault:"data/logs/ai-calls"`
 	PublishMediaDir       string `env:"PUBLISH_MEDIA_DIR" envDefault:"data/publish-media"`
-	LXPayServerURL        string `env:"LX_PAY_SERVER_URL" envDefault:"http://127.0.0.1:8989"`
-	LXPayAppID            string `env:"LX_PAY_APP_ID" envDefault:"app_a0479b08373c4ba3"`
-	LXPayAppSecret        string `env:"LX_PAY_APP_SECRET" envDefault:"ae50619db16c419299de1c469f09e4b4dd8d52b77ab64807b4895f7148c86218"`
-	LXPayNotifyURL        string `env:"LX_PAY_NOTIFY_URL" envDefault:"https://jl.lx.cq.cn/api/payment/notify"`
-	LXPayAPIV3Key         string `env:"LX_PAY_API_V3_KEY" envDefault:"7f9d2b5e8c1a0s6k3h7g2j5m9q4r8t0y"`
+	LXPayServerURL        string `env:"LX_PAY_SERVER_URL"`
+	LXPayAppID            string `env:"LX_PAY_APP_ID"`
+	LXPayAppSecret        string `env:"LX_PAY_APP_SECRET"`
+	LXPayNotifyURL        string `env:"LX_PAY_NOTIFY_URL"`
+	LXPayAPIV3Key         string `env:"LX_PAY_API_V3_KEY"`
 	LXPayPlatformCertPath string `env:"LX_PAY_PLATFORM_CERT_PATH"`
 	LXPayTimeoutMS        int    `env:"LX_PAY_TIMEOUT_MS" envDefault:"10000"`
 	LXPayMaxRetries       int    `env:"LX_PAY_MAX_RETRIES" envDefault:"3"`

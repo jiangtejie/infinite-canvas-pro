@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 支付配置移除硬编码默认值
+
+- `LX_PAY_SERVER_URL`、`LX_PAY_APP_ID`、`LX_PAY_APP_SECRET`、`LX_PAY_NOTIFY_URL`、`LX_PAY_API_V3_KEY` 不再内置默认值；未配置且后台未保存支付配置时，充值接口返回「微信支付尚未配置」。
+- 已从源码与 `.env.example` 注释移除旧的 AppID/应用密钥/APIv3 Key/生产回调地址说明，后台网关地址提示同步改为「未配置时充值不可用」；历史默认凭据若真实有效，需要到 lx-pay 平台轮换。
+- 验证：`go test ./config ./service ./handler -count=1` 通过（新增支付字段无内置默认值的配置测试）；`go build ./...` 通过。
+- 未实测：真实 lx-pay 创建/查询/回调链路；已有数据库里若保存过旧凭据，后台会继续使用，需管理员手动替换。
+
 ## 后台统计日期索引
 
 - `users.created_at`、`users.last_login_at`、`credit_logs.created_at` 新增索引；AutoMigrate 会在下次后端启动时为现有库补建。

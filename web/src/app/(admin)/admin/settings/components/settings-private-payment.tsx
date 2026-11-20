@@ -9,7 +9,7 @@ export function AdminSettingsPrivatePaymentSection() {
         <AdminSettingsSection id="private-payment" title="微信支付" description="支付网关、回调与证书配置；密钥留空表示保持已保存值。">
                                     <Row gutter={16}>
                                         <Col xs={24} md={12}>
-                                            <Form.Item name={["private", "payment", "lxPayServerUrl"]} label="支付网关地址" extra="默认指向同机部署的 lx-pay 服务（http://127.0.0.1:8989）；如网关部署在其他机器，改成对应地址。">
+                                            <Form.Item name={["private", "payment", "lxPayServerUrl"]} label="支付网关地址" extra="未配置时充值不可用；同机部署可填 http://127.0.0.1:8989，跨机部署填对应地址。">
                                                 <Input placeholder="https://pay.example.com" />
                                             </Form.Item>
                                         </Col>
