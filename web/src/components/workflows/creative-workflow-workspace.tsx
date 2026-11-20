@@ -5,7 +5,7 @@ import { AlertCircle, ArrowDown, ArrowUp, Bot, CheckCircle2, Copy, Download, Edi
 import { accountScopedStore } from "@/lib/account-storage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
@@ -33,6 +33,7 @@ import { buildImageHistoryLog, buildRunConfig, buildSeriesPromptDraftRequest, cr
 import type { CreativeWorkflow, GenerationCategory, ImageHistoryLog, SeriesPromptDraft, TrackedWorkflowTaskState, WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess, WorkflowGenerationConfig, WorkflowMode, WorkflowRunResult, WorkflowSeriesConfig, WorkflowTask, WorkflowVariable, WorkflowVariableType } from "./creative-workflow-types";
 
 const WORKFLOW_STORE_KEY = "infinite-canvas:creative-workflows";
+const ACTIVE_SERIES_WORKFLOW_KEY = "infinite-canvas:series-drafts:active";
 const CATEGORY_STORE_KEY = "infinite-canvas:image_generation_categories";
 const workflowStore = accountScopedStore("creative_workflows");
 const imageLogStore = accountScopedStore("image_generation_logs");
@@ -216,6 +217,7 @@ export function CreativeWorkflowWorkspace({
         // 只持久化可恢复字段（id/标题/提示词），任务状态与结果 id 不落盘；清空时直接删 key，避免脏数据。
         if (!seriesDrafts.length) {
             void workflowStore.removeItem(seriesDraftStorageKey(runningWorkflowId, ownerId));
+            void workflowStore.removeItem(ACTIVE_SERIES_WORKFLOW_KEY);
             return;
         }
         void workflowStore.setItem(seriesDraftStorageKey(runningWorkflowId, ownerId), seriesDrafts.map(serializeSeriesDraft));
@@ -260,13 +262,14 @@ export function CreativeWorkflowWorkspace({
         await workflowStore.setItem(WORKFLOW_STORE_KEY, sorted);
     };
 
-    const openRunner = (workflow: CreativeWorkflow) => {
+    const openRunner = useCallback((workflow: CreativeWorkflow) => {
         seriesDraftsLoadedRef.current = false;
         setRunningWorkflow(workflow);
         setInputValues(createDefaultInputValues(workflow));
         setWorkflowReferences([]);
         setSeriesDrafts([]);
         if (workflow.mode === "multi_image_series") {
+            void workflowStore.setItem(ACTIVE_SERIES_WORKFLOW_KEY, workflow.id);
             void workflowStore.getItem<PersistedSeriesDraft[]>(seriesDraftStorageKey(workflow.id, ownerId)).then((drafts) => {
                 setSeriesDrafts((drafts || []).map(normalizeSeriesDraft));
                 seriesDraftsLoadedRef.current = true;
@@ -274,7 +277,7 @@ export function CreativeWorkflowWorkspace({
         } else {
             seriesDraftsLoadedRef.current = true;
         }
-    };
+    }, [ownerId]);
 
     const closeRunner = () => {
         setRunningWorkflow(null);
@@ -282,6 +285,20 @@ export function CreativeWorkflowWorkspace({
         setSeriesBatchAppend("");
         seriesDraftsLoadedRef.current = false;
     };
+
+    const restoredSeriesRunnerRef = useRef(false);
+    useEffect(() => {
+        if (restoredSeriesRunnerRef.current || !workflows.length) return;
+        restoredSeriesRunnerRef.current = true;
+        void (async () => {
+            const activeId = await workflowStore.getItem<string>(ACTIVE_SERIES_WORKFLOW_KEY);
+            if (!activeId) return;
+            const workflow = workflows.find((item) => item.id === activeId && item.mode === "multi_image_series");
+            if (!workflow) return;
+            const drafts = await workflowStore.getItem<PersistedSeriesDraft[]>(seriesDraftStorageKey(activeId, ownerId));
+            if (drafts?.length) openRunner(workflow);
+        })();
+    }, [openRunner, ownerId, workflows]);
 
     const addWorkflowReferences = async (files?: FileList | null) => {
         const imageFiles = Array.from(files || []).filter((file) => file.type.startsWith("image/"));

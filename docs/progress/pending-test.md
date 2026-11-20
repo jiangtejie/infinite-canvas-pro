@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 工作流跨设备恢复
+
+- 缺 `workflowId` 的历史日志任务仍可重试：用日志快照生成 `recovered:<taskId>` 临时模板，`editable:false`，不写回模板列表。
+- 系列草稿记录当前运行工作流 ID：打开多图运行时写入活动键，清空草稿时移除；刷新/换入工作流列表后若仍有草稿，自动恢复运行弹窗与草稿内容。关闭弹窗但保留草稿时，下次进入仍会恢复。
+- 验证：`bun test` 110 文件 / 605 条通过（新增 2 条临时模板测试）；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 模拟写入活动工作流与 1 条草稿后刷新，运行弹窗自动打开并显示「1 条」与草稿提示词；清理测试键后刷新不再自动打开。
+- 未实测：真实跨设备日志缺 `workflowId` 时的重试链路、真实多图草稿生成后的刷新恢复。
+
 ## 结构与工程：画布 Overlay 类型下沉
 
 - `CanvasOverlay` 从画布页面文件下沉到 `canvas/types.ts`；`canvas-dialogs`、`canvas-stage-layer`、`canvas-stage-overlays` 不再从页面文件反向导入类型。

@@ -325,8 +325,7 @@ const WORKFLOW_IMAGE_TASK_PREFIX = "client_workflow_image_task_";
 
 /** 模板不在本地时的临时重试上下文：只带 id 与日志快照配置，不写回工作流列表。 */
 export function workflowForRetry(task: WorkflowTask): CreativeWorkflow | null {
-    const workflowId = (task.workflowId || "").trim();
-    if (!workflowId) return null;
+    const workflowId = (task.workflowId || "").trim() || `recovered:${task.id}`;
     return {
         id: workflowId,
         scope: "private",
