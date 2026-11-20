@@ -1,9 +1,7 @@
 package service
 
 import (
-	"fmt"
 	"math"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -213,22 +211,13 @@ func summarizeAILogs(now time.Time) (model.AdminOverviewAI, []model.AdminOvervie
 	return ai, recent, nil
 }
 
-// aiLogCacheSignature 由日志文件大小、修改时间与当前日期组成；任意写入或跨天都会失效。
+// aiLogCacheSignature 在文件指纹后追加当前日期；任意写入或跨天都会失效。
 func aiLogCacheSignature(now time.Time) (string, error) {
-	files, err := aiLogFiles()
+	files, err := aiLogFilesSignature()
 	if err != nil {
 		return "", err
 	}
-	var builder strings.Builder
-	for _, file := range files {
-		info, err := os.Stat(file)
-		if err != nil {
-			continue
-		}
-		fmt.Fprintf(&builder, "%s:%d:%d;", file, info.Size(), info.ModTime().UnixNano())
-	}
-	builder.WriteString(now.Format("2006-01-02"))
-	return builder.String(), nil
+	return files + now.Format("2006-01-02"), nil
 }
 
 func cloneOverviewAI(ai model.AdminOverviewAI) model.AdminOverviewAI {

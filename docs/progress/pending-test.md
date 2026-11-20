@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 后台 AI 日志列表缓存
+
+- `ListAICallLogs` 增加文件指纹缓存：按日志文件名、大小与修改时间复用解析结果，写入或清理日志后自动失效；返回副本，排序/筛选不会污染缓存。
+- 概览与列表共用同一份文件指纹生成逻辑，避免两套签名口径。
+- 验证：`go test ./service -run 'TestAILog|TestListAICallLogs|TestLatestAILogs|TestAILogCache'` 通过（新增写入后签名变化、追加日志后列表刷新的测试）；`go build ./...` 通过。前端无改动。
+- 未实测：运行中的后端未重启，缓存行为仅经单测验证；大数据量下列表筛选/翻页耗时未实测。
+
 ## 工作流跨设备恢复
 
 - 缺 `workflowId` 的历史日志任务仍可重试：用日志快照生成 `recovered:<taskId>` 临时模板，`editable:false`，不写回模板列表。

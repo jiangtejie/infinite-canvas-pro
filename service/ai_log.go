@@ -91,7 +91,7 @@ func SaveAICallLog(input AICallLogInput) {
 
 func ListAICallLogs(q model.Query) (model.AICallLogList, error) {
 	q.Normalize()
-	items, err := readAICallLogs()
+	items, err := readAICallLogsCached()
 	if err != nil {
 		return model.AICallLogList{}, err
 	}
@@ -233,6 +233,55 @@ func appendAICallLog(item model.AICallLog) error {
 	}
 	log.New(file, "", 0).Println(string(encoded))
 	return nil
+}
+
+var aiLogListCache struct {
+	sync.Mutex
+	loaded    bool
+	signature string
+	items     []model.AICallLog
+}
+
+// aiLogFilesSignature 由日志文件名、大小与修改时间组成，任意写入或清理都会失效。
+func aiLogFilesSignature() (string, error) {
+	files, err := aiLogFiles()
+	if err != nil {
+		return "", err
+	}
+	var builder strings.Builder
+	for _, file := range files {
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(&builder, "%s:%d:%d;", file, info.Size(), info.ModTime().UnixNano())
+	}
+	return builder.String(), nil
+}
+
+func readAICallLogsCached() ([]model.AICallLog, error) {
+	signature, err := aiLogFilesSignature()
+	if err != nil {
+		return nil, err
+	}
+	aiLogListCache.Lock()
+	if aiLogListCache.loaded && aiLogListCache.signature == signature {
+		items := append([]model.AICallLog(nil), aiLogListCache.items...)
+		aiLogListCache.Unlock()
+		return items, nil
+	}
+	aiLogListCache.Unlock()
+
+	items, err := readAICallLogs()
+	if err != nil {
+		return nil, err
+	}
+	aiLogListCache.Lock()
+	aiLogListCache.loaded = true
+	aiLogListCache.signature = signature
+	aiLogListCache.items = append([]model.AICallLog(nil), items...)
+	aiLogListCache.Unlock()
+	return items, nil
 }
 
 func readAICallLogs() ([]model.AICallLog, error) {
