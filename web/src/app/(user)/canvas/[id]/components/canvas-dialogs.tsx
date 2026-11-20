@@ -20,7 +20,7 @@ import type { CanvasImageMaskEditPayload } from "../../components/canvas-node-ma
 import type { CanvasImageSplitParams } from "../../components/canvas-node-split-dialog";
 import type { CanvasImageUpscaleParams } from "../../components/canvas-node-upscale-dialog";
 import type { CanvasImageAngleParams } from "../../components/canvas-node-angle-dialog";
-import type { CanvasOverlay } from "../canvas-client-page";
+import type { CanvasOverlay } from "../../types";
 
 
 export type CanvasDialogModel = {

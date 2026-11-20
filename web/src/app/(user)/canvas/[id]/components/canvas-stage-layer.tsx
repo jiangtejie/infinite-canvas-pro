@@ -34,7 +34,7 @@ import type { ViewportTransform, SelectionBox } from "../../types";
 import type { CanvasAlignmentGuides } from "../../utils/canvas-alignment";
 import type { CanvasResourceReference } from "../../utils/canvas-resource-references";
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
-import type { CanvasOverlay } from "../canvas-client-page";
+import type { CanvasOverlay } from "../../types";
 import { useConfigStore } from "@/stores/use-config-store";
 
 

@@ -62,23 +62,9 @@ import { CANVAS_ASSET_DRAG_TYPE } from "../components/canvas-side-panel";
 import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, nextCanvasProjectTitle, useCanvasStore } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { buildNodeMentionReferences, isCanvasReferenceNode } from "../utils/canvas-resource-references";
-import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
+import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasOverlay, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
-
-export type CanvasOverlay =
-    | { kind: "prompt"; nodeId: string }
-    | { kind: "director"; nodeId: string }
-    | { kind: "info"; nodeId: string }
-    | { kind: "crop"; nodeId: string }
-    | { kind: "audioTrim"; nodeId: string }
-    | { kind: "maskEdit"; nodeId: string }
-    | { kind: "split"; nodeId: string }
-    | { kind: "upscale"; nodeId: string }
-    | { kind: "angle"; nodeId: string }
-    | { kind: "preview"; nodeId: string }
-    | { kind: "comic"; nodeId: string; mode?: "preview" | "lettering" | "manage" | "associate" }
-    | { kind: "referencePicker"; nodeId: string };
 
 export default function CanvasPage() {
     const params = useParams<{ id: string }>();

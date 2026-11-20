@@ -22,7 +22,7 @@ import type { ThemeName } from "@/stores/use-theme-store";
 import type { AiConfig } from "@/stores/use-config-store";
 import type { CanvasBatchGenerationState } from "../hooks/use-canvas-batch-generation";
 import type { PendingPanoramaImport } from "../hooks/use-canvas-ui-state";
-import type { CanvasOverlay } from "../canvas-client-page";
+import type { CanvasOverlay } from "../../types";
 
 
 export type CanvasStageOverlaysModel = {

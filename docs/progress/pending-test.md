@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：画布 Overlay 类型下沉
+
+- `CanvasOverlay` 从画布页面文件下沉到 `canvas/types.ts`；`canvas-dialogs`、`canvas-stage-layer`、`canvas-stage-overlays` 不再从页面文件反向导入类型。
+- 画布主文件约 1956 行；仅类型位置调整，无运行逻辑变化。
+- 验证：`bun test` 109 文件 / 603 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测画布页正常加载。
+
 ## 结构与工程：概览日志行级深链
 
 - 后端 AI 日志关键词匹配纳入日志 ID；概览「最近 AI 调用」每行可跳转到 `/admin/ai-logs?keyword=<id>`。

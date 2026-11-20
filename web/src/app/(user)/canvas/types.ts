@@ -267,6 +267,20 @@ export type CanvasAssistantReference = {
 
 export type { InsertAssetPayload } from "@/lib/asset-picker";
 
+export type CanvasOverlay =
+    | { kind: "prompt"; nodeId: string }
+    | { kind: "director"; nodeId: string }
+    | { kind: "info"; nodeId: string }
+    | { kind: "crop"; nodeId: string }
+    | { kind: "audioTrim"; nodeId: string }
+    | { kind: "maskEdit"; nodeId: string }
+    | { kind: "split"; nodeId: string }
+    | { kind: "upscale"; nodeId: string }
+    | { kind: "angle"; nodeId: string }
+    | { kind: "preview"; nodeId: string }
+    | { kind: "comic"; nodeId: string; mode?: "preview" | "lettering" | "manage" | "associate" }
+    | { kind: "referencePicker"; nodeId: string };
+
 export type PendingAgentAsset = {
     nodeId: string;
     payload: InsertAssetPayload;
