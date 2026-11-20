@@ -34,7 +34,6 @@ description: 当前项目后续值得处理的事项
 
 ## 缺陷与风险
 
-- 【后端测试】`go test ./handler/` 的 `TestModelProtocolChannelFlow` 与 `TestParameterTranslationChannelFlow` 共 22 个子测试失败，属测试基建缺陷：契约测试用 `blockProtocolNetwork` 把 `http.DefaultTransport` 换成函数型 RoundTripper，但 AI 代理客户端走 `service/outbound_proxy.go:34` 的 `outboundHTTPTransport()`，其中 `http.DefaultTransport.(*http.Transport)` 断言失败后新建真实 transport 并被 `sync.Once` 缓存，mock 被绕过；真实 transport 的 `resolveOutboundProxy` 在环境变量为空时回落 Windows 注册表系统代理，请求真的发往 `upstream.invalid` 并 EOF（清空 `HTTP(S)_PROXY`、设 `NO_PROXY=*` 均无效；无系统代理的机器则变成 DNS 失败）。修法：断言失败时直接复用该 RoundTripper，或给契约测试提供 client/transport 注入点；改动涉及生产出网路径，需回归真实渠道调用与代理行为。
 - 【算力点】缺少 AI 代理扣点/退款的 handler 集成测试（本地代理环境会影响 upstream mock）；前端估算依赖已加载的 public 模型单价，后台改价后需刷新；用户停止任务按「不退还已开始执行任务」处理，如需退款要按未开始执行条件实现幂等退款。方案见 [ai-film-plan.md](ai-film-plan.md)。
 - 【antd 弹层】Select / AutoComplete / Tooltip 与已修的 Dropdown 共用 rc-trigger 定位，在「减少动态效果」或动画被压缩的环境中可能同样停在隐藏坐标。逐页确认后，若确实失效再改成自绘，或给 ConfigProvider 注入定位兜底。
 

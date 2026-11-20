@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 后端契约测试出网 mock 修复
+
+- `outboundHTTPTransport` 在 `http.DefaultTransport` 不是标准 `*http.Transport` 时直接复用该 RoundTripper，不再新建真实 transport 并使用 `sync.Once` 缓存；标准 transport 仍克隆后注入环境变量/系统代理解析。
+- 契约测试的 `blockProtocolNetwork` mock 不再被绕过，`TestModelProtocolChannelFlow` 与 `TestParameterTranslationChannelFlow` 共 22 个子测试恢复通过。
+- 验证：`go build ./...`、`go test ./handler ./service -count=1` 通过。
+- 未实测：真实渠道调用与系统代理行为未做人工回归；按代码路径标准 transport 逻辑未变。
+
 ## 结构与工程：工作流 Agent 弹窗抽离
 
 - 「AI 创建工作流」草稿弹窗从主文件迁到 `workflow-agent-modal.tsx`，包含模型选择、个人/公开范围、提示词、参考图上传/我的素材、草稿预览与应用；主文件降到约 1487 行。

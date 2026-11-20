@@ -31,12 +31,12 @@ func OutboundProxyLabel() string {
 }
 
 // outboundHTTPTransport 访问 AI 渠道共用：优先环境变量代理，其次系统代理（Windows）。
-func outboundHTTPTransport() *http.Transport {
+func outboundHTTPTransport() http.RoundTripper {
+	base, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return http.DefaultTransport
+	}
 	outboundTransportOnce.Do(func() {
-		base, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			base = &http.Transport{}
-		}
 		transport := base.Clone()
 		transport.Proxy = resolveOutboundProxy
 		outboundTransport = transport
