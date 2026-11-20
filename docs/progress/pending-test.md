@@ -3,6 +3,12 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 结构与工程：工作流卡片抽离
+
+- 工作流卡片、任务卡与系列草稿卡迁到 `workflow-cards.tsx`；主文件降到约 1595 行，只保留运行、轮询与页面编排。
+- 仅组件位置调整，无运行逻辑变化。
+- 验证：`bun test` 111 文件 / 607 条通过；`bun run typecheck`、`bun run lint --max-warnings=0` 通过。ego-browser 实测工作流页正常加载并显示卡片。
+
 ## 结构与工程：工作流编辑弹窗抽离
 
 - 工作流编辑弹窗、变量输入与默认值控件从主文件迁到 `workflow-editor-modal.tsx`；主文件约 1777 行，只保留运行、轮询与页面编排。
