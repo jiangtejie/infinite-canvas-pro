@@ -147,6 +147,14 @@ export function useCanvasDerived({
                 if (node.metadata?.batchRootId === batchRootId) nodeIds.add(node.id);
             });
         }
+        // 组容器与子节点同亮：选中子节点时保留父组，选中组时保留全部子节点。
+        const groupId = focusNode?.metadata?.groupId;
+        if (groupId) nodeIds.add(groupId);
+        if (focusNode?.type === CanvasNodeType.Group) {
+            nodes.forEach((node) => {
+                if (node.metadata?.groupId === focusId) nodeIds.add(node.id);
+            });
+        }
         return expandComicBookPageRelations({ activeNodeId: focusId, nodes, baseNodeIds: nodeIds, baseConnectionIds: connectionIds });
     }, [connections, nodes, selectedNodeIds]);
 

@@ -322,7 +322,8 @@ export const CanvasNode = React.memo(function CanvasNode({
             aria-label={data.title || "画布节点"}
             onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
-                if (event.key !== "Enter" && event.key !== " ") return;
+                // Space 是画布临时平移组合键，节点持有焦点时不能吞掉。
+                if (event.key !== "Enter") return;
                 event.preventDefault();
                 event.stopPropagation();
                 onKeyboardSelect?.(data.id);

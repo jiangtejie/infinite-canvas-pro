@@ -1,4 +1,4 @@
-import type { MouseEvent as ReactMouseEvent } from "react";
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -24,6 +24,7 @@ export function ConnectionPath({
     onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const [hovered, setHovered] = useState(false);
     // 策划 → 文案/配图是编排结构边，和素材图 → 配图的数据输入边区分线型。
     const structural = from.metadata?.remixRole === "plan";
     const startX = from.position.x + from.width;
@@ -43,6 +44,8 @@ export function ConnectionPath({
                 strokeWidth="16"
                 fill="none"
                 style={{ cursor: "pointer", pointerEvents: "stroke" }}
+                onPointerEnter={() => setHovered(true)}
+                onPointerLeave={() => setHovered(false)}
                 onClick={(event) => {
                     event.stopPropagation();
                     onSelect();
@@ -56,12 +59,12 @@ export function ConnectionPath({
             <path
                 d={pathD}
                 stroke={active ? theme.node.activeStroke : theme.node.muted}
-                strokeWidth={structural ? (active ? 2.5 : 1.6) : active ? 3 : 2}
-                strokeOpacity={structural ? (active ? 0.8 : 0.55) : active ? 1 : 0.82}
+                strokeWidth={structural ? (active ? 2.5 : hovered ? 2 : 1.6) : active ? 3 : hovered ? 2.6 : 2}
+                strokeOpacity={structural ? (active ? 0.8 : hovered ? 0.78 : 0.55) : active ? 1 : hovered ? 1 : 0.82}
                 strokeDasharray={structural ? "6 5" : undefined}
                 strokeLinecap={structural ? "round" : undefined}
                 fill="none"
-                style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
+                style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : hovered ? `drop-shadow(0 0 5px ${theme.node.activeStroke}40)` : undefined, pointerEvents: "none" }}
             />
             {active || flowing ? (
                 <>

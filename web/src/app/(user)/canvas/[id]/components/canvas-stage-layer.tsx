@@ -1,6 +1,7 @@
 "use client";
 
-import type { Dispatch, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, RefObject, SetStateAction } from "react";
+import type { Dispatch, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, SetStateAction } from "react";
+import { useCallback } from "react";
 import { type CanvasBackgroundMode, type CanvasTheme } from "@/lib/canvas-theme";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
@@ -36,6 +37,9 @@ import type { CanvasResourceReference } from "../../utils/canvas-resource-refere
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
 import type { CanvasOverlay } from "../../types";
 import { useConfigStore } from "@/stores/use-config-store";
+
+/** 未配置引用时复用同一空数组，避免节点 memo 因每次新建数组而失效。 */
+const EMPTY_MENTION_REFERENCES: CanvasResourceReference[] = [];
 
 
 export type CanvasStageModel = {
@@ -238,6 +242,154 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     // 单选聚焦时淡出无关节点/连线；参考选择、连线中、框选中保持全亮以免干扰操作。
     const focusDim = selectionFocus && !referencePickerNodeId && !connectingParams && !selectionBox ? selectionFocus : null;
 
+    // 节点 render 回调与事件处理器全部稳定引用，平移/选中变化时节点 memo 才能跳过重渲染。
+    const renderPanel = useCallback((panelNode: CanvasNodeData): ReactNode => (
+        panelNode.metadata?.remixRole === "plan" && panelNode.metadata.remixRun ? (
+            <CanvasRemixPlanPanel node={panelNode} nodes={nodes} onGenerate={(id) => void generateRemixRun(id)} onReplan={handleRemixWithAgent} onClose={closeOverlay} />
+        ) : panelNode.type === CanvasNodeType.Config ? (
+            <CanvasConfigComposer
+                value={panelNode.metadata?.composerContent ?? panelNode.metadata?.prompt ?? ""}
+                inputs={configInputsById.get(panelNode.id) || []}
+                onChange={(composerContent) => handleConfigNodeChange(panelNode.id, { composerContent })}
+                onClose={() => closeOverlay()}
+            />
+        ) : panelNode.type === CanvasNodeType.Director ? null : panelNode.type === CanvasNodeType.Publish ? (
+            <CanvasPublishNodePanel
+                key={panelNode.id}
+                node={panelNode}
+                inputs={publishInputsById.get(panelNode.id) || { text: "", textNodeIds: [], images: [] }}
+                compact={viewport.k < 0.62}
+                onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
+                onClose={() => closeOverlay()}
+            />
+        ) : panelNode.type === CanvasNodeType.Source ? (
+            <CanvasSourceNodePanel
+                key={panelNode.id}
+                node={panelNode}
+                parsing={panelNode.metadata?.sourceParsing === true || panelNode.metadata?.sourceStatus === "loading"}
+                parseEnabled={sourceParseEnabled}
+                onParse={(input) => void handleParseSource(panelNode.id, input)}
+                onCancel={() => handleCancelSourceParse(panelNode.id)}
+                onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
+                onClose={() => closeOverlay()}
+            />
+        ) : (
+            <CanvasNodePromptPanel
+                node={panelNode}
+                isRunning={runningNodeId === panelNode.id}
+                mentionReferences={mentionReferencesByNodeId.get(panelNode.id) || []}
+                connectedNodes={connectedNodesByNodeId.get(panelNode.id) || []}
+                videoFrameOptions={videoFrameOptionsByNodeId.get(panelNode.id) || []}
+                videoResourceOptions={videoResourceOptionsByNodeId.get(panelNode.id) || []}
+                onPromptChange={handleNodePromptChange}
+                onConfigChange={handleConfigNodeChange}
+                onGenerate={(nodeId, mode, prompt) => {
+                    if (panelNode.metadata?.status === "stopped" && !prompt.trim()) void handleRetryNode(panelNode);
+                    else void handleGenerateNode(nodeId, mode, prompt);
+                }}
+                onStop={handleStopNode}
+                onDisconnectReference={disconnectNodeReference}
+                onStartReferenceSelection={startNodeReferenceSelection}
+                onImageSettingsOpenChange={(open) => {
+                    setNodeImageSettingsOpen(open);
+                    if (open) setToolbarNodeId(null);
+                }}
+            />
+        )
+    ), [nodes, generateRemixRun, handleRemixWithAgent, closeOverlay, configInputsById, handleConfigNodeChange, publishInputsById, viewport.k, sourceParseEnabled, handleParseSource, handleCancelSourceParse, runningNodeId, mentionReferencesByNodeId, connectedNodesByNodeId, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId, handleNodePromptChange, handleRetryNode, handleGenerateNode, handleStopNode, disconnectNodeReference, startNodeReferenceSelection, setNodeImageSettingsOpen, setToolbarNodeId]);
+
+    const renderNodeContent = useCallback((contentNode: CanvasNodeData): ReactNode => (
+        contentNode.metadata?.sourceMaterialRole === "text" || contentNode.id.endsWith("-material-text") ? (
+            <CanvasMaterialTextCard node={contentNode} />
+        ) : contentNode.type === CanvasNodeType.Comic ? (
+            <CanvasComicBookNodeCard
+                node={contentNode}
+                nodes={nodes}
+                selectedImageCount={selectedImageCount}
+
+                onOpenBook={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "preview" })}
+                onEnterLettering={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "lettering" })}
+                onFocusPage={focusNode}
+                onAddSelectedPages={() => addSelectedComicPages(contentNode.id)}
+                onOpenProject={openComicProject}
+                onHandleMissingPages={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "manage" })}
+                onAssociateProject={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "associate" })}
+            />
+        ) : contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
+            <CanvasRemixPlanNodeCard
+                node={contentNode}
+                images={nodes.filter((node) => node.metadata?.remixRunId === contentNode.metadata?.remixRun?.id && node.metadata?.remixRole === "image")}
+                onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
+                onGenerate={() => void generateRemixRun(contentNode.metadata!.remixRun!.id)}
+                onReplan={() => handleRemixWithAgent(contentNode.metadata!.remixRun!.input.sourceNodeId)}
+            />
+        ) : contentNode.type === CanvasNodeType.Director ? (
+            <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
+        ) : contentNode.type === CanvasNodeType.Source ? (
+            <CanvasSourceNodeCard
+                node={contentNode}
+                expandedNeedsSync={sourceExpansionNeedsSync(contentNode, nodes)}
+                onPreviewSize={(width, height) => {
+                    const size = fitSourceNodeSize(width, height);
+                    handleNodeResize(contentNode.id, size.width, size.height, {
+                        x: contentNode.position.x + (contentNode.width - size.width) / 2,
+                        y: contentNode.position.y + (contentNode.height - size.height) / 2,
+                    });
+                }}
+            />
+        ) : contentNode.type === CanvasNodeType.Publish ? (
+            <CanvasPublishNodeCard
+                node={contentNode}
+                textCount={publishInputsById.get(contentNode.id)?.textNodeIds.length || 0}
+                imageCount={publishInputsById.get(contentNode.id)?.images.length || 0}
+                images={publishInputsById.get(contentNode.id)?.images || []}
+                onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
+            />
+        ) : (
+            <CanvasConfigNodePanel
+                node={contentNode}
+                isRunning={runningNodeId === contentNode.id}
+                inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}
+                videoFrameOptions={videoFrameOptionsByNodeId.get(contentNode.id) || []}
+                videoResourceOptions={videoResourceOptionsByNodeId.get(contentNode.id) || []}
+                onConfigChange={handleConfigNodeChange}
+                onComposerToggle={() => togglePromptOverlay(contentNode.id)}
+                onGenerate={(nodeId) => {
+                    const target = nodesRef.current.find((item) => item.id === nodeId);
+                    void handleGenerateNode(nodeId, target?.metadata?.generationMode || "image", target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
+                }}
+            />
+        )
+    ), [nodes, selectedImageCount, openOverlay, focusNode, addSelectedComicPages, openComicProject, generateRemixRun, handleRemixWithAgent, handleNodeResize, publishInputsById, runningNodeId, configInputsById, handleConfigNodeChange, togglePromptOverlay, nodesRef, handleGenerateNode, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId]);
+
+    const handleNodeHoverStart = useCallback((nodeId: string) => {
+        if (nodeDraggingRef.current) return;
+        setHoveredNodeId(nodeId);
+    }, [nodeDraggingRef, setHoveredNodeId]);
+
+    const handleNodeHoverEnd = useCallback((nodeId: string) => {
+        setHoveredNodeId((current) => (current === nodeId ? null : current));
+    }, [setHoveredNodeId]);
+
+    const retryNodeCard = useCallback((node: CanvasNodeData) => void handleRetryNode(node), [handleRetryNode]);
+
+    const viewImageCard = useCallback((node: CanvasNodeData) => openOverlay({ kind: "preview", nodeId: node.id }), [openOverlay]);
+
+    const keyboardSelectNode = useCallback((nodeId: string) => {
+        selectOnly(nodeId);
+        setSelectedConnectionId(null);
+        setToolbarNodeId(nodeId);
+        setContextMenu(null);
+    }, [selectOnly, setSelectedConnectionId, setToolbarNodeId, setContextMenu]);
+
+    const openNodeContextMenu = useCallback((event: ReactMouseEvent, id: string) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
+    }, [setContextMenu]);
+
+    const openNodePanel = useCallback((node: CanvasNodeData) => openOverlay(node.type === CanvasNodeType.Comic ? { kind: "comic", nodeId: node.id } : { kind: "prompt", nodeId: node.id }), [openOverlay]);
+
     return (
         <>
                 <InfiniteCanvas
@@ -326,133 +478,13 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             batchRecovering={collapsingBatchIds.has(node.id)}
                             batchMotion={batchMotionById.get(node.id)}
                             showImageInfo={showImageInfo}
-                            mentionReferences={mentionReferencesByNodeId.get(node.id) || []}
+                            mentionReferences={mentionReferencesByNodeId.get(node.id) || EMPTY_MENTION_REFERENCES}
                             now={node.metadata?.status === NODE_STATUS_LOADING && !node.metadata.content && (node.type === CanvasNodeType.Video || isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Audio) ? canvasNow : undefined}
-                            renderPanel={(panelNode) =>
-                                panelNode.metadata?.remixRole === "plan" && panelNode.metadata.remixRun ? (
-                                    <CanvasRemixPlanPanel node={panelNode} nodes={nodes} onGenerate={(id) => void generateRemixRun(id)} onReplan={handleRemixWithAgent} onClose={closeOverlay} />
-                                ) : panelNode.type === CanvasNodeType.Config ? (
-                                    <CanvasConfigComposer
-                                        value={panelNode.metadata?.composerContent ?? panelNode.metadata?.prompt ?? ""}
-                                        inputs={configInputsById.get(panelNode.id) || []}
-                                        onChange={(composerContent) => handleConfigNodeChange(panelNode.id, { composerContent })}
-                                        onClose={() => closeOverlay()}
-                                    />
-                                ) : panelNode.type === CanvasNodeType.Director ? null : panelNode.type === CanvasNodeType.Publish ? (
-                                    <CanvasPublishNodePanel
-                                        key={panelNode.id}
-                                        node={panelNode}
-                                        inputs={publishInputsById.get(panelNode.id) || { text: "", textNodeIds: [], images: [] }}
-                                        compact={viewport.k < 0.62}
-                                        onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
-                                        onClose={() => closeOverlay()}
-                                    />
-                                ) : panelNode.type === CanvasNodeType.Source ? (
-                                    <CanvasSourceNodePanel
-                                        key={panelNode.id}
-                                        node={panelNode}
-                                        parsing={panelNode.metadata?.sourceParsing === true || panelNode.metadata?.sourceStatus === "loading"}
-                                        parseEnabled={sourceParseEnabled}
-                                        onParse={(input) => void handleParseSource(panelNode.id, input)}
-                                        onCancel={() => handleCancelSourceParse(panelNode.id)}
-                                        onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
-                                        onClose={() => closeOverlay()}
-                                    />
-                                ) : (
-                                    <CanvasNodePromptPanel
-                                        node={panelNode}
-                                        isRunning={runningNodeId === panelNode.id}
-                                        mentionReferences={mentionReferencesByNodeId.get(panelNode.id) || []}
-                                        connectedNodes={connectedNodesByNodeId.get(panelNode.id) || []}
-                                        videoFrameOptions={videoFrameOptionsByNodeId.get(panelNode.id) || []}
-                                        videoResourceOptions={videoResourceOptionsByNodeId.get(panelNode.id) || []}
-                                        onPromptChange={handleNodePromptChange}
-                                        onConfigChange={handleConfigNodeChange}
-                                        onGenerate={(nodeId, mode, prompt) => {
-                                            if (panelNode.metadata?.status === "stopped" && !prompt.trim()) void handleRetryNode(panelNode);
-                                            else void handleGenerateNode(nodeId, mode, prompt);
-                                        }}
-                                        onStop={handleStopNode}
-                                        onDisconnectReference={disconnectNodeReference}
-                                        onStartReferenceSelection={startNodeReferenceSelection}
-                                        onImageSettingsOpenChange={(open) => {
-                                            setNodeImageSettingsOpen(open);
-                                            if (open) setToolbarNodeId(null);
-                                        }}
-                                    />
-                                )
-                            }
-                            renderNodeContent={(contentNode) =>
-                                contentNode.metadata?.sourceMaterialRole === "text" || contentNode.id.endsWith("-material-text") ? (
-                                    <CanvasMaterialTextCard node={contentNode} />
-                                ) : contentNode.type === CanvasNodeType.Comic ? (
-                                    <CanvasComicBookNodeCard
-                                        node={contentNode}
-                                        nodes={nodes}
-                                        selectedImageCount={selectedImageCount}
-
-                                        onOpenBook={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "preview" })}
-                                        onEnterLettering={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "lettering" })}
-                                        onFocusPage={focusNode}
-                                        onAddSelectedPages={() => addSelectedComicPages(contentNode.id)}
-                                        onOpenProject={openComicProject}
-                                        onHandleMissingPages={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "manage" })}
-                                        onAssociateProject={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "associate" })}
-                                    />
-                                ) : contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
-                                    <CanvasRemixPlanNodeCard
-                                        node={contentNode}
-                                        images={nodes.filter((node) => node.metadata?.remixRunId === contentNode.metadata?.remixRun?.id && node.metadata?.remixRole === "image")}
-                                        onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
-                                        onGenerate={() => void generateRemixRun(contentNode.metadata!.remixRun!.id)}
-                                        onReplan={() => handleRemixWithAgent(contentNode.metadata!.remixRun!.input.sourceNodeId)}
-                                    />
-                                ) : contentNode.type === CanvasNodeType.Director ? (
-                                    <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
-                                ) : contentNode.type === CanvasNodeType.Source ? (
-                                    <CanvasSourceNodeCard
-                                        node={contentNode}
-                                        expandedNeedsSync={sourceExpansionNeedsSync(contentNode, nodes)}
-                                        onPreviewSize={(width, height) => {
-                                            const size = fitSourceNodeSize(width, height);
-                                            handleNodeResize(contentNode.id, size.width, size.height, {
-                                                x: contentNode.position.x + (contentNode.width - size.width) / 2,
-                                                y: contentNode.position.y + (contentNode.height - size.height) / 2,
-                                            });
-                                        }}
-                                    />
-                                ) : contentNode.type === CanvasNodeType.Publish ? (
-                                    <CanvasPublishNodeCard
-                                        node={contentNode}
-                                        textCount={publishInputsById.get(contentNode.id)?.textNodeIds.length || 0}
-                                        imageCount={publishInputsById.get(contentNode.id)?.images.length || 0}
-                                        images={publishInputsById.get(contentNode.id)?.images || []}
-                                        onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
-                                    />
-                                ) : (
-                                    <CanvasConfigNodePanel
-                                        node={contentNode}
-                                        isRunning={runningNodeId === contentNode.id}
-                                        inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}
-                                        videoFrameOptions={videoFrameOptionsByNodeId.get(contentNode.id) || []}
-                                        videoResourceOptions={videoResourceOptionsByNodeId.get(contentNode.id) || []}
-                                        onConfigChange={handleConfigNodeChange}
-                                        onComposerToggle={() => togglePromptOverlay(contentNode.id)}
-                                        onGenerate={(nodeId) => {
-                                            const target = nodesRef.current.find((item) => item.id === nodeId);
-                                            void handleGenerateNode(nodeId, target?.metadata?.generationMode || "image", target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
-                                        }}
-                                    />
-                                )
-                            }
+                            renderPanel={renderPanel}
+                            renderNodeContent={renderNodeContent}
                             onDragStart={handleNodePointerDown}
-                            onHoverStart={(nodeId) => {
-                                if (nodeDraggingRef.current) return;
-                                setHoveredNodeId(nodeId);
-                            }}
-                            onHoverEnd={(nodeId) => {
-                                setHoveredNodeId((current) => (current === nodeId ? null : current));
-                            }}
+                            onHoverStart={handleNodeHoverStart}
+                            onHoverEnd={handleNodeHoverEnd}
                             onConnectStart={handleConnectStart}
                             onKeyboardConnect={handleKeyboardConnect}
                             onResize={handleNodeResize}
@@ -460,21 +492,12 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             onTitleChange={handleNodeTitleChange}
                             onToggleBatch={toggleBatchExpanded}
                             onSetBatchPrimary={setBatchPrimary}
-                            onRetry={(node) => void handleRetryNode(node)}
-                            onViewImage={(node) => openOverlay({ kind: "preview", nodeId: node.id })}
+                            onRetry={retryNodeCard}
+                            onViewImage={viewImageCard}
                             onSelectReference={selectNodeReference}
-                            onKeyboardSelect={(nodeId) => {
-                                selectOnly(nodeId);
-                                setSelectedConnectionId(null);
-                                setToolbarNodeId(nodeId);
-                                setContextMenu(null);
-                            }}
-                            onContextMenu={(event, id) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
-                            }}
-                            onOpenPanel={(node) => openOverlay(node.type === CanvasNodeType.Comic ? { kind: "comic", nodeId: node.id } : { kind: "prompt", nodeId: node.id })}
+                            onKeyboardSelect={keyboardSelectNode}
+                            onContextMenu={openNodeContextMenu}
+                            onOpenPanel={openNodePanel}
                         />
                     ))}
 

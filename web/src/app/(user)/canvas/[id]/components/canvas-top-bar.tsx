@@ -72,6 +72,7 @@ export function CanvasTopBar({
     const [menuOpen, setMenuOpen] = useState(false);
     const [accountOpen, setAccountOpen] = useState(false);
     const [showSaved, setShowSaved] = useState(false);
+    const [zenIdle, setZenIdle] = useState(false);
     const shortcutsOpen = useCanvasUiStore((state) => state.shortcutsOpen);
     const zenMode = useCanvasUiStore((state) => state.zenMode);
     const wheelMode = useCanvasUiStore((state) => state.wheelMode);
@@ -113,6 +114,27 @@ export function CanvasTopBar({
         document.addEventListener("pointerdown", close, true);
         return () => document.removeEventListener("pointerdown", close, true);
     }, [accountOpen]);
+
+    useEffect(() => {
+        if (!zenMode) {
+            setZenIdle(false);
+            return;
+        }
+        // Zen 内闲置后隐藏退出按钮，鼠标/触摸一动立即浮现。
+        let timer = window.setTimeout(() => setZenIdle(true), 2500);
+        const wake = () => {
+            setZenIdle(false);
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => setZenIdle(true), 2500);
+        };
+        window.addEventListener("pointermove", wake);
+        window.addEventListener("pointerdown", wake);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener("pointermove", wake);
+            window.removeEventListener("pointerdown", wake);
+        };
+    }, [zenMode]);
 
     const menuNavigation = useMenuNavigation({ open: menuOpen, onClose: () => setMenuOpen(false), panelRef: menuRef, triggerRef: menuButtonRef, escapeScope: "document" });
     const runMenuAction = (action: () => void) => {
@@ -255,7 +277,7 @@ export function CanvasTopBar({
                 <button
                     type="button"
                     onClick={exitCanvasZen}
-                    className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium opacity-45 transition hover:bg-[var(--canvas-topbar-hover)] hover:opacity-100"
+                    className={`absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition duration-500 hover:bg-[var(--canvas-topbar-hover)] hover:opacity-100 ${zenIdle ? "opacity-0" : "opacity-40"}`}
                     style={{ color: theme.node.text, zIndex: CANVAS_Z.toolbar, "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}
                     title="退出沉浸模式 (Esc)"
                 >

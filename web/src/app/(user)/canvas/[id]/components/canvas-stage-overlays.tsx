@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChangeEvent as ReactChangeEvent, Dispatch, RefObject, SetStateAction } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type CanvasBackgroundMode, type CanvasTheme } from "@/lib/canvas-theme";
 import { type VideoFramePosition } from "../../utils/canvas-video-frame";
 import { buildGenerationConfig } from "../lib/canvas-generation-config";
@@ -323,6 +324,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
 
                 {!zenMode ? <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onFitAll={fitAllNodes} onFitSelected={fitSelectedNodes} hasSelection={selectedNodeIds.size > 0} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} onOpenShortcuts={() => setShortcutsOpen(true)} /> : null}
 
+                {zenMode ? <ZenZoomHud scale={viewport.k} theme={theme} /> : null}
+
                 {contextMenu ? (
                     <CanvasNodeContextMenu
                         menu={contextMenu}
@@ -393,5 +396,24 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                 ) : null}
                 <input ref={imageInputRef} type="file" accept="image/*,video/*,audio/mpeg,audio/wav,audio/x-wav,.mp3,.wav" className="hidden" onChange={handleImageInputChange} />
         </>
+    );
+}
+
+/** Zen 下的缩放读数：缩放后短暂显示，随后淡出，不占画布操作区。 */
+function ZenZoomHud({ scale, theme }: { scale: number; theme: CanvasTheme; }) {
+    const [visible, setVisible] = useState(true);
+    const timerRef = useRef<number | null>(null);
+    useEffect(() => {
+        setVisible(true);
+        if (timerRef.current) window.clearTimeout(timerRef.current);
+        timerRef.current = window.setTimeout(() => setVisible(false), 900);
+        return () => {
+            if (timerRef.current) window.clearTimeout(timerRef.current);
+        };
+    }, [scale]);
+    return (
+        <div className="pointer-events-none absolute bottom-5 left-1/2 -translate-x-1/2 text-xs font-medium tabular-nums transition-opacity duration-300" style={{ color: theme.node.muted, opacity: visible ? 1 : 0, zIndex: CANVAS_Z.toolbar }}>
+            {Math.round(scale * 100)}%
+        </div>
     );
 }
