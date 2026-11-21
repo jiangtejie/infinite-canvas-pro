@@ -1,7 +1,7 @@
 import type { FilmAspect, FilmAssetKind } from "@/lib/film/types";
 import type { CanvasNodeData, FilmBindingEdgeData } from "../../types";
 
-export type FilmStudioView = "studio" | "graph";
+export type FilmStudioView = "studio" | "graph" | "table" | "board" | "timeline";
 
 export type FilmShotEntry = {
     shot: CanvasNodeData;
@@ -49,6 +49,7 @@ export type FilmStudioModel = {
     activeSceneId: string | null;
     activeShot: FilmShotEntry | null;
     activeBindings: FilmShotBindingChip[];
+    bindingsByShot: Record<string, FilmShotBindingChip[]>;
     styleName: string | null;
     onSceneChange: (sceneId: string) => void;
     onSelectShot: (shotId: string) => void;

@@ -14,6 +14,7 @@ import { CanvasStageOverlays, type CanvasStageOverlaysModel } from "./canvas-sta
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
 import type { FilmStudioModel } from "../lib/film-studio-types";
 import { FilmStudioBody } from "./film-studio-body";
+import { FilmViewBody } from "./film-view-body";
 import { FilmStudioViewSwitch } from "./film-studio-view-switch";
 
 type CanvasShellModel = {
@@ -89,7 +90,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         onArrangeFilm,
     } = model.shell;
     const filmStudio = model.filmStudio;
-    const studioMode = filmStudio?.view === "studio";
+    const filmViewMode = Boolean(filmStudio && filmStudio.view !== "graph");
     const zenMode = useCanvasUiStore((state) => state.zenMode);
     useEffect(() => {
         // 浏览器 Esc/界面退出全屏时同步退出 Zen，避免「Zen 但非全屏」的悬空状态。
@@ -112,7 +113,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 if (selection?.toString() && panel?.contains(selection.anchorNode) && !panel.contains(event.target as Node)) selection.removeAllRanges();
             }}
         >
-            {!studioMode ? (
+            {!filmViewMode ? (
             <CanvasSidePanel
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
@@ -173,10 +174,10 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     filmScenes={filmStudio?.scenes.map((scene) => ({ id: scene.id, label: scene.label }))}
                     activeSceneId={filmStudio?.activeSceneId ?? undefined}
                     onSceneChange={filmStudio?.onSceneChange}
-                    studioView={filmStudio?.view}
+                    studioView={filmStudio?.view === "graph" ? "graph" : filmStudio ? "studio" : undefined}
                 />
-                {studioMode && filmStudio ? (
-                    <FilmStudioBody model={filmStudio} theme={theme} />
+                {filmStudio && filmStudio.view !== "graph" ? (
+                    filmStudio.view === "studio" ? <FilmStudioBody model={filmStudio} theme={theme} /> : <FilmViewBody view={filmStudio.view} model={filmStudio} theme={theme} />
                 ) : (
                     <>
                         <CanvasStageLayer model={model.stage} />
@@ -186,7 +187,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 <CanvasDialogs model={model.dialogs} />
                 {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} /> : null}
             </section>
-            {!studioMode ? (
+            {!filmViewMode ? (
             <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>
                 <CanvasAssistantPane model={model.assistant} />
             </div>

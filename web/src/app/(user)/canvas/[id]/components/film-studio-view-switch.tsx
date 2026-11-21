@@ -12,7 +12,7 @@ export function FilmStudioViewSwitch({ view, onChange }: { view: FilmStudioView;
             className="absolute left-1/2 top-20 flex -translate-x-1/2 items-center gap-0.5 rounded-full border p-1 shadow-lg max-sm:top-24"
             style={{ zIndex: CANVAS_Z.hoverToolbar, background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text, backdropFilter: "blur(12px)" }}
         >
-            {(["studio", "graph"] as const).map((value) => (
+            {([["studio", "Studio"], ["table", "镜头表"], ["board", "故事板"], ["timeline", "时间轴"], ["graph", "画布"]] as const).map(([value, label]) => (
                 <button
                     key={value}
                     type="button"
@@ -20,7 +20,7 @@ export function FilmStudioViewSwitch({ view, onChange }: { view: FilmStudioView;
                     style={{ background: view === value ? theme.toolbar.activeBg : undefined, color: theme.node.text }}
                     onClick={() => onChange(value)}
                 >
-                    {value === "studio" ? "Studio" : "画布"}
+                    {label}
                 </button>
             ))}
         </div>

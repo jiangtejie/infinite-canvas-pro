@@ -40,7 +40,7 @@ import { buildFilmShotGenerationFromGraph } from "./lib/film-shot-generation-con
 import { filmVideoFrameBlockReason, filmVideoInput, filmVideoMode } from "./lib/film-shot-video-frames";
 import { applyFilmShotImageTaskUpdate } from "./lib/film-shot-task-updates";
 import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmStyleName } from "./lib/film-selectors";
-import type { FilmStudioModel } from "./lib/film-studio-types";
+import type { FilmShotBindingChip, FilmStudioModel, FilmStudioView } from "./lib/film-studio-types";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
 import { buildGenerationConfig } from "./lib/canvas-generation-config";
 import { cloneCanvasNodes } from "./lib/canvas-clone";
@@ -140,7 +140,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
     const [filmInspectorNodeId, setFilmInspectorNodeId] = useState<string | null>(null);
     const filmInspectorNode = filmInspectorNodeId ? nodes.find((node) => node.id === filmInspectorNodeId) ?? null : null;
-    const [studioView, setStudioView] = useState<"studio" | "graph">("studio");
+    const [studioView, setStudioView] = useState<FilmStudioView>("studio");
     const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
     const [activeShotId, setActiveShotId] = useState<string | null>(null);
     const filmScenes = useMemo(
@@ -156,6 +156,13 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         () => (activeFilm.shot ? selectFilmShotBindings(nodes, connections, activeFilm.shot.shot.id) : []),
         [activeFilm.shot, connections, nodes],
     );
+    const filmBindingsByShot = useMemo(() => {
+        const result: Record<string, FilmShotBindingChip[]> = {};
+        filmShots.forEach((entry) => {
+            result[entry.shot.id] = selectFilmShotBindings(nodes, connections, entry.shot.id);
+        });
+        return result;
+    }, [connections, filmShots, nodes]);
     const activeFilmShotId = activeFilm.shot?.shot.id ?? null;
     const filmStyleName = useMemo(() => (filmMode ? selectFilmStyleName(nodes) : null), [filmMode, nodes]);
     const availableFilmAssets = useMemo(() => (filmMode ? nodes.flatMap((node) => {
@@ -939,7 +946,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
             const key = event.key.toLowerCase();
             const isModifierShortcut = event.metaKey || event.ctrlKey;
-            if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "v" && !(filmMode && studioView === "studio")) {
+            if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "v" && !(filmMode && studioView !== "graph")) {
                 event.preventDefault();
                 setCanvasTool("select");
                 return;
@@ -2035,6 +2042,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         activeSceneId: activeFilm.scene?.id ?? null,
         activeShot: activeFilm.shot,
         activeBindings: activeFilmBindings,
+        bindingsByShot: filmBindingsByShot,
         styleName: filmStyleName,
         onSceneChange: selectFilmScene,
         onSelectShot: selectFilmShot,
