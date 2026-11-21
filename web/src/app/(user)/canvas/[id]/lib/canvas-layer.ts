@@ -11,6 +11,8 @@ export const CANVAS_Z = {
     menu: 60,
     /** 节点悬浮工具条。 */
     hoverToolbar: 70,
+    /** 顶栏容器：高于第二行视图工具栏，保证顶栏下拉菜单不被遮挡。 */
+    topbar: 75,
     /** 右键菜单、Skill 浮层。 */
     contextMenu: 80,
     /** 对齐参考线、参考选择提示。 */

@@ -156,7 +156,7 @@ export function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover, zIndex: CANVAS_Z.toolbar, visibility: zenMode ? "hidden" : "visible", opacity: zenMode ? 0 : 1, transition: "opacity 250ms ease" } as React.CSSProperties}>
+            <div className="pointer-events-none absolute left-0 right-0 top-0 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover, zIndex: CANVAS_Z.topbar, visibility: zenMode ? "hidden" : "visible", opacity: zenMode ? 0 : 1, transition: "opacity 250ms ease" } as React.CSSProperties}>
                 <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3 max-sm:w-full">
                     {studioView !== "studio" ? (
                         <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
@@ -343,6 +343,16 @@ export function CanvasTopBar({
                     <Shortcut keys={["Delete / Backspace"]} value="删除选中" />
                     <Shortcut keys={["Esc"]} value="取消选择并关闭浮层" />
                     <Shortcut keys={["拖入图片/视频/音频"]} value="上传到画布" />
+                    {filmMode ? (
+                        <>
+                            <div className="mt-2 border-t pt-3 text-[11px] font-medium tracking-[0.12em] uppercase" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>影视 Studio</div>
+                            <Shortcut keys={["1–5"]} value="Studio / 镜头表 / 故事板 / 时间轴 / 画布" />
+                            <Shortcut keys={["S / C"]} value="剧本 / 就绪与一致性检查" />
+                            <Shortcut keys={["← / →"]} value="上一镜 / 下一镜" />
+                            <Shortcut keys={["G / V"]} value="生成分镜图 / 分镜视频" />
+                            <Shortcut keys={["Space"]} value="时间轴播放 / 暂停" />
+                        </>
+                    ) : null}
                 </div>
             </Modal>
         </>

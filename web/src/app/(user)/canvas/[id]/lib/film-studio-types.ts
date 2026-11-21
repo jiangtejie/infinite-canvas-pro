@@ -50,9 +50,11 @@ export type FilmShotBatchState = {
     failed: number;
     currentTitle: string;
     currentIndex: number;
+    currentShotId: string;
 };
 
 export type FilmStudioModel = {
+    projectId: string;
     view: FilmStudioView;
     onViewChange: (view: FilmStudioView) => void;
     aspect: FilmAspect;
@@ -72,10 +74,12 @@ export type FilmStudioModel = {
     onSceneChange: (sceneId: string) => void;
     onSelectShot: (shotId: string) => void;
     onUpdateShot: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
+    onReorderShots: (sceneId: string, orderedShotIds: string[]) => void;
     onCreateShot: (sceneId?: string) => void;
     onLocateInGraph: (shotId: string) => void;
     imageGenerating: boolean;
     imageError: string | null;
+    taskProgress: number;
     canGenerateImage: boolean;
     onGenerateImage: () => void;
     onStopImage: () => void;

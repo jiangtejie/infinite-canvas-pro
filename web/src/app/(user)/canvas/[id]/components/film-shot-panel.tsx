@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import { Input, InputNumber, Popover, Select } from "antd";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
@@ -10,6 +11,7 @@ import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { CanvasNodeData, FilmBindingEdgeData } from "../../types";
 import { patchFilmShotNode } from "../lib/film-node-patch";
 import type { FilmBindingAssetOption, FilmShotBindingChip } from "../lib/film-studio-types";
+import { FilmShotProfessionalFields } from "./film-shot-professional-fields";
 import { FilmShotVideoFrames } from "./film-shot-video-frames";
 
 type FilmShotPanelProps = {
@@ -24,6 +26,7 @@ type FilmShotPanelProps = {
     onClose: () => void;
     imageGenerating: boolean;
     imageError: string | null;
+    taskProgress: number;
     canGenerateImage: boolean;
     onGenerateImage: () => void;
     onStopImage: () => void;
@@ -39,13 +42,23 @@ type FilmShotPanelProps = {
     onEditAsset: (nodeId: string) => void;
     onOpenScript: () => void;
     onCreateAsset: (kind: FilmAssetKind) => void;
+    openSections: Set<string>;
+    onToggleSection: (key: string) => void;
 };
 
-function Section({ theme, title, children }: { theme: CanvasTheme; title: string; children: ReactNode }) {
+function Section({ theme, title, open, onToggle, children }: { theme: CanvasTheme; title: string; open: boolean; onToggle: () => void; children: ReactNode }) {
+    const sectionRef = useRef<HTMLElement>(null);
+    const toggle = () => {
+        onToggle();
+        if (!open) window.setTimeout(() => sectionRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 0);
+    };
     return (
-        <section className="flex flex-col gap-2 border-b px-4 py-3" style={{ borderColor: theme.node.stroke }}>
-            <span className="text-[11px] font-medium tracking-[0.12em] uppercase" style={{ color: theme.node.muted }}>{title}</span>
-            {children}
+        <section ref={sectionRef} className="border-b" style={{ borderColor: theme.node.stroke }}>
+            <button type="button" className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left" onClick={toggle} aria-expanded={open}>
+                <span className="text-[11px] font-medium tracking-[0.12em] uppercase" style={{ color: theme.node.muted }}>{title}</span>
+                <ChevronDown className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`} style={{ color: theme.node.muted }} />
+            </button>
+            {open ? <div className="flex flex-col gap-2 px-4 pb-3">{children}</div> : null}
         </section>
     );
 }
@@ -134,7 +147,7 @@ function AddBindingButton({ theme, assets, onAdd, onCreateAsset }: { theme: Canv
     );
 }
 
-export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, availableAssets, onAddBinding, onRemoveBinding, onUpdateBinding, onEditAsset, onOpenScript, onCreateAsset }: FilmShotPanelProps) {
+export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, taskProgress, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, availableAssets, onAddBinding, onRemoveBinding, onUpdateBinding, onEditAsset, onOpenScript, onCreateAsset, openSections, onToggleSection }: FilmShotPanelProps) {
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
     const filmShot = shot?.metadata?.filmShot;
     const update = (patch: Parameters<typeof patchFilmShotNode>[1]) => {
@@ -142,13 +155,13 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
     };
 
     return (
-        <div className="flex h-full min-h-0 w-[320px] shrink-0 flex-col border-r" style={{ background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}>
+        <div className="flex h-full min-h-0 w-full flex-col border-r" style={{ background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text }}>
             <div className="flex items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: theme.node.stroke }}>
                 <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">镜头设置</div>
                     <div className="truncate text-xs" style={{ color: theme.node.muted }}>{sceneLabel}{filmShot?.shotNo ? ` · ${filmShot.shotNo}` : ""}</div>
                 </div>
-                <button type="button" className="grid size-7 place-items-center rounded-lg text-base opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="收起镜头设置">×</button>
+                <button type="button" className="grid size-8 place-items-center rounded-lg text-base opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="收起镜头设置">×</button>
             </div>
             {!shot ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
@@ -161,18 +174,32 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
             ) : (
                 <>
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
-                    <Section theme={theme} title="镜头">
-                        <Field theme={theme} label="镜号"><Input size="small" value={filmShot?.shotNo || ""} style={inputStyle} onChange={(event) => update({ shotNo: event.target.value })} /></Field>
-                        <Field theme={theme} label="景别"><Input size="small" value={filmShot?.shotType || ""} style={inputStyle} onChange={(event) => update({ shotType: event.target.value })} /></Field>
-                        <Field theme={theme} label="时长（秒）"><InputNumber size="small" min={1} max={60} value={filmShot?.duration ?? 4} style={{ ...inputStyle, width: "100%" }} onChange={(value) => update({ duration: value ?? 4 })} /></Field>
-                        <Field theme={theme} label="运镜"><Input size="small" value={filmShot?.cameraMovement || ""} style={inputStyle} onChange={(event) => update({ cameraMovement: event.target.value })} /></Field>
+                    <Section theme={theme} title="基础" open={openSections.has("basic")} onToggle={() => onToggleSection("basic")}>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Field theme={theme} label="镜号"><Input value={filmShot?.shotNo || ""} style={inputStyle} onChange={(event) => update({ shotNo: event.target.value })} /></Field>
+                            <Field theme={theme} label="景别"><Input value={filmShot?.shotType || ""} style={inputStyle} onChange={(event) => update({ shotType: event.target.value })} /></Field>
+                            <Field theme={theme} label="时长（秒）"><InputNumber min={1} max={60} value={filmShot?.duration ?? 4} style={{ ...inputStyle, width: "100%" }} onChange={(value) => update({ duration: value ?? 4 })} /></Field>
+                            <Field theme={theme} label="运镜"><Input value={filmShot?.cameraMovement || ""} style={inputStyle} onChange={(event) => update({ cameraMovement: event.target.value })} /></Field>
+                            <div className="col-span-2">
+                                <Field theme={theme} label="转场"><Input value={filmShot?.transition || ""} style={inputStyle} onChange={(event) => update({ transition: event.target.value })} /></Field>
+                            </div>
+                        </div>
                     </Section>
-                    <Section theme={theme} title="画面">
+                    <Section theme={theme} title="画面" open={openSections.has("visual")} onToggle={() => onToggleSection("visual")}>
                         <Field theme={theme} label="描述"><Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={filmShot?.description || ""} style={inputStyle} onChange={(event) => update({ description: event.target.value })} /></Field>
                         <Field theme={theme} label="画面提示词"><Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={filmShot?.prompt || ""} style={inputStyle} onChange={(event) => update({ prompt: event.target.value })} /></Field>
-                        <Field theme={theme} label="负面提示词"><Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.negativePrompt || ""} style={inputStyle} onChange={(event) => update({ negativePrompt: event.target.value })} /></Field>
+                        <details className="rounded-lg border px-2 py-1.5" style={{ borderColor: theme.node.stroke }}>
+                            <summary className="cursor-pointer text-[11px]" style={{ color: theme.node.muted }}>高级提示词（负面）</summary>
+                            <div className="mt-2">
+                                <Field theme={theme} label="负面提示词"><Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.negativePrompt || ""} style={inputStyle} onChange={(event) => update({ negativePrompt: event.target.value })} /></Field>
+                            </div>
+                        </details>
+                        <Field theme={theme} label="视频提示词"><Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.videoPrompt || ""} style={inputStyle} onChange={(event) => update({ videoPrompt: event.target.value })} /></Field>
                     </Section>
-                    <Section theme={theme} title="上下文">
+                    <Section theme={theme} title="专业" open={openSections.has("professional")} onToggle={() => onToggleSection("professional")}>
+                        <FilmShotProfessionalFields theme={theme} payload={filmShot} onUpdate={update} variant="panel" />
+                    </Section>
+                    <Section theme={theme} title="参考" open={openSections.has("references")} onToggle={() => onToggleSection("references")}>
                         <div className="flex flex-wrap items-center gap-1.5">
                             {bindings.map((binding) => (
                                 <BindingChip key={binding.edgeId} theme={theme} binding={binding} onUpdate={(patch) => onUpdateBinding(binding.edgeId, patch)} onEditAsset={() => onEditAsset(binding.id)} onRemove={() => onRemoveBinding(binding.edgeId)} />
@@ -181,15 +208,20 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
                             {styleName ? <span className="rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>风格 · {styleName}</span> : null}
                         </div>
                     </Section>
-                    <Section theme={theme} title="视频">
+                    <Section theme={theme} title="视频" open={openSections.has("video")} onToggle={() => onToggleSection("video")}>
                         {filmShot ? <FilmShotVideoFrames theme={theme} filmShot={filmShot} disabled={videoGenerating} onChange={update} /> : null}
                     </Section>
                 </div>
                 <div className="shrink-0 border-t px-4 py-3" style={{ borderColor: theme.node.stroke }}>
                     <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
-                        <span>分镜图：{filmShot?.imageUrl ? "已生成" : imageGenerating ? "生成中…" : imageError ? "失败" : "未生成"}</span>
-                        <span>视频：{filmShot?.videoUrl ? "已生成" : videoGenerating ? "生成中…" : videoError ? "失败" : "未生成"}</span>
+                        <span>分镜图：{filmShot?.imageUrl ? "已生成" : imageGenerating ? `生成中 ${Math.round(taskProgress)}%` : imageError ? "失败" : "未生成"}</span>
+                        <span>视频：{filmShot?.videoUrl ? "已生成" : videoGenerating ? `生成中 ${Math.round(taskProgress)}%` : videoError ? "失败" : "未生成"}</span>
                     </div>
+                    {imageGenerating || videoGenerating ? (
+                        <div className="mt-1.5 h-1 overflow-hidden rounded-full" style={{ background: theme.node.fill }}>
+                            <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(0, Math.min(100, taskProgress))}%`, background: theme.canvas.selectionStroke }} />
+                        </div>
+                    ) : null}
                     {imageError || videoError ? <div className="mt-1 line-clamp-2 text-[10px]" style={{ color: canvasStatusColors.error }}>{imageError || videoError}</div> : null}
                     <div className="mt-2 flex gap-2">
                         {imageGenerating ? (

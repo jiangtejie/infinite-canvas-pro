@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { CanvasTopBar } from "./canvas-top-bar";
 import { CanvasSidePanel } from "../../components/canvas-side-panel";
@@ -12,12 +12,14 @@ import { CanvasDialogs, type CanvasDialogModel } from "./canvas-dialogs";
 import { CanvasStageLayer, type CanvasStageModel } from "./canvas-stage-layer";
 import { CanvasStageOverlays, type CanvasStageOverlaysModel } from "./canvas-stage-overlays";
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
+import { useFilmViewState } from "../../stores/use-film-view-store";
 import type { FilmStudioModel } from "../lib/film-studio-types";
 import { FilmStudioBody } from "./film-studio-body";
 import { FilmViewBody } from "./film-view-body";
 import { FilmStudioViewSwitch } from "./film-studio-view-switch";
 import { FilmShotBatchProgress } from "./film-shot-batch-progress";
 import { FilmReviewDrawer } from "./film-review-drawer";
+import { filmReviewIsStale, selectFilmReview } from "../lib/film-review";
 
 type CanvasShellModel = {
     theme: CanvasTheme;
@@ -94,6 +96,17 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
     const filmStudio = model.filmStudio;
     const filmViewMode = Boolean(filmStudio && filmStudio.view !== "graph");
     const [filmReviewOpen, setFilmReviewOpen] = useState(false);
+    const filmReviewReport = useMemo(() => (filmMode ? selectFilmReview(nodes, model.stage.connections, currentProject?.film, currentProject?.title) : null), [currentProject, filmMode, model.stage.connections, nodes]);
+    const filmReviewStale = filmReviewIsStale(currentProject?.film?.consistencyReview, filmReviewReport?.fingerprint);
+    const filmReviewBadge = filmReviewReport ? {
+        errors: filmReviewReport.issues.filter((issue) => issue.level === "error").length,
+        warnings: filmReviewReport.issues.filter((issue) => issue.level === "warning").length,
+        stale: filmReviewStale,
+    } : undefined;
+    const filmViewState = useFilmViewState(filmStudio?.projectId ?? "");
+    const filmBatchBottom = filmStudio?.view === "studio" ? (filmViewState.stripOpen ? 180 : 52) : 96;
+    const batchCurrentNode = filmStudio?.shotBatch.currentShotId ? nodes.find((node) => node.id === filmStudio.shotBatch.currentShotId) : undefined;
+    const batchCurrentProgress = batchCurrentNode?.metadata?.progress ?? 0;
     const zenMode = useCanvasUiStore((state) => state.zenMode);
     useEffect(() => {
         // 浏览器 Esc/界面退出全屏时同步退出 Zen，避免「Zen 但非全屏」的悬空状态。
@@ -193,18 +206,16 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     </>
                 )}
                 <CanvasDialogs model={model.dialogs} />
-                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onReview={() => setFilmReviewOpen(true)} /> : null}
-                {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} /> : null}
+                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} /> : null}
+                {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} bottomOffset={filmBatchBottom} currentProgress={batchCurrentProgress} /> : null}
                 {filmStudio ? (
                     <FilmReviewDrawer
                         open={filmReviewOpen}
                         onClose={() => setFilmReviewOpen(false)}
                         theme={theme}
                         model={filmStudio}
-                        nodes={nodes}
-                        connections={model.stage.connections}
+                        report={filmReviewReport}
                         film={currentProject?.film}
-                        title={currentProject?.title}
                         onOpenShot={(shotId) => {
                             filmStudio.onSelectShot(shotId);
                             filmStudio.onViewChange("studio");

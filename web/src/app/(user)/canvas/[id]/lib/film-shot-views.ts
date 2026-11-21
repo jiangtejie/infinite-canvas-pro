@@ -59,9 +59,16 @@ export function filmShotMatchesFilter(entry: FilmShotEntry, filters: FilmShotFil
     const query = filters.query?.trim().toLowerCase();
     if (!query) return true;
     const payload = entry.shot.metadata?.filmShot;
-    return [payload?.shotNo, payload?.description, payload?.dialogue, payload?.prompt, entry.sceneLabel]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query));
+    return [
+        payload?.shotNo, payload?.shotType, payload?.cameraMovement,
+        payload?.description, payload?.dialogue, payload?.audio,
+        payload?.prompt, payload?.negativePrompt, payload?.videoPrompt,
+        payload?.coverage, payload?.composition, payload?.lighting, payload?.colorTone, payload?.lens, payload?.transition,
+        payload?.continuityCheck,
+        payload?.performance?.objective, payload?.performance?.emotion, payload?.performance?.subtext, payload?.performance?.bodyLanguage,
+        payload?.soundDesign?.ambience, payload?.soundDesign?.sfx, payload?.soundDesign?.music, payload?.soundDesign?.dialogueTone,
+        entry.sceneLabel,
+    ].filter(Boolean).some((value) => String(value).toLowerCase().includes(query));
 }
 
 export function filterFilmShotEntries(shots: FilmShotEntry[], filters: FilmShotFilters) {

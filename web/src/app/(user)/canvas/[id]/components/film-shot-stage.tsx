@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, History, Maximize2, X } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import type { CanvasNodeData } from "../../types";
+import type { FilmMediaVersion } from "@/lib/film/types";
+import { useDownloadFile } from "@/hooks/use-download-file";
 import { canvasStatusColors } from "../../lib/canvas-palette";
+import { CANVAS_Z } from "../lib/canvas-layer";
+import { FilmShotContextPanel } from "./film-shot-context-panel";
 
 type FilmShotStageProps = {
     theme: CanvasTheme;
@@ -30,23 +34,55 @@ type FilmShotStageProps = {
     canGenerateVideo: boolean;
     onGenerateVideo: () => void;
     onStopVideo: () => void;
+    onSelectImageVersion: (version: FilmMediaVersion) => void;
+    onSelectVideoVersion: (version: FilmMediaVersion) => void;
 };
 
-export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, onCreateShot, onLocate, onPrev, onNext, hasPrev, hasNext, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo }: FilmShotStageProps) {
+export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, onCreateShot, onLocate, onPrev, onNext, hasPrev, hasNext, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, onSelectImageVersion, onSelectVideoVersion }: FilmShotStageProps) {
     const filmShot = shot?.metadata?.filmShot;
     const imageSrc = useResolvedMediaSrc(filmShot?.imageUrl, filmShot?.storageKey);
     const videoSrc = useResolvedMediaSrc(filmShot?.videoUrl, filmShot?.videoStorageKey, "media");
     const [media, setMedia] = useState<"image" | "video">("image");
+    const stageRef = useRef<HTMLDivElement>(null);
+    const [box, setBox] = useState<{ width: number; height: number } | null>(null);
     useEffect(() => {
         setMedia(videoSrc ? "video" : "image");
     }, [shot?.id, videoSrc]);
-    const ratio = aspect.replace(":", " / ");
+    const [aspectWidth, aspectHeight] = aspect.split(":").map(Number);
+    const ratio = aspectWidth > 0 && aspectHeight > 0 ? aspectWidth / aspectHeight : 16 / 9;
+    useLayoutEffect(() => {
+        const stage = stageRef.current;
+        if (!stage) return;
+        const update = () => {
+            const rect = stage.getBoundingClientRect();
+            const width = Math.min(960, Math.max(0, rect.width - 48), Math.max(0, rect.height - 48) * ratio);
+            const height = width / ratio;
+            setBox((current) => current && Math.abs(current.width - width) < 0.5 && Math.abs(current.height - height) < 0.5 ? current : { width, height });
+        };
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(stage);
+        return () => observer.disconnect();
+    }, [ratio]);
     const statusLabel = imageSrc ? "已生成" : imageGenerating ? "生成中…" : imageError ? "生成失败" : "分镜图未生成";
     const showVideo = media === "video" && Boolean(videoSrc);
+    const download = useDownloadFile();
+    const [fullscreen, setFullscreen] = useState(false);
+    const [contextOpen, setContextOpen] = useState(false);
+    const versions = (showVideo ? filmShot?.videoVersions : filmShot?.imageVersions) ?? [];
+    const currentVersionUrl = showVideo ? filmShot?.videoUrl : filmShot?.imageUrl;
+    const downloadCurrent = () => {
+        const src = showVideo ? videoSrc : imageSrc;
+        if (!src) return;
+        download(src, `${filmShot?.shotNo || "shot"}-${showVideo ? "video.mp4" : "image.png"}`);
+    };
+    useEffect(() => {
+        setFullscreen(false);
+    }, [shot?.id, showVideo]);
 
     return (
-        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-6" style={{ background: theme.canvas.background }}>
-            <div className="relative w-full max-w-[960px] overflow-hidden rounded-xl border" style={{ aspectRatio: ratio, background: theme.node.fill, borderColor: theme.node.stroke }}>
+        <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-6" style={{ background: theme.canvas.background }}>
+            <div className="relative overflow-hidden rounded-xl border" style={{ width: box ? box.width : "min(960px, 100%)", height: box?.height, aspectRatio: box ? undefined : `${aspectWidth || 16} / ${aspectHeight || 9}`, background: theme.node.fill, borderColor: theme.node.stroke }}>
                 {shot ? (
                     showVideo ? (
                         <video src={videoSrc} controls playsInline className="h-full w-full object-contain" />
@@ -88,11 +124,29 @@ export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, 
                     </div>
                 )}
             </div>
-            {shot && imageSrc && videoSrc ? (
-                <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full border p-1" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel }}>
-                    <button type="button" className="rounded-full px-2.5 py-1 text-xs" style={{ background: media === "image" ? theme.toolbar.activeBg : undefined, color: theme.node.text }} onClick={() => setMedia("image")}>分镜图</button>
-                    <button type="button" className="rounded-full px-2.5 py-1 text-xs" style={{ background: media === "video" ? theme.toolbar.activeBg : undefined, color: theme.node.text }} onClick={() => setMedia("video")}>视频</button>
+            {shot && (imageSrc || videoSrc) ? (
+                <div className="absolute left-4 top-4 flex items-center gap-1 rounded-full border p-1" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel }}>
+                    <button type="button" className="grid size-8 place-items-center rounded-full" style={{ color: theme.node.muted }} onClick={downloadCurrent} aria-label="下载当前媒体"><Download className="size-4" /></button>
+                    <button type="button" className="grid size-8 place-items-center rounded-full" style={{ color: theme.node.muted }} onClick={() => setFullscreen(true)} aria-label="全屏查看"><Maximize2 className="size-4" /></button>
                 </div>
+            ) : null}
+            {shot ? (
+                <div className="absolute right-4 top-4 flex items-center gap-1">
+                    {imageSrc && videoSrc ? (
+                        <div className="flex items-center gap-1 rounded-full border p-1" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel }}>
+                            <button type="button" className="rounded-full px-2.5 py-1 text-xs" style={{ background: media === "image" ? theme.toolbar.activeBg : undefined, color: theme.node.text }} onClick={() => setMedia("image")}>分镜图</button>
+                            <button type="button" className="rounded-full px-2.5 py-1 text-xs" style={{ background: media === "video" ? theme.toolbar.activeBg : undefined, color: theme.node.text }} onClick={() => setMedia("video")}>视频</button>
+                        </div>
+                    ) : null}
+                    <button type="button" className="grid size-9 place-items-center rounded-full border" style={{ borderColor: contextOpen ? theme.canvas.selectionStroke : theme.node.stroke, background: contextOpen ? theme.canvas.selectionSoft : theme.toolbar.panel, color: theme.node.text }} onClick={() => setContextOpen((value) => !value)} aria-label={contextOpen ? "关闭生成信息" : "打开生成信息"} aria-expanded={contextOpen} title="生成信息与版本历史">
+                        <History className="size-4" />
+                    </button>
+                </div>
+            ) : null}
+            {shot && contextOpen ? (
+                <aside className="absolute bottom-4 right-4 top-16 z-20 w-[min(320px,calc(100%-2rem))] overflow-hidden rounded-xl border shadow-xl" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel, backdropFilter: "blur(14px)" }}>
+                    <FilmShotContextPanel theme={theme} filmShot={filmShot} media={showVideo ? "video" : "image"} onSelectVersion={(version) => showVideo ? onSelectVideoVersion(version) : onSelectImageVersion(version)} onClose={() => setContextOpen(false)} />
+                </aside>
             ) : null}
             {shot && !videoSrc && (videoGenerating || videoError) ? (
                 <div className="absolute bottom-4 left-1/2 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: videoError ? canvasStatusColors.error : theme.node.stroke, background: theme.toolbar.panel, color: videoError ? canvasStatusColors.error : theme.node.text }}>
@@ -102,6 +156,23 @@ export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, 
                     ) : (
                         <button type="button" className="shrink-0 disabled:opacity-40" disabled={!canGenerateVideo} onClick={onGenerateVideo}>重试</button>
                     )}
+                </div>
+            ) : null}
+            {shot && versions.length > 1 ? (
+                <div className="absolute bottom-4 left-4 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-1 rounded-full border p-1" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel }}>
+                    <span className="px-1 text-[10px]" style={{ color: theme.node.muted }}>版本</span>
+                    {versions.map((version, index) => {
+                        const active = version.url === currentVersionUrl;
+                        return (
+                            <button key={version.id} type="button" className="rounded-full px-2 py-0.5 text-[10px]" style={{ background: active ? theme.toolbar.activeBg : undefined, color: active ? theme.node.text : theme.node.muted }} onClick={() => showVideo ? onSelectVideoVersion(version) : onSelectImageVersion(version)}>v{index + 1}</button>
+                        );
+                    })}
+                </div>
+            ) : null}
+            {fullscreen && (imageSrc || videoSrc) ? (
+                <div className="fixed inset-0 grid place-items-center bg-black/90 p-6" style={{ zIndex: CANVAS_Z.popover }} onClick={() => setFullscreen(false)}>
+                    <button type="button" className="absolute right-5 top-5 grid size-10 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white" onClick={() => setFullscreen(false)} aria-label="关闭全屏"><X className="size-5" /></button>
+                    {showVideo ? <video src={videoSrc} controls autoPlay playsInline className="max-h-full max-w-full" onClick={(event) => event.stopPropagation()} /> : <img src={imageSrc} alt="" className="max-h-full max-w-full object-contain" onClick={(event) => event.stopPropagation()} />}
                 </div>
             ) : null}
             {shot && hasPrev ? <button type="button" onClick={onPrev} className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel, color: theme.node.text }} aria-label="上一镜"><ChevronLeft className="size-5" /></button> : null}

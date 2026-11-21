@@ -38,11 +38,12 @@ import { canAddFilmConnection } from "./lib/film-connections";
 import { arrangeFilmNodes } from "./lib/film-layout";
 import { appendFilmShot } from "./lib/film-shot-create";
 import { addFilmShotBinding, removeFilmShotBinding, updateFilmShotBinding } from "./lib/film-shot-bindings";
+import { reorderFilmShotSequence } from "./lib/film-shot-reorder";
 import { canvasConnection } from "./lib/canvas-connection";
 import { buildFilmShotGenerationFromGraph } from "./lib/film-shot-generation-context";
 import { filmVideoFrameBlockReason, filmVideoInput, filmVideoMode } from "./lib/film-shot-video-frames";
 import { buildFilmParseGraph, undoFilmParseGraph } from "./lib/film-script-parse";
-import { selectFilmProjectFromGraph } from "./lib/film-review";
+import { filmReviewFingerprintForProject, selectFilmProjectFromGraph } from "./lib/film-review";
 import { applyFilmShotImageTaskUpdate } from "./lib/film-shot-task-updates";
 import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmStyleName } from "./lib/film-selectors";
 import type { FilmShotBindingChip, FilmStudioModel, FilmStudioView } from "./lib/film-studio-types";
@@ -1815,6 +1816,14 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         setNodes((prev) => prev.map((node) => (node.id === nodeId ? updater(node) : node)));
     }, [setNodes]);
 
+    const reorderFilmShots = useCallback((sceneId: string, orderedShotIds: string[]) => {
+        const scene = filmScenes.find((item) => item.id === sceneId);
+        if (!scene || scene.shots.length !== orderedShotIds.length) return;
+        const sceneIds = new Set(scene.shots.map((entry) => entry.shot.id));
+        if (!orderedShotIds.every((id) => sceneIds.has(id))) return;
+        setConnections((prev) => reorderFilmShotSequence(orderedShotIds, prev));
+    }, [filmScenes, setConnections]);
+
     const addFilmBinding = useCallback((assetNodeId: string) => {
         if (!activeFilmShotId) return;
         const result = addFilmShotBinding(nodesRef.current, connectionsRef.current, activeFilmShotId, assetNodeId);
@@ -1918,10 +1927,11 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         if (!config) return;
         setConsistencyReviewing(true);
         try {
+            const fingerprint = filmReviewFingerprintForProject(project);
             const review = await requestFilmConsistencyReview(config, project);
             const latest = useCanvasStore.getState().projects.find((item) => item.id === projectId);
             if (!latest?.film) return;
-            updateProject(projectId, { film: { ...latest.film, consistencyReview: review } });
+            updateProject(projectId, { film: { ...latest.film, consistencyReview: { ...review, graphFingerprint: fingerprint } } });
             message.success(review.issues.length ? `一致性检查完成：${review.issues.length} 条问题` : "一致性检查完成：未发现问题");
         } catch (error) {
             message.error(toErrorMessage(error, "一致性检查失败"));
@@ -2154,6 +2164,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const filmVideoFrameError = filmVideoMode(activeFilmShotPayload) === "frames" ? filmVideoFrameBlockReason("frames", activeFilmShotPayload?.firstFrame) : "";
     const canGenerateFilmVideo = Boolean(activeFilmShotNode && (activeFilmShotPayload?.prompt || activeFilmShotPayload?.description || "").trim() && !filmVideoFrameError && !filmShotBusy);
     const filmStudio: FilmStudioModel | undefined = filmMode ? {
+        projectId,
         view: studioView,
         onViewChange: (view) => {
             setStudioView(view);
@@ -2182,10 +2193,12 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         onSceneChange: selectFilmScene,
         onSelectShot: selectFilmShot,
         onUpdateShot: updateFilmShot,
+        onReorderShots: reorderFilmShots,
         onCreateShot: createFilmShot,
         onLocateInGraph: locateFilmShotInGraph,
         imageGenerating: filmImageGenerating,
         imageError: filmImageError,
+        taskProgress: activeFilmShotNode?.metadata?.progress ?? 0,
         canGenerateImage: canGenerateFilmImage,
         onGenerateImage: () => {
             if (activeFilmShotNode) void generateFilmShotImage(activeFilmShotNode.id);

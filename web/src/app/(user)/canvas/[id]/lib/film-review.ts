@@ -1,8 +1,9 @@
-import type { FilmAsset, FilmAssetKind, FilmEpisode, FilmProject } from "@/lib/film/types";
+import type { FilmAsset, FilmAssetKind, FilmConsistencyReview, FilmEpisode, FilmProject } from "@/lib/film/types";
 import type { FilmAssetReadinessReport } from "@/app/(user)/film/utils/film-asset-readiness";
 import { filmAssetReadiness } from "@/app/(user)/film/utils/film-asset-readiness";
 import type { FilmAnimaticIssue } from "@/app/(user)/film/utils/film-animatic";
 import { buildFilmAnimatic } from "@/app/(user)/film/utils/film-animatic";
+import { buildFilmConsistencyContext } from "@/app/(user)/film/utils/film-ai-consistency";
 import type { CanvasConnection, CanvasFilmMeta, CanvasNodeData } from "../../types";
 import { CanvasNodeType } from "../../types";
 import { selectFilmSceneEntries } from "./film-selectors";
@@ -13,6 +14,7 @@ export type FilmReviewReport = {
     sceneCount: number;
     readiness: FilmAssetReadinessReport;
     issues: FilmAnimaticIssue[];
+    fingerprint: string;
 };
 
 function assetsOfKind(nodes: CanvasNodeData[], kind: FilmAssetKind): FilmAsset[] {
@@ -93,7 +95,26 @@ export function selectFilmReview(nodes: CanvasNodeData[], connections: CanvasCon
         sceneCount: episodesSceneCount(project),
         readiness,
         issues,
+        fingerprint: filmReviewFingerprintForProject(project),
     };
+}
+
+/** AI 检查读取的就是这份上下文；它变化即代表上次结果过期。 */
+export function filmReviewFingerprintForProject(project: FilmProject) {
+    return hashFingerprint(buildFilmConsistencyContext(project));
+}
+
+export function filmReviewIsStale(review: FilmConsistencyReview | undefined, fingerprint: string | undefined) {
+    return Boolean(review && fingerprint && review.graphFingerprint !== fingerprint);
+}
+
+function hashFingerprint(value: string) {
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < value.length; index += 1) {
+        hash ^= value.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 function episodesSceneCount(project: FilmProject) {

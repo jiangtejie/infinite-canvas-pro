@@ -65,6 +65,20 @@ test("filters shots by scene, media state and keyword", () => {
     assert.deepEqual(filterFilmShotEntries(entries, { query: "雨停" }).map((item) => item.shot.id), ["c"]);
 });
 
+test("matches professional shot fields in keyword search", () => {
+    const entries = [
+        entry("a", "scene-1", shot(4, {
+            soundDesign: { ambience: "雨声", sfx: "玻璃碎裂", music: "", dialogueTone: "" },
+            performance: { objective: "留住对方", emotion: "压抑", subtext: "", bodyLanguage: "", intensity: 3 },
+            transition: "硬切",
+            coverage: "建立",
+        })),
+    ];
+    assert.deepEqual(filterFilmShotEntries(entries, { query: "玻璃" }).map((item) => item.shot.id), ["a"]);
+    assert.deepEqual(filterFilmShotEntries(entries, { query: "压抑" }).map((item) => item.shot.id), ["a"]);
+    assert.deepEqual(filterFilmShotEntries(entries, { query: "硬切" }).map((item) => item.shot.id), ["a"]);
+});
+
 test("groups shots into 4 or 9 sized chunks", () => {
     const entries = Array.from({ length: 10 }, (_, index) => entry(String(index), "scene-1", shot(4)));
     assert.deepEqual(groupFilmShots(entries, 4).map((group) => group.length), [4, 4, 2]);

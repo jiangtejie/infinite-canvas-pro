@@ -511,6 +511,8 @@ export type FilmConsistencyReview = {
     reviewedAt: string;
     summary?: string;
     issues: FilmConsistencyIssue[];
+    /** 检查时的输入指纹；与当前项目不一致说明结果已过期。 */
+    graphFingerprint?: string;
 };
 
 export type FilmProject = {

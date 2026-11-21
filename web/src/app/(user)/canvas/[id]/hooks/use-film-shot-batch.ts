@@ -21,7 +21,7 @@ type Options = {
     message: Message;
 };
 
-const INITIAL_STATE: FilmShotBatchState = { running: false, kind: null, total: 0, completed: 0, failed: 0, currentTitle: "", currentIndex: 0 };
+const INITIAL_STATE: FilmShotBatchState = { running: false, kind: null, total: 0, completed: 0, failed: 0, currentTitle: "", currentIndex: 0, currentShotId: "" };
 const POLL_INTERVAL_MS = 700;
 const NODE_TIMEOUT_MS = 10 * 60 * 1000;
 const ACTIVITY_GRACE_MS = 15000;
@@ -125,7 +125,7 @@ export function useFilmShotBatch({ nodesRef, generate, stop, ensureConfig, messa
         activeKindRef.current = kind;
         runTokenRef.current += 1;
         const runToken = runTokenRef.current;
-        setState({ running: true, kind, total: targets.length, completed: 0, failed: 0, currentTitle: "", currentIndex: 0 });
+        setState({ running: true, kind, total: targets.length, completed: 0, failed: 0, currentTitle: "", currentIndex: 0, currentShotId: "" });
         let completed = 0;
         let failed = 0;
         let interrupted = false;
@@ -137,7 +137,7 @@ export function useFilmShotBatch({ nodesRef, generate, stop, ensureConfig, messa
                 }
                 const payload = node.metadata?.filmShot;
                 activeShotRef.current = node.id;
-                setState((prev) => ({ ...prev, currentIndex: index + 1, currentTitle: payload?.shotNo || node.title || `镜头 ${index + 1}` }));
+                setState((prev) => ({ ...prev, currentIndex: index + 1, currentTitle: payload?.shotNo || node.title || `镜头 ${index + 1}`, currentShotId: node.id }));
                 try {
                     await generate(node.id, kind);
                     const result = await waitForShot(node.id, runToken);
@@ -158,7 +158,7 @@ export function useFilmShotBatch({ nodesRef, generate, stop, ensureConfig, messa
                 stopRequestedRef.current = false;
                 activeShotRef.current = "";
                 activeKindRef.current = null;
-                setState((prev) => ({ ...prev, running: false, currentTitle: "", currentIndex: 0 }));
+                setState((prev) => ({ ...prev, running: false, currentTitle: "", currentIndex: 0, currentShotId: "" }));
                 if (interrupted) message.warning(`批量${kindLabel}已停止，成功 ${completed} 镜，失败 ${failed} 镜`);
                 else if (failed) message.warning(`批量${kindLabel}完成，成功 ${completed} 镜，失败 ${failed} 镜`);
                 else message.success(`已生成 ${completed} 镜${kindLabel}`);

@@ -56,7 +56,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, scriptParsi
         <Drawer
             open={open}
             onClose={onClose}
-            size={520}
+            size="min(520px, 96vw)"
             zIndex={CANVAS_Z.popover}
             title={`${TITLES[node.type] || "影视节点"} · 编辑`}
             styles={{

@@ -10,6 +10,7 @@ import { CanvasNodeType, type CanvasNodeData } from "../types";
 import { useCanvasStore, type CanvasProject } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "../utils/canvas-export";
+import { isFilmCanvasProject } from "../utils/canvas-project-domain";
 
 export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: { project: CanvasProject; index?: number; basePath?: string }) {
     const router = useRouter();
@@ -25,6 +26,11 @@ export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: 
     const editing = editingId === project.id;
     const selected = selectedIds.includes(project.id);
     const previews = project.nodes.filter((node) => (node.type === CanvasNodeType.Image && node.metadata?.content) || (node.type === CanvasNodeType.Shot && (node.metadata?.filmShot?.imageUrl || node.metadata?.filmShot?.storageKey))).slice(0, 3);
+    const filmStats = isFilmCanvasProject(project) ? {
+        scenes: project.nodes.filter((node) => node.type === CanvasNodeType.Scene).length,
+        shots: project.nodes.filter((node) => node.type === CanvasNodeType.Shot).length,
+        videos: project.nodes.filter((node) => node.type === CanvasNodeType.Shot && (node.metadata?.filmShot?.videoUrl || node.metadata?.filmShot?.videoStorageKey)).length,
+    } : null;
     const open = () => router.push(`${basePath}/${project.id}`);
     const saveTitle = () => {
         renameProject(project.id, editingTitle);
@@ -75,8 +81,18 @@ export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: 
                         >
                             <h2 className="truncate text-lg font-semibold tracking-tight">{project.title}</h2>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                <span className="chip">{project.nodes.length} 节点</span>
-                                <span className="chip">{project.connections.length} 连线</span>
+                                {filmStats ? (
+                                    <>
+                                        <span className="chip">{filmStats.shots} 镜</span>
+                                        <span className="chip">{filmStats.scenes} 场</span>
+                                        {filmStats.videos ? <span className="chip">已出视频 {filmStats.videos}</span> : null}
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="chip">{project.nodes.length} 节点</span>
+                                        <span className="chip">{project.connections.length} 连线</span>
+                                    </>
+                                )}
                             </div>
                         </button>
                     )}

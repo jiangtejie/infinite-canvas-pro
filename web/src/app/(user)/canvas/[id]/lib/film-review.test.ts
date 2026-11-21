@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { createFilmAsset } from "@/app/(user)/film/utils/film-edits";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { selectFilmProjectFromGraph, selectFilmReview } from "./film-review";
+import { filmReviewFingerprintForProject, filmReviewIsStale, selectFilmProjectFromGraph, selectFilmReview } from "./film-review";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id, type, title: id, position: { x: 0, y: 0 }, width: 300, height: 200, metadata,
@@ -37,4 +37,31 @@ test("reports missing readiness references and static issues", () => {
     assert.equal(report.readiness.ready, 0);
     assert.equal(report.readiness.missing[0].name, "阿青");
     assert.ok(report.issues.length > 0);
+});
+
+test("review fingerprint follows AI input and ignores generated media", () => {
+    const { project } = selectFilmProjectFromGraph(nodes, connections, undefined, "测试影视");
+    const fingerprint = filmReviewFingerprintForProject(project);
+    assert.equal(selectFilmReview(nodes, connections, undefined, "测试影视").fingerprint, fingerprint);
+
+    const edited = nodes.map((item): CanvasNodeData => {
+        if (item.id !== "shot" || !item.metadata?.filmShot) return item;
+        return { ...item, metadata: { ...item.metadata, filmShot: { ...item.metadata.filmShot, description: "阿青转身" } } };
+    });
+    assert.notEqual(filmReviewFingerprintForProject(selectFilmProjectFromGraph(edited, connections, undefined, "测试影视").project), fingerprint);
+
+    const withMedia = nodes.map((item): CanvasNodeData => {
+        if (item.id !== "shot" || !item.metadata?.filmShot) return item;
+        return { ...item, metadata: { ...item.metadata, filmShot: { ...item.metadata.filmShot, imageUrl: "https://example.com/shot.jpg" } } };
+    });
+    assert.equal(filmReviewFingerprintForProject(selectFilmProjectFromGraph(withMedia, connections, undefined, "测试影视").project), fingerprint);
+});
+
+test("marks stored review stale only when its fingerprint differs", () => {
+    const review = { scriptHash: "", reviewedAt: "", issues: [], graphFingerprint: "abc" };
+    assert.equal(filmReviewIsStale(undefined, "abc"), false);
+    assert.equal(filmReviewIsStale(review, undefined), false);
+    assert.equal(filmReviewIsStale(review, "abc"), false);
+    assert.equal(filmReviewIsStale(review, "def"), true);
+    assert.equal(filmReviewIsStale({ ...review, graphFingerprint: undefined }, "abc"), true);
 });

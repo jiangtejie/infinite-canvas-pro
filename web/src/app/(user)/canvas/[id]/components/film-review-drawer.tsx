@@ -7,11 +7,11 @@ import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import type { FilmAnimaticIssue } from "@/app/(user)/film/utils/film-animatic";
-import type { CanvasConnection, CanvasFilmMeta, CanvasNodeData } from "../../types";
+import type { CanvasFilmMeta } from "../../types";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import { CANVAS_Z } from "../lib/canvas-layer";
+import { filmReviewIsStale, type FilmReviewReport } from "../lib/film-review";
 import type { FilmStudioModel } from "../lib/film-studio-types";
-import { selectFilmReview } from "../lib/film-review";
 
 const SOURCE_LABELS: Record<FilmAnimaticIssue["source"], string> = {
     duration: "时长",
@@ -24,18 +24,15 @@ const SOURCE_LABELS: Record<FilmAnimaticIssue["source"], string> = {
     branch: "分支",
 };
 
-export function FilmReviewDrawer({ open, onClose, theme, model, nodes, connections, film, title, onOpenShot }: {
+export function FilmReviewDrawer({ open, onClose, theme, model, report, film, onOpenShot }: {
     open: boolean;
     onClose: () => void;
     theme: CanvasTheme;
     model: FilmStudioModel;
-    nodes: CanvasNodeData[];
-    connections: CanvasConnection[];
+    report: FilmReviewReport | null;
     film?: CanvasFilmMeta;
-    title?: string;
     onOpenShot: (shotId: string) => void;
 }) {
-    const report = useMemo(() => (open ? selectFilmReview(nodes, connections, film, title) : null), [connections, film, nodes, open, title]);
     const shotIdByNo = useMemo(() => new Map(model.shots.flatMap((entry) => {
         const shotNo = entry.shot.metadata?.filmShot?.shotNo;
         return shotNo ? [[shotNo, entry.shot.id] as const] : [];
@@ -53,12 +50,13 @@ export function FilmReviewDrawer({ open, onClose, theme, model, nodes, connectio
         if (shotId) onOpenShot(shotId);
     };
     const review = film?.consistencyReview;
+    const reviewStale = filmReviewIsStale(review, report?.fingerprint);
 
     return (
         <Drawer
             open={open}
             onClose={onClose}
-            size={520}
+            size="min(520px, 96vw)"
             zIndex={CANVAS_Z.popover}
             title="就绪与一致性检查"
             styles={{ header: { background: theme.node.panel, color: theme.node.text }, body: { background: theme.node.panel, color: theme.node.text, paddingTop: 12 } }}
@@ -90,6 +88,12 @@ export function FilmReviewDrawer({ open, onClose, theme, model, nodes, connectio
                             </span>
                         ) : null}
                     </div>
+                    {reviewStale ? (
+                        <div className="flex items-start gap-1.5 rounded-lg border px-3 py-2 text-xs leading-5" style={{ borderColor: canvasStatusColors.loading, color: theme.node.text }}>
+                            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" style={{ color: canvasStatusColors.loading }} />
+                            镜头、绑定或项目设置已变化，上次 AI 结论可能过期，建议重新检查。
+                        </div>
+                    ) : null}
                     {review?.summary ? <div className="rounded-lg border px-3 py-2 text-xs leading-5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>{review.summary}</div> : null}
                     <Section theme={theme} title="缺参考">
                         {report.readiness.missing.length ? report.readiness.missing.map((item) => (
