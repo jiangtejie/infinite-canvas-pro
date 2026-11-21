@@ -1,10 +1,15 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Input, InputNumber, Popover, Select } from "antd";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
+import { CreditSymbol, requestCreditCost } from "@/constant/credits";
+import { clampFilmVideoDuration } from "@/app/(user)/film/utils/film-video-limits";
+import { ModelPicker } from "@/components/model-picker";
+import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { useUserStore } from "@/stores/use-user-store";
 import type { FilmAssetKind } from "@/lib/film/types";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import { canvasStatusColors } from "../../lib/canvas-palette";
@@ -45,6 +50,29 @@ type FilmShotPanelProps = {
     openSections: Set<string>;
     onToggleSection: (key: string) => void;
 };
+
+function FilmCreditHint({ theme, config, videoSeconds }: { theme: CanvasTheme; config: AiConfig; videoSeconds: number }) {
+    const modelCosts = useConfigStore((state) => state.publicSettings?.modelChannel.modelCosts);
+    const loadPublicSettings = useConfigStore((state) => state.loadPublicSettings);
+    const user = useUserStore((state) => state.user);
+    useEffect(() => {
+        void loadPublicSettings();
+    }, [loadPublicSettings]);
+    if (config.channelMode !== "remote") {
+        return <div className="pl-[46px] text-[10px]" style={{ color: theme.node.muted }}>本地渠道 · 不计积分</div>;
+    }
+    const imageCredits = requestCreditCost({ channelMode: config.channelMode, modelCosts, model: config.imageModel, count: 1 });
+    const videoCredits = requestCreditCost({ channelMode: config.channelMode, modelCosts, model: config.videoModel, seconds: videoSeconds, resolution: config.vquality });
+    const hasPrice = imageCredits > 0 || videoCredits > 0;
+    return (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[46px] text-[10px]" style={{ color: theme.node.muted }}>
+            <span className="inline-flex items-center gap-0.5">图片 {imageCredits > 0 ? <>约 <CreditSymbol />{imageCredits.toLocaleString()}</> : "按后台单价"}</span>
+            <span className="inline-flex items-center gap-0.5">视频 {videoCredits > 0 ? <>约 <CreditSymbol />{videoCredits.toLocaleString()}</> : "按后台单价"}</span>
+            {user ? <span className="inline-flex items-center gap-0.5">余额 <CreditSymbol />{user.credits.toLocaleString()}</span> : null}
+            {user && hasPrice && user.credits < Math.max(imageCredits, videoCredits) ? <a href="/account?tab=recharge" className="text-amber-500 underline-offset-2 hover:underline">余额不足</a> : null}
+        </div>
+    );
+}
 
 function Section({ theme, title, open, onToggle, children }: { theme: CanvasTheme; title: string; open: boolean; onToggle: () => void; children: ReactNode }) {
     const sectionRef = useRef<HTMLElement>(null);
@@ -149,6 +177,9 @@ function AddBindingButton({ theme, assets, onAdd, onCreateAsset }: { theme: Canv
 
 export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, taskProgress, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, availableAssets, onAddBinding, onRemoveBinding, onUpdateBinding, onEditAsset, onOpenScript, onCreateAsset, openSections, onToggleSection }: FilmShotPanelProps) {
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
+    const config = useEffectiveConfig();
+    const updateConfig = useConfigStore((state) => state.updateConfig);
+    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const filmShot = shot?.metadata?.filmShot;
     const update = (patch: Parameters<typeof patchFilmShotNode>[1]) => {
         if (shot) onUpdate(shot.id, (node) => patchFilmShotNode(node, patch));
@@ -213,6 +244,17 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
                     </Section>
                 </div>
                 <div className="shrink-0 border-t px-4 py-3" style={{ borderColor: theme.node.stroke }}>
+                    <div className="mb-2 grid gap-1.5">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="w-10 shrink-0 text-[10px]" style={{ color: theme.node.muted }}>分镜图</span>
+                            <ModelPicker config={config} value={config.imageModel} channelId={config.imageChannelId} capability="image" onChange={(model, channelId) => { updateConfig("imageModel", model); if (channelId) updateConfig("imageChannelId", channelId); if (config.imageWorkflowRef) updateConfig("imageWorkflowRef", undefined); }} onMissingConfig={() => openConfigDialog(false)} fullWidth className="!h-7 !min-w-0 !rounded-md !px-2 !text-[11px]" />
+                        </div>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="w-10 shrink-0 text-[10px]" style={{ color: theme.node.muted }}>视频</span>
+                            <ModelPicker config={config} value={config.videoModel} channelId={config.videoChannelId} capability="video" onChange={(model, channelId) => { updateConfig("videoModel", model); if (channelId) updateConfig("videoChannelId", channelId); if (config.videoWorkflowRef) updateConfig("videoWorkflowRef", undefined); }} onMissingConfig={() => openConfigDialog(false)} fullWidth className="!h-7 !min-w-0 !rounded-md !px-2 !text-[11px]" />
+                        </div>
+                        <FilmCreditHint theme={theme} config={config} videoSeconds={clampFilmVideoDuration(filmShot?.duration ?? 4, config.videoModel)} />
+                    </div>
                     <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
                         <span>分镜图：{filmShot?.imageUrl ? "已生成" : imageGenerating ? `生成中 ${Math.round(taskProgress)}%` : imageError ? "失败" : "未生成"}</span>
                         <span>视频：{filmShot?.videoUrl ? "已生成" : videoGenerating ? `生成中 ${Math.round(taskProgress)}%` : videoError ? "失败" : "未生成"}</span>
@@ -223,6 +265,7 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
                         </div>
                     ) : null}
                     {imageError || videoError ? <div className="mt-1 line-clamp-2 text-[10px]" style={{ color: canvasStatusColors.error }}>{imageError || videoError}</div> : null}
+                    {videoError && /image\/reference video model|media inputs/i.test(videoError) ? <div className="mt-1 text-[10px] leading-4" style={{ color: canvasStatusColors.loading }}>当前视频模型不支持图片/参考输入，请在上方切换到 image-to-video 或 reference-to-video 模型。</div> : null}
                     <div className="mt-2 flex gap-2">
                         {imageGenerating ? (
                             <button type="button" className="flex-1 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onStopImage}>停止出图</button>
