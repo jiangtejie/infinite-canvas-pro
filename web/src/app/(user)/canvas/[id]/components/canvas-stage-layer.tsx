@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, SetStateAction } from "react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { type CanvasBackgroundMode, type CanvasTheme } from "@/lib/canvas-theme";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
@@ -242,8 +242,16 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     // 单选聚焦时淡出无关节点/连线；参考选择、连线中、框选中保持全亮以免干扰操作。
     const focusDim = selectionFocus && !referencePickerNodeId && !connectingParams && !selectionBox ? selectionFocus : null;
 
+    // 缩放动画期间节点内容沿用上一档比例，停止约 120ms 后统一刷新，避免每帧全量重渲染；浮层节点单独用实时比例。
+    const [contentScale, setContentScale] = useState(viewport.k);
+    useEffect(() => {
+        if (contentScale === viewport.k) return;
+        const timer = window.setTimeout(() => setContentScale(viewport.k), 120);
+        return () => window.clearTimeout(timer);
+    }, [contentScale, viewport.k]);
+
     // 节点 render 回调与事件处理器全部稳定引用，平移/选中变化时节点 memo 才能跳过重渲染。
-    const renderPanel = useCallback((panelNode: CanvasNodeData): ReactNode => (
+    const renderPanel = useCallback((panelNode: CanvasNodeData, compact: boolean): ReactNode => (
         panelNode.metadata?.remixRole === "plan" && panelNode.metadata.remixRun ? (
             <CanvasRemixPlanPanel node={panelNode} nodes={nodes} onGenerate={(id) => void generateRemixRun(id)} onReplan={handleRemixWithAgent} onClose={closeOverlay} />
         ) : panelNode.type === CanvasNodeType.Config ? (
@@ -258,7 +266,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 key={panelNode.id}
                 node={panelNode}
                 inputs={publishInputsById.get(panelNode.id) || { text: "", textNodeIds: [], images: [] }}
-                compact={viewport.k < 0.62}
+                compact={compact}
                 onChange={(patch) => handleConfigNodeChange(panelNode.id, patch)}
                 onClose={() => closeOverlay()}
             />
@@ -296,7 +304,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 }}
             />
         )
-    ), [nodes, generateRemixRun, handleRemixWithAgent, closeOverlay, configInputsById, handleConfigNodeChange, publishInputsById, viewport.k, sourceParseEnabled, handleParseSource, handleCancelSourceParse, runningNodeId, mentionReferencesByNodeId, connectedNodesByNodeId, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId, handleNodePromptChange, handleRetryNode, handleGenerateNode, handleStopNode, disconnectNodeReference, startNodeReferenceSelection, setNodeImageSettingsOpen, setToolbarNodeId]);
+    ), [nodes, generateRemixRun, handleRemixWithAgent, closeOverlay, configInputsById, handleConfigNodeChange, publishInputsById, sourceParseEnabled, handleParseSource, handleCancelSourceParse, runningNodeId, mentionReferencesByNodeId, connectedNodesByNodeId, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId, handleNodePromptChange, handleRetryNode, handleGenerateNode, handleStopNode, disconnectNodeReference, startNodeReferenceSelection, setNodeImageSettingsOpen, setToolbarNodeId]);
 
     const renderNodeContent = useCallback((contentNode: CanvasNodeData): ReactNode => (
         contentNode.metadata?.sourceMaterialRole === "text" || contentNode.id.endsWith("-material-text") ? (
@@ -460,7 +468,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                         <CanvasNode
                             key={node.id}
                             data={node}
-                            scale={viewport.k}
+                            scale={dialogNodeId === node.id && !selectionBox ? viewport.k : contentScale}
                             isSelected={selectedNodeIds.has(node.id)}
                             isRelated={relatedHighlight.nodeIds.has(node.id)}
                             dimmed={focusDim ? !focusDim.nodeIds.has(node.id) : false}

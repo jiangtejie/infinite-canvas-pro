@@ -48,7 +48,7 @@ type CanvasNodeProps = {
     showImageInfo: boolean;
     mentionReferences?: CanvasResourceReference[];
     now?: number;
-    renderPanel?: (node: CanvasNodeData) => ReactNode;
+    renderPanel?: (node: CanvasNodeData, compact: boolean) => ReactNode;
     renderNodeContent?: (node: CanvasNodeData) => ReactNode;
     batchCount?: number;
     groupChildCount?: number;
@@ -522,7 +522,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                             transformOrigin: "top center",
                         }}
                     >
-                        {renderPanel(data)}
+                        {renderPanel(data, scale < 0.62)}
                     </div>
                 )
             ) : null}
