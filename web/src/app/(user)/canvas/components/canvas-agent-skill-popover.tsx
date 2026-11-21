@@ -83,7 +83,7 @@ export function CanvasAgentSkillPopover({ selectedSkills, onSelect, onDeleteSele
             const openDown = spaceBelow > spaceAbove;
             const maxHeight = Math.max(180, Math.min(520, openDown ? spaceBelow : spaceAbove));
             const top = openDown ? rect.bottom + 8 : Math.max(navClearance, rect.top - maxHeight - 8);
-            setPanelBox({ left, top, width, maxHeight });
+            setPanelBox((current) => current && current.left === left && current.top === top && current.width === width && current.maxHeight === maxHeight ? current : { left, top, width, maxHeight });
         };
         update();
         window.addEventListener("resize", update);

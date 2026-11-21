@@ -373,10 +373,16 @@ export function useCanvasPointer({
                         if (intersects) nextSelected.add(node.id);
                     });
 
-                const nextSelectionBox = { ...currentSelection, currentWorldX: world.x, currentWorldY: world.y };
-                selectionBoxRef.current = nextSelectionBox;
-                setSelectionBox(nextSelectionBox);
-                selectMany(nextSelected);
+                // 指针未移动或选择集未变化时不重设 state，避免框选期间每个 pointermove 都提交一次。
+                if (world.x !== currentSelection.currentWorldX || world.y !== currentSelection.currentWorldY) {
+                    const nextSelectionBox = { ...currentSelection, currentWorldX: world.x, currentWorldY: world.y };
+                    selectionBoxRef.current = nextSelectionBox;
+                    setSelectionBox(nextSelectionBox);
+                }
+                const currentSelected = selectedNodeIdsRef.current;
+                if (nextSelected.size !== currentSelected.size || [...nextSelected].some((id) => !currentSelected.has(id))) {
+                    selectMany(nextSelected);
+                }
                 return;
             }
 
@@ -387,7 +393,7 @@ export function useCanvasPointer({
                 setMouseWorld(screenToCanvas(event.clientX, event.clientY));
             }
         },
-        [getConnectionDropTarget, nodesRef, screenToCanvas, selectMany, setNodes, viewportRef],
+        [getConnectionDropTarget, nodesRef, screenToCanvas, selectMany, selectedNodeIdsRef, setNodes, viewportRef],
     );
 
     const handleGlobalPointerUp = useCallback((event: PointerEvent) => {

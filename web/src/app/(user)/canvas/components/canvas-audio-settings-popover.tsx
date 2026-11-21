@@ -41,7 +41,10 @@ export function CanvasAudioSettingsPopover({ config, onConfigChange, resourceOpt
 
     useEffect(() => {
         if (!open) return;
-        const syncPosition = () => setButtonRect(buttonRef.current?.getBoundingClientRect() || null);
+        const syncPosition = () => {
+            const next = buttonRef.current?.getBoundingClientRect() || null;
+            setButtonRect((current) => (current && next && current.left === next.left && current.top === next.top && current.width === next.width && current.height === next.height ? current : next));
+        };
         const closeOnOutsidePointer = (event: PointerEvent) => {
             const target = event.target;
             if (!(target instanceof Node)) return;

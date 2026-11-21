@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 画布高频指针交互：减少冗余状态提交
+
+- 背景：控制台偶发 `Maximum update depth exceeded`（useEffect 变体），堆栈落在 `handleGlobalPointerMove`。该诊断的语义是连续 50 次以上「由被动 effect 调度」的提交后，下一次并发更新入队时打印，pointermove 只是触发打印的入口，不能直接归因。
+- 修复：框选期间指针未移动时不再重设 selectionBox；选中节点集合内容未变化时不再调用 selectMany（此前每个 pointermove 都会新建 Set 提交一次）；技能浮层与音频设置浮层的 scroll/resize 测量改为等值短路，不再每次新建位置对象提交。
+- 验证：`bun run typecheck`、`bun run lint --max-warnings=0`、`bun test`（607 条）通过。ego-browser 实测框选扫过多节点时工具栏出现「批量生成」，释放后选中保持，无 console 错误。
+- 未实测：原报错的底层 effect 链未能稳定复现（框选、助手面板开启、hover、滚轮组合均未触发），只收敛了高频路径的冗余提交；若再次出现，需要记录当时打开的面板、生成任务与操作序列再定位。
+
 ## 画布打磨：Space 平移、组淡出、连线 hover、Zen 读数与节点 memo
 
 - 修复点过节点后「Space + 拖拽」无法平移：节点键盘处理只保留 Enter 选中，不再拦截作为画布临时平移组合键的空格。
