@@ -149,8 +149,6 @@ func New() *gin.Engine {
 	})
 	v1.GET("/user-data/assets", gin.WrapF(handler.UserAssetData))
 	v1.POST("/user-data/assets", gin.WrapF(handler.SaveUserAssetData))
-	v1.GET("/user-data/film-projects", gin.WrapF(handler.UserFilmProjectData))
-	v1.POST("/user-data/film-projects", gin.WrapF(handler.SaveUserFilmProjectData))
 	v1.GET("/user-data/film-library", gin.WrapF(handler.UserFilmLibraryData))
 	v1.POST("/user-data/film-library", gin.WrapF(handler.SaveUserFilmLibraryData))
 	v1.GET("/user-data/comic-projects", gin.WrapF(handler.UserComicProjectData))

@@ -8,7 +8,7 @@ import { FilmTimelineView } from "./film-timeline-view";
 
 export function FilmViewBody({ view, model, theme }: { view: Exclude<FilmStudioView, "studio" | "graph">; model: FilmStudioModel; theme: CanvasTheme }) {
     return (
-        <div className="absolute inset-x-0 bottom-0 top-16 flex min-h-0 max-sm:top-24" style={{ background: theme.canvas.background, color: theme.node.text }}>
+        <div className="absolute inset-x-0 bottom-0 top-[108px] flex min-h-0 max-sm:top-[116px]" style={{ background: theme.canvas.background, color: theme.node.text }}>
             {view === "table" ? <FilmShotTableView theme={theme} model={model} /> : null}
             {view === "board" ? <FilmStoryboardView theme={theme} model={model} /> : null}
             {view === "timeline" ? <FilmTimelineView theme={theme} model={model} /> : null}

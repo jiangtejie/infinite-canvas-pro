@@ -37,6 +37,8 @@ type FilmShotPanelProps = {
     onRemoveBinding: (edgeId: string) => void;
     onUpdateBinding: (edgeId: string, patch: Partial<FilmBindingEdgeData>) => void;
     onEditAsset: (nodeId: string) => void;
+    onOpenScript: () => void;
+    onCreateAsset: (kind: FilmAssetKind) => void;
 };
 
 function Section({ theme, title, children }: { theme: CanvasTheme; title: string; children: ReactNode }) {
@@ -86,7 +88,7 @@ function BindingEditor({ theme, binding, onUpdate, onEditAsset, onClose }: { the
     );
 }
 
-function BindingPicker({ theme, assets, onAdd, onClose }: { theme: CanvasTheme; assets: FilmBindingAssetOption[]; onAdd: (nodeId: string) => void; onClose: () => void }) {
+function BindingPicker({ theme, assets, onAdd, onCreateAsset, onClose }: { theme: CanvasTheme; assets: FilmBindingAssetOption[]; onAdd: (nodeId: string) => void; onCreateAsset: (kind: FilmAssetKind) => void; onClose: () => void }) {
     return (
         <div className="flex w-[240px] flex-col gap-2 p-2" style={{ color: theme.node.text }}>
             <div className="flex items-center justify-between text-xs font-medium">
@@ -102,6 +104,11 @@ function BindingPicker({ theme, assets, onAdd, onClose }: { theme: CanvasTheme; 
                     </div>
                 ) : null;
             }) : <span className="text-xs" style={{ color: theme.node.muted }}>画布中还没有可绑定的角色、场景或道具资产。</span>}
+            <div className="flex flex-wrap gap-1 border-t pt-1.5" style={{ borderColor: theme.node.stroke }}>
+                {(["character", "location", "prop"] as FilmAssetKind[]).map((kind) => (
+                    <button key={kind} type="button" className="rounded-full border border-dashed px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => { onCreateAsset(kind); onClose(); }}>+ {FILM_ASSET_KIND_LABELS[kind]}</button>
+                ))}
+            </div>
         </div>
     );
 }
@@ -118,16 +125,16 @@ function BindingChip({ theme, binding, onUpdate, onEditAsset, onRemove }: { them
     );
 }
 
-function AddBindingButton({ theme, assets, onAdd }: { theme: CanvasTheme; assets: FilmBindingAssetOption[]; onAdd: (nodeId: string) => void }) {
+function AddBindingButton({ theme, assets, onAdd, onCreateAsset }: { theme: CanvasTheme; assets: FilmBindingAssetOption[]; onAdd: (nodeId: string) => void; onCreateAsset: (kind: FilmAssetKind) => void }) {
     const [open, setOpen] = useState(false);
     return (
-        <Popover trigger="click" open={open} onOpenChange={setOpen} arrow={false} styles={{ content: { padding: 0, background: theme.node.panel } }} content={<BindingPicker theme={theme} assets={assets} onAdd={(nodeId) => { onAdd(nodeId); setOpen(false); }} onClose={() => setOpen(false)} />}>
+        <Popover trigger="click" open={open} onOpenChange={setOpen} arrow={false} styles={{ content: { padding: 0, background: theme.node.panel } }} content={<BindingPicker theme={theme} assets={assets} onAdd={(nodeId) => { onAdd(nodeId); setOpen(false); }} onCreateAsset={onCreateAsset} onClose={() => setOpen(false)} />}>
             <button type="button" className="rounded-full border border-dashed px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>+ 添加绑定</button>
         </Popover>
     );
 }
 
-export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, availableAssets, onAddBinding, onRemoveBinding, onUpdateBinding, onEditAsset }: FilmShotPanelProps) {
+export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, availableAssets, onAddBinding, onRemoveBinding, onUpdateBinding, onEditAsset, onOpenScript, onCreateAsset }: FilmShotPanelProps) {
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
     const filmShot = shot?.metadata?.filmShot;
     const update = (patch: Parameters<typeof patchFilmShotNode>[1]) => {
@@ -146,9 +153,13 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
             {!shot ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
                     <div className="text-sm" style={{ color: theme.node.muted }}>该场次还没有镜头</div>
-                    {canCreateShot ? <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onCreateShot}>新增镜头</button> : null}
+                    <div className="flex flex-wrap justify-center gap-2">
+                        {canCreateShot ? <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onCreateShot}>新增镜头</button> : null}
+                        <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} onClick={onOpenScript}>打开剧本拆镜</button>
+                    </div>
                 </div>
             ) : (
+                <>
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
                     <Section theme={theme} title="镜头">
                         <Field theme={theme} label="镜号"><Input size="small" value={filmShot?.shotNo || ""} style={inputStyle} onChange={(event) => update({ shotNo: event.target.value })} /></Field>
@@ -166,38 +177,34 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
                             {bindings.map((binding) => (
                                 <BindingChip key={binding.edgeId} theme={theme} binding={binding} onUpdate={(patch) => onUpdateBinding(binding.edgeId, patch)} onEditAsset={() => onEditAsset(binding.id)} onRemove={() => onRemoveBinding(binding.edgeId)} />
                             ))}
-                            <AddBindingButton theme={theme} assets={availableAssets} onAdd={onAddBinding} />
+                            <AddBindingButton theme={theme} assets={availableAssets} onAdd={onAddBinding} onCreateAsset={onCreateAsset} />
                             {styleName ? <span className="rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>风格 · {styleName}</span> : null}
                         </div>
                     </Section>
-                    <Section theme={theme} title="状态">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {imageGenerating ? (
-                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onStopImage}>停止生成</button>
-                            ) : (
-                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={!canGenerateImage} onClick={onGenerateImage}>生成分镜图</button>
-                            )}
-                            <span className="text-xs" style={{ color: theme.node.muted }}>
-                                {filmShot?.imageUrl ? "已生成" : imageGenerating ? "生成中…" : imageError ? "生成失败" : "未生成"}
-                            </span>
-                        </div>
-                        {imageError ? <div className="text-xs" style={{ color: canvasStatusColors.error }}>{imageError}</div> : null}
-                    </Section>
                     <Section theme={theme} title="视频">
                         {filmShot ? <FilmShotVideoFrames theme={theme} filmShot={filmShot} disabled={videoGenerating} onChange={update} /> : null}
-                        <div className="flex flex-wrap items-center gap-2">
-                            {videoGenerating ? (
-                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onStopVideo}>停止生成</button>
-                            ) : (
-                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={!canGenerateVideo} onClick={onGenerateVideo}>生成分镜视频</button>
-                            )}
-                            <span className="text-xs" style={{ color: theme.node.muted }}>
-                                {filmShot?.videoUrl ? "已生成" : videoGenerating ? "生成中…" : videoError ? "生成失败" : "未生成"}
-                            </span>
-                        </div>
-                        {videoError ? <div className="text-xs" style={{ color: canvasStatusColors.error }}>{videoError}</div> : null}
                     </Section>
                 </div>
+                <div className="shrink-0 border-t px-4 py-3" style={{ borderColor: theme.node.stroke }}>
+                    <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
+                        <span>分镜图：{filmShot?.imageUrl ? "已生成" : imageGenerating ? "生成中…" : imageError ? "失败" : "未生成"}</span>
+                        <span>视频：{filmShot?.videoUrl ? "已生成" : videoGenerating ? "生成中…" : videoError ? "失败" : "未生成"}</span>
+                    </div>
+                    {imageError || videoError ? <div className="mt-1 line-clamp-2 text-[10px]" style={{ color: canvasStatusColors.error }}>{imageError || videoError}</div> : null}
+                    <div className="mt-2 flex gap-2">
+                        {imageGenerating ? (
+                            <button type="button" className="flex-1 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onStopImage}>停止出图</button>
+                        ) : (
+                            <button type="button" className="flex-1 rounded-lg border px-3 py-2 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={!canGenerateImage} onClick={onGenerateImage}>生成分镜图</button>
+                        )}
+                        {videoGenerating ? (
+                            <button type="button" className="flex-1 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onStopVideo}>停止视频</button>
+                        ) : (
+                            <button type="button" className="flex-1 rounded-lg border px-3 py-2 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={!canGenerateVideo} onClick={onGenerateVideo}>生成视频</button>
+                        )}
+                    </div>
+                </div>
+                </>
             )}
         </div>
     );

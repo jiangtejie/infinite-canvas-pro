@@ -102,19 +102,6 @@ func SaveUserAssetData(w http.ResponseWriter, r *http.Request) {
 	OK(w, json.RawMessage(data))
 }
 
-func UserFilmProjectData(w http.ResponseWriter, r *http.Request) {
-	data, err := service.CurrentUserFilmProjectData(r.Context())
-	if err != nil {
-		FailError(w, err)
-		return
-	}
-	OK(w, json.RawMessage(data))
-}
-
-func SaveUserFilmProjectData(w http.ResponseWriter, r *http.Request) {
-	saveUserDataField(w, r, service.SaveCurrentUserFilmProjectData)
-}
-
 func UserFilmLibraryData(w http.ResponseWriter, r *http.Request) {
 	data, err := service.CurrentUserFilmLibraryData(r.Context())
 	if err != nil {

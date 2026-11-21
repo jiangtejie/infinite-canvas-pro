@@ -1,362 +1,112 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import dayjs from "dayjs";
-import { App, Button, Input, Modal } from "antd";
-import { ArrowRight, Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { Button, Input, Pagination } from "antd";
+import { Library, Plus, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { FilmAmbient } from "@/components/film/film-ambient";
-import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
+import { PunkAura } from "@/components/ui/punk-aura";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
-import { useDownloadFile } from "@/hooks/use-download-file";
-import { useFilmStore } from "@/stores/use-film-store";
-import { useSaveStatusStore } from "@/lib/persisted-store";
-import { useFilmDeleteConfirm } from "./hooks/use-film-delete-confirm";
-import { FilmProjectSettingsFields } from "./components/film-project-settings-fields";
-import type { FilmAspect, FilmProject, FilmStylePresetId } from "@/lib/film/types";
-import { DEFAULT_FILM_ASPECT, filmAspectLabel } from "@/lib/film/film-aspects";
-import { DEFAULT_DIRECTOR_STYLE_ID, directorStyleLabel } from "@/lib/film/director-styles";
-import { DEFAULT_FILM_STYLE, filmStyleLabel } from "@/lib/film/film-styles";
-import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backup";
-import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
-import { filmStageLabel } from "@/lib/film/film-stages";
-import { errorMessage } from "@/lib/utils";
-import { useCanvasStore } from "@/app/(user)/canvas/stores/use-canvas-store";
-import { isFilmCanvasProject } from "@/app/(user)/canvas/utils/canvas-project-domain";
-import { FILM_CANVAS_DEV } from "@/app/(user)/canvas/utils/film-mode";
+import { CanvasDeleteProjectsDialog } from "../canvas/components/canvas-delete-projects-dialog";
+import { CanvasProjectCard } from "../canvas/components/canvas-project-card";
+import { useCanvasStore } from "../canvas/stores/use-canvas-store";
+import { useCanvasUiStore } from "../canvas/stores/use-canvas-ui-store";
+import { filmCanvasProjects } from "../canvas/utils/canvas-project-domain";
 
-export default function FilmListPage() {
+export default function FilmPage() {
     const router = useRouter();
-    const { message } = App.useApp();
-    const hydrated = useFilmStore((state) => state.hydrated);
-    const syncStatus = useSaveStatusStore((state) => state.syncStatus);
-    const projects = useFilmStore((state) => state.projects);
-    const createProject = useFilmStore((state) => state.createProject);
-    const importProject = useFilmStore((state) => state.importProject);
-    const updateProject = useFilmStore((state) => state.updateProject);
-    const deleteProjects = useFilmStore((state) => state.deleteProjects);
-    const canvasHydrated = useCanvasStore((state) => state.hydrated);
-    const canvasProjects = useCanvasStore((state) => state.projects);
-    const createFilmCanvasProject = useCanvasStore((state) => state.createFilmProject);
-    const { confirmDelete } = useFilmDeleteConfirm();
-    const downloadFile = useDownloadFile();
-    const [createOpen, setCreateOpen] = useState(false);
-    const [title, setTitle] = useState("");
-    const [visualStyle, setVisualStyle] = useState("");
-    const [aspect, setAspect] = useState<FilmAspect>(DEFAULT_FILM_ASPECT);
-    const [stylePreset, setStylePreset] = useState<FilmStylePresetId>(DEFAULT_FILM_STYLE);
-    const [directorStyleId, setDirectorStyleId] = useState(DEFAULT_DIRECTOR_STYLE_ID);
-    const [targetDuration, setTargetDuration] = useState<number | undefined>(undefined);
-    const [renameTarget, setRenameTarget] = useState<FilmProject | null>(null);
-    const [renameTitle, setRenameTitle] = useState("");
-    const importInputRef = useRef<HTMLInputElement>(null);
-
-    const ordered = useMemo(() => [...projects].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
-    const totalShots = projects.reduce((total, project) => total + flattenFilmShots(project.episodes).length, 0);
-    const totalScenes = projects.reduce((total, project) => total + countFilmScenes(project.episodes), 0);
-    const totalReady = projects.reduce((total, project) => total + countReadyShots(project.episodes), 0);
-    const readyRate = totalShots ? Math.round((totalReady / totalShots) * 100) : 0;
-    const filmCanvasProjects = useMemo(
-        () => (FILM_CANVAS_DEV ? canvasProjects.filter(isFilmCanvasProject).slice().sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)) : []),
-        [canvasProjects],
-    );
-
-    const createFilmCanvas = () => {
-        const id = createFilmCanvasProject("未命名影视画布");
-        router.push(`/film/studio/${id}`);
-    };
-
-    const create = () => {
-        if (!title.trim()) {
-            message.warning("先给项目起个名字");
-            return;
-        }
-        const id = createProject(title, visualStyle, aspect, stylePreset);
-        updateProject(id, { directorStyleId, targetDuration });
-        setCreateOpen(false);
-        setTitle("");
-        setVisualStyle("");
-        setAspect(DEFAULT_FILM_ASPECT);
-        setStylePreset(DEFAULT_FILM_STYLE);
-        setDirectorStyleId(DEFAULT_DIRECTOR_STYLE_ID);
-        setTargetDuration(undefined);
-        router.push(`/film/${id}`);
-    };
-
-    const confirmDeleteProject = (project: FilmProject) => {
-        const shots = flattenFilmShots(project.episodes);
-        confirmDelete({
-            title: `删除「${project.title}」？`,
-            description: "剧本、角色和分镜数据会一起删除，无法恢复。",
-            detail: `${project.episodes.length} 集 · ${countFilmScenes(project.episodes)} 场 · ${shots.length} 镜 · ${(project.characters || []).length} 角色 · ${(project.locations || []).length} 场景`,
-            confirmText: "删除项目",
-            onConfirm: () => {
-                deleteProjects([project.id]);
-                message.success(`已删除「${project.title}」`);
-            },
-        });
-    };
-
-    const openRename = (project: FilmProject) => {
-        setRenameTarget(project);
-        setRenameTitle(project.title);
-    };
-
-    const saveRename = () => {
-        if (!renameTarget) return;
-        const nextTitle = renameTitle.trim();
-        if (!nextTitle) {
-            message.warning("项目名称不能为空");
-            return;
-        }
-        updateProject(renameTarget.id, { title: nextTitle });
-        setRenameTarget(null);
-    };
-
-    const exportProject = (project: FilmProject) => {
-        downloadFile(new Blob([serializeFilmProject(project)], { type: "application/json" }), `${project.title || "影视项目"}.json`);
-        message.success("项目备份已导出");
-    };
-
-    const onImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file) return;
-        try {
-            const project = parseFilmProjectBackup(await file.text());
-            importProject(project);
-            message.success(`已导入「${project.title}」`);
-        } catch (error) {
-            message.error(errorMessage(error, "导入失败"));
-        }
+    const [query, setQuery] = useState("");
+    const [page, setPage] = useState(1);
+    const pageSize = 12;
+    const hydrated = useCanvasStore((state) => state.hydrated);
+    const allProjects = useCanvasStore((state) => state.projects);
+    const projects = useMemo(() => filmCanvasProjects(allProjects), [allProjects]);
+    const createFilmProject = useCanvasStore((state) => state.createFilmProject);
+    const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
+    const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
+    const filteredProjects = useMemo(() => {
+        const keyword = query.trim().toLowerCase();
+        return keyword ? projects.filter((project) => project.title.toLowerCase().includes(keyword)) : projects;
+    }, [projects, query]);
+    const maxPage = Math.max(1, Math.ceil(filteredProjects.length / pageSize));
+    const currentPage = Math.min(page, maxPage);
+    const visibleProjects = filteredProjects.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const createAndEnter = () => {
+        const titles = new Set(projects.map((project) => project.title));
+        let title = "未命名影视画布";
+        for (let index = 2; titles.has(title); index += 1) title = `未命名影视画布 ${index}`;
+        router.push(`/film/studio/${createFilmProject(title)}`);
     };
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
-            <main className="min-h-0 flex-1 overflow-y-auto bg-transparent">
-                <div className="page-shell flex flex-col gap-7 py-10 sm:py-12">
-                    <div className="relative">
-                        <FilmAmbient className="-inset-x-6 -top-10 h-[380px] opacity-90 sm:-inset-x-10" />
-                        <div className="relative">
-                            <PageHeader
-                                eyebrow="创作工作台"
-                                title="影视项目"
-                                description={syncStatus === "idle"
-                                    ? "剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台；数据仅保存在本机浏览器。"
-                                    : "剧本、角色与场景、分镜到成片，按项目推进的影视创作工作台；本机自动保存，登录后同步到账号，未登录或断网时仅保留本机。"}
-                                meta={
-                                    <>
-                                        <span className="chip chip-acid inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{projects.length} 个项目</span>
-                                        <span className="chip">{totalShots} 个分镜</span>
-                                        <span className="chip">{readyRate}% 完成</span>
-                                        <LocalSaveIndicator className="self-center" />
-                                    </>
-                                }
-                                actions={
-                                    <>
-                                        <Button icon={<Upload className="size-4" />} onClick={() => importInputRef.current?.click()}>
-                                            导入项目
-                                        </Button>
-                                        <Button icon={<Library className="size-4" />} href="/film/library">
-                                            角色与场景库
-                                        </Button>
-                                        <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setCreateOpen(true)}>
-                                            新建项目
-                                        </Button>
-                                    </>
-                                }
-                            />
-                        </div>
+        <main className="h-full overflow-auto bg-transparent text-foreground">
+            <div className="page-shell relative isolate flex flex-col gap-7 py-10 sm:py-12">
+                <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[400px] overflow-hidden">
+                    <PunkAura className="punk-aura opacity-40" />
+                </div>
+                <PageHeader
+                    eyebrow="影视创作"
+                    title="影视项目"
+                    description="每个影视项目是一份画布文档：剧本、场次、镜头、资产与输出都在节点和边上，按 Studio、镜头表、故事板或时间轴查看。"
+                    meta={
+                        <>
+                            <span className="chip chip-acid">{projects.length} 个项目</span>
+                            <span className="chip">本地优先</span>
+                        </>
+                    }
+                    actions={
+                        <>
+                            <Button icon={<Library className="size-4" />} onClick={() => router.push("/film/library")}>角色与场景库</Button>
+                            <Button disabled={!hydrated} type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>新建影视画布</Button>
+                        </>
+                    }
+                />
+
+                {projects.length ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Input.Search allowClear placeholder="搜索影视项目" className="w-full max-w-sm" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{filteredProjects.length} / {projects.length}</span>
                     </div>
+                ) : null}
 
-                    {FILM_CANVAS_DEV ? (
-                        <section className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/50 p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">影视画布</span>
-                                    <span className="text-xs text-muted-foreground">{filmCanvasProjects.length} 个</span>
-                                </div>
-                                <Button disabled={!canvasHydrated} icon={<Clapperboard className="size-4" />} onClick={createFilmCanvas}>
-                                    新建影视画布
-                                </Button>
-                            </div>
-                            {filmCanvasProjects.length ? (
-                                <div className="flex flex-col divide-y divide-border/60">
-                                    {filmCanvasProjects.map((project) => (
-                                        <button key={project.id} type="button" className="flex items-center justify-between gap-3 py-2 text-left" onClick={() => router.push(`/film/studio/${project.id}`)}>
-                                            <span className="min-w-0">
-                                                <span className="block truncate text-sm font-medium">{project.title}</span>
-                                                <span className="text-xs text-muted-foreground">{project.nodes.length} 节点 · {dayjs(project.updatedAt).format("MM-DD HH:mm")}</span>
-                                            </span>
-                                            <ArrowRight className="size-4 shrink-0 opacity-50" />
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <span className="text-xs text-muted-foreground">还没有影视画布；新建后会进入 Studio。</span>
-                            )}
-                        </section>
-                    ) : null}
+                {selectedIds.length ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-acid/30 bg-acid/[0.06] px-4 py-2.5">
+                        <div className="flex items-center gap-2 text-xs">
+                            <span className="font-mono tracking-[0.14em] text-acid uppercase">SELECTED</span>
+                            <span className="text-muted-foreground">已选 {selectedIds.length} 个项目</span>
+                        </div>
+                        <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => setDeleteIds(selectedIds)}>删除选中</Button>
+                    </div>
+                ) : projects.length ? (
+                    <div className="flex items-center gap-3">
+                        <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground/70 uppercase">按最近更新排序</p>
+                        <span aria-hidden className="h-3 w-px bg-border" />
+                        <Button size="small" type="text" danger className="!h-6 !px-1.5 !text-[11px]" disabled={!hydrated} onClick={() => setDeleteIds(projects.map((project) => project.id))}>删除全部</Button>
+                    </div>
+                ) : null}
 
-                    {hydrated && ordered.length > 0 ? (
-                        <section className="grid gap-3 sm:grid-cols-3">
-                            {[
-                                { label: "项目", value: String(projects.length), hint: "进行中的影视项目" },
-                                { label: "场次", value: String(totalScenes), hint: "已拆解的场景" },
-                                { label: "分镜完成", value: `${readyRate}%`, hint: `${totalReady} / ${totalShots} 镜已出图或视频` },
-                            ].map((item, index) => (
-                                <div key={item.label} className="film-card-hover punk-card enter-up relative overflow-hidden rounded-xl border border-border/70 bg-card/40 px-4 py-3.5" style={{ "--enter-index": index } as CSSProperties}>
-                                    <div className="flex items-baseline justify-between gap-3">
-                                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">{item.label}</span>
-                                        <span className="font-mono text-[26px] font-semibold leading-none tabular-nums text-foreground">{item.value}</span>
-                                    </div>
-                                    <p className="mt-2 text-[10px] leading-5 text-muted-foreground/65">{item.hint}</p>
-                                    <span aria-hidden className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-acid/50 via-acid/15 to-transparent" />
-                                </div>
+                {!hydrated ? (
+                    <LoadingState className="min-h-[360px] rounded-xl border border-dashed border-border" label="正在加载影视项目" />
+                ) : filteredProjects.length ? (
+                    <>
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            {visibleProjects.map((project, index) => (
+                                <CanvasProjectCard key={project.id} project={project} index={index} basePath="/film/studio" />
                             ))}
-                        </section>
-                    ) : null}
-
-                    {!hydrated ? <LoadingState label="正在加载影视项目" /> : null}
-
-                    {hydrated && ordered.length === 0 ? (
-                        <EmptyState
-                            title="还没有影视项目"
-                            description="新建一个项目，从粘贴剧本或手动添加分镜开始；项目会自动保存在本地。"
-                            icon={<Clapperboard className="size-6" />}
-                            action={
-                                <Button type="primary" icon={<Plus className="size-4" />} onClick={() => setCreateOpen(true)}>
-                                    新建项目
-                                </Button>
-                            }
-                        />
-                    ) : null}
-
-                    {hydrated && ordered.length > 0 ? (
-                        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                            {ordered.map((project, index) => {
-                                const shots = flattenFilmShots(project.episodes);
-                                const ready = countReadyShots(project.episodes);
-                                const progress = shots.length ? Math.round((ready / shots.length) * 100) : 0;
-                                return (
-                                    <article
-                                        key={project.id}
-                                        role="link"
-                                        tabIndex={0}
-                                        onClick={() => router.push(`/film/${project.id}`)}
-                                        onKeyDown={(event) => {
-                                            if (event.key === "Enter" || event.key === " ") {
-                                                event.preventDefault();
-                                                router.push(`/film/${project.id}`);
-                                            }
-                                        }}
-                                        className="film-card-hover punk-card brackets enter-up group relative cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-card/60"
-                                        style={{ "--enter-index": Math.min(index, 12) } as CSSProperties}
-                                    >
-                                        <div className="film-cover-grid relative h-32 overflow-hidden border-b border-border/60 bg-background/40">
-                                            <div aria-hidden className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-80" style={{ backgroundImage: "radial-gradient(ellipse at 20% 0%, color-mix(in oklch, var(--acid) 10%, transparent), transparent 62%)" }} />
-                                            <span aria-hidden className="absolute font-mono font-bold tabular-nums" style={{ right: -8, top: -32, fontSize: 112, lineHeight: 1, color: "color-mix(in oklch, var(--foreground) 5%, transparent)" }}>{String(index + 1).padStart(2, "0")}</span>
-                                            <div className="absolute left-4 top-4 grid size-10 place-items-center rounded-lg border border-border/70 bg-card/80 text-foreground/60 backdrop-blur-sm transition-colors duration-300 group-hover:border-acid/40 group-hover:text-acid/80">
-                                                <Clapperboard className="size-[18px]" />
-                                            </div>
-                                            <span className="chip chip-acid absolute bottom-3 left-4 inline-flex items-center gap-1.5"><span className="punk-signal" aria-hidden />{filmStageLabel(project.stage)}</span>
-                                            {project.stylePreset && project.stylePreset !== "custom" ? (
-                                                <span className="chip absolute bottom-3 right-3 max-w-[45%] truncate">{filmStyleLabel(project.stylePreset)}</span>
-                                            ) : project.visualStyle ? (
-                                                <span className="chip absolute bottom-3 right-3 max-w-[45%] truncate">{project.visualStyle}</span>
-                                            ) : null}
-                                        </div>
-                                        <div className="p-5">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight text-foreground">{project.title}</h2>
-                                                <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity duration-200 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                                                    <button
-                                                        type="button"
-                                                        aria-label={`重命名 ${project.title}`}
-                                                        className="grid size-7 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            openRename(project);
-                                                        }}
-                                                    >
-                                                        <Pencil className="size-3.5" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        aria-label={`导出 ${project.title}`}
-                                                        className="grid size-7 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-foreground/5 hover:text-foreground"
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            exportProject(project);
-                                                        }}
-                                                    >
-                                                        <Download className="size-3.5" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        aria-label={`删除 ${project.title}`}
-                                                        className="grid size-7 place-items-center rounded-md text-muted-foreground/60 transition-colors hover:bg-hot/10 hover:text-hot"
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            confirmDeleteProject(project);
-                                                        }}
-                                                    >
-                                                        <Trash2 className="size-3.5" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            {directorStyleLabel(project.directorStyleId) || project.targetDuration ? (
-                                                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                                    {directorStyleLabel(project.directorStyleId) ? <span className="chip">{directorStyleLabel(project.directorStyleId)}</span> : null}
-                                                    {project.targetDuration ? <span className="chip">目标 {project.targetDuration} 秒</span> : null}
-                                                </div>
-                                            ) : null}
-                                            <p className="mt-2 font-mono text-[10px] tracking-[0.12em] text-muted-foreground/70 uppercase">
-                                                {project.episodes.length} 集 · {countFilmScenes(project.episodes)} 场 · {shots.length} 镜 · {filmAspectLabel(project.aspect)}
-                                            </p>
-                                            <div className="mt-4 h-1 overflow-hidden rounded-full bg-border/60">
-                                                <span className={`block h-full rounded-full bg-acid transition-[width] ${progress > 0 && progress < 100 ? "film-shimmer" : ""}`} style={{ width: `${progress}%` }} />
-                                            </div>
-                                            <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground/70">
-                                                <span>{ready}/{shots.length} 个分镜完成</span>
-                                                <span className="tabular-nums">{dayjs(project.updatedAt).format("MM-DD HH:mm")}</span>
-                                            </div>
-                                        </div>
-                                    </article>
-                                );
-                            })}
-                        </section>
-                    ) : null}
-                </div>
-            </main>
-
-            <input ref={importInputRef} hidden type="file" accept="application/json,.json" onChange={onImportFile} />
-            <Modal title="重命名项目" open={Boolean(renameTarget)} okText="保存" cancelText="取消" onOk={saveRename} onCancel={() => setRenameTarget(null)} destroyOnHidden>
-                <label className="grid gap-1.5 py-2">
-                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">项目名称</span>
-                    <Input autoFocus value={renameTitle} onChange={(event) => setRenameTitle(event.target.value)} onPressEnter={saveRename} />
-                </label>
-            </Modal>
-            <Modal title="新建影视项目" open={createOpen} okText="创建" cancelText="取消" onOk={create} onCancel={() => setCreateOpen(false)} destroyOnHidden>
-                <div className="grid gap-4 py-2">
-                    <label className="grid gap-1.5">
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">项目名称</span>
-                        <Input autoFocus value={title} placeholder="例如：灌篮少女" onChange={(event) => setTitle(event.target.value)} onPressEnter={create} />
-                    </label>
-                    <FilmProjectSettingsFields
-                        value={{ aspect, stylePreset, visualStyle, directorStyleId, targetDuration }}
-                        onChange={(patch) => {
-                            if (patch.aspect !== undefined) setAspect(patch.aspect);
-                            if (patch.stylePreset !== undefined) setStylePreset(patch.stylePreset);
-                            if (patch.visualStyle !== undefined) setVisualStyle(patch.visualStyle);
-                            if (patch.directorStyleId !== undefined) setDirectorStyleId(patch.directorStyleId);
-                            if ("targetDuration" in patch) setTargetDuration(patch.targetDuration);
-                        }}
+                        </div>
+                        {filteredProjects.length > pageSize ? <Pagination className="justify-center" current={currentPage} pageSize={pageSize} total={filteredProjects.length} showSizeChanger={false} onChange={setPage} /> : null}
+                    </>
+                ) : (
+                    <EmptyState
+                        className="min-h-[360px] rounded-xl border border-dashed border-border bg-card/40"
+                        title={projects.length ? "没有匹配的影视项目" : "还没有影视项目"}
+                        description={projects.length ? "调整搜索关键词后再试。" : "新建影视画布后，从剧本、场次和镜头开始搭建项目。"}
+                        action={projects.length ? <Button onClick={() => { setQuery(""); setPage(1); }}>清空搜索</Button> : <Button type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>新建影视画布</Button>}
                     />
-                </div>
-            </Modal>
-        </div>
+                )}
+            </div>
+            <CanvasDeleteProjectsDialog />
+        </main>
     );
 }

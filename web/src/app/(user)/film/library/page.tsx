@@ -13,9 +13,10 @@ import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import { FilmAssetThumbnail, FilmImageThumbnail } from "../components/film-asset-thumbnail";
 import { useFilmImageUrl } from "../hooks/use-film-image-url";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
-import { useFilmStore } from "@/stores/use-film-store";
+import { useCanvasStore } from "@/app/(user)/canvas/stores/use-canvas-store";
+import { filmCanvasLibraryUsageIndex } from "@/app/(user)/canvas/[id]/lib/film-library-usage";
 import { useFilmDeleteConfirm } from "../hooks/use-film-delete-confirm";
-import { EMPTY_FILM_LIBRARY_USAGE, filmLibraryUsageIndex } from "../utils/film-library";
+import { EMPTY_FILM_LIBRARY_USAGE } from "../utils/film-library";
 import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 
 const TABS: Array<{ kind: FilmAssetKind; label: string }> = [
@@ -36,7 +37,7 @@ export default function FilmLibraryPage() {
     const styles = useFilmCastStore((state) => state.styles);
     const updateAsset = useFilmCastStore((state) => state.updateAsset);
     const removeAsset = useFilmCastStore((state) => state.removeAsset);
-    const projects = useFilmStore((state) => state.projects);
+    const projects = useCanvasStore((state) => state.projects);
     const [tab, setTab] = useState<FilmAssetKind>("character");
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState("");
@@ -54,7 +55,7 @@ export default function FilmLibraryPage() {
     }, [list, selectedId]);
 
     const selected = list.find((asset) => asset.id === selectedId) || null;
-    const usageIndex = useMemo(() => filmLibraryUsageIndex(projects, tab), [projects, tab]);
+    const usageIndex = useMemo(() => filmCanvasLibraryUsageIndex(projects, tab), [projects, tab]);
     const usage = selected ? usageIndex.get(selected.id) || EMPTY_FILM_LIBRARY_USAGE : null;
     const updateSelected = (patch: Partial<FilmAsset>) => {
         if (selected) updateAsset(tab, selected.id, patch);

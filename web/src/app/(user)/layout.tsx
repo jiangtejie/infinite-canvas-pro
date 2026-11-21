@@ -14,6 +14,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
     const isProtectedPage = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    const isFilmStudio = pathname.startsWith("/film/studio/");
 
     useEffect(() => {
         if (!isReady || !isProtectedPage || user) return;
@@ -22,7 +23,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
 
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-transparent text-foreground">
-            <AppTopNav />
+            {isFilmStudio ? null : <AppTopNav />}
             <div className="min-h-0 flex-1 overflow-hidden">
                 {isProtectedPage && (!isReady || !user) ? (
                     <div className="grid h-full place-items-center">

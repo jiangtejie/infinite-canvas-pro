@@ -280,29 +280,6 @@ func SaveCurrentUserAssetData(ctx context.Context, raw json.RawMessage) (json.Ra
 	return json.RawMessage(config.AssetData), nil
 }
 
-func CurrentUserFilmProjectData(ctx context.Context) (json.RawMessage, error) {
-	config, err := currentUserConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(config.FilmProjectData) == "" {
-		return json.RawMessage(`{"projects":[]}`), nil
-	}
-	return json.RawMessage(config.FilmProjectData), nil
-}
-
-func SaveCurrentUserFilmProjectData(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok || user.ID == "" {
-		return nil, errors.New("请先登录")
-	}
-	config, err := repository.SaveUserFilmProjectData(user.ID, string(raw))
-	if err != nil {
-		return nil, err
-	}
-	return json.RawMessage(config.FilmProjectData), nil
-}
-
 func CurrentUserFilmLibraryData(ctx context.Context) (json.RawMessage, error) {
 	config, err := currentUserConfig(ctx)
 	if err != nil {

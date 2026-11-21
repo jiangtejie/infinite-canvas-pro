@@ -89,4 +89,6 @@ export type FilmStudioModel = {
     onRemoveBinding: (edgeId: string) => void;
     onUpdateBinding: (edgeId: string, patch: Partial<FilmBindingEdgeData>) => void;
     onEditAsset: (nodeId: string) => void;
+    onOpenScript: () => void;
+    onCreateShotAsset: (kind: FilmAssetKind) => void;
 };

@@ -3,7 +3,6 @@ import { useComicCastStore } from "@/app/(user)/comic/stores/use-comic-cast-stor
 import { useComicStore } from "@/app/(user)/comic/stores/use-comic-store";
 import { useScriptStore, SCRIPT_STORE_KEY } from "@/app/(user)/script/stores/use-script-store";
 import type { ScriptProject } from "@/app/(user)/script/types";
-import type { FilmProject } from "@/lib/film/types";
 import type { FilmLibrarySnapshot } from "@/lib/film/film-account-merge";
 import { mergeListedSnapshot, parseTombstones, type Tombstones } from "@/lib/account-domain-merge";
 import { currentAccountId } from "@/lib/account-storage";
@@ -13,9 +12,8 @@ import { waitForStoreHydration } from "@/lib/store-hydration";
 import { readTombstones, recordRemovedRecords, writeTombstones } from "@/lib/sync-tombstones";
 import { COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
-import { useFilmStore } from "@/stores/use-film-store";
-import { fetchUserComicCast, fetchUserComicProjects, fetchUserFilmLibrary, fetchUserFilmProjects, fetchUserScriptProjects, syncUserComicCast, syncUserComicProjects, syncUserFilmLibrary, syncUserFilmProjects, syncUserScriptProjects } from "@/services/api/user-config";
-import { applyFilmMediaPromotionsToLibrary, applyFilmMediaPromotionsToProjects, collectFilmMediaPromotions, filmMediaNeedsPromotion } from "@/services/film-media-sync";
+import { fetchUserComicCast, fetchUserComicProjects, fetchUserFilmLibrary, fetchUserScriptProjects, syncUserComicCast, syncUserComicProjects, syncUserFilmLibrary, syncUserScriptProjects } from "@/services/api/user-config";
+import { applyFilmMediaPromotionsToLibrary, collectFilmMediaPromotions, filmMediaNeedsPromotion } from "@/services/film-media-sync";
 import { applyMediaPromotions, collectMediaPromotions, collectMediaRefsFromValue, mediaNeedsPromotion, type MediaPromotionReplacement } from "@/services/media-promotion";
 
 type ComicCastSnapshot = { characters: ComicLibraryCharacter[]; locations: ComicLibraryLocation[] };
@@ -51,6 +49,7 @@ let hydrating = false;
 let applyingRemote = false;
 let listenersReady = false;
 let hydratedToken = "";
+let legacyFilmStoreCleaned = false;
 let hydratedAt = 0;
 let lastPullAt = 0;
 let activeSyncOps = 0;
@@ -110,34 +109,6 @@ const comicMedia: NonNullable<SyncDomain["media"]> = {
 };
 
 const domains: SyncDomain[] = [
-    {
-        key: "film-projects",
-        listKeys: ["projects"],
-        load: async (token) => {
-            const payload = await fetchUserFilmProjects<{ projects?: FilmProject[]; deleted?: unknown }>(token);
-            return { value: { projects: payload.projects || [] }, deleted: parseTombstones(payload.deleted) };
-        },
-        save: (token, value, deleted) => syncUserFilmProjects(token, { projects: value.projects, deleted }),
-        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["projects"], remote.deleted, local.deleted),
-        read: () => ({ projects: useFilmStore.getState().projects }),
-        write: (value) => useFilmStore.setState({ projects: value.projects as FilmProject[] }),
-        ready: () => waitForStoreHydration(useFilmStore),
-        subscribe: (notify) => useFilmStore.subscribe((state, previous) => {
-            if (state.projects !== previous.projects) notify(previous as unknown as DomainValue, state as unknown as DomainValue);
-        }),
-        guest: {
-            key: `${FILM_STORE_KEY}:guest`,
-            extract: (state) => Array.isArray(state.projects) ? { projects: state.projects } : null,
-        },
-        media: {
-            needs: (value) => filmMediaNeedsPromotion(value.projects as FilmProject[], []),
-            collect: (value, token) => collectFilmMediaPromotions(value.projects as FilmProject[], [], token),
-            apply: (value, replacements) => {
-                const applied = applyFilmMediaPromotionsToProjects(value.projects as FilmProject[], replacements);
-                return { value: applied.changed ? { projects: applied.projects } : value, changed: applied.changed };
-            },
-        },
-    },
     {
         key: "film-library",
         listKeys: ["characters", "locations", "props", "costumes", "styles"],
@@ -440,6 +411,11 @@ async function consumeGuestDomains() {
 
 /** 登录后统一同步影视、漫画与剧本数据：合并远端、接管游客分区、失败重试、聚焦拉取。 */
 export async function hydrateCreativeAccountSync(token: string, enabled: boolean): Promise<void> {
+    if (!legacyFilmStoreCleaned) {
+        legacyFilmStoreCleaned = true;
+        // 影视项目已并入画布文档，旧本地项目键不再读取，登录/启动时直接清理。
+        try { await localForageStorage.removeItem(FILM_STORE_KEY); } catch { /* 旧键不存在时忽略 */ }
+    }
     if (!enabled) {
         stopCreativeAccountSync();
         return;

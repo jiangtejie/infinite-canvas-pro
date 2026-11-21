@@ -181,6 +181,11 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 />
                 {filmStudio && filmStudio.view !== "graph" ? (
                     filmStudio.view === "studio" ? <FilmStudioBody model={filmStudio} theme={theme} /> : <FilmViewBody view={filmStudio.view} model={filmStudio} theme={theme} />
+                ) : filmStudio ? (
+                    <div className="absolute inset-x-0 bottom-0 top-[108px] max-sm:top-[116px]">
+                        <CanvasStageLayer model={model.stage} />
+                        <CanvasStageOverlays model={model.overlays} />
+                    </div>
                 ) : (
                     <>
                         <CanvasStageLayer model={model.stage} />
@@ -188,7 +193,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     </>
                 )}
                 <CanvasDialogs model={model.dialogs} />
-                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onReview={() => setFilmReviewOpen(true)} /> : null}
+                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onReview={() => setFilmReviewOpen(true)} /> : null}
                 {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} /> : null}
                 {filmStudio ? (
                     <FilmReviewDrawer

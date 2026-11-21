@@ -103,10 +103,6 @@ func SaveUserAssetDataWithMarketingGuard(userID, raw string) (model.UserConfig, 
 	return saved, err
 }
 
-func SaveUserFilmProjectData(userID, raw string) (model.UserConfig, error) {
-	return updateUserConfigField(userID, map[string]any{"film_project_data": raw})
-}
-
 func SaveUserFilmLibraryData(userID, raw string) (model.UserConfig, error) {
 	return updateUserConfigField(userID, map[string]any{"film_library_data": raw})
 }

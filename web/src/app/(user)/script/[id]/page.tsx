@@ -15,7 +15,9 @@ import type { ScriptProject } from "../types";
 import { useScriptStore } from "../stores/use-script-store";
 import { createScriptDraft, exportScriptText, scriptPageCount, scriptWordCount } from "../utils/script-project";
 import { buildFilmPlanFromDraft } from "../utils/script-handoff";
-import { useFilmStore } from "@/stores/use-film-store";
+import { useCanvasStore } from "@/app/(user)/canvas/stores/use-canvas-store";
+import { CanvasNodeType } from "@/app/(user)/canvas/types";
+import { buildFilmParseGraph } from "@/app/(user)/canvas/[id]/lib/film-script-parse";
 import { ScriptStoryPanel } from "../components/script-story-panel";
 import { ScriptCharactersPanel } from "../components/script-characters-panel";
 import { ScriptStructurePanel } from "../components/script-structure-panel";
@@ -42,9 +44,8 @@ export default function ScriptProjectPage() {
     const hydrated = useScriptStore((state) => state.hydrated);
     const projects = useScriptStore((state) => state.projects);
     const updateProject = useScriptStore((state) => state.updateProject);
-    const filmProjects = useFilmStore((state) => state.projects);
-    const createFilmProject = useFilmStore((state) => state.createProject);
-    const updateFilmProject = useFilmStore((state) => state.updateProject);
+    const createFilmProject = useCanvasStore((state) => state.createFilmProject);
+    const updateCanvasProject = useCanvasStore((state) => state.updateProject);
     const project = projects.find((item) => item.id === id);
     const [tab, setTab] = useState<WorkspaceTab>("story");
     const [selectedSceneId, setSelectedSceneId] = useState("");
@@ -81,30 +82,40 @@ export default function ScriptProjectPage() {
     const handoffToFilm = () => {
         if (!project) return;
         const draft = lockedDraft || createScriptDraft(project, "锁定稿");
-        const existing = project.filmProjectId ? filmProjects.find((item) => item.id === project.filmProjectId) : undefined;
+        const existing = project.filmProjectId ? useCanvasStore.getState().projects.find((item) => item.id === project.filmProjectId && item.domain === "film") : undefined;
         if (existing) {
-            router.push(`/film/${existing.id}`);
+            router.push(`/film/studio/${existing.id}`);
             return;
         }
         const { scriptText, episodes, document } = buildFilmPlanFromDraft(draft);
         const shotCount = episodes.reduce((total, episode) => total + episode.scenes.reduce((sceneTotal, scene) => sceneTotal + scene.shots.length, 0), 0);
         const filmProjectId = createFilmProject(`${project.title} · 分镜`);
-        updateFilmProject(filmProjectId, {
-            scriptText,
-            episodes,
-            scriptDocument: document,
-            scriptProjectId: project.id,
-            scriptHash: document.scriptHash,
-            stage: "storyboard",
-        });
+        const created = useCanvasStore.getState().projects.find((item) => item.id === filmProjectId);
+        const scriptNode = created?.nodes.find((node) => node.type === CanvasNodeType.Script);
+        if (!created || !scriptNode) return;
+        const scriptNodeWithText = {
+            ...scriptNode,
+            metadata: {
+                ...scriptNode.metadata,
+                filmScript: {
+                    ...(scriptNode.metadata?.filmScript ?? { parseSnapshots: [] }),
+                    text: scriptText,
+                    sourceScriptProjectId: project.id,
+                    sourceScriptHash: document.scriptHash,
+                },
+            },
+        };
+        const nodesWithScript = created.nodes.map((node) => node.id === scriptNode.id ? scriptNodeWithText : node);
+        const parsed = shotCount ? buildFilmParseGraph(episodes, scriptNodeWithText, nodesWithScript, created.connections, "overwrite") : null;
+        updateCanvasProject(filmProjectId, { nodes: parsed?.nodes ?? nodesWithScript, connections: parsed?.connections ?? created.connections });
         updateProject(project.id, {
             filmProjectId,
             drafts: lockedDraft ? (project.drafts || []) : [...(project.drafts || []), draft],
             lockedDraftId: lockedDraft ? project.lockedDraftId : draft.id,
             status: "locked",
         });
-        message.success(`已生成影视分镜：${episodes.length} 集 / ${shotCount} 个分镜`);
-        router.push(`/film/${filmProjectId}`);
+        message.success(shotCount ? `已生成影视分镜：${episodes.length} 集 / ${shotCount} 个分镜` : "已创建影视画布，可在 Studio 继续拆镜");
+        router.push(`/film/studio/${filmProjectId}`);
     };
 
     const saveTitle = () => {

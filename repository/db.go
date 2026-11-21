@@ -120,6 +120,9 @@ func DB() (*gorm.DB, error) {
 			&model.InvoiceRequest{},
 			&model.PublishRecord{},
 		)
+		if dbErr == nil && db.Migrator().HasColumn(&model.UserConfig{}, "film_project_data") {
+			dbErr = db.Migrator().DropColumn(&model.UserConfig{}, "film_project_data")
+		}
 	})
 	return db, dbErr
 }

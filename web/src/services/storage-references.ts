@@ -1,6 +1,6 @@
 import { readOtherAccountStates } from "@/lib/account-storage";
 import { waitForStoreHydration } from "@/lib/store-hydration";
-import { ASSET_STORE_KEY, CANVAS_STORE_KEY, COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
+import { ASSET_STORE_KEY, CANVAS_STORE_KEY, COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY } from "@/lib/storage-keys";
 
 type GenerationLog = {
     images?: Array<{ storageKey?: string } | null>;
@@ -11,7 +11,6 @@ type GenerationLog = {
 export type StorageReferenceSources = {
     assets?: unknown;
     projects?: unknown;
-    filmProjects?: unknown;
     filmCast?: unknown;
     comicProjects?: unknown;
     comicCast?: unknown;
@@ -30,7 +29,6 @@ export function buildStorageReferenceSources(input: StorageReferenceSourceInput)
     return {
         assets: input.assets,
         projects: input.projects,
-        filmProjects: input.filmProjects,
         filmCast: input.filmCast,
         comicProjects: input.comicProjects,
         comicCast: input.comicCast,
@@ -44,13 +42,11 @@ export function buildStorageReferenceSources(input: StorageReferenceSourceInput)
 /** 收集所有本地业务数据中引用到的媒体存储键；画布、影视、漫画、素材、Skills、生成历史和其他账号分区都算。 */
 export async function collectStorageReferences({ assets, skills, extra }: { assets?: unknown; skills?: unknown; extra?: unknown } = {}): Promise<StorageReferenceSources> {
     const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
-    const { useFilmStore } = await import("@/stores/use-film-store");
     const { useFilmCastStore } = await import("@/stores/use-film-cast-store");
     const { useComicStore } = await import("@/app/(user)/comic/stores/use-comic-store");
     const { useComicCastStore } = await import("@/app/(user)/comic/stores/use-comic-cast-store");
     await Promise.all([
         waitForStoreHydration(useCanvasStore),
-        waitForStoreHydration(useFilmStore),
         waitForStoreHydration(useFilmCastStore),
         waitForStoreHydration(useComicStore),
         waitForStoreHydration(useComicCastStore),
@@ -60,7 +56,6 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
     return buildStorageReferenceSources({
         assets,
         projects: useCanvasStore.getState().projects,
-        filmProjects: useFilmStore.getState().projects,
         filmCast: { characters: cast.characters, locations: cast.locations, props: cast.props, costumes: cast.costumes, styles: cast.styles },
         comicProjects: useComicStore.getState().projects,
         comicCast: { characters: comicCast.characters, locations: comicCast.locations },
@@ -70,7 +65,6 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
         otherAccounts: [
             ...(await readOtherAccountStates(CANVAS_STORE_KEY)),
             ...(await readOtherAccountStates(ASSET_STORE_KEY)),
-            ...(await readOtherAccountStates(FILM_STORE_KEY)),
             ...(await readOtherAccountStates(FILM_CAST_STORE_KEY)),
             ...(await readOtherAccountStates(COMIC_STORE_KEY)),
             ...(await readOtherAccountStates(COMIC_CAST_STORE_KEY)),

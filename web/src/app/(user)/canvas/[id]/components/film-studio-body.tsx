@@ -50,7 +50,7 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
     }, [model, next, prev]);
 
     return (
-        <div className="absolute inset-x-0 bottom-0 top-16 flex min-h-0 max-sm:top-24" style={{ background: theme.canvas.background, color: theme.node.text }}>
+        <div className="absolute inset-x-0 bottom-0 top-[108px] flex min-h-0 max-sm:top-[116px]" style={{ background: theme.canvas.background, color: theme.node.text }}>
             {panelOpen ? (
                 <aside className="relative z-30 max-md:absolute max-md:inset-y-0 max-md:left-0">
                     <FilmShotPanel
@@ -78,6 +78,8 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                         onRemoveBinding={model.onRemoveBinding}
                         onUpdateBinding={model.onUpdateBinding}
                         onEditAsset={model.onEditAsset}
+                        onOpenScript={model.onOpenScript}
+                        onCreateAsset={model.onCreateShotAsset}
                     />
                 </aside>
             ) : (

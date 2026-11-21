@@ -38,6 +38,7 @@ import { canAddFilmConnection } from "./lib/film-connections";
 import { arrangeFilmNodes } from "./lib/film-layout";
 import { appendFilmShot } from "./lib/film-shot-create";
 import { addFilmShotBinding, removeFilmShotBinding, updateFilmShotBinding } from "./lib/film-shot-bindings";
+import { canvasConnection } from "./lib/canvas-connection";
 import { buildFilmShotGenerationFromGraph } from "./lib/film-shot-generation-context";
 import { filmVideoFrameBlockReason, filmVideoInput, filmVideoMode } from "./lib/film-shot-video-frames";
 import { buildFilmParseGraph, undoFilmParseGraph } from "./lib/film-script-parse";
@@ -310,7 +311,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         consumedAgentRequestProjectRef.current = null;
         const project = openProject(projectId);
         if (!project) {
-            router.replace("/canvas");
+            router.replace(studio ? "/film" : "/canvas");
             return;
         }
 
@@ -358,7 +359,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             setProjectLoaded(true);
         };
         void restore();
-    }, [hydrated, openProject, projectId, resetHistory, nodeTaskRunsRef, router, setViewport, setActiveOverlay]);
+    }, [hydrated, openProject, projectId, resetHistory, nodeTaskRunsRef, router, setViewport, setActiveOverlay, studio]);
 
     useEffect(() => {
         if (!projectLoaded) return;
@@ -646,6 +647,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         selectOnly(node.id);
         setSelectedConnectionId(null);
         setFilmInspectorNodeId(node.id);
+        return node.id;
     }, [getCanvasCenter, nodesRef, selectOnly, setFilmInspectorNodeId, setSelectedConnectionId, setNodes]);
 
     const createComicFromSelection = useCallback(() => {
@@ -1110,8 +1112,9 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
     const arrangeFilm = useCallback(() => {
         setNodes((prev) => arrangeFilmNodes(prev, connectionsRef.current));
+        window.setTimeout(() => fitAllNodes(), 80);
         message.success("已按场整理");
-    }, [message]);
+    }, [fitAllNodes, message]);
 
     const toggleBatchExpanded = useCallback((nodeId: string) => {
         const isExpanded = Boolean(nodesRef.current.find((node) => node.id === nodeId)?.metadata?.imageBatchExpanded);
@@ -1830,6 +1833,25 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         setConnections((prev) => updateFilmShotBinding(prev, edgeId, patch));
     }, [setConnections]);
 
+    const openFilmScript = useCallback(() => {
+        const script = nodesRef.current.find((node) => node.type === CanvasNodeType.Script);
+        if (!script) {
+            message.warning("当前项目没有剧本节点");
+            return;
+        }
+        setFilmInspectorNodeId(script.id);
+    }, [message, nodesRef]);
+
+    const createFilmShotAsset = useCallback((kind: FilmAssetKind) => {
+        if (!activeFilmShotId || kind === "style") return;
+        if (kind === "location" && activeFilmBindings.some((binding) => binding.kind === "location")) {
+            message.warning("每个镜头只能绑定一个场景");
+            return;
+        }
+        const assetNodeId = createFilmAssetNode(kind);
+        setConnections((prev) => [...prev, canvasConnection(assetNodeId, activeFilmShotId, { kind: "binding", data: { source: "manual" } })]);
+    }, [activeFilmBindings, activeFilmShotId, createFilmAssetNode, message, setConnections]);
+
     const locateFilmShotInGraph = useCallback((shotId: string) => {
         setActiveShotId(shotId);
         setStudioView("graph");
@@ -2133,7 +2155,10 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const canGenerateFilmVideo = Boolean(activeFilmShotNode && (activeFilmShotPayload?.prompt || activeFilmShotPayload?.description || "").trim() && !filmVideoFrameError && !filmShotBusy);
     const filmStudio: FilmStudioModel | undefined = filmMode ? {
         view: studioView,
-        onViewChange: setStudioView,
+        onViewChange: (view) => {
+            setStudioView(view);
+            if (view === "graph") window.setTimeout(() => fitAllNodes(), 80);
+        },
         aspect: currentProject?.film?.aspect ?? "16:9",
         scenes: filmScenes,
         shots: filmShots,
@@ -2182,6 +2207,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         onRemoveBinding: removeFilmBinding,
         onUpdateBinding: updateFilmBinding,
         onEditAsset: setFilmInspectorNodeId,
+        onOpenScript: openFilmScript,
+        onCreateShotAsset: createFilmShotAsset,
     } : undefined;
     const workspace: CanvasWorkspaceModel = {
         stage: {

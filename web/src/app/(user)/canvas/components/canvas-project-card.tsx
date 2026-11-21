@@ -11,7 +11,7 @@ import { useCanvasStore, type CanvasProject } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "../utils/canvas-export";
 
-export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProject; index?: number }) {
+export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: { project: CanvasProject; index?: number; basePath?: string }) {
     const router = useRouter();
     const renameProject = useCanvasStore((state) => state.renameProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
@@ -24,8 +24,8 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const editing = editingId === project.id;
     const selected = selectedIds.includes(project.id);
-    const previews = project.nodes.filter((node) => node.type === CanvasNodeType.Image && node.metadata?.content).slice(0, 3);
-    const open = () => router.push(`/canvas/${project.id}`);
+    const previews = project.nodes.filter((node) => (node.type === CanvasNodeType.Image && node.metadata?.content) || (node.type === CanvasNodeType.Shot && (node.metadata?.filmShot?.imageUrl || node.metadata?.filmShot?.storageKey))).slice(0, 3);
+    const open = () => router.push(`${basePath}/${project.id}`);
     const saveTitle = () => {
         renameProject(project.id, editingTitle);
         stopEditing();
@@ -107,8 +107,9 @@ export function CanvasProjectCard({ project, index = 0 }: { project: CanvasProje
 }
 
 function ProjectNodeThumb({ projectId, node }: { projectId: string; node: CanvasNodeData }) {
-    const content = node.metadata?.content || "";
-    const storageKey = node.metadata?.storageKey;
+    const filmShot = node.metadata?.filmShot;
+    const content = node.metadata?.content || filmShot?.imageUrl || "";
+    const storageKey = node.metadata?.storageKey || filmShot?.storageKey;
     const previewKey = `canvas-node:${projectId}:${node.id}`;
     const source = `${node.metadata?.primaryImageId || ""}:${node.metadata?.imageTaskResultId || ""}:${storageKey || content}`;
     const [src, setSrc] = useState(() => previewUrlFor(previewKey, source) || (content && !content.startsWith("blob:") ? content : ""));
