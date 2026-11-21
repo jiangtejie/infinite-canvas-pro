@@ -4,7 +4,23 @@ import { useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
+import type { CanvasNodeData } from "../../types";
+import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { FilmSceneEntry } from "../lib/film-studio-types";
+
+function FilmShotThumb({ shot, theme }: { shot: CanvasNodeData; theme: CanvasTheme }) {
+    const filmShot = shot.metadata?.filmShot;
+    const src = useResolvedMediaSrc(filmShot?.imageUrl, filmShot?.storageKey);
+    const status = shot.metadata?.status;
+    return (
+        <span className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg" style={{ background: theme.node.fill }}>
+            {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <span className="font-mono text-lg font-semibold tabular-nums" style={{ color: theme.node.text }}>{filmShot?.shotNo || "—"}</span>}
+            {status === "loading" ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: theme.canvas.selectionStroke }} /> : null}
+            {status === "error" ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: canvasStatusColors.error }} /> : null}
+        </span>
+    );
+}
 
 type FilmStripProps = {
     theme: CanvasTheme;
@@ -32,7 +48,6 @@ export function FilmStrip({ theme, scenes, activeShotId, onSelectShot, onCreateS
                     <div className="flex items-center gap-2">
                         {scene.shots.map((entry) => {
                             const active = entry.shot.id === activeShotId;
-                            const shotNo = entry.shot.metadata?.filmShot?.shotNo || "—";
                             return (
                                 <button
                                     key={entry.shot.id}
@@ -43,8 +58,7 @@ export function FilmStrip({ theme, scenes, activeShotId, onSelectShot, onCreateS
                                     onClick={() => onSelectShot(entry.shot.id)}
                                     title={entry.shot.metadata?.filmShot?.description || entry.shot.title}
                                 >
-                                    <span className="font-mono text-lg font-semibold tabular-nums">{shotNo}</span>
-                                    <span className="mt-1 max-w-full truncate px-2 text-[10px]" style={{ color: theme.node.muted }}>{entry.sceneLabel}</span>
+                                    <FilmShotThumb shot={entry.shot} theme={theme} />
                                 </button>
                             );
                         })}

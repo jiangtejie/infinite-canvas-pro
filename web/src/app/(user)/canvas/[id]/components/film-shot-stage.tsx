@@ -3,7 +3,9 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import type { CanvasNodeData } from "../../types";
+import { canvasStatusColors } from "../../lib/canvas-palette";
 
 type FilmShotStageProps = {
     theme: CanvasTheme;
@@ -17,25 +19,30 @@ type FilmShotStageProps = {
     onNext: () => void;
     hasPrev: boolean;
     hasNext: boolean;
+    imageGenerating: boolean;
+    imageError: string | null;
+    canGenerateImage: boolean;
+    onGenerateImage: () => void;
+    onStopImage: () => void;
 };
 
-export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, onCreateShot, onLocate, onPrev, onNext, hasPrev, hasNext }: FilmShotStageProps) {
+export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, onCreateShot, onLocate, onPrev, onNext, hasPrev, hasNext, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage }: FilmShotStageProps) {
     const filmShot = shot?.metadata?.filmShot;
-    const imageUrl = filmShot?.imageUrl;
-    const showImage = Boolean(imageUrl && /^(https?:|data:|blob:)/.test(imageUrl));
+    const imageSrc = useResolvedMediaSrc(filmShot?.imageUrl, filmShot?.storageKey);
     const ratio = aspect.replace(":", " / ");
+    const statusLabel = imageSrc ? "已生成" : imageGenerating ? "生成中…" : imageError ? "生成失败" : "分镜图未生成";
 
     return (
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-6" style={{ background: theme.canvas.background }}>
             <div className="relative w-full max-w-[960px] overflow-hidden rounded-xl border" style={{ aspectRatio: ratio, background: theme.node.fill, borderColor: theme.node.stroke }}>
                 {shot ? (
-                    showImage ? (
-                        <img src={imageUrl} alt="" className="h-full w-full object-contain" />
+                    imageSrc ? (
+                        <img src={imageSrc} alt="" className="h-full w-full object-contain" />
                     ) : (
                         <div className="flex h-full w-full flex-col justify-between gap-4 p-8 max-sm:p-5">
                             <div className="flex items-center justify-between gap-3 text-xs" style={{ color: theme.node.muted }}>
                                 <span className="truncate">{sceneLabel}</span>
-                                <span className="rounded-full border px-2 py-0.5" style={{ borderColor: theme.node.stroke }}>分镜图未生成</span>
+                                <span className="rounded-full border px-2 py-0.5" style={{ borderColor: imageError ? canvasStatusColors.error : theme.node.stroke, color: imageError ? canvasStatusColors.error : theme.node.muted }}>{statusLabel}</span>
                             </div>
                             <div className="min-h-0 flex-1">
                                 <div className="font-mono text-5xl font-semibold tracking-tight tabular-nums" style={{ color: theme.node.text, opacity: 0.9 }}>
@@ -45,10 +52,18 @@ export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, 
                                     {filmShot?.description || filmShot?.prompt || "还没有画面描述"}
                                 </div>
                                 {filmShot?.prompt ? <div className="mt-3 line-clamp-3 max-w-2xl text-sm leading-7" style={{ color: theme.node.muted }}>{filmShot.prompt}</div> : null}
+                                {imageError ? <div className="mt-3 max-w-2xl text-sm" style={{ color: canvasStatusColors.error }}>{imageError}</div> : null}
                             </div>
-                            <div className="flex items-center justify-between gap-3 text-xs" style={{ color: theme.node.muted }}>
-                                <span>生成分镜后在这里预览画面</span>
-                                <button type="button" className="rounded-full border px-3 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} onClick={() => onLocate(shot.id)}>在画布中定位</button>
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-xs" style={{ color: theme.node.muted }}>
+                                <span>{imageGenerating ? "正在生成分镜图…" : "生成分镜后在这里预览画面"}</span>
+                                <div className="flex items-center gap-2">
+                                    {imageGenerating ? (
+                                        <button type="button" className="rounded-full border px-3 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} onClick={onStopImage}>停止</button>
+                                    ) : (
+                                        <button type="button" className="rounded-full border px-3 py-1.5 disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={!canGenerateImage} onClick={onGenerateImage}>{imageError ? "重试生成" : "生成分镜图"}</button>
+                                    )}
+                                    <button type="button" className="rounded-full border px-3 py-1.5" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} onClick={() => onLocate(shot.id)}>在画布中定位</button>
+                                </div>
                             </div>
                         </div>
                     )

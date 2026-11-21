@@ -41,4 +41,9 @@ export type FilmStudioModel = {
     onUpdateShot: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
     onCreateShot: (sceneId?: string) => void;
     onLocateInGraph: (shotId: string) => void;
+    imageGenerating: boolean;
+    imageError: string | null;
+    canGenerateImage: boolean;
+    onGenerateImage: () => void;
+    onStopImage: () => void;
 };

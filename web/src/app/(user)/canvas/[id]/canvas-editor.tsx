@@ -8,6 +8,11 @@ import { deleteCanvasProjects } from "@/services/api/canvas-tasks";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { collectImageStorageKeys } from "@/lib/storage-reference-keys";
 import { deleteImagePreviews, deleteStoredImages, deleteUnusedImagePreviews, ensureImagePreview, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
+import { createCanvasImageTask, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
+import { normalizeFilmAspect } from "@/lib/film/film-aspects";
+import { useModelConfig } from "@/hooks/use-model-config";
+import { loadFilmShotGenerationReferences } from "@/app/(user)/film/utils/film-references";
+import { FILM_IMAGE_REFERENCE_LIMIT } from "@/app/(user)/film/utils/film-shot-generation";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
@@ -27,6 +32,8 @@ import { normalizeConnection } from "./lib/canvas-connections";
 import { canAddFilmConnection } from "./lib/film-connections";
 import { arrangeFilmNodes } from "./lib/film-layout";
 import { appendFilmShot } from "./lib/film-shot-create";
+import { buildFilmShotGenerationFromGraph } from "./lib/film-shot-generation-context";
+import { applyFilmShotImageTaskUpdate } from "./lib/film-shot-task-updates";
 import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmStyleName } from "./lib/film-selectors";
 import type { FilmStudioModel } from "./lib/film-studio-types";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
@@ -99,6 +106,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const uploadingImageNodeIdsRef = useRef(new Set<string>());
 
     const effectiveConfig = useEffectiveConfig();
+    const resolveModelConfig = useModelConfig();
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const addAsset = useAssetStore((state) => state.addAsset);
@@ -1783,11 +1791,94 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         window.setTimeout(() => focusNode(shotId), 80);
     }, [focusNode]);
 
+    const generateFilmShotImage = useCallback(async (shotId: string) => {
+        const node = nodesRef.current.find((item) => item.id === shotId);
+        const payload = node?.metadata?.filmShot;
+        if (!node || !payload) return;
+        if (!(payload.prompt || payload.description).trim()) {
+            message.warning("先填写画面描述或提示词");
+            return;
+        }
+        if (node.metadata?.status === "loading") return;
+        const config = resolveModelConfig("image");
+        if (!config) return;
+        const imageConfig = {
+            ...config,
+            count: "1",
+            size: normalizeFilmAspect(currentProject?.film?.aspect),
+        } as SeedableImageConfig;
+        const context = buildFilmShotGenerationFromGraph(nodesRef.current, connectionsRef.current, shotId, {
+            medium: "image",
+            maxReferences: FILM_IMAGE_REFERENCE_LIMIT,
+        });
+        if (!context) return;
+        const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
+        const generationContext = { ...context, missingReferenceIds };
+        const clientTaskId = `client_film_shot_image_${nanoid()}`;
+        const startedAt = Date.now();
+        setNodes((prev) => prev.map((item) => item.id === shotId && item.metadata?.filmShot ? {
+            ...item,
+            metadata: {
+                ...item.metadata,
+                status: "loading",
+                clientTaskId,
+                imageTaskId: clientTaskId,
+                imageTaskResultId: undefined,
+                startedAt,
+                progress: 0,
+                errorDetails: undefined,
+                filmShot: {
+                    ...item.metadata.filmShot,
+                    errorMessage: "",
+                    pendingTask: { kind: "image", id: clientTaskId, startedAt, generationContext },
+                },
+            },
+        } : item));
+        try {
+            const task = await submitNodeTask(shotId, clientTaskId, (signal, onServerTask) => createCanvasImageTask(imageConfig, generationContext.prompt, images, {
+                signal,
+                onServerTask,
+                nodeId: shotId,
+                sourceId: projectId,
+                clientTaskId,
+            }));
+            if (!isNodeTaskActive(shotId, clientTaskId)) return;
+            setNodes((prev) => applyFilmShotImageTaskUpdate(prev, shotId, task, clientTaskId));
+        } catch (error) {
+            if (!isNodeTaskActive(shotId, clientTaskId)) return;
+            const errorDetails = toErrorMessage(error, "分镜图生成失败");
+            setNodes((prev) => applyFilmShotImageTaskUpdate(prev, shotId, {
+                id: clientTaskId,
+                status: "failed",
+                error: { message: errorDetails },
+            } as CanvasImageTask, clientTaskId));
+            message.error(errorDetails);
+        }
+    }, [connectionsRef, currentProject?.film?.aspect, isNodeTaskActive, message, nodesRef, projectId, resolveModelConfig, setNodes, submitNodeTask]);
+
+    const stopFilmShotImage = useCallback(async (shotId: string) => {
+        await handleStopNode(shotId);
+        setNodes((prev) => prev.map((item) => item.id === shotId && item.metadata?.filmShot ? {
+            ...item,
+            metadata: {
+                ...item.metadata,
+                filmShot: { ...item.metadata.filmShot, pendingTask: undefined },
+            },
+        } : item));
+    }, [handleStopNode, setNodes]);
+
     useEffect(() => () => {
         if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
     }, [focusAnimationRef]);
 
     if (!projectLoaded) return <CanvasRefreshShell />;
+    const activeFilmShotNode = activeFilm.shot?.shot ?? null;
+    const activeFilmShotPayload = activeFilmShotNode?.metadata?.filmShot;
+    const filmImageGenerating = activeFilmShotNode?.metadata?.status === "loading" && activeFilmShotPayload?.pendingTask?.kind === "image";
+    const filmImageError = activeFilmShotNode?.metadata?.status === "error"
+        ? activeFilmShotNode.metadata.errorDetails || activeFilmShotPayload?.errorMessage || "分镜图生成失败"
+        : null;
+    const canGenerateFilmImage = Boolean(activeFilmShotNode && (activeFilmShotPayload?.prompt || activeFilmShotPayload?.description || "").trim() && !filmImageGenerating);
     const filmStudio: FilmStudioModel | undefined = filmMode ? {
         view: studioView,
         onViewChange: setStudioView,
@@ -1803,6 +1894,15 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         onUpdateShot: updateFilmShot,
         onCreateShot: createFilmShot,
         onLocateInGraph: locateFilmShotInGraph,
+        imageGenerating: filmImageGenerating,
+        imageError: filmImageError,
+        canGenerateImage: canGenerateFilmImage,
+        onGenerateImage: () => {
+            if (activeFilmShotNode) void generateFilmShotImage(activeFilmShotNode.id);
+        },
+        onStopImage: () => {
+            if (activeFilmShotNode) void stopFilmShotImage(activeFilmShotNode.id);
+        },
     } : undefined;
     const workspace: CanvasWorkspaceModel = {
         stage: {

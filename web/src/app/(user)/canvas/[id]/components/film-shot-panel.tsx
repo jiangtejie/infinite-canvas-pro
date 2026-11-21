@@ -5,6 +5,7 @@ import { Input, InputNumber } from "antd";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
+import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { CanvasNodeData } from "../../types";
 import { patchFilmShotNode } from "../lib/film-node-patch";
 import type { FilmShotBindingChip } from "../lib/film-studio-types";
@@ -19,6 +20,11 @@ type FilmShotPanelProps = {
     onCreateShot: () => void;
     onUpdate: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
     onClose: () => void;
+    imageGenerating: boolean;
+    imageError: string | null;
+    canGenerateImage: boolean;
+    onGenerateImage: () => void;
+    onStopImage: () => void;
 };
 
 function Section({ theme, title, children }: { theme: CanvasTheme; title: string; children: ReactNode }) {
@@ -39,7 +45,7 @@ function Field({ theme, label, children }: { theme: CanvasTheme; label: string; 
     );
 }
 
-export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose }: FilmShotPanelProps) {
+export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage }: FilmShotPanelProps) {
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
     const filmShot = shot?.metadata?.filmShot;
     const update = (patch: Parameters<typeof patchFilmShotNode>[1]) => {
@@ -84,9 +90,17 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
                         </div>
                     </Section>
                     <Section theme={theme} title="状态">
-                        <div className="text-xs" style={{ color: theme.node.muted }}>
-                            分镜图：{filmShot?.imageUrl ? "已生成" : "未生成"}；视频：{filmShot?.videoUrl ? "已生成" : "未生成"}。
+                        <div className="flex flex-wrap items-center gap-2">
+                            {imageGenerating ? (
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onStopImage}>停止生成</button>
+                            ) : (
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={!canGenerateImage} onClick={onGenerateImage}>生成分镜图</button>
+                            )}
+                            <span className="text-xs" style={{ color: theme.node.muted }}>
+                                {filmShot?.imageUrl ? "已生成" : imageGenerating ? "生成中…" : imageError ? "生成失败" : "未生成"}
+                            </span>
                         </div>
+                        {imageError ? <div className="text-xs" style={{ color: canvasStatusColors.error }}>{imageError}</div> : null}
                     </Section>
                 </div>
             )}

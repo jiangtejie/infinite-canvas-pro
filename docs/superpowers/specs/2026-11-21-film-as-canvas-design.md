@@ -141,7 +141,7 @@ export type CanvasConnection = {
 
 规则：
 
-- `binding`：角色/场景/道具资产节点 → 镜头。角色/道具/场景 id 就是源节点 id；`characterNameSnapshot` 等快照字段删除，名称从资产节点读。
+- `binding`：角色/场景/道具资产节点 → 镜头。边决定绑定关系；编译器使用源节点的资产 id（图适配器把节点 id 映射为 `asset.id`），名称从资产节点读。
 - 每个镜头最多一条场景绑定边；角色与道具可多条。
 - 服装通过角色绑定的 `stateId` 与 `continuity.outfit` 表达，不单独连边；风格不连边，避免几十条噪音线。
 - `sequence`：镜头 → 镜头，表达连续镜头顺序；禁止成环；顺序按边 + 画布位置派生。

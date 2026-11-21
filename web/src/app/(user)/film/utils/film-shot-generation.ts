@@ -41,7 +41,7 @@ function matchingExpressionImage(profile: ReturnType<typeof ensureCharacterProfi
 }
 
 /** 图片与视频共用的单角色身份/状态/连续性文本；角色名只出现一次（在连续性行）。 */
-function characterSnapshotText(project: FilmProject, asset: FilmAsset | undefined, binding: FilmShotCharacterBinding, previousBinding?: FilmShotCharacterBinding): string {
+function characterSnapshotText(project: Pick<FilmProject, "costumes" | "props">, asset: FilmAsset | undefined, binding: FilmShotCharacterBinding, previousBinding?: FilmShotCharacterBinding): string {
     const state = asset ? findFilmCharacterState(asset, binding.stateId) : undefined;
     const profile = asset ? ensureCharacterProfile(asset) : undefined;
     const identity = asset ? [asset.description, asset.visualPrompt, ...(profile ? CHARACTER_PART_DEFINITIONS.map((part) => profile.parts[part.key].prompt) : [])].filter(Boolean).join("；") : "";
@@ -53,11 +53,13 @@ function characterSnapshotText(project: FilmProject, asset: FilmAsset | undefine
     return setting ? `${continuityLine} 设定：${setting}` : continuityLine;
 }
 
+export type FilmGenerationProjectContext = Pick<FilmProject, "characters" | "locations" | "props" | "costumes" | "style">;
+
 /**
  * 唯一的镜头生成上下文编译器：纯函数，不读浏览器、不加载图片、不调用模型。
  * 为图片与视频编译同一份角色身份/状态/连续性文本、按配额与预算选择参考图、合成最终提示词并计算输入签名。
  */
-export function buildFilmShotGenerationContext(project: FilmProject, shot: FilmShot, options: FilmGenerationOptions): FilmGenerationContext {
+export function buildFilmShotGenerationContext(project: FilmGenerationProjectContext, shot: FilmShot, options: FilmGenerationOptions): FilmGenerationContext {
     const { medium, maxReferences, previousShot, anchorShot, includeStoryboard, videoMode } = options;
     const characters = project.characters || [];
     const locations = project.locations || [];

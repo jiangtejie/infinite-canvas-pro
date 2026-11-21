@@ -32,7 +32,7 @@ export function useCanvasTaskControl({ nodeTaskRunsRef, nodesRef, historyRef, la
         const node = nodesRef.current.find((item) => item.id === nodeId);
         const id = nodeTaskRunsRef.current.get(nodeId)?.id || node?.metadata?.clientTaskId;
         if (!node || !id || node.metadata?.isBatchRoot || (node.metadata?.status !== "loading" && node.metadata?.status !== "stopping" && !nodeTaskRunsRef.current.get(nodeId)?.submission)) return;
-        const kind = isCanvasImageNodeType(node.type) ? "image" : node.type === CanvasNodeType.Video ? "video" : node.type === CanvasNodeType.Audio ? "audio" : node.type === CanvasNodeType.Text ? "text" : null;
+        const kind = isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Shot ? "image" : node.type === CanvasNodeType.Video ? "video" : node.type === CanvasNodeType.Audio ? "audio" : node.type === CanvasNodeType.Text ? "text" : null;
         if (!kind) return;
         const run: CanvasNodeTaskRun = nodeTaskRunsRef.current.get(nodeId) || { id, controller: new AbortController(), backend: node.metadata?.taskBackend };
         if (run.id !== id || run.stopping) return;

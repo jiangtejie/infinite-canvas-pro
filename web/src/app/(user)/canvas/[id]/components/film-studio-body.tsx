@@ -36,6 +36,10 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                 event.preventDefault();
                 model.onSelectShot(next.shot.id);
             }
+            if (event.key.toLowerCase() === "g" && model.canGenerateImage) {
+                event.preventDefault();
+                model.onGenerateImage();
+            }
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
@@ -55,6 +59,11 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                         onCreateShot={() => model.onCreateShot()}
                         onUpdate={model.onUpdateShot}
                         onClose={() => setPanelOpen(false)}
+                        imageGenerating={model.imageGenerating}
+                        imageError={model.imageError}
+                        canGenerateImage={model.canGenerateImage}
+                        onGenerateImage={model.onGenerateImage}
+                        onStopImage={model.onStopImage}
                     />
                 </aside>
             ) : (
@@ -76,6 +85,11 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                     onNext={() => next && model.onSelectShot(next.shot.id)}
                     hasPrev={Boolean(prev)}
                     hasNext={Boolean(next)}
+                    imageGenerating={model.imageGenerating}
+                    imageError={model.imageError}
+                    canGenerateImage={model.canGenerateImage}
+                    onGenerateImage={model.onGenerateImage}
+                    onStopImage={model.onStopImage}
                 />
                 <FilmStrip
                     theme={theme}

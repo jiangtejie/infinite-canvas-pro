@@ -17,6 +17,7 @@ import { buildGenerationConfig } from "../lib/canvas-generation-config";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { canvasVideoTaskFromMetadata, canvasVideoTaskId } from "../lib/canvas-task-helpers";
 import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate } from "../lib/canvas-task-updates";
+import { applyFilmShotImageTaskUpdate, selectFilmShotImageTaskTargets } from "../lib/film-shot-task-updates";
 import { workflowAudioTask, workflowImageTask, workflowVideoTask } from "../lib/canvas-workflow-tasks";
 
 type UseCanvasTaskPollingOptions = {
@@ -80,6 +81,23 @@ export function useCanvasTaskPolling({ projectLoaded, nodesRef, effectiveConfig,
                         if (!node.metadata?.isBatchRoot && !isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
                         setNodes((prev) => applyCanvasImageTaskUpdate(prev, node.id, task, node.metadata?.startedAt || Date.now(), { width: node.width, height: node.height }, node.metadata?.clientTaskId));
                         setConnections((prev) => node.metadata?.isBatchRoot || isNodeTaskActive(node.id, node.metadata?.clientTaskId) ? applyCanvasImageTaskConnections(prev, node.id, task, node.metadata?.batchRootId) : prev);
+                    })
+                    .catch(() => undefined)
+                    .finally(() => {
+                        pollingImageNodeIdsRef.current.delete(node.id);
+                    });
+            });
+            const filmShotTargets = selectFilmShotImageTaskTargets(nodesRef.current);
+            filmShotTargets.forEach((node) => {
+                if (pollingImageNodeIdsRef.current.has(node.id) || !node.metadata?.imageTaskId) return;
+                const controller = new AbortController();
+                pollingImageNodeIdsRef.current.set(node.id, controller);
+                void pollCanvasImageTaskStatus(node.metadata.imageTaskId, controller.signal)
+                    .then((result) => {
+                        if (controller.signal.aborted) return;
+                        const task = rememberNodeTask(node.id, node.metadata?.clientTaskId || node.metadata?.imageTaskId, result);
+                        if (!isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
+                        setNodes((prev) => applyFilmShotImageTaskUpdate(prev, node.id, task, node.metadata?.clientTaskId));
                     })
                     .catch(() => undefined)
                     .finally(() => {
