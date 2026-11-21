@@ -12,6 +12,14 @@ export const canvasThemes = {
             selectionStroke: "#2f80ff",
             selectionFill: "rgba(47,128,255,.08)",
             selectionSoft: "rgba(47,128,255,.20)",
+            /** 视口四角压暗色，制造纵深。 */
+            vignette: "rgba(68,64,60,.12)",
+            /** 视口中心环境光色。 */
+            ambient: "rgba(255,255,255,.5)",
+            /** 静态噪点纹理透明度。 */
+            grain: 0.04,
+            /** 网格基础透明度（随缩放再衰减）。 */
+            gridOpacity: 0.32,
         },
         node: {
             label: "#57534e",
@@ -37,6 +45,10 @@ export const canvasThemes = {
             float: "0 12px 32px rgba(0,0,0,0.28)",
             /** 底部工具条/缩放条投影（不含顶部高光）。 */
             panel: "0 16px 40px rgba(28,25,23,.12)",
+            /** 节点 hover：贴地接触影 + 扩散环境影。 */
+            nodeHover: "0 2px 6px rgba(28,25,23,.10), 0 16px 40px rgba(28,25,23,.14)",
+            /** 关联节点环境影。 */
+            nodeRelated: "0 18px 48px rgba(28,25,23,.14)",
         },
     },
     dark: {
@@ -48,6 +60,10 @@ export const canvasThemes = {
             selectionStroke: "#2f80ff",
             selectionFill: "rgba(47,128,255,.12)",
             selectionSoft: "rgba(47,128,255,.24)",
+            vignette: "rgba(0,0,0,.44)",
+            ambient: "rgba(94,114,148,.10)",
+            grain: 0.06,
+            gridOpacity: 0.62,
         },
         node: {
             label: "#d6d3d1",
@@ -71,6 +87,8 @@ export const canvasThemes = {
         shadow: {
             float: "0 12px 32px rgba(0,0,0,0.28)",
             panel: "0 18px 45px rgba(0,0,0,.32)",
+            nodeHover: "0 2px 6px rgba(0,0,0,.5), 0 18px 44px rgba(0,0,0,.45)",
+            nodeRelated: "0 18px 48px rgba(0,0,0,.4)",
         },
     },
 } as const;

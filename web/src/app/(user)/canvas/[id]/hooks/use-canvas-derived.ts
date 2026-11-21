@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type RefObject } from "react";
+import { useMemo } from "react";
 
 import { buildNodeGenerationInputs } from "../../components/canvas-node-generation";
 import type { CanvasVideoFrameOption } from "../../components/canvas-node-prompt-panel";
@@ -19,7 +19,6 @@ type CanvasDerivedOptions = {
     collapsingBatchIds: Set<string>;
     viewport: ViewportTransform;
     size: { width: number; height: number };
-    containerRef: RefObject<HTMLDivElement | null>;
     hoveredNodeId: string | null;
     toolbarNodeId: string | null;
     referencePickerNodeId: string | null;
@@ -37,7 +36,6 @@ export function useCanvasDerived({
     collapsingBatchIds,
     viewport,
     size,
-    containerRef,
     hoveredNodeId,
     toolbarNodeId,
     referencePickerNodeId,
@@ -46,16 +44,15 @@ export function useCanvasDerived({
 }: CanvasDerivedOptions) {
     const visibleNodes = useMemo(() => {
         const padding = 280;
-        const rect = containerRef.current?.getBoundingClientRect();
-        const width = rect?.width || size.width;
-        const height = rect?.height || size.height;
+        const width = size.width;
+        const height = size.height;
         const viewLeft = -viewport.x / viewport.k - padding;
         const viewTop = -viewport.y / viewport.k - padding;
         const viewRight = viewLeft + width / viewport.k + padding * 2;
         const viewBottom = viewTop + height / viewport.k + padding * 2;
 
         return nodes.filter((node) => !isHiddenBatchChild(node, nodes, collapsingBatchIds) && node.position.x + node.width > viewLeft && node.position.x < viewRight && node.position.y + node.height > viewTop && node.position.y < viewBottom);
-    }, [collapsingBatchIds, containerRef, nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
+    }, [collapsingBatchIds, nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
 
     const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
     const toolbarNode = toolbarNodeId ? nodeById.get(toolbarNodeId) || null : null;
@@ -128,6 +125,30 @@ export function useCanvasDerived({
 
         return expandComicBookPageRelations({ activeNodeId, nodes, baseNodeIds: nodeIds, baseConnectionIds: connectionIds });
     }, [activeNodeId, connections, nodes]);
+
+    // 聚焦淡出只锚定「单选节点」，不随 hover 切换，避免鼠标扫过画布时整屏闪烁。
+    const selectionFocus = useMemo(() => {
+        if (selectedNodeIds.size !== 1) return null;
+        const focusId = Array.from(selectedNodeIds)[0];
+        const nodeIds = new Set<string>([focusId]);
+        const connectionIds = new Set<string>();
+        connections.forEach((connection) => {
+            if (connection.fromNodeId !== focusId && connection.toNodeId !== focusId) return;
+            connectionIds.add(connection.id);
+            nodeIds.add(connection.fromNodeId);
+            nodeIds.add(connection.toNodeId);
+        });
+        // 批量组整体保持常亮：选中根或任一子图时，根与全部子图都不淡出。
+        const focusNode = nodes.find((node) => node.id === focusId);
+        const batchRootId = focusNode?.metadata?.batchRootId || (focusNode?.metadata?.isBatchRoot ? focusId : null);
+        if (batchRootId) {
+            nodeIds.add(batchRootId);
+            nodes.forEach((node) => {
+                if (node.metadata?.batchRootId === batchRootId) nodeIds.add(node.id);
+            });
+        }
+        return expandComicBookPageRelations({ activeNodeId: focusId, nodes, baseNodeIds: nodeIds, baseConnectionIds: connectionIds });
+    }, [connections, nodes, selectedNodeIds]);
 
     const configInputsById = useMemo(() => {
         const map = new Map<string, ReturnType<typeof buildNodeGenerationInputs>>();
@@ -253,6 +274,7 @@ export function useCanvasDerived({
         groupChildCountById,
         batchMotionById,
         relatedHighlight,
+        selectionFocus,
         configInputsById,
         publishInputsById,
         directorPanoramasByNodeId,

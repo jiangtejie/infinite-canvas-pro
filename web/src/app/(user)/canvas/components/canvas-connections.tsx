@@ -9,6 +9,7 @@ export function ConnectionPath({
     from,
     to,
     active,
+    dimmed = false,
     flowing = false,
     onSelect,
     onContextMenu,
@@ -17,6 +18,7 @@ export function ConnectionPath({
     from: CanvasNodeData;
     to: CanvasNodeData;
     active: boolean;
+    dimmed?: boolean;
     flowing?: boolean;
     onSelect: () => void;
     onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
@@ -33,7 +35,7 @@ export function ConnectionPath({
     const pathD = `M ${startX} ${startY} C ${startX + curvature} ${startY}, ${endX - curvature} ${endY}, ${endX} ${endY}`;
 
     return (
-        <g>
+        <g opacity={dimmed ? 0.22 : 1} style={{ transition: "opacity 200ms ease" }}>
             <path
                 data-connection-id={connection.id}
                 d={pathD}
@@ -61,6 +63,12 @@ export function ConnectionPath({
                 fill="none"
                 style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : undefined, pointerEvents: "none" }}
             />
+            {active || flowing ? (
+                <>
+                    <circle cx={startX} cy={startY} r={3} fill={theme.node.activeStroke} opacity={0.9} style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }} />
+                    <circle cx={endX} cy={endY} r={3} fill={theme.node.activeStroke} opacity={0.9} style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }} />
+                </>
+            ) : null}
             {flowing && !structural ? (
                 <>
                     <path

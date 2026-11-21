@@ -505,12 +505,12 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         comicNode, openDirectorNode, selectedImageNodes, selectedImageCount, canCreateComic,
         activeNodeId, canGenerateFromContextMenu,
         canEditFromContextMenu, contextMenuGenerateLabel, batchChildCountById, groupChildCountById,
-        batchMotionById, relatedHighlight, configInputsById, publishInputsById,
+        batchMotionById, relatedHighlight, selectionFocus, configInputsById, publishInputsById,
         directorPanoramasByNodeId, mentionReferencesByNodeId, connectedNodesByNodeId,
         referenceConnectedNodeIds, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId,
     } = useCanvasDerived({
         nodes, connections, selectedNodeIds, collapsingBatchIds,
-        viewport, size, containerRef, hoveredNodeId, toolbarNodeId,
+        viewport, size, hoveredNodeId, toolbarNodeId,
         referencePickerNodeId, activeOverlay, contextMenu,
     });
 
@@ -862,6 +862,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 setCanvasTool("pan");
                 return;
             }
+            if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "z" && !target?.closest("[contenteditable='true']")) {
+                event.preventDefault();
+                useCanvasUiStore.setState((state) => ({ zenMode: !state.zenMode }));
+                return;
+            }
             if (!isModifierShortcut && !event.altKey && event.shiftKey && ["Digit0", "Digit1", "Digit2"].includes(event.code)) {
                 event.preventDefault();
                 if (event.code === "Digit1") fitAllNodes();
@@ -936,6 +941,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 setHoveredNodeId(null);
                 setToolbarNodeId(null);
                 closeOverlay();
+                useCanvasUiStore.getState().setZenMode(false);
             }
         };
 
@@ -1683,7 +1689,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             alignmentGuides, focusAnimationRef, viewportRef, setViewport,
             setContextMenu, referencePickerNodeId, handleCanvasPointerDown, deselectCanvas,
             setNodeCreatePosition, screenToCanvas, preventCanvasContextMenu, handleDrop,
-            connections, nodeById, selectedConnectionId, relatedHighlight,
+            connections, nodeById, selectedConnectionId, relatedHighlight, selectionFocus,
             setSelectedConnectionId, clearSelection, setToolbarNodeId, connectingParams,
             mouseWorld, connectionTargetNodeId, visibleNodes, activeNodeId,
             referenceConnectedNodeIds, dialogNodeId, selectionBox, batchChildCountById,

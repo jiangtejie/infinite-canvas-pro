@@ -39,6 +39,7 @@ type CanvasNodeProps = {
     scale: number;
     isSelected: boolean;
     isRelated: boolean;
+    dimmed?: boolean;
     isFocusRelated: boolean;
     isConnectionTarget: boolean;
     isConnecting: boolean;
@@ -105,6 +106,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     scale,
     isSelected,
     isRelated,
+    dimmed = false,
     isFocusRelated,
     isConnectionTarget,
     isConnecting,
@@ -330,7 +332,8 @@ export const CanvasNode = React.memo(function CanvasNode({
                 transform: `translate(${data.position.x}px, ${data.position.y}px)`,
                 width: data.width,
                 height: data.height,
-                transition: "box-shadow 200ms ease",
+                opacity: dimmed ? 0.3 : 1,
+                transition: "box-shadow 200ms ease, opacity 200ms ease",
                 contain: "layout style",
                 "--canvas-selection": theme.canvas.selectionStroke,
             } as React.CSSProperties}
@@ -401,7 +404,9 @@ export const CanvasNode = React.memo(function CanvasNode({
                 style={{
                     background: isGroup ? theme.node.panel : hasImageContent || hasVideoContent ? "transparent" : theme.node.fill,
                     borderColor: isGroup ? isGroupDropTarget || isActive ? theme.canvas.selectionStroke : theme.node.stroke : hasImageContent ? imageBorderColor : isActive ? theme.canvas.selectionStroke : isRelated ? theme.node.muted : theme.node.stroke,
-                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${theme.canvas.selectionSoft}` : isGroup && isSelected ? `0 0 0 1px ${theme.canvas.selectionSoft}` : isActive ? `0 0 0 1px ${theme.canvas.selectionSoft}` : isRelated && !isBatchChild ? `0 0 0 1px ${theme.node.muted}55, 0 18px 48px rgba(0,0,0,.14)` : undefined,
+                    boxShadow: isGroupDropTarget ? `0 0 0 2px ${theme.canvas.selectionSoft}` : isGroup && isSelected ? `0 0 0 1px ${theme.canvas.selectionSoft}` : isActive ? `0 0 0 1px ${theme.canvas.selectionSoft}, 0 0 24px ${theme.canvas.selectionStroke}2b` : isRelated && !isBatchChild ? `0 0 0 1px ${theme.node.muted}55, ${theme.shadow.nodeRelated}` : hovered && !isGroup && !isBatchChild ? theme.shadow.nodeHover : undefined,
+                    transform: hovered && !isGroup ? "translateY(-2px)" : undefined,
+                    transition: "box-shadow 200ms ease, transform 200ms ease",
                 }}
                 onPointerDown={(event) => onDragStart(event, data.id)}
                 onDoubleClick={(event) => {

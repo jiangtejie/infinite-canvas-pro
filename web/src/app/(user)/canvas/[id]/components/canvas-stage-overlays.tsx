@@ -23,6 +23,7 @@ import type { AiConfig } from "@/stores/use-config-store";
 import type { CanvasBatchGenerationState } from "../hooks/use-canvas-batch-generation";
 import type { PendingPanoramaImport } from "../hooks/use-canvas-ui-state";
 import type { CanvasOverlay } from "../../types";
+import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
 
 
 export type CanvasStageOverlaysModel = {
@@ -200,6 +201,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
     } = model;
 
     const remixRun = toolbarNode?.metadata?.remixRole === "plan" ? toolbarNode.metadata.remixRun : undefined;
+    const zenMode = useCanvasUiStore((state) => state.zenMode);
     const remixImages = remixRun ? nodes.filter((node) => node.metadata?.remixRunId === remixRun.id && node.metadata?.remixRole === "image") : [];
     const remixRunning = remixImages.some((node) => node.metadata?.status === "loading" || node.metadata?.status === "stopping");
     const remixCanGenerate = Boolean(remixRun?.plan) && remixRun?.binding === "active" && !remixRunning;
@@ -221,7 +223,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     />
                 ) : null}
 
-                <CanvasNodeHoverToolbar
+                {!zenMode ? <CanvasNodeHoverToolbar
                     node={isNodeDragging || nodeImageSettingsOpen ? null : toolbarNode}
                     viewport={viewport}
                     onKeep={keepNodeToolbar}
@@ -268,9 +270,9 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     }}
                     remixCanGenerate={remixCanGenerate}
                     remixCanReplan={remixCanReplan}
-                />
+                /> : null}
 
-                <CanvasToolbar
+                {!zenMode ? <CanvasToolbar
                     selectedCount={selectedNodeIds.size}
                     selectedHasGroup={nodes.some((node) => node.type === CanvasNodeType.Group && selectedNodeIds.has(node.id))}
                     onAlign={alignSelectedNodes}
@@ -313,13 +315,13 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                         setAssetPickerOpen(true);
                     }}
                     sidePanelWidth={sidePanel.open ? sidePanel.width : 0}
-                />
+                /> : null}
 
                 <CanvasBatchProgress state={batchState} onStop={onStopBatch} />
 
-                {isMiniMapOpen ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
+                {isMiniMapOpen && !zenMode ? <Minimap nodes={nodes} viewport={viewport} viewportSize={size} onViewportChange={setViewport} /> : null}
 
-                <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onFitAll={fitAllNodes} onFitSelected={fitSelectedNodes} hasSelection={selectedNodeIds.size > 0} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} onOpenShortcuts={() => setShortcutsOpen(true)} />
+                {!zenMode ? <CanvasZoomControls scale={viewport.k} onScaleChange={setZoomScale} onFitAll={fitAllNodes} onFitSelected={fitSelectedNodes} hasSelection={selectedNodeIds.size > 0} isMiniMapOpen={isMiniMapOpen} onToggleMiniMap={() => setIsMiniMapOpen((value) => !value)} onOpenShortcuts={() => setShortcutsOpen(true)} /> : null}
 
                 {contextMenu ? (
                     <CanvasNodeContextMenu

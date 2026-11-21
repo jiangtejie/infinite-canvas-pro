@@ -5,6 +5,8 @@ import type { CanvasNodeMetadata, CanvasNodeType } from "../types";
 type CanvasUiStore = {
     shortcutsOpen: boolean;
     setShortcutsOpen: (shortcutsOpen: boolean) => void;
+    zenMode: boolean;
+    setZenMode: (zenMode: boolean) => void;
     wheelMode: "zoom" | "pan";
     setWheelMode: (wheelMode: "zoom" | "pan") => void;
     generationDefaults: Partial<Record<CanvasNodeType.Image | CanvasNodeType.Video, Pick<CanvasNodeMetadata, "quality" | "size" | "vquality">>>;
@@ -24,6 +26,8 @@ export const useCanvasUiStore = create<CanvasUiStore>()(persist((set) => ({
     generationDefaults: {},
     shortcutsOpen: false,
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+    zenMode: false,
+    setZenMode: (zenMode) => set({ zenMode }),
     wheelMode: "zoom",
     setWheelMode: (wheelMode) => set({ wheelMode }),
     editingProjectId: null,

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "antd";
-import { Bot, Eraser, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
+import { Bot, Eraser, Focus, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -72,6 +72,8 @@ export function CanvasTopBar({
     const [accountOpen, setAccountOpen] = useState(false);
     const [showSaved, setShowSaved] = useState(false);
     const shortcutsOpen = useCanvasUiStore((state) => state.shortcutsOpen);
+    const zenMode = useCanvasUiStore((state) => state.zenMode);
+    const setZenMode = useCanvasUiStore((state) => state.setZenMode);
     const wheelMode = useCanvasUiStore((state) => state.wheelMode);
     const [modifierKey, setModifierKey] = useState("Ctrl");
 
@@ -120,7 +122,7 @@ export function CanvasTopBar({
 
     return (
         <>
-            <div className="pointer-events-none absolute left-0 right-0 top-0 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover, zIndex: CANVAS_Z.toolbar } as React.CSSProperties}>
+            <div className="pointer-events-none absolute left-0 right-0 top-0 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover, zIndex: CANVAS_Z.toolbar, visibility: zenMode ? "hidden" : "visible", opacity: zenMode ? 0 : 1, transition: "opacity 250ms ease" } as React.CSSProperties}>
                 <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3 max-sm:w-full">
                     <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                         {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
@@ -223,6 +225,16 @@ export function CanvasTopBar({
                             setAccountOpen(false);
                         }}
                     />
+                    <button
+                        type="button"
+                        onClick={() => setZenMode(true)}
+                        className="grid size-9 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10"
+                        style={{ color: theme.node.text }}
+                        aria-label="进入沉浸模式"
+                        title="沉浸模式 (Z)：隐藏界面，专注画布"
+                    >
+                        <Focus className="size-4" />
+                    </button>
                     {assistantCollapsed ? (
                         <>
                             <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
@@ -239,6 +251,18 @@ export function CanvasTopBar({
                     ) : null}
                 </div>
             </div>
+            {zenMode ? (
+                <button
+                    type="button"
+                    onClick={() => setZenMode(false)}
+                    className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium opacity-45 transition hover:bg-[var(--canvas-topbar-hover)] hover:opacity-100"
+                    style={{ color: theme.node.text, zIndex: CANVAS_Z.toolbar, "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}
+                    title="退出沉浸模式 (Esc)"
+                >
+                    <Focus className="size-3.5" />
+                    退出沉浸
+                </button>
+            ) : null}
             <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-2 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
                     <Shortcut keys={["Space", "拖动"]} value="按住临时移动，松开恢复原工具" />
@@ -255,6 +279,7 @@ export function CanvasTopBar({
                     <Shortcut keys={[modifierKey, "D"]} value="复制选中节点" />
                     <Shortcut keys={["V"]} value="选择工具" />
                     <Shortcut keys={["H"]} value="移动画布工具" />
+                    <Shortcut keys={["Z"]} value="沉浸模式：隐藏界面，Esc 或再按 Z 退出" />
                     <Shortcut keys={["Delete / Backspace"]} value="删除选中" />
                     <Shortcut keys={["Esc"]} value="取消选择并关闭浮层" />
                     <Shortcut keys={["拖入图片/视频/音频"]} value="上传到画布" />

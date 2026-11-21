@@ -67,6 +67,7 @@ export type CanvasStageModel = {
     nodeById: Map<string, CanvasNodeData>;
     selectedConnectionId: string | null;
     relatedHighlight: { nodeIds: Set<string>; connectionIds: Set<string>; };
+    selectionFocus: { nodeIds: Set<string>; connectionIds: Set<string>; } | null;
     setSelectedConnectionId: Dispatch<SetStateAction<string | null>>;
     clearSelection: () => void;
     setToolbarNodeId: Dispatch<SetStateAction<string | null>>;
@@ -167,6 +168,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         nodeById,
         selectedConnectionId,
         relatedHighlight,
+        selectionFocus,
         setSelectedConnectionId,
         clearSelection,
         setToolbarNodeId,
@@ -233,6 +235,9 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         exitNodeReferenceSelection,
     } = model;
 
+    // 单选聚焦时淡出无关节点/连线；参考选择、连线中、框选中保持全亮以免干扰操作。
+    const focusDim = selectionFocus && !referencePickerNodeId && !connectingParams && !selectionBox ? selectionFocus : null;
+
     return (
         <>
                 <InfiniteCanvas
@@ -279,6 +284,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         from={from}
                                         to={to}
                                         active={selectedConnectionId === connection.id || relatedHighlight.connectionIds.has(connection.id)}
+                                        dimmed={focusDim ? !focusDim.connectionIds.has(connection.id) : false}
                                         flowing={isConnectionFlowing(from, to)}
                                         onSelect={() => {
                                             setSelectedConnectionId(connection.id);
@@ -305,6 +311,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             scale={viewport.k}
                             isSelected={selectedNodeIds.has(node.id)}
                             isRelated={relatedHighlight.nodeIds.has(node.id)}
+                            dimmed={focusDim ? !focusDim.nodeIds.has(node.id) : false}
                             isFocusRelated={activeNodeId === node.id}
                             isConnectionTarget={connectionTargetNodeId === node.id}
                             isConnecting={Boolean(connectingParams)}

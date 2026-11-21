@@ -10,6 +10,7 @@ import { CanvasAssistantPane, type CanvasAssistantModel } from "./canvas-assista
 import { CanvasDialogs, type CanvasDialogModel } from "./canvas-dialogs";
 import { CanvasStageLayer, type CanvasStageModel } from "./canvas-stage-layer";
 import { CanvasStageOverlays, type CanvasStageOverlaysModel } from "./canvas-stage-overlays";
+import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
 
 type CanvasShellModel = {
     theme: CanvasTheme;
@@ -78,6 +79,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         redoCanvas,
         agentPanel,
     } = model.shell;
+    const zenMode = useCanvasUiStore((state) => state.zenMode);
     return (
         <main
             className="flex h-full min-h-0 overflow-hidden"
@@ -91,7 +93,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
             <CanvasSidePanel
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
-                open={sidePanel.open}
+                open={sidePanel.open && !zenMode}
                 width={sidePanel.width}
                 onWidthChange={(width) => setSidePanel((current) => ({ ...current, width }))}
                 onFocusNode={focusNode}
@@ -147,7 +149,9 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 <CanvasStageOverlays model={model.overlays} />
                 <CanvasDialogs model={model.dialogs} />
             </section>
-            <CanvasAssistantPane model={model.assistant} />
+            <div className="h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>
+                <CanvasAssistantPane model={model.assistant} />
+            </div>
         </main>
     );
 }
