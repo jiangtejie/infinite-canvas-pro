@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Alert, Button, Modal, Progress, Segmented, Switch } from "antd";
-import { Brush, Check, Eraser, GripVertical, ImagePlus, LoaderCircle, Lock, Trash2, Undo2, Wand2 } from "lucide-react";
+import { Brush, Check, Eraser, GripVertical, ImagePlus, LoaderCircle, Lock, ScanFace, Trash2, Undo2, Wand2 } from "lucide-react";
 
 import { readImageMeta } from "@/lib/image-utils";
-import { blobToDataUrl, isCanvasDenoiseSupported, runCanvasDenoise, type CanvasDenoiseParams } from "../utils/canvas-denoise-client";
+import { blobToDataUrl, isCanvasDenoiseSupported, runCanvasDenoise, runCanvasSegment, type CanvasDenoiseParams } from "../utils/canvas-denoise-client";
 
 const strengthOptions = [
     { value: 0.8, label: "轻度", description: "保留细节，轻微去噪" },
@@ -69,7 +69,15 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
     const [brushMode, setBrushMode] = useState<"paint" | "erase">("paint");
     const [brushSize, setBrushSize] = useState(0.07);
     const [strokes, setStrokes] = useState<ProtectStroke[]>([]);
+    const [personMask, setPersonMask] = useState<HTMLCanvasElement | null>(null);
+    const [personTint, setPersonTint] = useState<HTMLCanvasElement | null>(null);
+    const [personShare, setPersonShare] = useState(0);
+    const [personEnabled, setPersonEnabled] = useState(false);
+    const [segmenting, setSegmenting] = useState(false);
+    const [segmentStage, setSegmentStage] = useState("");
+    const [segmentError, setSegmentError] = useState("");
     const cancelRef = useRef<(() => void) | null>(null);
+    const segmentCancelRef = useRef<(() => void) | null>(null);
     const baseImageRef = useRef<HTMLImageElement>(null);
     const outputRef = useRef<HTMLCanvasElement>(null);
     const maskOverlayRef = useRef<HTMLCanvasElement>(null);
@@ -95,6 +103,12 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
         setBrushMode("paint");
         setBrushSize(0.07);
         setStrokes([]);
+        setPersonMask(null);
+        setPersonTint(null);
+        setPersonShare(0);
+        setPersonEnabled(false);
+        setSegmentError("");
+        setSegmentStage("");
         activeStrokeRef.current = null;
         resultImageRef.current = null;
         void readImageMeta(dataUrl).then(setImage);
@@ -130,13 +144,18 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
         if (open) return;
         cancelRef.current?.();
         cancelRef.current = null;
+        segmentCancelRef.current?.();
+        segmentCancelRef.current = null;
+        setSegmenting(false);
     }, [open]);
 
     useEffect(() => () => {
         cancelRef.current?.();
+        segmentCancelRef.current?.();
     }, []);
 
     const painting = brushEnabled && Boolean(result) && !running;
+    const showMaskOverlay = painting || (personEnabled && Boolean(personMask));
 
     const redrawMask = useCallback(() => {
         const overlay = maskOverlayRef.current;
@@ -150,9 +169,10 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
         const context = overlay.getContext("2d");
         if (!context) return;
         context.clearRect(0, 0, width, height);
+        if (personEnabled && personTint) context.drawImage(personTint, 0, 0, width, height);
         for (const stroke of strokes) drawStroke(context, stroke, width, height, "rgba(255,92,64,0.42)");
         if (activeStrokeRef.current) drawStroke(context, activeStrokeRef.current, width, height, "rgba(255,92,64,0.42)");
-    }, [strokes]);
+    }, [personEnabled, personTint, strokes]);
 
     const composeOutput = useCallback(() => {
         const output = outputRef.current;
@@ -169,13 +189,15 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
         context.globalCompositeOperation = "source-over";
         context.clearRect(0, 0, width, height);
         context.drawImage(resultImage, 0, 0, width, height);
-        if (!strokes.length) return;
-        // 在自然分辨率重建蒙版，再用 destination-in 把原图像素贴回受保护区域。
+        if (!strokes.length && !(personEnabled && personMask)) return;
+        // 在自然分辨率重建蒙版：先叠加 AI 人物蒙版，再叠画笔（橡皮可修正人物边缘），
+        // 最后用 destination-in 把原图像素贴回受保护区域。
         const mask = document.createElement("canvas");
         mask.width = width;
         mask.height = height;
         const maskContext = mask.getContext("2d");
         if (!maskContext) return;
+        if (personEnabled && personMask) maskContext.drawImage(personMask, 0, 0, width, height);
         for (const stroke of strokes) drawStroke(maskContext, stroke, width, height, "#fff");
         const masked = document.createElement("canvas");
         masked.width = width;
@@ -187,13 +209,13 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
         maskedContext.filter = "blur(2px)";
         maskedContext.drawImage(mask, 0, 0);
         context.drawImage(masked, 0, 0);
-    }, [image, strokes]);
+    }, [image, personEnabled, personMask, strokes]);
 
     useEffect(() => {
         if (!open) return;
         composeOutput();
         redrawMask();
-    }, [composeOutput, open, redrawMask, resultVersion, zoom, painting]);
+    }, [composeOutput, open, redrawMask, resultVersion, zoom, showMaskOverlay]);
 
     const start = async () => {
         if (running) return;
@@ -216,6 +238,77 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
             setRunning(false);
             setStage("");
         }
+    };
+
+    const recognizePerson = async () => {
+        if (segmenting || running || !result || !image) return;
+        setSegmentError("");
+        setSegmenting(true);
+        setSegmentStage("准备中");
+        try {
+            const source = await (await fetch(dataUrl)).blob();
+            const handle = runCanvasSegment(source, setSegmentStage);
+            segmentCancelRef.current = handle.cancel;
+            const output = await handle.promise;
+            if (output.share < 0.005) {
+                setSegmentError("没有认出人物：自动识别只支持二次元风格人物");
+                return;
+            }
+            const url = URL.createObjectURL(output.blob);
+            try {
+                const maskImage = new Image();
+                await new Promise<void>((resolve, reject) => {
+                    maskImage.onload = () => resolve();
+                    maskImage.onerror = () => reject(new Error("人物蒙版读取失败"));
+                    maskImage.src = url;
+                });
+                const width = image.width;
+                const height = image.height;
+                const alpha = document.createElement("canvas");
+                alpha.width = width;
+                alpha.height = height;
+                const alphaContext = alpha.getContext("2d");
+                if (!alphaContext) throw new Error("无法创建人物蒙版");
+                alphaContext.drawImage(maskImage, 0, 0, width, height);
+                const pixels = alphaContext.getImageData(0, 0, width, height);
+                for (let i = 0; i < pixels.data.length; i += 4) {
+                    const value = pixels.data[i];
+                    pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = 255;
+                    pixels.data[i + 3] = value;
+                }
+                alphaContext.putImageData(pixels, 0, 0);
+                const tint = document.createElement("canvas");
+                tint.width = width;
+                tint.height = height;
+                const tintContext = tint.getContext("2d");
+                if (!tintContext) throw new Error("无法创建人物蒙版");
+                tintContext.drawImage(alpha, 0, 0);
+                tintContext.globalCompositeOperation = "source-in";
+                tintContext.fillStyle = "rgba(80,150,255,0.28)";
+                tintContext.fillRect(0, 0, width, height);
+                setPersonMask(alpha);
+                setPersonTint(tint);
+                setPersonShare(output.share);
+                setPersonEnabled(true);
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") return;
+            setSegmentError(err instanceof Error ? err.message : "人物识别失败");
+        } finally {
+            segmentCancelRef.current = null;
+            setSegmenting(false);
+            setSegmentStage("");
+        }
+    };
+
+    const clearPerson = () => {
+        setPersonMask(null);
+        setPersonTint(null);
+        setPersonShare(0);
+        setPersonEnabled(false);
+        setSegmentError("");
     };
 
     const imagePoint = (event: ReactPointerEvent<HTMLElement>) => {
@@ -310,7 +403,7 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                                             style={{ display: compareMode === "original" ? "none" : undefined, clipPath: compareMode === "split" ? `inset(0 0 0 ${split}%)` : undefined }}
                                         />
                                     ) : null}
-                                    {painting ? <canvas ref={maskOverlayRef} className="pointer-events-none absolute inset-0 h-full w-full select-none" /> : null}
+                                    {showMaskOverlay ? <canvas ref={maskOverlayRef} className="pointer-events-none absolute inset-0 h-full w-full select-none" /> : null}
                                     {result && compareMode === "split" && !painting ? (
                                         <div className="pointer-events-none absolute inset-y-0 z-10 w-px bg-white/80" style={{ left: `${split}%` }}>
                                             <span className="absolute left-1/2 top-1/2 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border bg-white text-black shadow-md">
@@ -378,7 +471,7 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                         </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="thin-scrollbar max-h-[524px] space-y-4 overflow-y-auto pr-1">
                         <div className="rounded-xl border p-3.5">
                             <div className="mb-2 text-sm font-medium opacity-75">去噪强度</div>
                             <div className="grid gap-2">
@@ -453,6 +546,37 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                             ) : (
                                 <div className="mt-2 text-xs leading-5 opacity-55">开启后在左侧涂抹，受保护区域会保留原图像素，不影响其他区域。</div>
                             )}
+                        </div>
+
+                        <div className="rounded-xl border p-3.5">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm font-medium opacity-75">AI 人物保护</div>
+                                {personMask ? <Switch size="small" checked={personEnabled} disabled={running} onChange={setPersonEnabled} /> : null}
+                            </div>
+                            {!result ? (
+                                <div className="mt-2 text-xs leading-5 opacity-55">先完成一次降噪，再识别二次元人物。</div>
+                            ) : personMask ? (
+                                <div className="mt-2 space-y-2">
+                                    <div className="text-xs leading-5 opacity-55">已识别人物 · 约占画面 {Math.round(personShare * 100)}%，开启后人物保持原图像素，可用橡皮修正边缘。</div>
+                                    <div className="flex items-center gap-1">
+                                        <Button size="small" icon={<ScanFace className="size-3.5" />} loading={segmenting} disabled={running} onClick={() => void recognizePerson()}>
+                                            重新识别
+                                        </Button>
+                                        <Button size="small" type="text" disabled={running} onClick={clearPerson}>
+                                            清除
+                                        </Button>
+                                    </div>
+                                    {segmenting ? <div className="text-xs opacity-55">{segmentStage}</div> : null}
+                                </div>
+                            ) : (
+                                <div className="mt-2 space-y-2">
+                                    <Button size="small" icon={<ScanFace className="size-3.5" />} loading={segmenting} disabled={running || !image} onClick={() => void recognizePerson()}>
+                                        识别人物
+                                    </Button>
+                                    <div className="text-xs leading-5 opacity-55">{segmenting ? segmentStage : "首次需下载约 176MB 模型（仅一次），只支持二次元人物。"}</div>
+                                </div>
+                            )}
+                            {segmentError ? <div className="mt-2 text-xs font-medium text-destructive">{segmentError}</div> : null}
                         </div>
 
                         <div className="rounded-xl border text-sm">

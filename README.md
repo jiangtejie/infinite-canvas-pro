@@ -134,7 +134,7 @@ bun run denoise:assets   # 画布本地降噪的模型与 ORT wasm（不入库�
 bun run dev
 ```
 
-画布图片降噪在浏览器本地用 WebGPU 推理，需要较新的 Chrome / Edge 与 HTTPS（localhost 除外）。`denoise:assets` 会把 ORT WebGPU wasm 复制到 `web/public/denoise/`，并下载校验约 17 MB 的 Real-ESRGAN 模型到 `web/public/models/esrgan.onnx`；模型地址可用 `NEXT_PUBLIC_DENOISE_MODEL_URL` 覆盖。降噪管线移植自 [GPT-anime-denoise-web](https://github.com/hhxki/GPT-anime-denoise-web)（MIT），模型为 Real-ESRGAN（BSD-3-Clause），保留上游版权声明。
+画布图片降噪在浏览器本地用 WebGPU 推理，需要较新的 Chrome / Edge 与 HTTPS（localhost 除外）。`denoise:assets` 会把 ORT WebGPU wasm 复制到 `web/public/denoise/`，并下载校验约 17 MB 的 Real-ESRGAN 模型到 `web/public/models/esrgan.onnx`；模型地址可用 `NEXT_PUBLIC_DENOISE_MODEL_URL` 覆盖。降噪管线移植自 [GPT-anime-denoise-web](https://github.com/hhxki/GPT-anime-denoise-web)（MIT），模型为 Real-ESRGAN（BSD-3-Clause），保留上游版权声明。可选的人物分割默认从 SkyTNT anime-seg（Apache-2.0）官方地址按需下载约 176 MB 模型并缓存，地址可用 `NEXT_PUBLIC_DENOISE_SEGMENT_MODEL_URL` 覆盖。
 
 本地源码构建运行：
 

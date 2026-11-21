@@ -8,11 +8,12 @@ description: 当前版本已实现但仍需人工验证的变更项
 - 图片节点快捷工具新增「降噪」：移植 GPT-anime-denoise-web 的本地管线（Real-ESRGAN 分块超分 + 可选 L0 结构平滑），WebGPU 在浏览器内推理，图片不出本机；确认后上传并生成相连的新图片节点。
 - 界面按工作台布局：左侧大预览台（可拖动分割线的原图/效果分屏对比、原图/效果切换、适应/1:1 缩放、处理时进度覆盖层含耗时与取消），右侧参数栏（去噪强度卡片、L0 平滑三档、输出尺寸/设备/模型/耗时信息），页脚统一为关闭、重新降噪、生成图片节点。
 - 保护区域画笔：结果生成后开启「保护区域」，在预览台涂抹需要保留原图像素的区域，支持画笔/橡皮、三档笔刷、撤销与清空；蒙版按原图分辨率重建并用 destination-in 贴回原图像素（边缘轻微羽化），改动即时合成、无需重新推理；导出的图片节点包含保护结果。
+- AI 人物保护（P2）：降噪结果生成后可「识别人物」，使用 SkyTNT anime-seg（isnetis，1024×1024 输入）在本机 WebGPU 识别二次元人物，默认从 Hugging Face 固定提交下载约 176MB 模型（Cache Storage 缓存 + SHA-256 校验，地址可用 `NEXT_PUBLIC_DENOISE_SEGMENT_MODEL_URL` 覆盖）；识别结果以淡蓝蒙版显示并与画笔蒙版合并（人物先叠、画笔可修正边缘），支持开关/重新识别/清除，可整图保持原图或只给背景降噪。
 - 资产：`bun run denoise:assets` 把 ORT WebGPU wasm/胶水复制到 `web/public/denoise/`，并下载校验约 17 MB 的 `esrgan.onnx` 到 `web/public/models/`（均不入库）；模型地址可用 `NEXT_PUBLIC_DENOISE_MODEL_URL` 覆盖。WebGPU 不可用时弹窗提示并禁用处理。
-- 代码位置：`workers/canvas-denoise.worker.ts`（推理与模型缓存）、`workers/canvas-denoise-l0.ts`（WebGPU L0 分块）、`utils/canvas-denoise-client.ts`（worker 会话与取消）、`components/canvas-node-denoise-dialog.tsx`（工作台弹窗）、`use-canvas-generation` 的 `denoiseImageNode`（输出节点）。
-- 验证：`bun run typecheck`、`bun run lint --max-warnings=0`、`bun test`（607 条）通过。ego-browser（WebGPU 可用）实测：弹窗头部信息与按钮齐全；首轮（含模型加载）约 9.2s，模型缓存后约 6.5–7.0s；分屏分割线拖动到 30% 时 clipPath 为 30.09%；「效果」模式移除裁剪、1:1 模式按原图 647px 渲染；保护画笔涂抹后蒙版覆盖层出现像素、受保护像素与原图像素 diff=0，撤销后恢复未涂抹状态；点击「生成图片节点」新增节点并自动连线，输出图片正常加载，无 console 错误。
-- 未实测：弱显卡与 4K / 接近 1677 万像素大图的耗时和显存；L0 强档的视觉副作用；1:1 模式下滚轮/滚动与分割线拖动的组合手感；生产构建（Docker / 静态资源）下 worker 与 wasm 路径；移动端浏览器。
-- 归属：代码移植自 GPT-anime-denoise-web（MIT），模型为 Real-ESRGAN（BSD-3-Clause），保留上游版权声明。
+- 代码位置：`workers/canvas-denoise.worker.ts`（推理与模型缓存）、`workers/canvas-denoise-l0.ts`（WebGPU L0 分块）、`workers/canvas-segment.worker.ts`（人物分割）、`utils/canvas-denoise-client.ts`（worker 会话、取消与模型地址）、`components/canvas-node-denoise-dialog.tsx`（工作台弹窗）、`use-canvas-generation` 的 `denoiseImageNode`（输出节点）。
+- 验证：`bun run typecheck`、`bun run lint --max-warnings=0`、`bun test`（607 条）通过。ego-browser（WebGPU 可用）实测：弹窗头部信息与按钮齐全；首轮（含模型加载）约 9.2s，模型缓存后约 6.5–7.0s；分屏分割线拖动到 30% 时 clipPath 为 30.09%；「效果」模式移除裁剪、1:1 模式按原图 647px 渲染；保护画笔涂抹后蒙版覆盖层出现像素、受保护像素与原图像素 diff=0，撤销后恢复未涂抹状态；AI 人物识别成功（约占画面 17%），识别模型首次下载后走缓存，蓝色蒙版显示、人物内采样像素与原图 diff=1；点击「生成图片节点」新增节点并自动连线，输出图片正常加载，无 console 错误。
+- 未实测：弱显卡与 4K / 接近 1677 万像素大图的耗时和显存；L0 强档的视觉副作用；1:1 模式下滚轮/滚动与分割线拖动的组合手感；176MB 人物模型在弱网下的下载体验与二次打开命中速度；生产构建（Docker / 静态资源）下 worker 与 wasm 路径；移动端浏览器。
+- 归属：代码移植自 GPT-anime-denoise-web（MIT），降噪模型为 Real-ESRGAN（BSD-3-Clause），人物分割模型为 SkyTNT anime-seg（Apache-2.0），保留上游版权声明。
 
 ## 画布高频指针交互：减少冗余状态提交
 
