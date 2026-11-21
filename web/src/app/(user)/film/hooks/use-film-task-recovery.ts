@@ -34,16 +34,24 @@ export function useFilmTaskRecovery(
     const { message } = App.useApp();
     const effectiveConfig = useEffectiveConfig();
     const projectRef = useRef(project);
-    projectRef.current = project;
     const activeRef = useRef(activeIds);
-    activeRef.current = activeIds;
     const configRef = useRef(effectiveConfig);
-    configRef.current = effectiveConfig;
     const pollingRef = useRef<Set<string>>(new Set());
     const errorCountRef = useRef<Map<string, number>>(new Map());
     const projectId = project?.id;
     const updateRef = useRef(onUpdate);
-    updateRef.current = onUpdate;
+    useEffect(() => {
+        projectRef.current = project;
+    }, [project]);
+    useEffect(() => {
+        activeRef.current = activeIds;
+    }, [activeIds]);
+    useEffect(() => {
+        configRef.current = effectiveConfig;
+    }, [effectiveConfig]);
+    useEffect(() => {
+        updateRef.current = onUpdate;
+    }, [onUpdate]);
 
     useEffect(() => {
         if (!projectId) return;

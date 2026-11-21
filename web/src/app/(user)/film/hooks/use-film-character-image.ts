@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { App } from "antd";
 import { nanoid } from "nanoid";
 
@@ -31,7 +31,9 @@ export function useFilmCharacterImage(project: FilmProject | undefined, onUpdate
     const [generatingKey, setGeneratingKey] = useState<FilmCharacterGenerationKey>("");
     const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
     const projectRef = useRef(project);
-    projectRef.current = project;
+    useEffect(() => {
+        projectRef.current = project;
+    }, [project]);
     const stopRequestedRef = useRef(false);
     const controllerRef = useRef<AbortController | null>(null);
     const taskRef = useRef<FilmAssetTask | null>(null);

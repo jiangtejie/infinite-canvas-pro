@@ -1,7 +1,7 @@
 "use client";
 
 import { ClipboardPaste, FolderPlus, Upload } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { App, Button } from "antd";
 import { nanoid } from "nanoid";
@@ -164,7 +164,6 @@ export default function VideoPage() {
             if (!run.controller.signal.aborted) run.poll = pollPendingLogOnce(log, resumeConfig, { ...context, signal: AbortSignal.any([context.signal, run.controller.signal]) });
         });
     };
-    pollPendingLogsOnceRef.current = pollPendingLogsOnce;
 
     useEffect(() => {
         logsRef.current = logs;
@@ -881,8 +880,10 @@ export default function VideoPage() {
     };
 
     const { loadAccountVideoHistory, syncBackendVideoTasks } = useVideoHistorySync({ token, effectiveConfigRef, logsRef, setLogs, setResults, usesBackendVideoTasks });
-    loadAccountVideoHistoryRef.current = loadAccountVideoHistory;
-    syncBackendVideoTasksRef.current = syncBackendVideoTasks;
+    useLayoutEffect(() => {
+        loadAccountVideoHistoryRef.current = loadAccountVideoHistory;
+        syncBackendVideoTasksRef.current = syncBackendVideoTasks;
+    });
 
     const { stopVideoTask } = useVideoTaskStop({ videoTaskRunsRef, logsRef, historySyncRef, setLogs, setResults, saveGenerationLog, persistVideoLog, deleteAccountVideoLogs, onError: message.error, onNotice: message.info });
 
@@ -896,6 +897,9 @@ export default function VideoPage() {
     };
 
     const { pollPendingLogOnce } = useVideoTaskPolling({ pollingLogIdsRef, setResults, saveGenerationLog, finalizeGenerationLog });
+    useLayoutEffect(() => {
+        pollPendingLogsOnceRef.current = pollPendingLogsOnce;
+    });
 
     const previewGenerationLog = useCallback(async (log: GenerationLog) => {
         if (!(await confirmDraftOverwrite(log.id))) return;

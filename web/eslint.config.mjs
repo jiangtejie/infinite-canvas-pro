@@ -22,8 +22,8 @@ const config = [
             "react-hooks/gating": "error",
             "react-hooks/immutability": "error",
             "react-hooks/purity": "error",
-            // 仍需分批清理：refs / set-state-in-effect。
-            "react-hooks/refs": "off",
+            "react-hooks/refs": "error",
+            // 仍需分批清理：set-state-in-effect。
             "react-hooks/set-state-in-effect": "off",
             "react-hooks/incompatible-library": "warn",
             "@next/next/no-img-element": "off",

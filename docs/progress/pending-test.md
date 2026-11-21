@@ -3,6 +3,13 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## React Compiler：refs 规则启用
+
+- ESLint 启用第 11 条 React Hooks 规则 `react-hooks/refs`；31 处违规清零：latest-callback ref 改在 `useLayoutEffect` 同步，引用点击消费版本改为 state，滚动条/引用菜单改为测量后存 state，全景入口改为 `useMemo`，可见节点只依赖尺寸 state。
+- 覆盖画布主页面与助手、图片工具栏设置、全景查看器、引用菜单、影视四类生成/恢复 hook、生图/视频历史同步、工作流恢复与 TTS 音色。
+- 验证：`bun run lint --max-warnings=0`、`bun run typecheck`、`bun test`（607 条）通过；ego-browser 实测画布库、生图、视频、工作流、影视页正常加载。
+- 未实测：助手引用点击与初始请求、引用菜单定位、工具栏滚动条、全景双击、影视/生图/视频刷新后的任务恢复、工作流恢复轮询与 TTS 音色加载；剩余 `set-state-in-effect` 仍保持关闭。
+
 ## React Compiler：purity 规则启用
 
 - ESLint 启用第 10 条 React Hooks 规则 `react-hooks/purity`；21 处 `Date.now` / `performance.now` 违规清零：组件状态初始化改为惰性初始化，事件与异步回调统一走 `lib/now.ts`。

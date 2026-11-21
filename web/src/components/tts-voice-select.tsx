@@ -36,7 +36,9 @@ export function TtsVoiceSelect({ provider, config, model, value, onChange, enabl
     const [error, setError] = useState("");
     const [reload, setReload] = useState(0);
     const settings = PROVIDERS[provider];
-    configRef.current = config;
+    useEffect(() => {
+        configRef.current = config;
+    }, [config]);
 
     const requestConfig = { ...config, model, audioModel: model };
     const channelId = channelIdForActiveModel(requestConfig);

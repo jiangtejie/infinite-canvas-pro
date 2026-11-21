@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { App } from "antd";
 
 import { useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -39,7 +39,9 @@ export function useFilmShotVideo(project: FilmProject | undefined, onUpdate: (pa
     const [progress, setProgress] = useState(0);
     const [batchProgress, setBatchProgress] = useState<FilmVideoBatchProgress | null>(null);
     const projectRef = useRef(project);
-    projectRef.current = project;
+    useEffect(() => {
+        projectRef.current = project;
+    }, [project]);
     const stopRequestedRef = useRef(false);
     const controllerRef = useRef<AbortController | null>(null);
     const currentTaskRef = useRef<FilmShotTask | null>(null);

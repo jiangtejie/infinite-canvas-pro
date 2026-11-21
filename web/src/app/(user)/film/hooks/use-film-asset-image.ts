@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { App } from "antd";
 import { nanoid } from "nanoid";
 
@@ -38,7 +38,9 @@ export function useFilmAssetImage(project: FilmProject | undefined, onUpdate: (p
     const resolveModelConfig = useModelConfig();
     const [generatingAssetId, setGeneratingAssetId] = useState("");
     const projectRef = useRef(project);
-    projectRef.current = project;
+    useEffect(() => {
+        projectRef.current = project;
+    }, [project]);
     const stopRequestedRef = useRef(false);
     const controllerRef = useRef<AbortController | null>(null);
     const taskRef = useRef<FilmAssetTask | null>(null);

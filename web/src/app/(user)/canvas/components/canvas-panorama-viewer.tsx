@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Maximize2, Move } from "lucide-react";
 import { SYSTEM, Viewer } from "@photo-sphere-viewer/core";
 import "@photo-sphere-viewer/core/index.css";
@@ -150,24 +150,23 @@ export default function CanvasPanoramaViewer({ src, alt, proxyGeneratedPanorama 
     const controlStyle = { background: theme.toolbar.panel, color: theme.toolbar.item };
     const [active, setActive] = useState<boolean | null>(null);
     const [surfaceKey, setSurfaceKey] = useState(0);
-    const viewerEntryRef = useRef<PanoramaViewerEntry>({ setActive });
+    const viewerEntry = useMemo<PanoramaViewerEntry>(() => ({ setActive }), [setActive]);
 
     useEffect(() => {
-        const entry = viewerEntryRef.current;
-        if (immersive) activatePanoramaViewer(entry);
-        else registerPanoramaViewer(entry);
-        return () => releasePanoramaViewer(entry);
-    }, [immersive]);
+        if (immersive) activatePanoramaViewer(viewerEntry);
+        else registerPanoramaViewer(viewerEntry);
+        return () => releasePanoramaViewer(viewerEntry);
+    }, [immersive, viewerEntry]);
 
     const activate = () => {
-        const entry = viewerEntryRef.current;
+        const entry = viewerEntry;
         const shouldRetry = active === true && !activePanoramaViewers.includes(entry);
         activatePanoramaViewer(entry);
         if (shouldRetry) setSurfaceKey((current) => current + 1);
     };
     const surface =
         active === null ? null : active ? (
-            <PanoramaSurface key={surfaceKey} src={src} alt={alt} proxyGeneratedPanorama={proxyGeneratedPanorama} viewerEntry={viewerEntryRef.current} />
+            <PanoramaSurface key={surfaceKey} src={src} alt={alt} proxyGeneratedPanorama={proxyGeneratedPanorama} viewerEntry={viewerEntry} />
         ) : (
             <img decoding="async" src={src} alt={alt} draggable={false} className="pointer-events-none h-full w-full select-none object-contain" />
         );

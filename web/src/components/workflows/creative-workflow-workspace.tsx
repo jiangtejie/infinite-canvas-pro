@@ -5,7 +5,7 @@ import { Bot, Copy, Download, Layers3, LoaderCircle, Play, Plus, Sparkles, Trash
 import { accountScopedStore } from "@/lib/account-storage";
 import { nanoid } from "nanoid";
 import { saveAs } from "file-saver";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/ui/page-header";
@@ -240,7 +240,9 @@ export function CreativeWorkflowWorkspace({
         setWorkflows(seed);
         await workflowStore.setItem(WORKFLOW_STORE_KEY, seed);
     };
-    refreshWorkflowsRef.current = refreshWorkflows;
+    useLayoutEffect(() => {
+        refreshWorkflowsRef.current = refreshWorkflows;
+    });
 
     const saveWorkflows = async (items: CreativeWorkflow[]) => {
         const sorted = [...items].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -813,7 +815,9 @@ export function CreativeWorkflowWorkspace({
         if (failedCount) message.warning(`${failedCount} 个工作流任务失败`);
         if (finishedCount || failedCount) onGenerationLogSaved?.();
     };
-    pollRecoveredTasksRef.current = pollRecoveredWorkflowTasks;
+    useLayoutEffect(() => {
+        pollRecoveredTasksRef.current = pollRecoveredWorkflowTasks;
+    });
 
     /** 登记本会话新提交的后端工作流任务：加入恢复轮询集合并按父任务汇总完成情况。 */
     const trackWorkflowTaskLogs = (parentTaskId: string, logs: ImageHistoryLog[], startedAt: number, seriesDraftId?: string, initial?: { images: WorkflowRunResult[]; errors: string[] }) => {
@@ -931,7 +935,9 @@ export function CreativeWorkflowWorkspace({
             trackWorkflowTaskLogs(parentTaskId, group, Math.min(...all.map((log) => log.createdAt)), undefined, { images: initialImages, errors: initialErrors });
         });
     };
-    recoverWorkflowTasksRef.current = recoverWorkflowTasks;
+    useLayoutEffect(() => {
+        recoverWorkflowTasksRef.current = recoverWorkflowTasks;
+    });
 
     const createWorkflowImageTasks = async ({
         taskId,

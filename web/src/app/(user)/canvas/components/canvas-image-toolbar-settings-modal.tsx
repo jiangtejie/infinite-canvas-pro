@@ -53,6 +53,7 @@ export function ImageToolSettingsModal({
     const { token } = antdTheme.useToken();
     const previewToolbarRef = useRef<HTMLDivElement>(null);
     const scrollbarTrackRef = useRef<HTMLInputElement>(null);
+    const [scrollbarTrackWidth, setScrollbarTrackWidth] = useState(0);
     const [previewScroll, setPreviewScroll] = useState<PreviewScroll>({ left: 0, max: 0, viewport: 1, content: 1 });
     const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
     const selectedTools = tools.filter((tool) => selected.has(tool.id));
@@ -70,6 +71,7 @@ export function ImageToolSettingsModal({
             viewport: Math.max(1, toolbar.clientWidth),
             content: Math.max(1, toolbar.scrollWidth),
         });
+        setScrollbarTrackWidth(scrollbarTrackRef.current?.clientWidth || toolbar.clientWidth);
     }, []);
 
     const setPreviewScrollLeft = useCallback(
@@ -116,7 +118,7 @@ export function ImageToolSettingsModal({
         };
     }, [open, selectedIds, showLabels, previewTools.length, syncPreviewScroll]);
 
-    const scrollbarWidth = scrollbarTrackRef.current?.clientWidth || previewScroll.viewport;
+    const scrollbarWidth = scrollbarTrackWidth || previewScroll.viewport;
     const scrollbarThumbWidth = previewScroll.max > 0 ? Math.min(scrollbarWidth, Math.max(64, (previewScroll.viewport / previewScroll.content) * scrollbarWidth)) : scrollbarWidth;
 
     return (

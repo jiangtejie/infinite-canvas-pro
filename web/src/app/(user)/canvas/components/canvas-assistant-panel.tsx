@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     History,
     BookOpen,
@@ -165,7 +165,7 @@ export function CanvasAssistantPanel({
     const confirmationQueueRef = useRef(createConfirmationQueue());
     const lastBatchRef = useRef<CanvasAssistantBatch | null>(null);
     const messageListRef = useRef<HTMLDivElement>(null);
-    const consumedReferenceNodeClickVersionRef = useRef(0);
+    const [consumedReferenceNodeClickVersion, setConsumedReferenceNodeClickVersion] = useState(0);
     const [view, setView] = useState<"chat" | "history">("chat");
     const [prompt, setPrompt] = useState("");
     const [isRunning, setIsRunning] = useState(false);
@@ -208,11 +208,11 @@ export function CanvasAssistantPanel({
     }), [nodeById, resourceReferenceById]);
     const composerReferences = useMemo(() => resolveReferences(composerReferenceIds), [composerReferenceIds, resolveReferences]);
     const pendingReferences = useMemo(() => {
-        const pendingClickNodeId = referenceNodeClick.version > consumedReferenceNodeClickVersionRef.current ? referenceNodeClick.nodeId : null;
+        const pendingClickNodeId = referenceNodeClick.version > consumedReferenceNodeClickVersion ? referenceNodeClick.nodeId : null;
         return resourceReferences.filter(
             (reference) => selectedNodeIds.has(reference.nodeId) && ((!composerReferenceIds.includes(reference.nodeId) && !removedReferenceIds.has(reference.nodeId)) || reference.nodeId === pendingClickNodeId),
         );
-    }, [composerReferenceIds, referenceNodeClick, removedReferenceIds, resourceReferences, selectedNodeIds]);
+    }, [composerReferenceIds, consumedReferenceNodeClickVersion, referenceNodeClick, removedReferenceIds, resourceReferences, selectedNodeIds]);
     const iconButtonStyle = { color: theme.node.muted };
     const handleBatchEnd = (summary: CanvasAgentBatchSummary) => {
         lastBatchRef.current = mergeAssistantBatch(lastBatchRef.current, summary);
@@ -417,7 +417,9 @@ export function CanvasAssistantPanel({
         if (batch && shouldShowAssistantBatch(batch)) updateMessage(session.id, assistantId, { batch });
     };
     const sendMessageRef = useRef(sendMessage);
-    sendMessageRef.current = sendMessage;
+    useLayoutEffect(() => {
+        sendMessageRef.current = sendMessage;
+    });
 
     useEffect(() => {
         if (!initialRequest || consumedInitialRequestRef.current === initialRequest) return;
@@ -571,7 +573,7 @@ export function CanvasAssistantPanel({
                         onSkillSelect={selectComposerSkill}
                         onSkillRemove={removeComposerSkill}
                         onReferenceIdsChange={(ids) => {
-                            consumedReferenceNodeClickVersionRef.current = referenceNodeClick.version;
+                            setConsumedReferenceNodeClickVersion(referenceNodeClick.version);
                             const removedSelectedIds = composerReferenceIds.filter((id) => selectedNodeIds.has(id) && !ids.includes(id));
                             if (removedSelectedIds.length) setRemovedReferenceIds((previous) => new Set([...previous, ...removedSelectedIds]));
                             setComposerReferenceIds(ids);

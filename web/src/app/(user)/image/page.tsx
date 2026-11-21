@@ -1,7 +1,7 @@
 "use client";
 
 import { WandSparkles } from "lucide-react";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import dynamic from "next/dynamic";
 import { App, Drawer } from "antd";
 import { saveAs } from "file-saver";
@@ -127,7 +127,6 @@ export default function ImagePage() {
         if (!pendingLogs.length) return;
         void pollImageTaskLogsOnce(pendingLogs, context);
     };
-    pollPendingLogsOnceRef.current = pollPendingLogsOnce;
 
     useEffect(() => {
         void refreshCategories();
@@ -687,8 +686,10 @@ export default function ImagePage() {
         setLogs,
         setResults,
     });
-    loadAccountImageHistoryRef.current = loadAccountImageHistory;
-    syncBackendImageTasksRef.current = syncBackendImageTasks;
+    useLayoutEffect(() => {
+        loadAccountImageHistoryRef.current = loadAccountImageHistory;
+        syncBackendImageTasksRef.current = syncBackendImageTasks;
+    });
 
     const { pollImageTaskLogsOnce } = useImageTaskPolling({
         pollingLogIdsRef,
@@ -696,6 +697,9 @@ export default function ImagePage() {
         saveLog,
         setResults,
         onError: message.error,
+    });
+    useLayoutEffect(() => {
+        pollPendingLogsOnceRef.current = pollPendingLogsOnce;
     });
 
     const { stopImageTask } = useImageTaskStop({
