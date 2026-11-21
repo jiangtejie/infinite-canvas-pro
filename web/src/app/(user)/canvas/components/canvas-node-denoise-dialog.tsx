@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Alert, Button, Modal, Progress, Segmented, Switch } from "antd";
-import { Brush, Check, Eraser, GripVertical, ImagePlus, LoaderCircle, Lock, ScanFace, Trash2, Undo2, Wand2 } from "lucide-react";
+import { Brush, Check, Eraser, Eye, EyeOff, GripVertical, ImagePlus, LoaderCircle, Lock, ScanFace, Trash2, Undo2, Wand2 } from "lucide-react";
 
 import { readImageMeta } from "@/lib/image-utils";
 import { blobToDataUrl, isCanvasDenoiseSupported, runCanvasDenoise, runCanvasSegment, type CanvasDenoiseParams } from "../utils/canvas-denoise-client";
@@ -28,6 +28,7 @@ const brushSizeOptions = [
 const DEFAULT_PARAMS: CanvasDenoiseParams = { down: 0.6, lam: 0.001 };
 
 type ProtectStroke = { mode: "paint" | "erase"; size: number; points: { x: number; y: number }[] };
+type CompareMode = "split" | "original" | "result" | "diff";
 
 function drawStroke(context: CanvasRenderingContext2D, stroke: ProtectStroke, width: number, height: number, color: string) {
     if (!stroke.points.length) return;
@@ -52,22 +53,26 @@ function drawStroke(context: CanvasRenderingContext2D, stroke: ProtectStroke, wi
     context.restore();
 }
 
-export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: { dataUrl: string; open: boolean; onClose: () => void; onConfirm: (resultDataUrl: string) => void }) {
+export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: { dataUrl: string; open: boolean; onClose: () => void; onConfirm: (resultDataUrl: string, mode: "new" | "replace") => void }) {
     const [params, setParams] = useState<CanvasDenoiseParams>(DEFAULT_PARAMS);
     const [supported, setSupported] = useState(true);
     const [image, setImage] = useState<{ width: number; height: number } | null>(null);
     const [running, setRunning] = useState(false);
     const [stage, setStage] = useState("");
     const [elapsed, setElapsed] = useState(0);
-    const [result, setResult] = useState<{ dataUrl: string; elapsed: number } | null>(null);
+    const [result, setResult] = useState<{ dataUrl: string; elapsed: number; timings: { model: number; infer: number; l0: number; encode: number } } | null>(null);
     const [resultVersion, setResultVersion] = useState(0);
-    const [compareMode, setCompareMode] = useState<"split" | "original" | "result">("split");
+    const [compareMode, setCompareMode] = useState<CompareMode>("split");
     const [split, setSplit] = useState(50);
+    const [splitDragging, setSplitDragging] = useState(false);
+    const [holdingOriginal, setHoldingOriginal] = useState(false);
     const [zoom, setZoom] = useState<"fit" | "actual">("fit");
     const [error, setError] = useState("");
     const [brushEnabled, setBrushEnabled] = useState(false);
     const [brushMode, setBrushMode] = useState<"paint" | "erase">("paint");
     const [brushSize, setBrushSize] = useState(0.07);
+    const [altPressed, setAltPressed] = useState(false);
+    const [showMask, setShowMask] = useState(true);
     const [strokes, setStrokes] = useState<ProtectStroke[]>([]);
     const [personMask, setPersonMask] = useState<HTMLCanvasElement | null>(null);
     const [personTint, setPersonTint] = useState<HTMLCanvasElement | null>(null);
@@ -76,11 +81,14 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
     const [segmenting, setSegmenting] = useState(false);
     const [segmentStage, setSegmentStage] = useState("");
     const [segmentError, setSegmentError] = useState("");
+    const [outputMode, setOutputMode] = useState<"new" | "replace">("new");
     const cancelRef = useRef<(() => void) | null>(null);
     const segmentCancelRef = useRef<(() => void) | null>(null);
     const baseImageRef = useRef<HTMLImageElement>(null);
     const outputRef = useRef<HTMLCanvasElement>(null);
+    const diffCanvasRef = useRef<HTMLCanvasElement>(null);
     const maskOverlayRef = useRef<HTMLCanvasElement>(null);
+    const brushCursorRef = useRef<HTMLDivElement>(null);
     const resultImageRef = useRef<HTMLImageElement | null>(null);
     const activeStrokeRef = useRef<ProtectStroke | null>(null);
 
@@ -96,12 +104,17 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
         setResultVersion(0);
         setCompareMode("split");
         setSplit(50);
+        setSplitDragging(false);
+        setHoldingOriginal(false);
         setZoom("fit");
         setError("");
         setStage("");
         setBrushEnabled(false);
         setBrushMode("paint");
         setBrushSize(0.07);
+        setAltPressed(false);
+        setShowMask(true);
+        setOutputMode("new");
         setStrokes([]);
         setPersonMask(null);
         setPersonTint(null);
@@ -120,6 +133,69 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
         const timer = window.setInterval(() => setElapsed((value) => value + 0.1), 100);
         return () => window.clearInterval(timer);
     }, [running]);
+
+    useEffect(() => {
+        if (!open) return;
+        const isTyping = (target: EventTarget | null) => target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+        const handleDown = (event: KeyboardEvent) => {
+            if (isTyping(event.target)) return;
+            if (event.code === "Space" && result && !event.repeat) {
+                event.preventDefault();
+                setHoldingOriginal(true);
+            }
+            if (event.key === "Alt") setAltPressed(true);
+        };
+        const handleUp = (event: KeyboardEvent) => {
+            if (event.code === "Space") setHoldingOriginal(false);
+            if (event.key === "Alt") setAltPressed(false);
+        };
+        const handleBlur = () => {
+            setHoldingOriginal(false);
+            setAltPressed(false);
+        };
+        window.addEventListener("keydown", handleDown);
+        window.addEventListener("keyup", handleUp);
+        window.addEventListener("blur", handleBlur);
+        return () => {
+            window.removeEventListener("keydown", handleDown);
+            window.removeEventListener("keyup", handleUp);
+            window.removeEventListener("blur", handleBlur);
+        };
+    }, [open, result]);
+
+    useEffect(() => {
+        if (!open || compareMode !== "diff" || resultVersion === 0) return;
+        const diffCanvas = diffCanvasRef.current;
+        const base = baseImageRef.current;
+        const resultImage = resultImageRef.current;
+        if (!diffCanvas || !base || !resultImage || !image) return;
+        const width = image.width;
+        const height = image.height;
+        if (diffCanvas.width !== width) diffCanvas.width = width;
+        if (diffCanvas.height !== height) diffCanvas.height = height;
+        const diffContext = diffCanvas.getContext("2d", { willReadFrequently: true });
+        if (!diffContext) return;
+        const originalCanvas = document.createElement("canvas");
+        originalCanvas.width = width;
+        originalCanvas.height = height;
+        const originalContext = originalCanvas.getContext("2d", { willReadFrequently: true });
+        const resultCanvas = document.createElement("canvas");
+        resultCanvas.width = width;
+        resultCanvas.height = height;
+        const resultContext = resultCanvas.getContext("2d", { willReadFrequently: true });
+        if (!originalContext || !resultContext) return;
+        originalContext.drawImage(base, 0, 0, width, height);
+        resultContext.drawImage(resultImage, 0, 0, width, height);
+        const originalPixels = originalContext.getImageData(0, 0, width, height).data;
+        const resultPixels = resultContext.getImageData(0, 0, width, height).data;
+        const diff = diffContext.createImageData(width, height);
+        for (let i = 0; i < originalPixels.length; i += 4) {
+            const value = Math.min(255, (Math.abs(originalPixels[i] - resultPixels[i]) + Math.abs(originalPixels[i + 1] - resultPixels[i + 1]) + Math.abs(originalPixels[i + 2] - resultPixels[i + 2])) / 3 * 3);
+            diff.data[i] = diff.data[i + 1] = diff.data[i + 2] = value;
+            diff.data[i + 3] = 255;
+        }
+        diffContext.putImageData(diff, 0, 0);
+    }, [compareMode, image, open, resultVersion]);
 
     useEffect(() => {
         if (!result) {
@@ -156,6 +232,20 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
 
     const painting = brushEnabled && Boolean(result) && !running;
     const showMaskOverlay = painting || (personEnabled && Boolean(personMask));
+    const stageProgressMatch = stage.match(/(\d+)\s*\/\s*(\d+)/);
+    const stageProgress = stageProgressMatch ? Math.min(100, Math.round((Number(stageProgressMatch[1]) / Number(stageProgressMatch[2])) * 100)) : null;
+
+    const updateBrushCursor = (event: ReactPointerEvent<HTMLElement>) => {
+        const cursor = brushCursorRef.current;
+        const base = baseImageRef.current;
+        if (!cursor || !base) return;
+        const rect = base.getBoundingClientRect();
+        const size = Math.max(4, brushSize * rect.width);
+        cursor.style.display = "block";
+        cursor.style.width = `${size}px`;
+        cursor.style.height = `${size}px`;
+        cursor.style.transform = `translate(${event.clientX - rect.left - size / 2}px, ${event.clientY - rect.top - size / 2}px)`;
+    };
 
     const redrawMask = useCallback(() => {
         const overlay = maskOverlayRef.current;
@@ -228,7 +318,7 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
             cancelRef.current = handle.cancel;
             const output = await handle.promise;
             const resultUrl = await blobToDataUrl(output.blob);
-            setResult({ dataUrl: resultUrl, elapsed: output.elapsed });
+            setResult({ dataUrl: resultUrl, elapsed: output.elapsed, timings: output.timings });
             setCompareMode("split");
         } catch (err) {
             if (err instanceof DOMException && err.name === "AbortError") return;
@@ -343,24 +433,32 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
 
                 <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_320px]">
                     <div className="overflow-hidden rounded-xl border">
-                        <div className={`relative h-[480px] bg-[#101010] ${zoom === "fit" ? "overflow-hidden" : "overflow-auto"}`}>
+                        <div className={`relative h-[480px] bg-[#101010] max-sm:h-[360px] ${zoom === "fit" ? "overflow-hidden" : "overflow-auto"}`}>
                             <div className="flex h-full w-full items-center justify-center p-4">
                                 <div
                                     className={`relative m-auto select-none ${painting ? "cursor-crosshair touch-none" : result && compareMode === "split" ? "cursor-col-resize" : ""}`}
+                                    onDoubleClick={() => {
+                                        if (!painting) setZoom((current) => (current === "fit" ? "actual" : "fit"));
+                                    }}
+                                    onPointerLeave={() => {
+                                        if (brushCursorRef.current) brushCursorRef.current.style.display = "none";
+                                    }}
                                     onPointerDown={(event) => {
                                         if (painting) {
                                             const point = imagePoint(event);
                                             if (!point) return;
                                             event.currentTarget.setPointerCapture(event.pointerId);
-                                            activeStrokeRef.current = { mode: brushMode, size: brushSize, points: [point] };
+                                            activeStrokeRef.current = { mode: altPressed ? "erase" : brushMode, size: brushSize, points: [point] };
                                             redrawMask();
                                             return;
                                         }
                                         if (!result || compareMode !== "split") return;
                                         event.currentTarget.setPointerCapture(event.pointerId);
+                                        setSplitDragging(true);
                                         updateSplit(event);
                                     }}
                                     onPointerMove={(event) => {
+                                        if (painting) updateBrushCursor(event);
                                         if (activeStrokeRef.current && event.buttons === 1) {
                                             const point = imagePoint(event);
                                             if (!point) return;
@@ -376,12 +474,14 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                                         updateSplit(event);
                                     }}
                                     onPointerUp={() => {
+                                        setSplitDragging(false);
                                         const stroke = activeStrokeRef.current;
                                         if (!stroke) return;
                                         activeStrokeRef.current = null;
                                         setStrokes((previous) => [...previous, stroke]);
                                     }}
                                     onPointerCancel={() => {
+                                        setSplitDragging(false);
                                         const stroke = activeStrokeRef.current;
                                         if (!stroke) return;
                                         activeStrokeRef.current = null;
@@ -397,18 +497,33 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                                         style={zoom === "actual" && image ? { width: `${image.width}px` } : undefined}
                                     />
                                     {result ? (
-                                        <canvas
-                                            ref={outputRef}
-                                            className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
-                                            style={{ display: compareMode === "original" ? "none" : undefined, clipPath: compareMode === "split" ? `inset(0 0 0 ${split}%)` : undefined }}
+                                        <>
+                                            <canvas
+                                                ref={outputRef}
+                                                className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+                                                style={{ display: compareMode === "original" || compareMode === "diff" || holdingOriginal ? "none" : undefined, clipPath: compareMode === "split" ? `inset(0 0 0 ${split}%)` : undefined }}
+                                            />
+                                            <canvas
+                                                ref={diffCanvasRef}
+                                                className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain"
+                                                style={{ display: compareMode === "diff" && !holdingOriginal ? undefined : "none" }}
+                                            />
+                                        </>
+                                    ) : null}
+                                    {showMaskOverlay && showMask ? <canvas ref={maskOverlayRef} className="pointer-events-none absolute inset-0 h-full w-full select-none" /> : null}
+                                    {painting ? (
+                                        <div
+                                            ref={brushCursorRef}
+                                            className={`pointer-events-none absolute left-0 top-0 z-20 rounded-full border-2 shadow-[0_0_0_1px_rgba(0,0,0,0.35)] ${altPressed || brushMode === "erase" ? "border-amber-300" : "border-white/90"}`}
+                                            style={{ display: "none" }}
                                         />
                                     ) : null}
-                                    {showMaskOverlay ? <canvas ref={maskOverlayRef} className="pointer-events-none absolute inset-0 h-full w-full select-none" /> : null}
-                                    {result && compareMode === "split" && !painting ? (
+                                    {result && compareMode === "split" && !painting && !holdingOriginal ? (
                                         <div className="pointer-events-none absolute inset-y-0 z-10 w-px bg-white/80" style={{ left: `${split}%` }}>
                                             <span className="absolute left-1/2 top-1/2 grid size-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border bg-white text-black shadow-md">
                                                 <GripVertical className="size-4" />
                                             </span>
+                                            {splitDragging ? <span className="absolute left-1/2 top-2 -translate-x-1/2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white shadow">{Math.round(split)}%</span> : null}
                                         </div>
                                     ) : null}
                                 </div>
@@ -421,9 +536,17 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                             {painting ? (
                                 <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
                                     <span className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/85 backdrop-blur-sm">
-                                        涂抹要保留的区域 · {brushMode === "paint" ? "画笔" : "橡皮"} · {strokes.length ? `已保护 ${strokes.length} 笔` : "尚未涂抹"}
+                                        涂抹要保留的区域 · {altPressed ? "橡皮（Alt）" : brushMode === "paint" ? "画笔" : "橡皮"} · {strokes.length ? `已保护 ${strokes.length} 笔` : "尚未涂抹"}
                                     </span>
                                 </div>
+                            ) : null}
+                            {result && holdingOriginal ? (
+                                <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+                                    <span className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/85 backdrop-blur-sm">松开空格恢复对比</span>
+                                </div>
+                            ) : null}
+                            {result && compareMode === "diff" && !holdingOriginal ? (
+                                <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] text-white/80 backdrop-blur-sm">差异视图 · 越亮表示去噪改动越大（3× 增幅）</div>
                             ) : null}
                             {running ? (
                                 <div className="absolute inset-0 z-20 grid place-items-center bg-black/45 backdrop-blur-[2px]">
@@ -432,7 +555,15 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                                             <LoaderCircle className="size-4 animate-spin" />
                                             {stage || "处理中"}
                                         </div>
-                                        <Progress percent={100} showInfo={false} status="active" size="small" strokeColor="#fff" />
+                                        <Progress
+                                            percent={stageProgress ?? 100}
+                                            showInfo={stageProgress !== null}
+                                            status="active"
+                                            size="small"
+                                            strokeColor="#fff"
+                                            railColor="rgba(255,255,255,0.22)"
+                                            format={(value) => <span className="text-[11px] text-white/70">{value}%</span>}
+                                        />
                                         <div className="flex items-center justify-between text-xs text-white/70">
                                             <span className="tabular-nums">{elapsed.toFixed(1)}s</span>
                                             <button type="button" className="cursor-pointer rounded px-1.5 py-0.5 transition hover:bg-white/15" onClick={() => cancelRef.current?.()}>
@@ -444,30 +575,47 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                             ) : null}
                         </div>
                         <div className="flex h-11 items-center justify-between gap-2 border-t px-3">
-                            {result ? (
+                            <div className="flex min-w-0 items-center gap-2">
+                                {result ? (
+                                    <Segmented
+                                        size="small"
+                                        value={compareMode}
+                                        options={[
+                                            { label: "原图", value: "original" },
+                                            { label: "分屏", value: "split" },
+                                            { label: "效果", value: "result" },
+                                            { label: "差异", value: "diff" },
+                                        ]}
+                                        onChange={(value) => setCompareMode(value as CompareMode)}
+                                    />
+                                ) : (
+                                    <span className="text-xs opacity-55">源图预览</span>
+                                )}
+                                {result ? <span className="hidden truncate text-xs opacity-45 md:inline">按住空格对比原图</span> : null}
+                            </div>
+                            <div className="flex items-center gap-1">
+                                {result ? (
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        className="!size-7 !min-w-7 !p-0"
+                                        title={showMask ? "隐藏保护蒙版" : "显示保护蒙版"}
+                                        aria-label={showMask ? "隐藏保护蒙版" : "显示保护蒙版"}
+                                        icon={showMask ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                                        onClick={() => setShowMask((value) => !value)}
+                                    />
+                                ) : null}
                                 <Segmented
                                     size="small"
-                                    value={compareMode}
+                                    value={zoom}
                                     options={[
-                                        { label: "原图", value: "original" },
-                                        { label: "分屏对比", value: "split" },
-                                        { label: "效果", value: "result" },
+                                        { label: "适应", value: "fit" },
+                                        { label: "1:1", value: "actual" },
                                     ]}
-                                    onChange={(value) => setCompareMode(value as "split" | "original" | "result")}
+                                    onChange={(value) => setZoom(value as "fit" | "actual")}
+                                    disabled={!image}
                                 />
-                            ) : (
-                                <span className="text-xs opacity-55">源图预览</span>
-                            )}
-                            <Segmented
-                                size="small"
-                                value={zoom}
-                                options={[
-                                    { label: "适应", value: "fit" },
-                                    { label: "1:1", value: "actual" },
-                                ]}
-                                onChange={(value) => setZoom(value as "fit" | "actual")}
-                                disabled={!image}
-                            />
+                            </div>
                         </div>
                     </div>
 
@@ -544,7 +692,7 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="mt-2 text-xs leading-5 opacity-55">开启后在左侧涂抹，受保护区域会保留原图像素，不影响其他区域。</div>
+                                <div className="mt-2 text-xs leading-5 opacity-55">开启后在左侧涂抹，受保护区域会保留原图像素；按住 Alt 临时切换橡皮。</div>
                             )}
                         </div>
 
@@ -598,9 +746,14 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                                     <span className="font-medium tabular-nums">{result.elapsed.toFixed(1)}s</span>
                                 </div>
                             ) : null}
+                            {result ? (
+                                <div className="border-t px-3.5 py-2 text-xs tabular-nums opacity-55">
+                                    模型 {result.timings.model.toFixed(1)}s · 推理 {result.timings.infer.toFixed(1)}s · 平滑 {result.timings.l0.toFixed(1)}s · 编码 {result.timings.encode.toFixed(1)}s
+                                </div>
+                            ) : null}
                         </div>
 
-                        {error ? <Alert type="error" showIcon message="降噪失败" description={error} /> : null}
+                        {error ? <Alert type="error" showIcon message="降噪失败" description={error} action={<Button size="small" onClick={() => void start()}>重试</Button>} /> : null}
                     </div>
                 </div>
 
@@ -609,7 +762,18 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                         <Lock className="size-3.5" />
                         图片在本地推理，不会上传；首轮需下载 17MB 模型，之后走浏览器缓存
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Segmented
+                            size="small"
+                            value={outputMode}
+                            options={[
+                                { label: "新节点", value: "new" },
+                                { label: "替换原图", value: "replace" },
+                            ]}
+                            onChange={(value) => setOutputMode(value as "new" | "replace")}
+                            disabled={running || !result}
+                        />
+                        {outputMode === "replace" ? <span className="text-xs font-medium text-amber-500">将覆盖原图像素</span> : null}
                         <Button disabled={running} onClick={onClose}>
                             关闭
                         </Button>
@@ -622,10 +786,10 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                             disabled={!result || running || !resultVersion}
                             onClick={() => {
                                 const output = outputRef.current;
-                                if (output) onConfirm(output.toDataURL("image/png"));
+                                if (output) onConfirm(output.toDataURL("image/png"), outputMode);
                             }}
                         >
-                            生成图片节点
+                            {outputMode === "replace" ? "替换原图" : "生成图片节点"}
                         </Button>
                     </div>
                 </div>
