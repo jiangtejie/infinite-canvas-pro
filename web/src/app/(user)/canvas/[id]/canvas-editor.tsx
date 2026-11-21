@@ -14,6 +14,7 @@ import { normalizeFilmAspect } from "@/lib/film/film-aspects";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { loadFilmShotGenerationReferences } from "@/app/(user)/film/utils/film-references";
 import { requestFilmAiStoryboard } from "@/app/(user)/film/utils/film-ai-parse";
+import { requestFilmConsistencyReview } from "@/app/(user)/film/utils/film-ai-consistency";
 import { FILM_IMAGE_REFERENCE_LIMIT } from "@/app/(user)/film/utils/film-shot-generation";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "@/app/(user)/film/utils/film-video-limits";
 import { filmVideoTaskRef } from "@/app/(user)/film/utils/film-video-task";
@@ -40,6 +41,7 @@ import { addFilmShotBinding, removeFilmShotBinding, updateFilmShotBinding } from
 import { buildFilmShotGenerationFromGraph } from "./lib/film-shot-generation-context";
 import { filmVideoFrameBlockReason, filmVideoInput, filmVideoMode } from "./lib/film-shot-video-frames";
 import { buildFilmParseGraph, undoFilmParseGraph } from "./lib/film-script-parse";
+import { selectFilmProjectFromGraph } from "./lib/film-review";
 import { applyFilmShotImageTaskUpdate } from "./lib/film-shot-task-updates";
 import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmStyleName } from "./lib/film-selectors";
 import type { FilmShotBindingChip, FilmStudioModel, FilmStudioView } from "./lib/film-studio-types";
@@ -147,6 +149,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const [studioView, setStudioView] = useState<FilmStudioView>("studio");
     const confirm = useConfirm();
     const [scriptParseState, setScriptParseState] = useState<{ nodeId: string; done: number; total: number } | null>(null);
+    const [consistencyReviewing, setConsistencyReviewing] = useState(false);
     const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
     const [activeShotId, setActiveShotId] = useState<string | null>(null);
     const filmScenes = useMemo(
@@ -1881,6 +1884,36 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         message.success("已撤销上次 AI 拆镜");
     }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
 
+    const runFilmConsistencyReview = useCallback(async () => {
+        const latestProject = useCanvasStore.getState().projects.find((project) => project.id === projectId);
+        if (!latestProject?.film) return;
+        const { project } = selectFilmProjectFromGraph(nodesRef.current, connectionsRef.current, latestProject.film, latestProject.title);
+        if (!project.episodes.some((episode) => episode.scenes.some((scene) => scene.shots.length))) {
+            message.warning("还没有镜头，先拆镜或手动添加");
+            return;
+        }
+        const config = resolveModelConfig("text");
+        if (!config) return;
+        setConsistencyReviewing(true);
+        try {
+            const review = await requestFilmConsistencyReview(config, project);
+            const latest = useCanvasStore.getState().projects.find((item) => item.id === projectId);
+            if (!latest?.film) return;
+            updateProject(projectId, { film: { ...latest.film, consistencyReview: review } });
+            message.success(review.issues.length ? `一致性检查完成：${review.issues.length} 条问题` : "一致性检查完成：未发现问题");
+        } catch (error) {
+            message.error(toErrorMessage(error, "一致性检查失败"));
+        } finally {
+            setConsistencyReviewing(false);
+        }
+    }, [connectionsRef, message, nodesRef, projectId, resolveModelConfig, updateProject]);
+
+    const clearFilmConsistencyReview = useCallback(() => {
+        const latest = useCanvasStore.getState().projects.find((project) => project.id === projectId);
+        if (!latest?.film) return;
+        updateProject(projectId, { film: { ...latest.film, consistencyReview: undefined } });
+    }, [projectId, updateProject]);
+
     const generateFilmShotImage = useCallback(async (shotId: string) => {
         const node = nodesRef.current.find((item) => item.id === shotId);
         const payload = node?.metadata?.filmShot;
@@ -2115,6 +2148,11 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         onStopShotBatch: () => {
             void stopFilmShotBatch();
         },
+        consistencyReviewing,
+        onRunConsistencyReview: () => {
+            void runFilmConsistencyReview();
+        },
+        onClearConsistencyReview: clearFilmConsistencyReview,
         styleName: filmStyleName,
         onSceneChange: selectFilmScene,
         onSelectShot: selectFilmShot,

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { CanvasTopBar } from "./canvas-top-bar";
 import { CanvasSidePanel } from "../../components/canvas-side-panel";
@@ -17,6 +17,7 @@ import { FilmStudioBody } from "./film-studio-body";
 import { FilmViewBody } from "./film-view-body";
 import { FilmStudioViewSwitch } from "./film-studio-view-switch";
 import { FilmShotBatchProgress } from "./film-shot-batch-progress";
+import { FilmReviewDrawer } from "./film-review-drawer";
 
 type CanvasShellModel = {
     theme: CanvasTheme;
@@ -92,6 +93,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
     } = model.shell;
     const filmStudio = model.filmStudio;
     const filmViewMode = Boolean(filmStudio && filmStudio.view !== "graph");
+    const [filmReviewOpen, setFilmReviewOpen] = useState(false);
     const zenMode = useCanvasUiStore((state) => state.zenMode);
     useEffect(() => {
         // 浏览器 Esc/界面退出全屏时同步退出 Zen，避免「Zen 但非全屏」的悬空状态。
@@ -186,8 +188,25 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     </>
                 )}
                 <CanvasDialogs model={model.dialogs} />
-                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} /> : null}
+                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onReview={() => setFilmReviewOpen(true)} /> : null}
                 {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} /> : null}
+                {filmStudio ? (
+                    <FilmReviewDrawer
+                        open={filmReviewOpen}
+                        onClose={() => setFilmReviewOpen(false)}
+                        theme={theme}
+                        model={filmStudio}
+                        nodes={nodes}
+                        connections={model.stage.connections}
+                        film={currentProject?.film}
+                        title={currentProject?.title}
+                        onOpenShot={(shotId) => {
+                            filmStudio.onSelectShot(shotId);
+                            filmStudio.onViewChange("studio");
+                            setFilmReviewOpen(false);
+                        }}
+                    />
+                ) : null}
             </section>
             {!filmViewMode ? (
             <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>

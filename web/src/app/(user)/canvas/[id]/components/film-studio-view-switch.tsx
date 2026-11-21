@@ -5,7 +5,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { CANVAS_Z } from "../lib/canvas-layer";
 import type { FilmStudioView } from "../lib/film-studio-types";
 
-export function FilmStudioViewSwitch({ view, onChange }: { view: FilmStudioView; onChange: (view: FilmStudioView) => void }) {
+export function FilmStudioViewSwitch({ view, onChange, onReview }: { view: FilmStudioView; onChange: (view: FilmStudioView) => void; onReview?: () => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     return (
         <div
@@ -23,6 +23,12 @@ export function FilmStudioViewSwitch({ view, onChange }: { view: FilmStudioView;
                     {label}
                 </button>
             ))}
+            {onReview ? (
+                <>
+                    <span className="mx-0.5 h-4 w-px" style={{ background: theme.toolbar.border }} />
+                    <button type="button" className="rounded-full px-3 py-1 text-xs font-medium transition" style={{ color: theme.node.muted }} onClick={onReview}>检查</button>
+                </>
+            ) : null}
         </div>
     );
 }

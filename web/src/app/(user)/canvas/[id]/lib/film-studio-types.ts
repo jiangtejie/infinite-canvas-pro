@@ -65,6 +65,9 @@ export type FilmStudioModel = {
     shotBatch: FilmShotBatchState;
     onBatchGenerateShots: (shotIds: string[], kind: FilmShotBatchKind) => void;
     onStopShotBatch: () => void;
+    consistencyReviewing: boolean;
+    onRunConsistencyReview: () => void;
+    onClearConsistencyReview: () => void;
     styleName: string | null;
     onSceneChange: (sceneId: string) => void;
     onSelectShot: (shotId: string) => void;

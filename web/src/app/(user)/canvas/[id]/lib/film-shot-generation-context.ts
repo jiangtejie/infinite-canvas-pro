@@ -54,14 +54,17 @@ function shotFromNode(node: CanvasNodeData, nodes: CanvasNodeData[], connections
     } as FilmShot;
 }
 
+export function selectFilmShotFromGraph(node: CanvasNodeData, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    return shotFromNode(node, nodes, connections);
+}
+
 function previousShotOf(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string): FilmShot | undefined {
     const edge = connections.find((item) => item.kind === "sequence" && item.toNodeId === shotId);
     const node = edge ? nodes.find((item) => item.id === edge.fromNodeId) : undefined;
     return node ? shotFromNode(node, nodes, connections) ?? undefined : undefined;
 }
 
-export function buildFilmShotGenerationFromGraph(
-    nodes: CanvasNodeData[],
+export function buildFilmShotGenerationFromGraph(    nodes: CanvasNodeData[],
     connections: CanvasConnection[],
     shotId: string,
     options: FilmGraphGenerationOptions,
