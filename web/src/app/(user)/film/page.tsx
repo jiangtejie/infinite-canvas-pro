@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from 
 import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { App, Button, Input, Modal } from "antd";
-import { Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { ArrowRight, Clapperboard, Download, Library, Pencil, Plus, Trash2, Upload } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { FilmAmbient } from "@/components/film/film-ambient";
@@ -23,6 +23,9 @@ import { parseFilmProjectBackup, serializeFilmProject } from "./utils/film-backu
 import { countFilmScenes, countReadyShots, flattenFilmShots } from "./utils/parse-script";
 import { filmStageLabel } from "@/lib/film/film-stages";
 import { errorMessage } from "@/lib/utils";
+import { useCanvasStore } from "@/app/(user)/canvas/stores/use-canvas-store";
+import { isFilmCanvasProject } from "@/app/(user)/canvas/utils/canvas-project-domain";
+import { FILM_CANVAS_DEV } from "@/app/(user)/canvas/utils/film-mode";
 
 export default function FilmListPage() {
     const router = useRouter();
@@ -34,6 +37,9 @@ export default function FilmListPage() {
     const importProject = useFilmStore((state) => state.importProject);
     const updateProject = useFilmStore((state) => state.updateProject);
     const deleteProjects = useFilmStore((state) => state.deleteProjects);
+    const canvasHydrated = useCanvasStore((state) => state.hydrated);
+    const canvasProjects = useCanvasStore((state) => state.projects);
+    const createFilmCanvasProject = useCanvasStore((state) => state.createFilmProject);
     const { confirmDelete } = useFilmDeleteConfirm();
     const downloadFile = useDownloadFile();
     const [createOpen, setCreateOpen] = useState(false);
@@ -52,6 +58,15 @@ export default function FilmListPage() {
     const totalScenes = projects.reduce((total, project) => total + countFilmScenes(project.episodes), 0);
     const totalReady = projects.reduce((total, project) => total + countReadyShots(project.episodes), 0);
     const readyRate = totalShots ? Math.round((totalReady / totalShots) * 100) : 0;
+    const filmCanvasProjects = useMemo(
+        () => (FILM_CANVAS_DEV ? canvasProjects.filter(isFilmCanvasProject).slice().sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)) : []),
+        [canvasProjects],
+    );
+
+    const createFilmCanvas = () => {
+        const id = createFilmCanvasProject("未命名影视画布");
+        router.push(`/film/studio/${id}`);
+    };
 
     const create = () => {
         if (!title.trim()) {
@@ -155,6 +170,35 @@ export default function FilmListPage() {
                             />
                         </div>
                     </div>
+
+                    {FILM_CANVAS_DEV ? (
+                        <section className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/50 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">影视画布</span>
+                                    <span className="text-xs text-muted-foreground">{filmCanvasProjects.length} 个</span>
+                                </div>
+                                <Button disabled={!canvasHydrated} icon={<Clapperboard className="size-4" />} onClick={createFilmCanvas}>
+                                    新建影视画布
+                                </Button>
+                            </div>
+                            {filmCanvasProjects.length ? (
+                                <div className="flex flex-col divide-y divide-border/60">
+                                    {filmCanvasProjects.map((project) => (
+                                        <button key={project.id} type="button" className="flex items-center justify-between gap-3 py-2 text-left" onClick={() => router.push(`/film/studio/${project.id}`)}>
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-sm font-medium">{project.title}</span>
+                                                <span className="text-xs text-muted-foreground">{project.nodes.length} 节点 · {dayjs(project.updatedAt).format("MM-DD HH:mm")}</span>
+                                            </span>
+                                            <ArrowRight className="size-4 shrink-0 opacity-50" />
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <span className="text-xs text-muted-foreground">还没有影视画布；新建后会进入 Studio。</span>
+                            )}
+                        </section>
+                    ) : null}
 
                     {hydrated && ordered.length > 0 ? (
                         <section className="grid gap-3 sm:grid-cols-3">

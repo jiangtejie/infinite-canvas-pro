@@ -8,6 +8,7 @@ import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import type { FilmAsset } from "@/lib/film/types";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
+import { patchFilmAssetNode, patchFilmSceneNode, patchFilmScriptNode, patchFilmShotNode } from "../[id]/lib/film-node-patch";
 import { CanvasNodeType, type CanvasNodeData, type FilmAssetNodeData, type FilmSceneNodeData, type FilmScriptNodeData, type FilmShotNodeData } from "../types";
 
 type CanvasFilmInspectorProps = {
@@ -37,29 +38,10 @@ export function CanvasFilmInspector({ open, node, onClose, onChange }: CanvasFil
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     if (!node) return null;
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
-    const patchScript = (patch: Partial<FilmScriptNodeData>) => onChange(node.id, (current) => ({
-        ...current,
-        metadata: { ...current.metadata, filmScript: { ...(current.metadata?.filmScript ?? { text: "", parseSnapshots: [] }), ...patch } },
-    }));
-    const patchScene = (patch: Partial<FilmSceneNodeData>) => onChange(node.id, (current) => ({
-        ...current,
-        metadata: { ...current.metadata, filmScene: { ...current.metadata?.filmScene!, ...patch } },
-    }));
-    const patchShot = (patch: Partial<FilmShotNodeData>) => onChange(node.id, (current) => ({
-        ...current,
-        metadata: { ...current.metadata, filmShot: { ...current.metadata?.filmShot!, ...patch } },
-    }));
-    const patchAsset = (patch: Partial<FilmAsset>) => onChange(node.id, (current) => {
-        const payload = current.metadata?.filmAsset;
-        if (!payload) return current;
-        return {
-            ...current,
-            metadata: {
-                ...current.metadata,
-                filmAsset: { ...payload, asset: { ...payload.asset, ...patch, updatedAt: new Date().toISOString() } },
-            },
-        };
-    });
+    const patchScript = (patch: Partial<FilmScriptNodeData>) => onChange(node.id, (current) => patchFilmScriptNode(current, patch));
+    const patchScene = (patch: Partial<FilmSceneNodeData>) => onChange(node.id, (current) => patchFilmSceneNode(current, patch));
+    const patchShot = (patch: Partial<FilmShotNodeData>) => onChange(node.id, (current) => patchFilmShotNode(current, patch));
+    const patchAsset = (patch: Partial<FilmAsset>) => onChange(node.id, (current) => patchFilmAssetNode(current, patch));
     const script = node.metadata?.filmScript;
     const scene = node.metadata?.filmScene;
     const shot = node.metadata?.filmShot;

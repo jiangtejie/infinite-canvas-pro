@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Modal } from "antd";
+import { Button, Modal, Select } from "antd";
 import { Bot, Eraser, Focus, Home, Images, LayoutGrid, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
@@ -38,6 +38,10 @@ export function CanvasTopBar({
     onExpandAssistant,
     filmMode,
     onArrangeFilm,
+    filmScenes,
+    activeSceneId,
+    onSceneChange,
+    studioView,
 }: {
     title: string;
     sidePanelOpen: boolean;
@@ -62,6 +66,10 @@ export function CanvasTopBar({
     onExpandAssistant: () => void;
     filmMode: boolean;
     onArrangeFilm: () => void;
+    filmScenes?: { id: string; label: string }[];
+    activeSceneId?: string | null;
+    onSceneChange?: (sceneId: string) => void;
+    studioView?: "studio" | "graph";
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -150,9 +158,11 @@ export function CanvasTopBar({
         <>
             <div className="pointer-events-none absolute left-0 right-0 top-0 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover, zIndex: CANVAS_Z.toolbar, visibility: zenMode ? "hidden" : "visible", opacity: zenMode ? 0 : 1, transition: "opacity 250ms ease" } as React.CSSProperties}>
                 <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3 max-sm:w-full">
-                    <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
-                        {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-                    </button>
+                    {studioView !== "studio" ? (
+                        <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
+                            {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+                        </button>
+                    ) : null}
                     <div className="relative">
                         <button
                             ref={menuButtonRef}
@@ -178,12 +188,12 @@ export function CanvasTopBar({
                                 onKeyDown={menuNavigation.handleKeyDown}
                             >
                                 <CanvasMenuItem icon={<Home className="size-4" />} label="主页" onClick={() => runMenuAction(onHome)} />
-                                <CanvasMenuItem icon={<Images className="size-4" />} label="我的画布" onClick={() => runMenuAction(onProjects)} />
+                                <CanvasMenuItem icon={<Images className="size-4" />} label={filmMode ? "影视项目" : "我的画布"} onClick={() => runMenuAction(onProjects)} />
                                 <CanvasMenuDivider theme={theme} />
-                                <CanvasMenuItem icon={<Plus className="size-4" />} label="新建画布" onClick={() => runMenuAction(onCreateProject)} />
+                                <CanvasMenuItem icon={<Plus className="size-4" />} label={filmMode ? "新建影视画布" : "新建画布"} onClick={() => runMenuAction(onCreateProject)} />
                                 <CanvasMenuItem icon={<Eraser className="size-4" />} label="清空画布内容" danger onClick={() => runMenuAction(onClear)} />
                                 <CanvasMenuDivider theme={theme} />
-                                <CanvasMenuItem icon={<Trash2 className="size-4" />} label="删除当前画布" danger onClick={() => runMenuAction(onDeleteProject)} />
+                                <CanvasMenuItem icon={<Trash2 className="size-4" />} label={filmMode ? "删除当前影视画布" : "删除当前画布"} danger onClick={() => runMenuAction(onDeleteProject)} />
                                 <CanvasMenuDivider theme={theme} />
                                 <CanvasMenuItem icon={<Upload className="size-4" />} label="导入素材" onClick={() => runMenuAction(onImportImage)} />
                                 <CanvasMenuDivider theme={theme} />
@@ -226,6 +236,18 @@ export function CanvasTopBar({
                             </button>
                         )}
                     </div>
+                    {filmScenes?.length ? (
+                        <Select
+                            size="small"
+                            variant="borderless"
+                            className="max-w-[220px]"
+                            popupMatchSelectWidth={false}
+                            value={activeSceneId ?? undefined}
+                            options={filmScenes.map((scene) => ({ value: scene.id, label: scene.label }))}
+                            onChange={onSceneChange}
+                            aria-label="选择场次"
+                        />
+                    ) : null}
                 </div>
 
                 <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 max-sm:ml-auto">
@@ -251,7 +273,7 @@ export function CanvasTopBar({
                             setAccountOpen(false);
                         }}
                     />
-                    {filmMode ? (
+                    {filmMode && studioView !== "studio" ? (
                         <button
                             type="button"
                             onClick={onArrangeFilm}
@@ -273,7 +295,7 @@ export function CanvasTopBar({
                     >
                         <Focus className="size-4" />
                     </button>
-                    {assistantCollapsed ? (
+                    {assistantCollapsed && studioView !== "studio" ? (
                         <>
                             <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                             <Button

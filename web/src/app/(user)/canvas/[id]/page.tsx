@@ -1,5 +1,5 @@
-import CanvasClientPage from "./canvas-client-page";
+import CanvasEditor from "./canvas-editor";
 
 export default function CanvasPage() {
-    return <CanvasClientPage />;
+    return <CanvasEditor />;
 }

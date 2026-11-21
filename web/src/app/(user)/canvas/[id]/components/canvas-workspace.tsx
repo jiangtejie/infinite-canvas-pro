@@ -12,6 +12,9 @@ import { CanvasDialogs, type CanvasDialogModel } from "./canvas-dialogs";
 import { CanvasStageLayer, type CanvasStageModel } from "./canvas-stage-layer";
 import { CanvasStageOverlays, type CanvasStageOverlaysModel } from "./canvas-stage-overlays";
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
+import type { FilmStudioModel } from "../lib/film-studio-types";
+import { FilmStudioBody } from "./film-studio-body";
+import { FilmStudioViewSwitch } from "./film-studio-view-switch";
 
 type CanvasShellModel = {
     theme: CanvasTheme;
@@ -51,6 +54,7 @@ export type CanvasWorkspaceModel = {
     overlays: CanvasStageOverlaysModel;
     dialogs: CanvasDialogModel;
     assistant: CanvasAssistantModel;
+    filmStudio?: FilmStudioModel;
 };
 
 export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
@@ -84,6 +88,8 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         filmMode,
         onArrangeFilm,
     } = model.shell;
+    const filmStudio = model.filmStudio;
+    const studioMode = filmStudio?.view === "studio";
     const zenMode = useCanvasUiStore((state) => state.zenMode);
     useEffect(() => {
         // 浏览器 Esc/界面退出全屏时同步退出 Zen，避免「Zen 但非全屏」的悬空状态。
@@ -106,6 +112,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 if (selection?.toString() && panel?.contains(selection.anchorNode) && !panel.contains(event.target as Node)) selection.removeAllRanges();
             }}
         >
+            {!studioMode ? (
             <CanvasSidePanel
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
@@ -124,6 +131,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 onInsertAsset={handleAssetInsert}
                 onClose={() => setSidePanel((current) => ({ ...current, open: false }))}
             />
+            ) : null}
             <section className="relative min-w-0 flex-1 overflow-hidden">
                 <CanvasTopBar
                     title={currentProject?.title || "未命名画布"}
@@ -145,7 +153,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     canUndo={historyState.canUndo}
                     canRedo={historyState.canRedo}
                     onHome={() => router.push("/")}
-                    onProjects={() => router.push("/canvas")}
+                    onProjects={() => router.push(filmStudio ? "/film" : "/canvas")}
                     onCreateProject={createAndOpenProject}
                     onDeleteProject={() => setDeleteProjectConfirmOpen(true)}
                     onClear={() => setClearConfirmOpen(true)}
@@ -162,14 +170,27 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     }}
                     filmMode={filmMode}
                     onArrangeFilm={onArrangeFilm}
+                    filmScenes={filmStudio?.scenes.map((scene) => ({ id: scene.id, label: scene.label }))}
+                    activeSceneId={filmStudio?.activeSceneId ?? undefined}
+                    onSceneChange={filmStudio?.onSceneChange}
+                    studioView={filmStudio?.view}
                 />
-                <CanvasStageLayer model={model.stage} />
-                <CanvasStageOverlays model={model.overlays} />
+                {studioMode && filmStudio ? (
+                    <FilmStudioBody model={filmStudio} theme={theme} />
+                ) : (
+                    <>
+                        <CanvasStageLayer model={model.stage} />
+                        <CanvasStageOverlays model={model.overlays} />
+                    </>
+                )}
                 <CanvasDialogs model={model.dialogs} />
+                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} /> : null}
             </section>
+            {!studioMode ? (
             <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>
                 <CanvasAssistantPane model={model.assistant} />
             </div>
+            ) : null}
         </main>
     );
 }

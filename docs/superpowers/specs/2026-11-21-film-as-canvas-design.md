@@ -2,6 +2,7 @@
 
 > 状态：2026-11-21 已确认。方向：影视工作台整体推翻，一个影视项目就是一份画布文档；工作台能力以视图、检查器、服务的形式保留。
 > 硬约束：旧影视项目数据直接删除、不迁移；不保留第二套生成、任务、导出、同步；每批完成即删被替换代码；改造必须符合画布节点哲学。漫画在批次 4 另行设计。
+> 2026-11-21 追加：影视默认入口改为 `/film/studio/[id]` 的 Studio 壳层，画布是同一文档的视图；详见 [Studio 壳层设计](2026-11-21-film-studio-shell-design.md)。
 
 ## 目标
 
@@ -25,15 +26,16 @@
 ### 文档与入口
 
 - `CanvasProject` 增加 `domain?: "film"` 与 `film?: CanvasFilmMeta`；影视数据不再写入独立 store。
-- `/film` 保留为「影视项目列表 + 母版库入口」薄壳，数据改读画布 store 的 `domain === "film"`。
-- `/film/[id]` 删除；打开项目跳 `/canvas/[id]`，画布工作区按 `domain` 进入影视模式。
-- `/canvas` 列表排除 `domain === "film"` 的文档，避免同一项目两个入口。
+- `/film` 是影视主入口：影视画布区（画布 store 的 `domain === "film"`）、新建影视画布与母版库入口。
+- `/film/studio/[id]` 是影视画布的正式入口，默认 Studio 壳层（单镜舞台 + 胶片条 + 镜头设置）；`/film/[id]` 旧工作台保留到批次 3。
+- `/canvas` 列表排除 `domain === "film"` 的文档；`/canvas/[id]` 打开影视文档时重定向到 `/film/studio/[id]`，避免同一项目两个入口。
 - `/film/library` 保留，继续使用现有影视母版库 store 与同步域。
 
 ### 影视模式
 
 - 节点面板：剧本、场次、镜头、角色/场景/道具/服装/风格资产节点、镜头组（复用分组）；其余通用节点（图片/视频/音频/导演/文本/发布等）保持可用。
-- 顶栏视图切换：画布 / 镜头表 / 故事板板 / 时间轴；右侧检查器可开合。
+- 默认 Studio：单镜舞台 + 底部胶片条 + 左侧镜头设置；顶部浮动切换 Studio / 画布。
+- 视图：Studio / 画布（无限画布与检查器）/ 镜头表 / 故事板板 / 时间轴；后三者批次 2。
 - 阶段推进（脚本→选角→分镜→剪辑）不再持久化，也不做强制关卡；门禁降为批量生成前、审阅前的检查确认。
 
 ## 二、数据模型
@@ -205,7 +207,13 @@ export type CanvasConnection = {
 
 ## 四、视图与交互
 
-### 画布视图（主）
+### Studio 视图（默认）
+
+- 单镜舞台 + 底部胶片条 + 左侧镜头设置，详见 [Studio 壳层设计](2026-11-21-film-studio-shell-design.md)。
+- 舞台有图显示分镜图，无图显示空镜卡；胶片条按场分组、点击或键盘切换；左栏编辑当前镜头。
+- 画布是 Studio 内的一个视图；切到画布不丢失当前镜头/场次。
+
+### 画布视图（总览）
 
 - 集/场为列锚点，镜头按 sequence 边纵向排列；场次节点在列首。
 - 资产节点默认在左侧「上下文带」，风格节点固定一角；镜头组可折叠。
@@ -247,6 +255,12 @@ export type CanvasConnection = {
 - 单镜出图/出视频接入画布任务；编译器改图输入；资产节点与槽位编辑器接入。
 - 此阶段影视模式只在开发开关后可见，旧工作台仍可用。
 
+### 批次 1C：Studio 独立入口与壳层
+
+- 新增 `/film/studio/[id]`、`CanvasEditor` 抽取、`/film` 影视画布入口与 `/canvas` 影视入口移除。
+- Studio 左栏/舞台/胶片条、浮动视图切换、镜头追加、`film-selectors`/`film-node-patch`/`film-shot-create` 与单测。
+- 详见 [Studio 壳层设计](2026-11-21-film-studio-shell-design.md)。
+
 ### 批次 2：视图与批量
 
 - 镜头表、故事板板、时间轴、检查器；批量生成/改参数/分组。
@@ -255,7 +269,7 @@ export type CanvasConnection = {
 
 ### 批次 3：切换与彻底删除
 
-- `/film` 列表切画布 store；`/film/[id]` 删除，旧入口重定向到 `/film`。
+- `/film` 列表切画布 store；旧 `/film/[id]` 工作台删除，旧入口重定向到 `/film/studio/[id]`。
 - 删除：`web/src/stores/use-film-store.ts`、影视项目页与阶段壳、`use-film-task-recovery`、项目级备份/解析/生成 hooks 中被画布命令替代的部分、`services/creative-sync.ts` 的 `film-projects` 域、`services/api/user-config.ts` 的影视项目接口、后端影视项目路由/handler/repository/model 字段与数据库列、`lib/film/types.ts` 中 `FilmProject/FilmEpisode/FilmScene/FilmShot/FilmShotConnection/FilmShotCharacterBinding/FilmShotPropBinding`。
 - 保留：影视母版库及其同步、资产/媒体/槽位类型、可复用视图与检查器组件。
 - 清理旧本地键；不做数据导入、不做旧字段兼容；更新 `docs/backend/backend-database.md`、`docs/progress/pending-test.md`、`docs/progress/todo.md`、`docs/overview/features.md`。
