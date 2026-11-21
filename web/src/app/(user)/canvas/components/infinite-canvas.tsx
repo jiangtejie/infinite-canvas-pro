@@ -14,7 +14,7 @@ const GRAIN_TEXTURE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2
 
 type CanvasMotion =
     | { kind: "pan"; vx: number; vy: number; last: ViewportTransform }
-    | { kind: "zoom"; targetK: number; worldX: number; worldY: number; anchorX: number; anchorY: number; last: ViewportTransform };
+    | { kind: "zoom"; logTarget: number; worldX: number; worldY: number; anchorX: number; anchorY: number; last: ViewportTransform };
 
 type InfiniteCanvasProps = {
     containerRef: React.RefObject<HTMLDivElement | null>;
@@ -102,9 +102,11 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
                 next = { x: current.x + entry.motion.vx * dt, y: current.y + entry.motion.vy * dt, k: current.k };
             } else {
                 const m = entry.motion;
-                const k = current.k + (m.targetK - current.k) * (1 - Math.exp(-dt / 90));
-                if (Math.abs(m.targetK - k) < 0.001) {
-                    next = { x: m.anchorX - m.worldX * m.targetK, y: m.anchorY - m.worldY * m.targetK, k: m.targetK };
+                const logK = Math.log(current.k);
+                const nextLogK = logK + (m.logTarget - logK) * (1 - Math.exp(-dt / 50));
+                if (Math.abs(m.logTarget - nextLogK) < 0.0004) {
+                    const k = Math.exp(m.logTarget);
+                    next = { x: m.anchorX - m.worldX * k, y: m.anchorY - m.worldY * k, k };
                     entry.motion.last = next;
                     viewportRef.current = next;
                     entry.emit(next);
@@ -112,6 +114,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
                     zoomTargetRef.current = null;
                     return;
                 }
+                const k = Math.exp(nextLogK);
                 next = { x: m.anchorX - m.worldX * k, y: m.anchorY - m.worldY * k, k };
             }
             entry.motion.last = next;
@@ -193,9 +196,17 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         }
         const worldX = (mouseX - current.x) / current.k;
         const worldY = (mouseY - current.y) / current.k;
+        const logTarget = Math.log(newScale);
+        // 大部分位移立即跟手，剩余交给短阻尼收尾：连续滚动不滞后，低帧率环境也不跳。
+        const immediateK = Math.exp(Math.log(current.k) + (logTarget - Math.log(current.k)) * 0.65);
+        const immediate = { x: mouseX - worldX * immediateK, y: mouseY - worldY * immediateK, k: immediateK };
         stopMotion();
-        zoomTargetRef.current = newScale;
-        startMotion({ kind: "zoom", targetK: newScale, worldX, worldY, anchorX: mouseX, anchorY: mouseY, last: current }, onViewportChange);
+        viewportRef.current = immediate;
+        onViewportChange(immediate);
+        if (Math.abs(logTarget - Math.log(immediateK)) > 0.0004) {
+            zoomTargetRef.current = newScale;
+            startMotion({ kind: "zoom", logTarget, worldX, worldY, anchorX: mouseX, anchorY: mouseY, last: immediate }, onViewportChange);
+        }
     }, [containerRef, onViewportChange, startMotion, stopMotion, wheelMode]);
 
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
