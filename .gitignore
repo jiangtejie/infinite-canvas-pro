@@ -8,6 +8,8 @@ data/
 *.log
 *.tsbuildinfo
 web/public/InfiniteCanvas-ComfyBridge*
+web/public/denoise/
+web/public/models/
 .DS_Store
 .idea
 .tmp/

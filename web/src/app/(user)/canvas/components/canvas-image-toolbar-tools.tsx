@@ -1,11 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Brush, Camera, Copy, FileText, Grid2x2, Lock, LockOpen, Maximize2, Scissors, Upload, ZoomIn } from "lucide-react";
+import { Brush, Camera, Copy, FileText, Grid2x2, Lock, LockOpen, Maximize2, Scissors, Sparkles, Upload, ZoomIn } from "lucide-react";
 
 import type { CanvasNodeData } from "../types";
 
-export type ImageNodeActionToolId = "copyPrompt" | "reversePrompt" | "replace" | "resize" | "maskEdit" | "crop" | "split" | "upscale" | "angle" | "view";
+export type ImageNodeActionToolId = "copyPrompt" | "reversePrompt" | "replace" | "resize" | "maskEdit" | "crop" | "split" | "upscale" | "denoise" | "angle" | "view";
 export type ImageQuickToolId = "info" | "delete" | "saveAsset" | "download" | "edit" | ImageNodeActionToolId;
 
 export type ImageToolHandlers = {
@@ -15,6 +15,7 @@ export type ImageToolHandlers = {
     onCrop: (node: CanvasNodeData) => void;
     onSplit: (node: CanvasNodeData) => void;
     onUpscale: (node: CanvasNodeData) => void;
+    onDenoise: (node: CanvasNodeData) => void;
     onAngle: (node: CanvasNodeData) => void;
     onViewImage: (node: CanvasNodeData) => void;
     onCopyPrompt: (node: CanvasNodeData) => void;
@@ -37,8 +38,8 @@ export type ImageQuickToolsConfig = {
     showLabels: boolean;
 };
 
-export const IMAGE_QUICK_TOOLS_STORAGE_KEY = "canvas-image-quick-tools-v6";
-export const PANORAMA_QUICK_TOOLS_STORAGE_KEY = "canvas-panorama-quick-tools-v1";
+export const IMAGE_QUICK_TOOLS_STORAGE_KEY = "canvas-image-quick-tools-v7";
+export const PANORAMA_QUICK_TOOLS_STORAGE_KEY = "canvas-panorama-quick-tools-v2";
 
 const defaultBaseToolIds: ImageQuickToolId[] = ["info", "delete", "saveAsset", "download"];
 
@@ -117,6 +118,15 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
         run: (node, handlers) => handlers.onUpscale(node),
     },
     {
+        id: "denoise",
+        defaultVisible: true,
+        panelLabel: "降噪",
+        label: "降噪",
+        title: "本地 AI 降噪（WebGPU）",
+        icon: () => <Sparkles className="size-4" />,
+        run: (node, handlers) => handlers.onDenoise(node),
+    },
+    {
         id: "angle",
         defaultVisible: false,
         panelLabel: "多角度",
@@ -137,7 +147,7 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
 ];
 
 export const defaultImageQuickToolIds: ImageQuickToolId[] = [...defaultBaseToolIds, ...imageToolDefinitions.filter((tool) => tool.defaultVisible).map((tool) => tool.id)];
-export const defaultPanoramaQuickToolIds: ImageQuickToolId[] = defaultImageQuickToolIds.filter((id) => id !== "replace");
+export const defaultPanoramaQuickToolIds: ImageQuickToolId[] = defaultImageQuickToolIds.filter((id) => id !== "replace" && id !== "denoise");
 
 export function buildImageToolbarTools(node: CanvasNodeData, handlers: ImageToolHandlers) {
     return imageToolDefinitions.map((tool) => ({

@@ -342,6 +342,33 @@ export function useCanvasGeneration({
         }
     }, [closeOverlay, message, openOverlay, selectOnly, setConnections, setNodes]);
 
+    const denoiseImageNode = useCallback(async (node: CanvasNodeData, resultDataUrl: string) => {
+        if (!node.metadata?.content) return;
+        closeOverlay();
+        try {
+            const image = await uploadImage(resultDataUrl);
+            const childId = nanoid();
+            const child: CanvasNodeData = {
+                id: childId,
+                type: CanvasNodeType.Image,
+                title: `${node.title || "图片"} 降噪`,
+                position: { x: node.position.x + node.width + 96, y: node.position.y },
+                width: node.width,
+                height: node.height,
+                metadata: {
+                    ...imageMetadata(image),
+                    prompt: node.metadata?.prompt,
+                },
+            };
+            setNodes((prev) => [...prev, child]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+            selectOnly(childId);
+            openOverlay({ kind: "prompt", nodeId: childId });
+        } catch (error) {
+            message.error(toErrorMessage(error, "生成降噪图失败"));
+        }
+    }, [closeOverlay, message, openOverlay, selectOnly, setConnections, setNodes]);
+
     const generateAngleNode = useCallback(
         async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
             if (!node.metadata?.content) return;
@@ -1198,6 +1225,7 @@ export function useCanvasGeneration({
         splitImageNode,
         maskEditImageNode,
         upscaleImageNode,
+        denoiseImageNode,
         generateAngleNode,
         generateImageFromTextNode,
         runNodeGenerate,

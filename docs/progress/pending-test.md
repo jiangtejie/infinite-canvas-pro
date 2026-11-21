@@ -3,6 +3,15 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 画布本地 AI 降噪（WebGPU，P0）
+
+- 图片节点快捷工具新增「降噪」：移植 GPT-anime-denoise-web 的本地管线（Real-ESRGAN 分块超分 + 可选 L0 结构平滑），WebGPU 在浏览器内推理，图片不出本机；支持轻度/标准/强力去噪、L0 三档、前后对比、进度与取消，确认后上传并生成相连的新图片节点。
+- 资产：`bun run denoise:assets` 把 ORT WebGPU wasm/胶水复制到 `web/public/denoise/`，并下载校验约 17 MB 的 `esrgan.onnx` 到 `web/public/models/`（均不入库）；模型地址可用 `NEXT_PUBLIC_DENOISE_MODEL_URL` 覆盖。WebGPU 不可用时弹窗提示并禁用处理。
+- 代码位置：`workers/canvas-denoise.worker.ts`（推理与模型缓存）、`workers/canvas-denoise-l0.ts`（WebGPU L0 分块）、`utils/canvas-denoise-client.ts`（worker 会话与取消）、`components/canvas-node-denoise-dialog.tsx`（弹窗）、`use-canvas-generation` 的 `denoiseImageNode`（输出节点）。
+- 验证：`bun run typecheck`、`bun run lint --max-warnings=0`、`bun test`（607 条）通过。ego-browser（WebGPU 可用）实测：选中图片节点出现「降噪」入口，弹窗正常打开；首轮（含模型加载）耗时约 9.2s；点击「生成降噪图」新增节点并自动连线，输出图片 647×819 正常加载，无 console 错误。
+- 未实测：弱显卡与 4K / 接近 1677 万像素大图的耗时和显存；L0 强档的视觉副作用；第二次打开的模型缓存命中速度；生产构建（Docker / 静态资源）下 worker 与 wasm 路径；移动端浏览器。
+- 归属：代码移植自 GPT-anime-denoise-web（MIT），模型为 Real-ESRGAN（BSD-3-Clause），保留上游版权声明。
+
 ## 画布高频指针交互：减少冗余状态提交
 
 - 背景：控制台偶发 `Maximum update depth exceeded`（useEffect 变体），堆栈落在 `handleGlobalPointerMove`。该诊断的语义是连续 50 次以上「由被动 effect 调度」的提交后，下一次并发更新入队时打印，pointermove 只是触发打印的入口，不能直接归因。

@@ -63,6 +63,7 @@ export function useCanvasDerived({
     const maskEditNode = activeOverlay?.kind === "maskEdit" ? overlayNode : null;
     const splitNode = activeOverlay?.kind === "split" ? overlayNode : null;
     const upscaleNode = activeOverlay?.kind === "upscale" ? overlayNode : null;
+    const denoiseNode = activeOverlay?.kind === "denoise" ? overlayNode : null;
     const angleNode = activeOverlay?.kind === "angle" ? overlayNode : null;
     const contextMenuNode = contextMenu?.type === "node" ? nodeById.get(contextMenu.nodeId) || null : null;
     const previewNode = activeOverlay?.kind === "preview" ? overlayNode : null;
@@ -264,6 +265,7 @@ export function useCanvasDerived({
         maskEditNode,
         splitNode,
         upscaleNode,
+        denoiseNode,
         angleNode,
         contextMenuNode,
         previewNode,

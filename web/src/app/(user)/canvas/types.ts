@@ -276,6 +276,7 @@ export type CanvasOverlay =
     | { kind: "maskEdit"; nodeId: string }
     | { kind: "split"; nodeId: string }
     | { kind: "upscale"; nodeId: string }
+    | { kind: "denoise"; nodeId: string }
     | { kind: "angle"; nodeId: string }
     | { kind: "preview"; nodeId: string }
     | { kind: "comic"; nodeId: string; mode?: "preview" | "lettering" | "manage" | "associate" }

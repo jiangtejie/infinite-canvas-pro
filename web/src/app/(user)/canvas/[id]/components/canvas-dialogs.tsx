@@ -6,6 +6,7 @@ import { App, Button, Modal, Slider } from "antd";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CanvasNodeAngleDialog } from "../../components/canvas-node-angle-dialog";
 import { CanvasNodeCropDialog } from "../../components/canvas-node-crop-dialog";
+import { CanvasNodeDenoiseDialog } from "../../components/canvas-node-denoise-dialog";
 import { CanvasNodeMaskEditDialog } from "../../components/canvas-node-mask-edit-dialog";
 import { CanvasNodeSplitDialog } from "../../components/canvas-node-split-dialog";
 import { CanvasNodeUpscaleDialog } from "../../components/canvas-node-upscale-dialog";
@@ -60,6 +61,8 @@ export type CanvasDialogModel = {
     splitImageNode: (node: CanvasNodeData, params: CanvasImageSplitParams) => Promise<void>;
     upscaleNode: CanvasNodeData | null;
     upscaleImageNode: (node: CanvasNodeData, params: CanvasImageUpscaleParams) => Promise<void>;
+    denoiseNode: CanvasNodeData | null;
+    denoiseImageNode: (node: CanvasNodeData, resultDataUrl: string) => Promise<void>;
     angleNode: CanvasNodeData | null;
     generateAngleNode: (node: CanvasNodeData, params: CanvasImageAngleParams) => Promise<void>;
     previewNode: CanvasNodeData | null;
@@ -113,6 +116,8 @@ export function CanvasDialogs({ model }: { model: CanvasDialogModel }) {
         splitImageNode,
         upscaleNode,
         upscaleImageNode,
+        denoiseNode,
+        denoiseImageNode,
         angleNode,
         generateAngleNode,
         previewNode,
@@ -239,6 +244,8 @@ export function CanvasDialogs({ model }: { model: CanvasDialogModel }) {
                 {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => closeOverlay()} onConfirm={(params) => splitImageNode(splitNode!, params)} /> : null}
 
                 {upscaleNode?.metadata?.content ? <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => closeOverlay()} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} /> : null}
+
+                {denoiseNode?.metadata?.content ? <CanvasNodeDenoiseDialog dataUrl={denoiseNode.metadata.content} open={Boolean(denoiseNode)} onClose={() => closeOverlay()} onConfirm={(resultDataUrl) => void denoiseImageNode(denoiseNode!, resultDataUrl)} /> : null}
 
                 {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => closeOverlay()} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
 

@@ -502,7 +502,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
 
     const {
         visibleNodes, nodeById, toolbarNode, infoNode, cropNode, audioTrimNode,
-        maskEditNode, splitNode, upscaleNode, angleNode, contextMenuNode, previewNode,
+        maskEditNode, splitNode, upscaleNode, denoiseNode, angleNode, contextMenuNode, previewNode,
         comicNode, openDirectorNode, selectedImageNodes, selectedImageCount, canCreateComic,
         activeNodeId, canGenerateFromContextMenu,
         canEditFromContextMenu, contextMenuGenerateLabel, batchChildCountById, groupChildCountById,
@@ -1369,6 +1369,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         splitImageNode,
         maskEditImageNode,
         upscaleImageNode,
+        denoiseImageNode,
         generateAngleNode,
         generateImageFromTextNode,
         runNodeGenerate,
@@ -1771,6 +1772,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             cropNode, cropImageNode, maskEditNode, maskEditConfig,
             currentMaskEditModel, currentMaskEditChannelId, openConfigDialog, maskEditImageNode,
             splitNode, splitImageNode, upscaleNode, upscaleImageNode,
+            denoiseNode, denoiseImageNode,
             angleNode, generateAngleNode, previewNode,
             getBatchGroupNodes, setActiveOverlay, deleteProjectConfirmOpen, deleteCurrentProject,
             clearConfirmOpen, clearCanvas, assetPickerOpen, assetPickerTab,

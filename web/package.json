@@ -11,6 +11,7 @@
         "start": "next start",
         "test": "bun test",
         "typecheck": "tsc --noEmit",
+        "denoise:assets": "node scripts/prepare-denoise-assets.mjs",
         "lint": "eslint . --max-warnings=0",
         "format": "prettier --write .",
         "format:check": "prettier --check ."
@@ -39,6 +40,7 @@
         "motion": "^12.38.0",
         "nanoid": "^5.1.11",
         "next": "16.2.9",
+        "onnxruntime-web": "1.24.3",
         "pdf-lib": "^1.17.1",
         "radix-ui": "^1.4.3",
         "react": "19.2.5",
@@ -57,6 +59,7 @@
         "@types/node": "^20",
         "@types/react": "19.1.12",
         "@types/react-dom": "19.1.9",
+        "@webgpu/types": "^0.1.74",
         "eslint": "^9",
         "eslint-config-next": "16.2.9",
         "prettier": "^3.8.3",

@@ -250,6 +250,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onCrop={(node) => openOverlay({ kind: "crop", nodeId: node.id })}
                     onSplit={(node) => openOverlay({ kind: "split", nodeId: node.id })}
                     onUpscale={(node) => openOverlay({ kind: "upscale", nodeId: node.id })}
+                    onDenoise={(node) => openOverlay({ kind: "denoise", nodeId: node.id })}
                     onAngle={(node) => openOverlay({ kind: "angle", nodeId: node.id })}
                     onViewImage={(node) => openOverlay({ kind: "preview", nodeId: node.id })}
                     onReversePrompt={createImageReversePromptNodes}
