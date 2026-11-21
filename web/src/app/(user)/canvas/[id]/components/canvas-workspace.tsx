@@ -16,6 +16,7 @@ import type { FilmStudioModel } from "../lib/film-studio-types";
 import { FilmStudioBody } from "./film-studio-body";
 import { FilmViewBody } from "./film-view-body";
 import { FilmStudioViewSwitch } from "./film-studio-view-switch";
+import { FilmShotBatchProgress } from "./film-shot-batch-progress";
 
 type CanvasShellModel = {
     theme: CanvasTheme;
@@ -186,6 +187,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 )}
                 <CanvasDialogs model={model.dialogs} />
                 {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} /> : null}
+                {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} /> : null}
             </section>
             {!filmViewMode ? (
             <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>

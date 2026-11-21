@@ -40,6 +40,18 @@ export type FilmBindingAssetOption = {
     name: string;
 };
 
+export type FilmShotBatchKind = "image" | "video";
+
+export type FilmShotBatchState = {
+    running: boolean;
+    kind: FilmShotBatchKind | null;
+    total: number;
+    completed: number;
+    failed: number;
+    currentTitle: string;
+    currentIndex: number;
+};
+
 export type FilmStudioModel = {
     view: FilmStudioView;
     onViewChange: (view: FilmStudioView) => void;
@@ -50,6 +62,9 @@ export type FilmStudioModel = {
     activeShot: FilmShotEntry | null;
     activeBindings: FilmShotBindingChip[];
     bindingsByShot: Record<string, FilmShotBindingChip[]>;
+    shotBatch: FilmShotBatchState;
+    onBatchGenerateShots: (shotIds: string[], kind: FilmShotBatchKind) => void;
+    onStopShotBatch: () => void;
     styleName: string | null;
     onSceneChange: (sceneId: string) => void;
     onSelectShot: (shotId: string) => void;

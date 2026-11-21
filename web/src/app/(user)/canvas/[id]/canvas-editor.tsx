@@ -13,6 +13,7 @@ import { createVideoGenerationTask } from "@/services/api/video";
 import { normalizeFilmAspect } from "@/lib/film/film-aspects";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { loadFilmShotGenerationReferences } from "@/app/(user)/film/utils/film-references";
+import { requestFilmAiStoryboard } from "@/app/(user)/film/utils/film-ai-parse";
 import { FILM_IMAGE_REFERENCE_LIMIT } from "@/app/(user)/film/utils/film-shot-generation";
 import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "@/app/(user)/film/utils/film-video-limits";
 import { filmVideoTaskRef } from "@/app/(user)/film/utils/film-video-task";
@@ -38,6 +39,7 @@ import { appendFilmShot } from "./lib/film-shot-create";
 import { addFilmShotBinding, removeFilmShotBinding, updateFilmShotBinding } from "./lib/film-shot-bindings";
 import { buildFilmShotGenerationFromGraph } from "./lib/film-shot-generation-context";
 import { filmVideoFrameBlockReason, filmVideoInput, filmVideoMode } from "./lib/film-shot-video-frames";
+import { buildFilmParseGraph, undoFilmParseGraph } from "./lib/film-script-parse";
 import { applyFilmShotImageTaskUpdate } from "./lib/film-shot-task-updates";
 import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmStyleName } from "./lib/film-selectors";
 import type { FilmShotBindingChip, FilmStudioModel, FilmStudioView } from "./lib/film-studio-types";
@@ -57,6 +59,7 @@ import { useCanvasClipboard } from "./hooks/use-canvas-clipboard";
 import { useCanvasPointer } from "./hooks/use-canvas-pointer";
 import { useCanvasGeneration } from "./hooks/use-canvas-generation";
 import { useCanvasBatchGeneration } from "./hooks/use-canvas-batch-generation";
+import { useFilmShotBatch } from "./hooks/use-film-shot-batch";
 import { useCanvasRemix } from "./hooks/use-canvas-remix";
 import { collectBatchTargetNodeIds } from "./lib/canvas-batch";
 import { planSourcePublishNode } from "./lib/canvas-publish";
@@ -84,6 +87,7 @@ import { isCanvasReferenceNode } from "../utils/canvas-resource-references";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type FilmBindingEdgeData, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function CanvasEditor({ studio = false }: { studio?: boolean }) {
     const params = useParams<{ id: string }>();
@@ -141,6 +145,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const [filmInspectorNodeId, setFilmInspectorNodeId] = useState<string | null>(null);
     const filmInspectorNode = filmInspectorNodeId ? nodes.find((node) => node.id === filmInspectorNodeId) ?? null : null;
     const [studioView, setStudioView] = useState<FilmStudioView>("studio");
+    const confirm = useConfirm();
+    const [scriptParseState, setScriptParseState] = useState<{ nodeId: string; done: number; total: number } | null>(null);
     const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
     const [activeShotId, setActiveShotId] = useState<string | null>(null);
     const filmScenes = useMemo(
@@ -1827,6 +1833,54 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         window.setTimeout(() => focusNode(shotId), 80);
     }, [focusNode]);
 
+    const parseFilmScript = useCallback(async (scriptNodeId: string) => {
+        const scriptNode = nodesRef.current.find((node) => node.id === scriptNodeId && node.type === CanvasNodeType.Script);
+        const text = scriptNode?.metadata?.filmScript?.text || "";
+        if (!text.trim()) {
+            message.warning("先在剧本节点填写正文");
+            return;
+        }
+        const config = resolveModelConfig("text");
+        if (!config) return;
+        const existingScenes = nodesRef.current.filter((node) => node.type === CanvasNodeType.Scene).length;
+        const existingShots = nodesRef.current.filter((node) => node.type === CanvasNodeType.Shot).length;
+        if (existingScenes || existingShots) {
+            const ok = await confirm({
+                title: "覆盖现有场次与镜头？",
+                description: `AI 拆镜会删除现有 ${existingScenes} 个场次、${existingShots} 个镜头节点并生成新结果；可用「撤销上次拆镜」恢复最近一次。`,
+                confirmText: "覆盖拆镜",
+                tone: "danger",
+            });
+            if (!ok) return;
+        }
+        setScriptParseState({ nodeId: scriptNodeId, done: 0, total: 0 });
+        try {
+            const episodes = await requestFilmAiStoryboard(config, text, { targetDuration: currentProject?.film?.targetDuration }, (done, total) => {
+                setScriptParseState({ nodeId: scriptNodeId, done, total });
+            });
+            const latest = nodesRef.current.find((node) => node.id === scriptNodeId);
+            if (!latest) return;
+            const result = buildFilmParseGraph(episodes, latest, nodesRef.current, connectionsRef.current, "overwrite");
+            setNodes(result.nodes);
+            setConnections(result.connections);
+            message.success(`AI 拆出 ${result.sceneCount} 场 / ${result.shotCount} 镜`);
+        } catch (error) {
+            message.error(toErrorMessage(error, "AI 拆镜失败"));
+        } finally {
+            setScriptParseState(null);
+        }
+    }, [confirm, connectionsRef, currentProject, message, nodesRef, resolveModelConfig, setConnections, setNodes]);
+
+    const undoFilmScriptParse = useCallback((scriptNodeId: string) => {
+        const scriptNode = nodesRef.current.find((node) => node.id === scriptNodeId);
+        if (!scriptNode) return;
+        const result = undoFilmParseGraph(scriptNode, nodesRef.current, connectionsRef.current);
+        if (!result) return;
+        setNodes(result.nodes);
+        setConnections(result.connections);
+        message.success("已撤销上次 AI 拆镜");
+    }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
+
     const generateFilmShotImage = useCallback(async (shotId: string) => {
         const node = nodesRef.current.find((item) => item.id === shotId);
         const payload = node?.metadata?.filmShot;
@@ -2012,6 +2066,17 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         } : item));
     }, [handleStopNode, setNodes]);
 
+    const { batchState: filmShotBatchState, startBatch: startFilmShotBatch, stopBatch: stopFilmShotBatch } = useFilmShotBatch({
+        nodesRef,
+        generate: (shotId, kind) => kind === "image" ? generateFilmShotImage(shotId) : generateFilmShotVideo(shotId),
+        stop: async (shotId, kind) => {
+            if (kind === "image") await stopFilmShotImage(shotId);
+            else await stopFilmShotVideo(shotId);
+        },
+        ensureConfig: (kind) => Boolean(resolveModelConfig(kind)),
+        message,
+    });
+
     useEffect(() => () => {
         if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
     }, [focusAnimationRef]);
@@ -2043,6 +2108,13 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         activeShot: activeFilm.shot,
         activeBindings: activeFilmBindings,
         bindingsByShot: filmBindingsByShot,
+        shotBatch: filmShotBatchState,
+        onBatchGenerateShots: (shotIds, kind) => {
+            void startFilmShotBatch(shotIds, kind);
+        },
+        onStopShotBatch: () => {
+            void stopFilmShotBatch();
+        },
         styleName: filmStyleName,
         onSceneChange: selectFilmScene,
         onSelectShot: selectFilmShot,
@@ -2200,6 +2272,12 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             onChange={(nodeId, updater) => {
                 setNodes((prev) => prev.map((node) => (node.id === nodeId ? updater(node) : node)));
             }}
+            scriptParsing={scriptParseState?.nodeId === filmInspectorNodeId}
+            scriptParseProgress={scriptParseState?.nodeId === filmInspectorNodeId ? scriptParseState : null}
+            onParseScript={(nodeId) => {
+                void parseFilmScript(nodeId);
+            }}
+            onUndoParse={undoFilmScriptParse}
         />
     </>;
 }

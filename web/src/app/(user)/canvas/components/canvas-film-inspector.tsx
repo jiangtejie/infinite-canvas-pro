@@ -17,6 +17,10 @@ type CanvasFilmInspectorProps = {
     node: CanvasNodeData | null;
     onClose: () => void;
     onChange: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
+    scriptParsing?: boolean;
+    scriptParseProgress?: { done: number; total: number } | null;
+    onParseScript?: (nodeId: string) => void;
+    onUndoParse?: (nodeId: string) => void;
 };
 
 const TITLES: Partial<Record<CanvasNodeType, string>> = {
@@ -35,7 +39,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     );
 }
 
-export function CanvasFilmInspector({ open, node, onClose, onChange }: CanvasFilmInspectorProps) {
+export function CanvasFilmInspector({ open, node, onClose, onChange, scriptParsing, scriptParseProgress, onParseScript, onUndoParse }: CanvasFilmInspectorProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     if (!node) return null;
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
@@ -62,14 +66,25 @@ export function CanvasFilmInspector({ open, node, onClose, onChange }: CanvasFil
         >
             <div className="flex flex-col gap-3">
                 {node.type === CanvasNodeType.Script ? (
-                    <Field label="剧本正文">
-                        <Input.TextArea
-                            value={script?.text || ""}
-                            autoSize={{ minRows: 12, maxRows: 24 }}
-                            style={inputStyle}
-                            onChange={(event) => patchScript({ text: event.target.value })}
-                        />
-                    </Field>
+                    <>
+                        <Field label="剧本正文">
+                            <Input.TextArea
+                                value={script?.text || ""}
+                                autoSize={{ minRows: 12, maxRows: 24 }}
+                                style={inputStyle}
+                                onChange={(event) => patchScript({ text: event.target.value })}
+                            />
+                        </Field>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} disabled={scriptParsing} onClick={() => onParseScript?.(node.id)}>
+                                {scriptParsing ? `AI 拆镜中${scriptParseProgress?.total ? ` ${scriptParseProgress.done}/${scriptParseProgress.total}` : "…"}` : "AI 拆镜"}
+                            </button>
+                            {(script?.parseSnapshots?.length ?? 0) > 0 ? (
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={scriptParsing} onClick={() => onUndoParse?.(node.id)}>撤销上次拆镜</button>
+                            ) : null}
+                        </div>
+                        <div className="text-xs" style={{ color: theme.node.muted }}>AI 会覆盖现有场次与镜头；撤销可恢复最近一次。</div>
+                    </>
                 ) : null}
                 {node.type === CanvasNodeType.Scene ? (
                     <>

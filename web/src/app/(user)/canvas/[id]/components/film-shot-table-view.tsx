@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowUpRight, Clapperboard } from "lucide-react";
+import { useState } from "react";
+import { ArrowUpRight, Clapperboard, ImageIcon, Video } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FILM_SHOT_TYPE_OPTIONS } from "@/app/(user)/film/utils/film-shot-types";
@@ -10,16 +11,25 @@ import type { FilmStudioModel } from "../lib/film-studio-types";
 import { filmShotViewStats } from "../lib/film-shot-views";
 import { FilmShotMediaBadges } from "./film-shot-media-badges";
 
-const COLUMNS = "64px 150px 110px 110px 76px 170px 120px 150px 84px";
+const COLUMNS = "36px 64px 150px 110px 110px 76px 170px 120px 150px 84px";
 
 export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model: FilmStudioModel }) {
     const stats = filmShotViewStats(model.shots);
     const activeId = model.activeShot?.shot.id;
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const allSelected = model.shots.length > 0 && model.shots.every((entry) => selected.has(entry.shot.id));
     const update = (shotId: string, patch: Partial<FilmShotNodeData>) => model.onUpdateShot(shotId, (node) => patchFilmShotNode(node, patch));
     const openShot = (shotId: string) => {
         model.onSelectShot(shotId);
         model.onViewChange("studio");
     };
+    const toggleSelected = (shotId: string) => setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(shotId)) next.delete(shotId);
+        else next.add(shotId);
+        return next;
+    });
+    const toggleAll = () => setSelected(allSelected ? new Set() : new Set(model.shots.map((entry) => entry.shot.id)));
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -29,11 +39,21 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                 {[`${stats.shots} 镜`, `${stats.scenes} 场`, `${stats.duration}s`, `已出图 ${stats.images}`, `已出视频 ${stats.videos}`].map((label) => (
                     <span key={label} className="rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{label}</span>
                 ))}
+                {selected.size ? (
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px]" style={{ color: theme.node.muted }}>已选 {selected.size} 镜</span>
+                        <button type="button" className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} disabled={model.shotBatch.running} onClick={() => model.onBatchGenerateShots([...selected], "image")}><ImageIcon className="size-3" />批量出图</button>
+                        <button type="button" className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={model.shotBatch.running} onClick={() => model.onBatchGenerateShots([...selected], "video")}><Video className="size-3" />批量出视频</button>
+                    </div>
+                ) : <span className="ml-auto text-[11px]" style={{ color: theme.node.muted }}>勾选镜头后可批量生成</span>}
             </div>
             {model.shots.length ? (
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-auto">
-                    <div style={{ minWidth: 1044 }}>
+                    <div style={{ minWidth: 1080 }}>
                         <div className="sticky top-0 z-10 grid border-b text-[11px]" style={{ gridTemplateColumns: COLUMNS, borderColor: theme.node.stroke, background: theme.node.panel, color: theme.node.muted }}>
+                            <div className="grid place-items-center px-2 py-2">
+                                <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="全选镜头" />
+                            </div>
                             {["镜号", "场次", "景别", "运镜", "时长", "角色", "场景", "媒体", "操作"].map((label) => <div key={label} className="px-2 py-2">{label}</div>)}
                         </div>
                         {model.shots.map((entry) => {
@@ -53,6 +73,9 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                     onDoubleClick={() => openShot(entry.shot.id)}
                                     onKeyDown={(event) => { if (event.key === "Enter") openShot(entry.shot.id); }}
                                 >
+                                    <div className="grid place-items-center px-2 py-1.5">
+                                        <input type="checkbox" checked={selected.has(entry.shot.id)} onChange={() => toggleSelected(entry.shot.id)} onClick={(event) => event.stopPropagation()} aria-label={`选择镜头 ${payload?.shotNo || entry.shot.title}`} />
+                                    </div>
                                     <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.shotNo || ""} onChange={(event) => update(entry.shot.id, { shotNo: event.target.value })} aria-label="镜号" /></div>
                                     <div className="min-w-0 px-2 py-1.5">
                                         <div className="truncate">{entry.sceneLabel}</div>

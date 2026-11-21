@@ -141,6 +141,8 @@ export type FilmParseSnapshot = {
     mode: "overwrite" | "append";
     nodes: CanvasNodeData[];
     connections: CanvasConnection[];
+    removedNodes?: CanvasNodeData[];
+    removedConnections?: CanvasConnection[];
 };
 
 export type FilmScriptNodeData = {
