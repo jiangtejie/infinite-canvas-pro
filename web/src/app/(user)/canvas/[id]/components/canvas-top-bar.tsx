@@ -12,6 +12,7 @@ import { CANVAS_Z } from "../../[id]/lib/canvas-layer";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
 import { useCanvasStore } from "../../stores/use-canvas-store";
+import { enterCanvasZen, exitCanvasZen } from "../../utils/canvas-zen";
 
 export function CanvasTopBar({
     title,
@@ -73,7 +74,6 @@ export function CanvasTopBar({
     const [showSaved, setShowSaved] = useState(false);
     const shortcutsOpen = useCanvasUiStore((state) => state.shortcutsOpen);
     const zenMode = useCanvasUiStore((state) => state.zenMode);
-    const setZenMode = useCanvasUiStore((state) => state.setZenMode);
     const wheelMode = useCanvasUiStore((state) => state.wheelMode);
     const [modifierKey, setModifierKey] = useState("Ctrl");
 
@@ -227,11 +227,11 @@ export function CanvasTopBar({
                     />
                     <button
                         type="button"
-                        onClick={() => setZenMode(true)}
+                        onClick={enterCanvasZen}
                         className="grid size-9 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10"
                         style={{ color: theme.node.text }}
                         aria-label="进入沉浸模式"
-                        title="沉浸模式 (Z)：隐藏界面，专注画布"
+                        title="沉浸模式 (Z)：全屏专注画布"
                     >
                         <Focus className="size-4" />
                     </button>
@@ -254,7 +254,7 @@ export function CanvasTopBar({
             {zenMode ? (
                 <button
                     type="button"
-                    onClick={() => setZenMode(false)}
+                    onClick={exitCanvasZen}
                     className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium opacity-45 transition hover:bg-[var(--canvas-topbar-hover)] hover:opacity-100"
                     style={{ color: theme.node.text, zIndex: CANVAS_Z.toolbar, "--canvas-topbar-hover": theme.toolbar.itemHover } as React.CSSProperties}
                     title="退出沉浸模式 (Esc)"
@@ -279,7 +279,7 @@ export function CanvasTopBar({
                     <Shortcut keys={[modifierKey, "D"]} value="复制选中节点" />
                     <Shortcut keys={["V"]} value="选择工具" />
                     <Shortcut keys={["H"]} value="移动画布工具" />
-                    <Shortcut keys={["Z"]} value="沉浸模式：隐藏界面，Esc 或再按 Z 退出" />
+                    <Shortcut keys={["Z"]} value="沉浸模式：全屏专注画布，Esc 或再按 Z 退出" />
                     <Shortcut keys={["Delete / Backspace"]} value="删除选中" />
                     <Shortcut keys={["Esc"]} value="取消选择并关闭浮层" />
                     <Shortcut keys={["拖入图片/视频/音频"]} value="上传到画布" />

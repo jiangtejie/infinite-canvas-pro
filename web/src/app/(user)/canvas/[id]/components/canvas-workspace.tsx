@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useEffect } from "react";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { CanvasTopBar } from "./canvas-top-bar";
 import { CanvasSidePanel } from "../../components/canvas-side-panel";
@@ -80,6 +81,17 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         agentPanel,
     } = model.shell;
     const zenMode = useCanvasUiStore((state) => state.zenMode);
+    useEffect(() => {
+        // 浏览器 Esc/界面退出全屏时同步退出 Zen，避免「Zen 但非全屏」的悬空状态。
+        const syncFullscreen = () => {
+            if (!document.fullscreenElement) useCanvasUiStore.getState().setZenMode(false);
+        };
+        document.addEventListener("fullscreenchange", syncFullscreen);
+        return () => {
+            document.removeEventListener("fullscreenchange", syncFullscreen);
+            if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+        };
+    }, []);
     return (
         <main
             className="flex h-full min-h-0 overflow-hidden"

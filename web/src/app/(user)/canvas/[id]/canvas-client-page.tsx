@@ -58,6 +58,7 @@ import { CanvasComicBookOverlay } from "../components/canvas-comic-book-overlay"
 import { CANVAS_ASSET_DRAG_TYPE } from "../components/canvas-side-panel";
 import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, nextCanvasProjectTitle, useCanvasStore } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
+import { enterCanvasZen, exitCanvasZen } from "../utils/canvas-zen";
 import { isCanvasReferenceNode } from "../utils/canvas-resource-references";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
@@ -864,7 +865,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             }
             if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "z" && !target?.closest("[contenteditable='true']")) {
                 event.preventDefault();
-                useCanvasUiStore.setState((state) => ({ zenMode: !state.zenMode }));
+                if (useCanvasUiStore.getState().zenMode) exitCanvasZen();
+                else enterCanvasZen();
                 return;
             }
             if (!isModifierShortcut && !event.altKey && event.shiftKey && ["Digit0", "Digit1", "Digit2"].includes(event.code)) {
@@ -941,7 +943,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 setHoveredNodeId(null);
                 setToolbarNodeId(null);
                 closeOverlay();
-                useCanvasUiStore.getState().setZenMode(false);
+                exitCanvasZen();
             }
         };
 
