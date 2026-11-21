@@ -5,14 +5,17 @@ import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 
 import { useParams, useRouter } from "next/navigation";
 import { saveAs } from "file-saver";
 import { deleteCanvasProjects } from "@/services/api/canvas-tasks";
-import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { collectImageStorageKeys } from "@/lib/storage-reference-keys";
 import { deleteImagePreviews, deleteStoredImages, deleteUnusedImagePreviews, ensureImagePreview, resolveImageUrl, uploadImage, uploadRemoteImageToServer } from "@/services/image-storage";
 import { createCanvasImageTask, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
+import { createVideoGenerationTask } from "@/services/api/video";
 import { normalizeFilmAspect } from "@/lib/film/film-aspects";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { loadFilmShotGenerationReferences } from "@/app/(user)/film/utils/film-references";
 import { FILM_IMAGE_REFERENCE_LIMIT } from "@/app/(user)/film/utils/film-shot-generation";
+import { clampFilmVideoDuration, filmVideoAspect, filmVideoReferenceLimit } from "@/app/(user)/film/utils/film-video-limits";
+import { filmVideoTaskRef } from "@/app/(user)/film/utils/film-video-task";
 import { resolveMediaUrl, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
 import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
@@ -32,7 +35,9 @@ import { normalizeConnection } from "./lib/canvas-connections";
 import { canAddFilmConnection } from "./lib/film-connections";
 import { arrangeFilmNodes } from "./lib/film-layout";
 import { appendFilmShot } from "./lib/film-shot-create";
+import { addFilmShotBinding, removeFilmShotBinding, updateFilmShotBinding } from "./lib/film-shot-bindings";
 import { buildFilmShotGenerationFromGraph } from "./lib/film-shot-generation-context";
+import { filmVideoFrameBlockReason, filmVideoInput, filmVideoMode } from "./lib/film-shot-video-frames";
 import { applyFilmShotImageTaskUpdate } from "./lib/film-shot-task-updates";
 import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmStyleName } from "./lib/film-selectors";
 import type { FilmStudioModel } from "./lib/film-studio-types";
@@ -76,7 +81,7 @@ import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, nextCanvasProjec
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { enterCanvasZen, exitCanvasZen } from "../utils/canvas-zen";
 import { isCanvasReferenceNode } from "../utils/canvas-resource-references";
-import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
+import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type FilmBindingEdgeData, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
 
@@ -151,7 +156,13 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         () => (activeFilm.shot ? selectFilmShotBindings(nodes, connections, activeFilm.shot.shot.id) : []),
         [activeFilm.shot, connections, nodes],
     );
+    const activeFilmShotId = activeFilm.shot?.shot.id ?? null;
     const filmStyleName = useMemo(() => (filmMode ? selectFilmStyleName(nodes) : null), [filmMode, nodes]);
+    const availableFilmAssets = useMemo(() => (filmMode ? nodes.flatMap((node) => {
+        const payload = node.metadata?.filmAsset;
+        if (!payload || !["character", "location", "prop"].includes(payload.kind)) return [];
+        return [{ nodeId: node.id, kind: payload.kind, name: payload.asset.name || node.title }];
+    }) : []), [filmMode, nodes]);
     const {
         contextMenu,
         setContextMenu,
@@ -928,7 +939,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
             const key = event.key.toLowerCase();
             const isModifierShortcut = event.metaKey || event.ctrlKey;
-            if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "v") {
+            if (!isModifierShortcut && !event.altKey && !event.shiftKey && key === "v" && !(filmMode && studioView === "studio")) {
                 event.preventDefault();
                 setCanvasTool("select");
                 return;
@@ -1024,7 +1035,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [cancelPointerInteraction, cancelSelectionBox, closeOverlay, copySelectedNodes, createGroupFromSelection, deleteConnection, deleteNodes, duplicateSelectedNodes, fitAllNodes, fitSelectedNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setZoomScale, undoCanvas, clearSelection, selectMany, selectedNodeIdsRef, setSelectedConnectionId, setContextMenu, setNodeCreatePosition]);
+    }, [cancelPointerInteraction, cancelSelectionBox, closeOverlay, copySelectedNodes, createGroupFromSelection, deleteConnection, deleteNodes, duplicateSelectedNodes, filmMode, fitAllNodes, fitSelectedNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setZoomScale, studioView, undoCanvas, clearSelection, selectMany, selectedNodeIdsRef, setSelectedConnectionId, setContextMenu, setNodeCreatePosition]);
 
     const handleNodeResize = useCallback((nodeId: string, width: number, height: number, position?: Position, loadedNode?: CanvasNodeData) => {
         if (!loadedNode) {
@@ -1785,6 +1796,24 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         setNodes((prev) => prev.map((node) => (node.id === nodeId ? updater(node) : node)));
     }, [setNodes]);
 
+    const addFilmBinding = useCallback((assetNodeId: string) => {
+        if (!activeFilmShotId) return;
+        const result = addFilmShotBinding(nodesRef.current, connectionsRef.current, activeFilmShotId, assetNodeId);
+        if ("error" in result) {
+            message.warning(result.error);
+            return;
+        }
+        setConnections(result.connections);
+    }, [activeFilmShotId, connectionsRef, message, nodesRef, setConnections]);
+
+    const removeFilmBinding = useCallback((edgeId: string) => {
+        setConnections((prev) => removeFilmShotBinding(prev, edgeId));
+    }, [setConnections]);
+
+    const updateFilmBinding = useCallback((edgeId: string, patch: Partial<FilmBindingEdgeData>) => {
+        setConnections((prev) => updateFilmShotBinding(prev, edgeId, patch));
+    }, [setConnections]);
+
     const locateFilmShotInGraph = useCallback((shotId: string) => {
         setActiveShotId(shotId);
         setStudioView("graph");
@@ -1827,9 +1856,11 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
                 startedAt,
                 progress: 0,
                 errorDetails: undefined,
+                filmShotTaskKind: "image",
                 filmShot: {
                     ...item.metadata.filmShot,
                     errorMessage: "",
+                    lastFailedTaskKind: undefined,
                     pendingTask: { kind: "image", id: clientTaskId, startedAt, generationContext },
                 },
             },
@@ -1867,6 +1898,113 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         } : item));
     }, [handleStopNode, setNodes]);
 
+    const generateFilmShotVideo = useCallback(async (shotId: string) => {
+        const node = nodesRef.current.find((item) => item.id === shotId);
+        const payload = node?.metadata?.filmShot;
+        if (!node || !payload) return;
+        if (!(payload.prompt || payload.description).trim()) {
+            message.warning("先填写画面描述或提示词");
+            return;
+        }
+        if (node.metadata?.status === "loading") return;
+        const videoMode = filmVideoMode(payload);
+        const frameBlockReason = filmVideoFrameBlockReason(videoMode, payload.firstFrame);
+        if (frameBlockReason) {
+            message.warning(frameBlockReason);
+            return;
+        }
+        const config = resolveModelConfig("video");
+        if (!config) return;
+        const model = config.model || config.videoModel || "";
+        const videoConfig: AiConfig = {
+            ...config,
+            size: filmVideoAspect(currentProject?.film?.aspect ?? "16:9", model),
+            videoSeconds: String(clampFilmVideoDuration(payload.duration ?? 4, model)),
+            ...(payload.negativePrompt ? { videoNegativePrompt: payload.negativePrompt } : {}),
+        };
+        const context = buildFilmShotGenerationFromGraph(nodesRef.current, connectionsRef.current, shotId, {
+            medium: "video",
+            maxReferences: filmVideoReferenceLimit(model),
+            videoMode,
+            includeStoryboard: videoMode === "reference",
+            includePreviousShot: videoMode === "reference",
+        });
+        if (!context) return;
+        const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
+        const generationContext = { ...context, missingReferenceIds };
+        const input = filmVideoInput(videoMode, images, shotId);
+        if (videoMode === "frames" && !input.firstFrame) {
+            message.warning("首帧图片不可用，请重新选择");
+            return;
+        }
+        const clientTaskId = `client_video_task_${nanoid()}`;
+        const startedAt = Date.now();
+        setNodes((prev) => prev.map((item) => item.id === shotId && item.metadata?.filmShot ? {
+            ...item,
+            metadata: {
+                ...item.metadata,
+                status: "loading",
+                clientTaskId,
+                startedAt,
+                progress: 0,
+                errorDetails: undefined,
+                filmShotTaskKind: "video",
+                filmShot: { ...item.metadata.filmShot, errorMessage: "", lastFailedTaskKind: undefined, pendingTask: undefined },
+            },
+        } : item));
+        try {
+            const task = await submitNodeTask(shotId, clientTaskId, (signal, onServerTask) =>
+                createVideoGenerationTask(videoConfig, generationContext.prompt, input, undefined, {
+                    clientTaskId,
+                    source: "canvas",
+                    sourceId: shotId,
+                    onServerTask,
+                    signal,
+                }).then((created) => created.task));
+            if (!isNodeTaskActive(shotId, clientTaskId)) return;
+            const taskRef = filmVideoTaskRef(task);
+            setNodes((prev) => prev.map((item) => item.id === shotId && item.metadata?.filmShot ? {
+                ...item,
+                metadata: {
+                    ...item.metadata,
+                    status: "loading",
+                    clientTaskId,
+                    startedAt,
+                    progress: 0,
+                    videoTaskVideoId: task.video_id,
+                    filmShotTaskKind: "video",
+                    filmShot: { ...item.metadata.filmShot, errorMessage: "", lastFailedTaskKind: undefined, pendingTask: { ...taskRef, generationContext } },
+                },
+            } : item));
+        } catch (error) {
+            if (!isNodeTaskActive(shotId, clientTaskId)) return;
+            const errorDetails = toErrorMessage(error, "分镜视频生成失败");
+            setNodes((prev) => prev.map((item) => item.id === shotId && item.metadata?.filmShot ? {
+                ...item,
+                metadata: {
+                    ...item.metadata,
+                    status: "error",
+                    errorDetails,
+                    clientTaskId: undefined,
+                    filmShotTaskKind: undefined,
+                    filmShot: { ...item.metadata.filmShot, errorMessage: errorDetails, lastFailedTaskKind: "video", pendingTask: undefined },
+                },
+            } : item));
+            message.error(errorDetails);
+        }
+    }, [connectionsRef, currentProject?.film?.aspect, isNodeTaskActive, message, nodesRef, resolveModelConfig, setNodes, submitNodeTask]);
+
+    const stopFilmShotVideo = useCallback(async (shotId: string) => {
+        await handleStopNode(shotId);
+        setNodes((prev) => prev.map((item) => item.id === shotId && item.metadata?.filmShot ? {
+            ...item,
+            metadata: {
+                ...item.metadata,
+                filmShot: { ...item.metadata.filmShot, pendingTask: undefined },
+            },
+        } : item));
+    }, [handleStopNode, setNodes]);
+
     useEffect(() => () => {
         if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
     }, [focusAnimationRef]);
@@ -1874,11 +2012,20 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     if (!projectLoaded) return <CanvasRefreshShell />;
     const activeFilmShotNode = activeFilm.shot?.shot ?? null;
     const activeFilmShotPayload = activeFilmShotNode?.metadata?.filmShot;
-    const filmImageGenerating = activeFilmShotNode?.metadata?.status === "loading" && activeFilmShotPayload?.pendingTask?.kind === "image";
-    const filmImageError = activeFilmShotNode?.metadata?.status === "error"
+    const filmShotTaskKind = activeFilmShotNode?.metadata?.filmShotTaskKind;
+    const filmShotBusy = activeFilmShotNode?.metadata?.status === "loading";
+    const filmFailedTaskKind = activeFilmShotPayload?.lastFailedTaskKind ?? filmShotTaskKind;
+    const filmImageGenerating = filmShotBusy && filmShotTaskKind === "image";
+    const filmImageError = activeFilmShotNode?.metadata?.status === "error" && filmFailedTaskKind === "image"
         ? activeFilmShotNode.metadata.errorDetails || activeFilmShotPayload?.errorMessage || "分镜图生成失败"
         : null;
-    const canGenerateFilmImage = Boolean(activeFilmShotNode && (activeFilmShotPayload?.prompt || activeFilmShotPayload?.description || "").trim() && !filmImageGenerating);
+    const canGenerateFilmImage = Boolean(activeFilmShotNode && (activeFilmShotPayload?.prompt || activeFilmShotPayload?.description || "").trim() && !filmShotBusy);
+    const filmVideoGenerating = filmShotBusy && filmShotTaskKind === "video";
+    const filmVideoError = activeFilmShotNode?.metadata?.status === "error" && filmFailedTaskKind === "video"
+        ? activeFilmShotNode.metadata.errorDetails || activeFilmShotPayload?.errorMessage || "分镜视频生成失败"
+        : null;
+    const filmVideoFrameError = filmVideoMode(activeFilmShotPayload) === "frames" ? filmVideoFrameBlockReason("frames", activeFilmShotPayload?.firstFrame) : "";
+    const canGenerateFilmVideo = Boolean(activeFilmShotNode && (activeFilmShotPayload?.prompt || activeFilmShotPayload?.description || "").trim() && !filmVideoFrameError && !filmShotBusy);
     const filmStudio: FilmStudioModel | undefined = filmMode ? {
         view: studioView,
         onViewChange: setStudioView,
@@ -1903,6 +2050,20 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         onStopImage: () => {
             if (activeFilmShotNode) void stopFilmShotImage(activeFilmShotNode.id);
         },
+        videoGenerating: filmVideoGenerating,
+        videoError: filmVideoError,
+        canGenerateVideo: canGenerateFilmVideo,
+        onGenerateVideo: () => {
+            if (activeFilmShotNode) void generateFilmShotVideo(activeFilmShotNode.id);
+        },
+        onStopVideo: () => {
+            if (activeFilmShotNode) void stopFilmShotVideo(activeFilmShotNode.id);
+        },
+        availableAssets: availableFilmAssets,
+        onAddBinding: addFilmBinding,
+        onRemoveBinding: removeFilmBinding,
+        onUpdateBinding: updateFilmBinding,
+        onEditAsset: setFilmInspectorNodeId,
     } : undefined;
     const workspace: CanvasWorkspaceModel = {
         stage: {

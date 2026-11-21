@@ -164,7 +164,9 @@ export type FilmSceneNodeData = {
 export type FilmShotNodeData = Omit<
     FilmShot,
     "id" | "characterBindings" | "propBindings" | "locationId" | "locationVariantId"
->;
+> & {
+    lastFailedTaskKind?: "image" | "video";
+};
 
 export type FilmAssetNodeData = {
     kind: FilmAssetKind;
@@ -290,6 +292,7 @@ export type CanvasNodeMetadata = {
     filmScript?: FilmScriptNodeData;
     filmScene?: FilmSceneNodeData;
     filmShot?: FilmShotNodeData;
+    filmShotTaskKind?: "image" | "video";
     filmAsset?: FilmAssetNodeData;
 };
 

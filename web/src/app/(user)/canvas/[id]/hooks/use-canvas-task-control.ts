@@ -32,10 +32,23 @@ export function useCanvasTaskControl({ nodeTaskRunsRef, nodesRef, historyRef, la
         const node = nodesRef.current.find((item) => item.id === nodeId);
         const id = nodeTaskRunsRef.current.get(nodeId)?.id || node?.metadata?.clientTaskId;
         if (!node || !id || node.metadata?.isBatchRoot || (node.metadata?.status !== "loading" && node.metadata?.status !== "stopping" && !nodeTaskRunsRef.current.get(nodeId)?.submission)) return;
-        const kind = isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Shot ? "image" : node.type === CanvasNodeType.Video ? "video" : node.type === CanvasNodeType.Audio ? "audio" : node.type === CanvasNodeType.Text ? "text" : null;
+        const shotVideo = node.type === CanvasNodeType.Shot && (node.metadata?.filmShotTaskKind ?? node.metadata?.filmShot?.pendingTask?.kind) === "video";
+        const kind = isCanvasImageNodeType(node.type)
+            ? "image"
+            : node.type === CanvasNodeType.Shot
+                ? (shotVideo ? "video" : "image")
+                : node.type === CanvasNodeType.Video
+                    ? "video"
+                    : node.type === CanvasNodeType.Audio
+                        ? "audio"
+                        : node.type === CanvasNodeType.Text
+                            ? "text"
+                            : null;
         if (!kind) return;
         const run: CanvasNodeTaskRun = nodeTaskRunsRef.current.get(nodeId) || { id, controller: new AbortController(), backend: node.metadata?.taskBackend };
         if (run.id !== id || run.stopping) return;
+        // 视频提交尚未返回任务引用时没有可停止的服务端任务，直接中断本地提交。
+        const submissionOnly = kind === "video" && Boolean(run.submission) && !run.task;
         nodeTaskRunsRef.current.set(nodeId, run);
         nodeTaskRunsRef.current.set(`${nodeId}:${id}`, run);
         run.stopping = true;
@@ -47,7 +60,7 @@ export function useCanvasTaskControl({ nodeTaskRunsRef, nodesRef, historyRef, la
         const root = nodesRef.current.find((item) => item.id === node.metadata?.batchRootId && item.metadata?.isBatchRoot && item.metadata.primaryImageId === nodeId && !(item.metadata.clientTaskId && item.metadata.imageTaskId === item.metadata.clientTaskId && [NODE_STATUS_LOADING, "stopping"].includes(item.metadata.status || "")));
         updateTaskNodes((prev) => prev.map((item) => (item.id === nodeId && item.metadata?.clientTaskId === id) || (item.id === root?.id && item.metadata?.primaryImageId === nodeId && item.metadata?.imageTaskId === root?.metadata?.imageTaskId) ? { ...item, metadata: { ...item.metadata, status: "stopping", errorDetails: undefined } } : item));
         try {
-            if (run.backend && kind !== "text") {
+            if (run.backend && kind !== "text" && !submissionOnly) {
                 if (kind !== "video" || run.backend === "workflow") await run.submission?.catch(() => undefined);
                 const result = await stopCanvasTask(kind, id, run.backend === "workflow");
                 if (!result.stopped) {

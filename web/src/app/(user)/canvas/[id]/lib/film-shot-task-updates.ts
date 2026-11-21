@@ -13,7 +13,7 @@ export function selectFilmShotImageTaskTargets(nodes: CanvasNodeData[]) {
         && node.metadata?.filmShot?.pendingTask?.kind === "image");
 }
 
-export function applyFilmShotImageTaskUpdate(nodes: CanvasNodeData[], shotId: string, task: CanvasImageTask, clientTaskId?: string) {
+export function applyFilmShotImageTaskUpdate(nodes: CanvasNodeData[], shotId: string, task: CanvasImageTask, clientTaskId?: string): CanvasNodeData[] {
     return nodes.map((node) => {
         if (node.id !== shotId) return node;
         const payload = node.metadata?.filmShot;
@@ -33,7 +33,8 @@ export function applyFilmShotImageTaskUpdate(nodes: CanvasNodeData[], shotId: st
                     errorDetails: task.error?.message || "分镜图生成失败",
                     imageTaskId: undefined,
                     clientTaskId: undefined,
-                    filmShot: { ...payload, errorMessage: task.error?.message || "分镜图生成失败", pendingTask: undefined },
+                    filmShotTaskKind: undefined,
+                    filmShot: { ...payload, errorMessage: task.error?.message || "分镜图生成失败", lastFailedTaskKind: "image", pendingTask: undefined },
                 },
             };
         }
@@ -66,8 +67,9 @@ export function applyFilmShotImageTaskUpdate(nodes: CanvasNodeData[], shotId: st
                 imageTaskId: undefined,
                 imageTaskResultId: task.id,
                 clientTaskId: undefined,
+                filmShotTaskKind: undefined,
                 durationMs: Date.now() - startedAt,
-                filmShot: { ...payload, ...version, pendingTask: undefined },
+                filmShot: { ...payload, ...version, lastFailedTaskKind: undefined, pendingTask: undefined },
             },
         };
     });

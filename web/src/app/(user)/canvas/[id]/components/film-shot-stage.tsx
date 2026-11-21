@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
@@ -24,19 +25,32 @@ type FilmShotStageProps = {
     canGenerateImage: boolean;
     onGenerateImage: () => void;
     onStopImage: () => void;
+    videoGenerating: boolean;
+    videoError: string | null;
+    canGenerateVideo: boolean;
+    onGenerateVideo: () => void;
+    onStopVideo: () => void;
 };
 
-export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, onCreateShot, onLocate, onPrev, onNext, hasPrev, hasNext, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage }: FilmShotStageProps) {
+export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, onCreateShot, onLocate, onPrev, onNext, hasPrev, hasNext, imageGenerating, imageError, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo }: FilmShotStageProps) {
     const filmShot = shot?.metadata?.filmShot;
     const imageSrc = useResolvedMediaSrc(filmShot?.imageUrl, filmShot?.storageKey);
+    const videoSrc = useResolvedMediaSrc(filmShot?.videoUrl, filmShot?.videoStorageKey, "media");
+    const [media, setMedia] = useState<"image" | "video">("image");
+    useEffect(() => {
+        setMedia(videoSrc ? "video" : "image");
+    }, [shot?.id, videoSrc]);
     const ratio = aspect.replace(":", " / ");
     const statusLabel = imageSrc ? "已生成" : imageGenerating ? "生成中…" : imageError ? "生成失败" : "分镜图未生成";
+    const showVideo = media === "video" && Boolean(videoSrc);
 
     return (
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-auto p-6" style={{ background: theme.canvas.background }}>
             <div className="relative w-full max-w-[960px] overflow-hidden rounded-xl border" style={{ aspectRatio: ratio, background: theme.node.fill, borderColor: theme.node.stroke }}>
                 {shot ? (
-                    imageSrc ? (
+                    showVideo ? (
+                        <video src={videoSrc} controls playsInline className="h-full w-full object-contain" />
+                    ) : imageSrc ? (
                         <img src={imageSrc} alt="" className="h-full w-full object-contain" />
                     ) : (
                         <div className="flex h-full w-full flex-col justify-between gap-4 p-8 max-sm:p-5">
@@ -74,6 +88,22 @@ export function FilmShotStage({ theme, shot, sceneLabel, aspect, canCreateShot, 
                     </div>
                 )}
             </div>
+            {shot && imageSrc && videoSrc ? (
+                <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full border p-1" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel }}>
+                    <button type="button" className="rounded-full px-2.5 py-1 text-xs" style={{ background: media === "image" ? theme.toolbar.activeBg : undefined, color: theme.node.text }} onClick={() => setMedia("image")}>分镜图</button>
+                    <button type="button" className="rounded-full px-2.5 py-1 text-xs" style={{ background: media === "video" ? theme.toolbar.activeBg : undefined, color: theme.node.text }} onClick={() => setMedia("video")}>视频</button>
+                </div>
+            ) : null}
+            {shot && !videoSrc && (videoGenerating || videoError) ? (
+                <div className="absolute bottom-4 left-1/2 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: videoError ? canvasStatusColors.error : theme.node.stroke, background: theme.toolbar.panel, color: videoError ? canvasStatusColors.error : theme.node.text }}>
+                    <span className="truncate">{videoGenerating ? "正在生成视频…" : videoError}</span>
+                    {videoGenerating ? (
+                        <button type="button" className="shrink-0" onClick={onStopVideo}>停止</button>
+                    ) : (
+                        <button type="button" className="shrink-0 disabled:opacity-40" disabled={!canGenerateVideo} onClick={onGenerateVideo}>重试</button>
+                    )}
+                </div>
+            ) : null}
             {shot && hasPrev ? <button type="button" onClick={onPrev} className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel, color: theme.node.text }} aria-label="上一镜"><ChevronLeft className="size-5" /></button> : null}
             {shot && hasNext ? <button type="button" onClick={onNext} className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border" style={{ borderColor: theme.node.stroke, background: theme.toolbar.panel, color: theme.node.text }} aria-label="下一镜"><ChevronRight className="size-5" /></button> : null}
         </div>

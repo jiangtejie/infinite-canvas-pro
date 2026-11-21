@@ -19,6 +19,7 @@ const shotNode = (status: "loading" | "success" | "error" = "loading", clientTas
         status,
         clientTaskId,
         imageTaskId: "task-1",
+        filmShotTaskKind: "image",
         filmShot: {
             shotNo: "01",
             shotType: "",
@@ -48,6 +49,8 @@ test("writes a completed image into filmShot versions and clears the task", () =
     assert.equal(node.metadata?.filmShot?.storageKey, "image:result");
     assert.equal(node.metadata?.filmShot?.imageVersions?.[0]?.generationContext?.inputSignature, "sig-1");
     assert.equal(node.metadata?.filmShot?.pendingTask, undefined);
+    assert.equal(node.metadata?.filmShot?.lastFailedTaskKind, undefined);
+    assert.equal(node.metadata?.filmShotTaskKind, undefined);
     assert.equal(node.metadata?.imageTaskId, undefined);
 });
 
@@ -56,6 +59,8 @@ test("writes failure and ignores stale client task ids", () => {
     const next = applyFilmShotImageTaskUpdate([shotNode()], "shot", failed, "client-1")[0];
     assert.equal(next.metadata?.status, "error");
     assert.equal(next.metadata?.filmShot?.errorMessage, "模型失败");
+    assert.equal(next.metadata?.filmShot?.lastFailedTaskKind, "image");
+    assert.equal(next.metadata?.filmShotTaskKind, undefined);
     assert.equal(next.metadata?.filmShot?.pendingTask, undefined);
     const stale = applyFilmShotImageTaskUpdate([shotNode()], "shot", failed, "client-old");
     assert.equal(stale[0].metadata?.status, "loading");

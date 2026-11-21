@@ -82,3 +82,22 @@ test("can skip the previous shot", () => {
     assert.ok(context);
     assert.equal(context!.references.some((ref) => ref.role === "previous-shot"), false);
 });
+
+test("compiles only the first and last frames in frames mode", () => {
+    const frameNodes = [...nodes, shotNode("shot-frames", {
+        description: "起止画面",
+        prompt: "起止画面",
+        videoMode: "frames",
+        firstFrame: { kind: "upload", url: "https://example.com/first.png" },
+        lastFrame: { kind: "upload", url: "https://example.com/last.png" },
+    })];
+    const context = buildFilmShotGenerationFromGraph(frameNodes, [], "shot-frames", {
+        medium: "video",
+        maxReferences: 10,
+        videoMode: "frames",
+        includeStoryboard: false,
+        includePreviousShot: false,
+    });
+    assert.ok(context);
+    assert.deepEqual(context!.references.map((ref) => ref.role), ["first-frame", "last-frame"]);
+});

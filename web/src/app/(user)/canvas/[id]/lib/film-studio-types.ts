@@ -1,5 +1,5 @@
 import type { FilmAspect, FilmAssetKind } from "@/lib/film/types";
-import type { CanvasNodeData } from "../../types";
+import type { CanvasNodeData, FilmBindingEdgeData } from "../../types";
 
 export type FilmStudioView = "studio" | "graph";
 
@@ -22,6 +22,20 @@ export type FilmSceneEntry = {
 
 export type FilmShotBindingChip = {
     id: string;
+    edgeId: string;
+    kind: FilmAssetKind;
+    name: string;
+    stateId?: string;
+    stateName?: string;
+    variantId?: string;
+    variantName?: string;
+    continuity?: FilmBindingEdgeData["continuity"];
+    states: { id: string; name: string }[];
+    variants: { id: string; name: string }[];
+};
+
+export type FilmBindingAssetOption = {
+    nodeId: string;
     kind: FilmAssetKind;
     name: string;
 };
@@ -46,4 +60,14 @@ export type FilmStudioModel = {
     canGenerateImage: boolean;
     onGenerateImage: () => void;
     onStopImage: () => void;
+    videoGenerating: boolean;
+    videoError: string | null;
+    canGenerateVideo: boolean;
+    onGenerateVideo: () => void;
+    onStopVideo: () => void;
+    availableAssets: FilmBindingAssetOption[];
+    onAddBinding: (assetNodeId: string) => void;
+    onRemoveBinding: (edgeId: string) => void;
+    onUpdateBinding: (edgeId: string, patch: Partial<FilmBindingEdgeData>) => void;
+    onEditAsset: (nodeId: string) => void;
 };

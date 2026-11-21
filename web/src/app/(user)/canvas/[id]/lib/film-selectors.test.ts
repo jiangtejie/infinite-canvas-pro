@@ -62,9 +62,10 @@ test("selects the preferred shot, falls back to the scene's first shot, and hand
 });
 
 test("collects binding chips and the style name", () => {
-    assert.deepEqual(selectFilmShotBindings(nodes, connections, "shot1"), [
-        { id: "char", kind: "character", name: "char" },
-        { id: "loc", kind: "location", name: "loc" },
+    const chips = selectFilmShotBindings(nodes, connections, "shot1");
+    assert.deepEqual(chips.map((chip) => ({ id: chip.id, edgeId: chip.edgeId, kind: chip.kind, name: chip.name })), [
+        { id: "char", edgeId: "b1", kind: "character", name: "char" },
+        { id: "loc", edgeId: "b2", kind: "location", name: "loc" },
     ]);
     assert.equal(selectFilmStyleName(nodes), "style");
 });

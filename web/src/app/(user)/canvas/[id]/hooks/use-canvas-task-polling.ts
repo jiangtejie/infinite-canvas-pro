@@ -9,6 +9,7 @@ import { pollCanvasImageTaskStatus } from "@/services/api/image";
 import { VIDEO_POLL_INTERVAL_MS, pollVideoGenerationTaskStatus, type VideoResponse } from "@/services/api/video";
 import { getWorkflowTask } from "@/services/api/workflow-generation";
 import type { AiConfig } from "@/stores/use-config-store";
+import { resolveModelForCapability } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
@@ -18,6 +19,7 @@ import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { canvasVideoTaskFromMetadata, canvasVideoTaskId } from "../lib/canvas-task-helpers";
 import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate } from "../lib/canvas-task-updates";
 import { applyFilmShotImageTaskUpdate, selectFilmShotImageTaskTargets } from "../lib/film-shot-task-updates";
+import { applyFilmShotVideoTaskUpdate, selectFilmShotVideoTaskTargets } from "../lib/film-shot-video-task-updates";
 import { workflowAudioTask, workflowImageTask, workflowVideoTask } from "../lib/canvas-workflow-tasks";
 
 type UseCanvasTaskPollingOptions = {
@@ -102,6 +104,32 @@ export function useCanvasTaskPolling({ projectLoaded, nodesRef, effectiveConfig,
                     .catch(() => undefined)
                     .finally(() => {
                         pollingImageNodeIdsRef.current.delete(node.id);
+                    });
+            });
+            const filmShotVideoTargets = selectFilmShotVideoTaskTargets(nodesRef.current);
+            filmShotVideoTargets.forEach((node) => {
+                if (pollingVideoNodeIdsRef.current.has(node.id)) return;
+                const pending = node.metadata?.filmShot?.pendingTask;
+                if (!pending || pending.kind !== "video") return;
+                const videoModel = resolveModelForCapability(effectiveConfig, effectiveConfig.videoModel, "video");
+                if (!videoModel) return;
+                const config = { ...effectiveConfig, model: videoModel } as AiConfig;
+                const controller = new AbortController();
+                pollingVideoNodeIdsRef.current.set(node.id, controller);
+                void pollVideoGenerationTaskStatus(config, {
+                    id: pending.id,
+                    task_id: pending.taskId,
+                    video_id: pending.videoId,
+                } as VideoResponse, controller.signal)
+                    .then((result) => {
+                        if (controller.signal.aborted) return;
+                        const task = rememberNodeTask(node.id, node.metadata?.clientTaskId || pending.id, result);
+                        if (!isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
+                        setNodes((prev) => applyFilmShotVideoTaskUpdate(prev, node.id, task, node.metadata?.clientTaskId));
+                    })
+                    .catch(() => undefined)
+                    .finally(() => {
+                        pollingVideoNodeIdsRef.current.delete(node.id);
                     });
             });
             const audioTargets = nodesRef.current.filter((node) => node.type === CanvasNodeType.Audio && node.metadata?.status === NODE_STATUS_LOADING && !node.metadata.content && node.metadata.audioTaskId);

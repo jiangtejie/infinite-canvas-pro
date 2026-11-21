@@ -9,6 +9,7 @@ import type { FilmAsset } from "@/lib/film/types";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
 import { patchFilmAssetNode, patchFilmSceneNode, patchFilmScriptNode, patchFilmShotNode } from "../[id]/lib/film-node-patch";
+import { FilmAssetSlotFields } from "../[id]/components/film-asset-slot-fields";
 import { CanvasNodeType, type CanvasNodeData, type FilmAssetNodeData, type FilmSceneNodeData, type FilmScriptNodeData, type FilmShotNodeData } from "../types";
 
 type CanvasFilmInspectorProps = {
@@ -51,7 +52,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange }: CanvasFil
         <Drawer
             open={open}
             onClose={onClose}
-            size={420}
+            size={520}
             zIndex={CANVAS_Z.popover}
             title={`${TITLES[node.type] || "影视节点"} · 编辑`}
             styles={{
@@ -131,7 +132,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange }: CanvasFil
                         <Field label="视觉提示">
                             <Input.TextArea value={payload.asset.visualPrompt} autoSize={{ minRows: 3, maxRows: 8 }} style={inputStyle} onChange={(event) => patchAsset({ visualPrompt: event.target.value })} />
                         </Field>
-                        <div className="text-xs" style={{ color: theme.node.muted }}>参考图槽位编辑在批次 1B 接入。</div>
+                        <FilmAssetSlotFields theme={theme} kind={payload.kind} asset={payload.asset} onChange={patchAsset} />
                     </>
                 ) : null}
             </div>

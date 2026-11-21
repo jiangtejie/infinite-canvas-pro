@@ -107,7 +107,20 @@ export function selectFilmShotBindings(nodes: CanvasNodeData[], connections: Can
             const payload = node?.metadata?.filmAsset;
             if (!node || !payload) return [];
             seen.add(edge.fromNodeId);
-            return [{ id: node.id, kind: payload.kind, name: payload.asset.name || node.title }];
+            const asset = payload.asset;
+            return [{
+                id: node.id,
+                edgeId: edge.id,
+                kind: payload.kind,
+                name: asset.name || node.title,
+                stateId: edge.data?.stateId,
+                stateName: asset.character?.states.find((state) => state.id === edge.data?.stateId)?.name,
+                variantId: edge.data?.variantId,
+                variantName: asset.location?.variants.find((variant) => variant.id === edge.data?.variantId)?.name,
+                continuity: edge.data?.continuity,
+                states: asset.character?.states.map((state) => ({ id: state.id, name: state.name })) ?? [],
+                variants: asset.location?.variants.map((variant) => ({ id: variant.id, name: variant.name })) ?? [],
+            }];
         });
 }
 

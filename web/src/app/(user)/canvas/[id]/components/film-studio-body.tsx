@@ -40,6 +40,10 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                 event.preventDefault();
                 model.onGenerateImage();
             }
+            if (event.key.toLowerCase() === "v" && model.canGenerateVideo) {
+                event.preventDefault();
+                model.onGenerateVideo();
+            }
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
@@ -64,6 +68,16 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                         canGenerateImage={model.canGenerateImage}
                         onGenerateImage={model.onGenerateImage}
                         onStopImage={model.onStopImage}
+                        videoGenerating={model.videoGenerating}
+                        videoError={model.videoError}
+                        canGenerateVideo={model.canGenerateVideo}
+                        onGenerateVideo={model.onGenerateVideo}
+                        onStopVideo={model.onStopVideo}
+                        availableAssets={model.availableAssets}
+                        onAddBinding={model.onAddBinding}
+                        onRemoveBinding={model.onRemoveBinding}
+                        onUpdateBinding={model.onUpdateBinding}
+                        onEditAsset={model.onEditAsset}
                     />
                 </aside>
             ) : (
@@ -90,6 +104,11 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                     canGenerateImage={model.canGenerateImage}
                     onGenerateImage={model.onGenerateImage}
                     onStopImage={model.onStopImage}
+                    videoGenerating={model.videoGenerating}
+                    videoError={model.videoError}
+                    canGenerateVideo={model.canGenerateVideo}
+                    onGenerateVideo={model.onGenerateVideo}
+                    onStopVideo={model.onStopVideo}
                 />
                 <FilmStrip
                     theme={theme}

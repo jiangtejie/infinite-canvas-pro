@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Play } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
@@ -18,6 +18,7 @@ function FilmShotThumb({ shot, theme }: { shot: CanvasNodeData; theme: CanvasThe
             {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <span className="font-mono text-lg font-semibold tabular-nums" style={{ color: theme.node.text }}>{filmShot?.shotNo || "—"}</span>}
             {status === "loading" ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: theme.canvas.selectionStroke }} /> : null}
             {status === "error" ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: canvasStatusColors.error }} /> : null}
+            {filmShot?.videoUrl ? <span className="absolute bottom-1.5 left-1.5 grid size-5 place-items-center rounded-full bg-black/60 text-white"><Play className="size-3 fill-current" /></span> : null}
         </span>
     );
 }
