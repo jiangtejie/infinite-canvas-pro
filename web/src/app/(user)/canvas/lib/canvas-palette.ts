@@ -17,4 +17,8 @@ export const canvasNodeTypeColors = {
     group: "#a8a29e",
     director: "#fbbf24",
     comic: "#e11d48",
+    script: "#0ea5e9",
+    scene: "#22c55e",
+    shot: "#eab308",
+    filmAsset: "#f43f5e",
 } as const;

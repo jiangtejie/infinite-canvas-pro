@@ -1,9 +1,10 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { BookOpen, Globe2, ImageIcon, Images, Layers3, Link2, List, Music2, Send, Settings2, Upload, Video } from "lucide-react";
+import { BookOpen, Box, Clapperboard, FileText, Globe2, ImageIcon, Images, Layers3, Link2, List, MapPin, Music2, Send, Settings2, Shirt, Upload, UserRound, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
+import type { FilmAssetKind } from "@/lib/film/types";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CANVAS_Z } from "../../[id]/lib/canvas-layer";
 import { CanvasNodeType, type PendingConnectionCreate, type Position } from "../../types";
@@ -84,12 +85,16 @@ export function NodeCreateMenu({
     onUpload,
     onOpenAssetLibrary,
     onClose,
+    filmMode,
+    onCreateFilmAsset,
 }: {
     position: Position;
     onCreate: (type: CanvasNodeType) => void;
     onUpload: () => void;
     onOpenAssetLibrary: () => void;
     onClose: () => void;
+    filmMode?: boolean;
+    onCreateFilmAsset?: (kind: FilmAssetKind) => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const menuRef = useRef<HTMLDivElement>(null);
@@ -125,6 +130,20 @@ export function NodeCreateMenu({
                 <ConnectionCreateOption theme={theme} icon={<Link2 className="size-5" />} title="素材源" description="抖音图文解析" onClick={() => onCreate(CanvasNodeType.Source)} />
                 <ConnectionCreateOption theme={theme} icon={<Send className="size-5" />} title="发布" description="抖音图文扫码发布" onClick={() => onCreate(CanvasNodeType.Publish)} />
                 <ConnectionCreateOption theme={theme} icon={<BookOpen className="size-5" />} title="漫画册" description="收集图片、翻书预览与导出" onClick={() => onCreate(CanvasNodeType.Comic)} />
+                {filmMode ? (
+                    <>
+                        <div className="mb-2 mt-3 flex items-center justify-between px-1">
+                            <span className="text-sm font-medium" style={{ color: theme.node.muted }}>影视</span>
+                        </div>
+                        <ConnectionCreateOption theme={theme} icon={<FileText className="size-5" />} title="剧本" description="剧本正文与拆镜入口" onClick={() => onCreate(CanvasNodeType.Script)} />
+                        <ConnectionCreateOption theme={theme} icon={<Clapperboard className="size-5" />} title="场次" description="按集-场组织镜头" onClick={() => onCreate(CanvasNodeType.Scene)} />
+                        <ConnectionCreateOption theme={theme} icon={<Video className="size-5" />} title="镜头" description="镜号、表演与画面" onClick={() => onCreate(CanvasNodeType.Shot)} />
+                        <ConnectionCreateOption theme={theme} icon={<UserRound className="size-5" />} title="角色资产" onClick={() => onCreateFilmAsset?.("character")} />
+                        <ConnectionCreateOption theme={theme} icon={<MapPin className="size-5" />} title="场景资产" onClick={() => onCreateFilmAsset?.("location")} />
+                        <ConnectionCreateOption theme={theme} icon={<Box className="size-5" />} title="道具资产" onClick={() => onCreateFilmAsset?.("prop")} />
+                        <ConnectionCreateOption theme={theme} icon={<Shirt className="size-5" />} title="服装资产" onClick={() => onCreateFilmAsset?.("costume")} />
+                    </>
+                ) : null}
                 <div className="mb-2 mt-3 flex items-center justify-between px-1">
                     <span className="text-sm font-medium" style={{ color: theme.node.muted }}>添加资源</span>
                 </div>

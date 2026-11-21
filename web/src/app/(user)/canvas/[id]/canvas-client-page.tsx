@@ -24,6 +24,8 @@ import { canvasTaskMediaURL } from "./lib/canvas-task-helpers";
 import { NODE_STATUS_LOADING, NODE_STATUS_SUCCESS, VIDEO_NODE_MAX_HEIGHT, VIDEO_NODE_MAX_WIDTH } from "./lib/canvas-node-constants";
 import { fitCanvasMediaNode, resetInterruptedGeneration } from "./lib/canvas-task-updates";
 import { normalizeConnection } from "./lib/canvas-connections";
+import { canAddFilmConnection } from "./lib/film-connections";
+import { arrangeFilmNodes } from "./lib/film-layout";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
 import { buildGenerationConfig } from "./lib/canvas-generation-config";
 import { cloneCanvasNodes } from "./lib/canvas-clone";
@@ -52,6 +54,10 @@ import { useCanvasAudioTrim } from "./hooks/use-canvas-audio-trim";
 import { useCanvasOverlayState } from "./hooks/use-canvas-overlay-state";
 import { useCanvasDerived } from "./hooks/use-canvas-derived";
 import { CanvasWorkspace, type CanvasWorkspaceModel } from "./components/canvas-workspace";
+import { CanvasFilmInspector } from "../components/canvas-film-inspector";
+import { isFilmCanvasNodeType } from "../utils/film-mode";
+import { createFilmAsset } from "@/app/(user)/film/utils/film-edits";
+import type { FilmAssetKind } from "@/lib/film/types";
 import { type CanvasAlignKind } from "../components/canvas-toolbar";
 import { CanvasRefreshShell } from "./components/canvas-refresh-shell";
 import { CanvasComicBookOverlay } from "../components/canvas-comic-book-overlay";
@@ -101,6 +107,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const renameProject = useCanvasStore((state) => state.renameProject);
     const deleteProjects = useCanvasStore((state) => state.deleteProjects);
     const currentProject = useCanvasStore((state) => state.projects.find((project) => project.id === projectId));
+    const filmMode = currentProject?.domain === "film";
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
     const [nodes, setNodes] = useState<CanvasNodeData[]>([]);
@@ -114,6 +121,8 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const { selectedNodeIds, selectedConnectionId, setSelectedConnectionId, selectedNodeIdsRef, selectOnly, selectMany, clearSelection } = useCanvasSelection();
     const [agentReferenceNodeClick, setAgentReferenceNodeClick] = useState<{ nodeId: string | null; version: number }>({ nodeId: null, version: 0 });
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+    const [filmInspectorNodeId, setFilmInspectorNodeId] = useState<string | null>(null);
+    const filmInspectorNode = filmInspectorNodeId ? nodes.find((node) => node.id === filmInspectorNodeId) ?? null : null;
     const {
         contextMenu,
         setContextMenu,
@@ -403,10 +412,16 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
                 message.warning("这两个节点不能这样连接");
                 return;
             }
-            const { fromNodeId, toNodeId } = connection;
-            const exists = connectionsRef.current.some((conn) => conn.fromNodeId === fromNodeId && conn.toNodeId === toNodeId);
+            if (connection.kind) {
+                const check = canAddFilmConnection(connection, nodesRef.current, connectionsRef.current);
+                if (!check.ok) {
+                    message.warning(check.reason);
+                    return;
+                }
+            }
+            const exists = connectionsRef.current.some((conn) => conn.fromNodeId === connection.fromNodeId && conn.toNodeId === connection.toNodeId);
             if (!exists) {
-                setConnections((prev) => [...prev, { id: nanoid(), fromNodeId, toNodeId }]);
+                setConnections((prev) => [...prev, { id: nanoid(), ...connection }]);
             }
             setContextMenu(null);
         },
@@ -416,6 +431,10 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const handleNodeClicked = useCallback((nodeId: string) => {
         const clickedNode = nodesRef.current.find((node) => node.id === nodeId);
         if (!clickedNode) return;
+        if (isFilmCanvasNodeType(clickedNode.type)) {
+            setFilmInspectorNodeId(clickedNode.id);
+            return;
+        }
         if (clickedNode.type === CanvasNodeType.Group) {
             closeOverlay();
         } else if (clickedNode.type === CanvasNodeType.Text) {
@@ -423,7 +442,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         } else {
             openOverlay({ kind: "prompt", nodeId });
         }
-    }, [closeOverlay, openOverlay, setActiveOverlay]);
+    }, [closeOverlay, openOverlay, setActiveOverlay, setFilmInspectorNodeId]);
 
     const closeNodeCreateMenu = useCallback(() => setNodeCreatePosition(null), [setNodeCreatePosition]);
 
@@ -546,10 +565,23 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             selectOnly(newNode.id);
             setSelectedConnectionId(null);
             if (type === CanvasNodeType.Comic) openOverlay({ kind: "comic", nodeId: newNode.id });
+            else if (isFilmCanvasNodeType(type)) setFilmInspectorNodeId(newNode.id);
             else if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) openOverlay({ kind: "prompt", nodeId: newNode.id });
         },
-        [effectiveConfig.audioWorkflowRef, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.imageWorkflowRef, effectiveConfig.model, effectiveConfig.size, effectiveConfig.videoWorkflowRef, getCanvasCenter, openOverlay, selectOnly, setSelectedConnectionId],
+        [effectiveConfig.audioWorkflowRef, effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.imageWorkflowRef, effectiveConfig.model, effectiveConfig.size, effectiveConfig.videoWorkflowRef, getCanvasCenter, openOverlay, selectOnly, setFilmInspectorNodeId, setSelectedConnectionId],
     );
+
+    const createFilmAssetNode = useCallback((kind: FilmAssetKind, position?: Position) => {
+        const target = position || getCanvasCenter();
+        const count = nodesRef.current.filter((node) => node.type === CanvasNodeType.FilmAsset && node.metadata?.filmAsset?.kind === kind).length;
+        const node = createCanvasNode(CanvasNodeType.FilmAsset, target, {
+            filmAsset: { kind, asset: createFilmAsset(kind, count + 1) },
+        });
+        setNodes((prev) => [...prev, node]);
+        selectOnly(node.id);
+        setSelectedConnectionId(null);
+        setFilmInspectorNodeId(node.id);
+    }, [getCanvasCenter, nodesRef, selectOnly, setFilmInspectorNodeId, setSelectedConnectionId, setNodes]);
 
     const createComicFromSelection = useCallback(() => {
         const selected = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id) && isCanvasImageNodeType(node.type) && node.metadata?.content);
@@ -1005,6 +1037,11 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     const handleNodeTitleChange = useCallback((nodeId: string, title: string) => {
         setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, title } : node)));
     }, []);
+
+    const arrangeFilm = useCallback(() => {
+        setNodes((prev) => arrangeFilmNodes(prev, connectionsRef.current));
+        message.success("已按场整理");
+    }, [message]);
 
     const toggleBatchExpanded = useCallback((nodeId: string) => {
         const isExpanded = Boolean(nodesRef.current.find((node) => node.id === nodeId)?.metadata?.imageBatchExpanded);
@@ -1717,6 +1754,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             handleRemixWithAgent,
             generateRemixRun,
             projectLoaded, exitNodeReferenceSelection,
+            filmMode, createFilmAssetNode,
         },
         overlays: {
             theme, nodes, selectedNodeIds, sidePanel,
@@ -1793,6 +1831,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setTitleEditing, historyState, router, createAndOpenProject,
             setDeleteProjectConfirmOpen, setClearConfirmOpen, handleUploadRequest, undoCanvas,
             redoCanvas, agentPanel,
+            filmMode, onArrangeFilm: arrangeFilm,
         },
     };
 
@@ -1800,6 +1839,14 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
         <CanvasWorkspace model={workspace} />
         {setupDialog}
         {comicNode ? <CanvasComicBookOverlay key={`${comicNode.id}:${activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"}`} node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} initialMode={activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onClose={closeOverlay} /> : null}
+        <CanvasFilmInspector
+            open={Boolean(filmInspectorNode)}
+            node={filmInspectorNode}
+            onClose={() => setFilmInspectorNodeId(null)}
+            onChange={(nodeId, updater) => {
+                setNodes((prev) => prev.map((node) => (node.id === nodeId ? updater(node) : node)));
+            }}
+        />
     </>;
 }
 

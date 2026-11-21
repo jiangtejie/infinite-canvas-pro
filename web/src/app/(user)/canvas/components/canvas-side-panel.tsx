@@ -61,6 +61,10 @@ const NODE_TYPE_ICON = {
     [CanvasNodeType.Source]: Link2,
     [CanvasNodeType.Publish]: Send,
     [CanvasNodeType.Comic]: BookOpen,
+    [CanvasNodeType.Script]: FileText,
+    [CanvasNodeType.Scene]: Clapperboard,
+    [CanvasNodeType.Shot]: Video,
+    [CanvasNodeType.FilmAsset]: BookOpen,
 };
 
 const NODE_TYPE_LABEL = {
@@ -75,6 +79,10 @@ const NODE_TYPE_LABEL = {
     [CanvasNodeType.Source]: "素材源",
     [CanvasNodeType.Publish]: "发布",
     [CanvasNodeType.Comic]: "漫画册",
+    [CanvasNodeType.Script]: "剧本",
+    [CanvasNodeType.Scene]: "场次",
+    [CanvasNodeType.Shot]: "镜头",
+    [CanvasNodeType.FilmAsset]: "影视资产",
 };
 
 const NODE_FILTER_OPTIONS = [
@@ -90,6 +98,10 @@ const NODE_FILTER_OPTIONS = [
     { label: "素材源", value: CanvasNodeType.Source },
     { label: "发布", value: CanvasNodeType.Publish },
     { label: "漫画册", value: CanvasNodeType.Comic },
+    { label: "剧本", value: CanvasNodeType.Script },
+    { label: "场次", value: CanvasNodeType.Scene },
+    { label: "镜头", value: CanvasNodeType.Shot },
+    { label: "影视资产", value: CanvasNodeType.FilmAsset },
 ];
 
 const ASSET_TYPE_OPTIONS = [

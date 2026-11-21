@@ -13,6 +13,7 @@ import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
+import { FilmAssetNodeCard, FilmSceneNodeCard, FilmScriptNodeCard, FilmShotNodeCard } from "./film-node-card";
 import { CanvasNodeType, type CanvasNodeData, type Position } from "../types";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
@@ -549,7 +550,7 @@ function NodeContent(props: NodeContentRendererProps) {
     return Renderer ? <Renderer {...props} /> : <UnknownNodeContent theme={props.theme} />;
 }
 
-const nodeContentRenderers = {
+const nodeContentRenderers: Partial<Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>> = {
     [CanvasNodeType.Text]: TextContent,
     [CanvasNodeType.Image]: ImageNodeContent,
     [CanvasNodeType.Panorama]: PanoramaNodeContent,
@@ -560,7 +561,11 @@ const nodeContentRenderers = {
     [CanvasNodeType.Source]: EmptyImageContent,
     [CanvasNodeType.Publish]: EmptyImageContent,
     [CanvasNodeType.Comic]: EmptyImageContent,
-} satisfies Partial<Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>>;
+    [CanvasNodeType.Script]: (props) => <FilmScriptNodeCard node={props.node} theme={props.theme} />,
+    [CanvasNodeType.Scene]: (props) => <FilmSceneNodeCard node={props.node} theme={props.theme} />,
+    [CanvasNodeType.Shot]: (props) => <FilmShotNodeCard node={props.node} theme={props.theme} />,
+    [CanvasNodeType.FilmAsset]: (props) => <FilmAssetNodeCard node={props.node} theme={props.theme} />,
+};
 
 function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "node" | "theme" | "now">) {
     const [startTime] = useState(() => Date.now());

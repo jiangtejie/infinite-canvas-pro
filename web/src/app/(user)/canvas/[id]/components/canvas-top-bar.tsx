@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, Modal } from "antd";
-import { Bot, Eraser, Focus, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
+import { Bot, Eraser, Focus, Home, Images, LayoutGrid, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -36,6 +36,8 @@ export function CanvasTopBar({
     onRedo,
     assistantCollapsed,
     onExpandAssistant,
+    filmMode,
+    onArrangeFilm,
 }: {
     title: string;
     sidePanelOpen: boolean;
@@ -58,6 +60,8 @@ export function CanvasTopBar({
     onRedo: () => void;
     assistantCollapsed: boolean;
     onExpandAssistant: () => void;
+    filmMode: boolean;
+    onArrangeFilm: () => void;
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -247,6 +251,18 @@ export function CanvasTopBar({
                             setAccountOpen(false);
                         }}
                     />
+                    {filmMode ? (
+                        <button
+                            type="button"
+                            onClick={onArrangeFilm}
+                            className="grid size-9 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10"
+                            style={{ color: theme.node.text }}
+                            aria-label="按场整理"
+                            title="按场整理：场次分列、镜头按序列排列"
+                        >
+                            <LayoutGrid className="size-4" />
+                        </button>
+                    ) : null}
                     <button
                         type="button"
                         onClick={enterCanvasZen}

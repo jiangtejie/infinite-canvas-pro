@@ -21,6 +21,10 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Source]: { width: 520, height: 380, title: "素材源" },
     [CanvasNodeType.Publish]: { width: 520, height: 380, title: "发布" },
     [CanvasNodeType.Comic]: { width: 360, height: 320, title: "漫画册" },
+    [CanvasNodeType.Script]: { width: 520, height: 380, title: "剧本" },
+    [CanvasNodeType.Scene]: { width: 360, height: 240, title: "场次" },
+    [CanvasNodeType.Shot]: { width: 420, height: 320, title: "镜头" },
+    [CanvasNodeType.FilmAsset]: { width: 360, height: 420, title: "影视资产" },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
@@ -67,6 +71,37 @@ export const NODE_SPECS = {
     [CanvasNodeType.Comic]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Comic],
         metadata: { status: "idle", comicBook: { pageNodeIds: [], format: "page", direction: "rtl" } },
+    },
+    [CanvasNodeType.Script]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.Script],
+        metadata: { status: "idle", filmScript: { text: "", parseSnapshots: [] } },
+    },
+    [CanvasNodeType.Scene]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.Scene],
+        metadata: {
+            status: "idle",
+            filmScene: { episodeId: "", episodeTitle: "", name: "", location: "", time: "", mood: "" },
+        },
+    },
+    [CanvasNodeType.Shot]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.Shot],
+        metadata: {
+            status: "idle",
+            filmShot: {
+                shotNo: "",
+                shotType: "",
+                cameraMovement: "",
+                duration: 4,
+                description: "",
+                dialogue: "",
+                audio: "",
+                prompt: "",
+            },
+        },
+    },
+    [CanvasNodeType.FilmAsset]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmAsset],
+        metadata: { status: "idle" },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;
 

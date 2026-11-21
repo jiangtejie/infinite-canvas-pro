@@ -3,6 +3,7 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     History,
+    FileText,
     BookOpen,
     Bot,
     Clapperboard,
@@ -84,6 +85,10 @@ const ASSISTANT_NODE_TYPE_META = {
     [CanvasNodeType.Source]: { Icon: Link2, label: "素材源" },
     [CanvasNodeType.Publish]: { Icon: Send, label: "发布" },
     [CanvasNodeType.Comic]: { Icon: BookOpen, label: "漫画册" },
+    [CanvasNodeType.Script]: { Icon: FileText, label: "剧本" },
+    [CanvasNodeType.Scene]: { Icon: Clapperboard, label: "场次" },
+    [CanvasNodeType.Shot]: { Icon: Video, label: "镜头" },
+    [CanvasNodeType.FilmAsset]: { Icon: BookOpen, label: "影视资产" },
 };
 const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
     success: canvasStatusColors.success,

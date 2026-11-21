@@ -40,6 +40,8 @@ type CanvasShellModel = {
     undoCanvas: () => void;
     redoCanvas: () => void;
     agentPanel: CanvasSidePanelState;
+    filmMode: boolean;
+    onArrangeFilm: () => void;
 };
 
 
@@ -79,6 +81,8 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         undoCanvas,
         redoCanvas,
         agentPanel,
+        filmMode,
+        onArrangeFilm,
     } = model.shell;
     const zenMode = useCanvasUiStore((state) => state.zenMode);
     useEffect(() => {
@@ -156,6 +160,8 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                         setAssistantMounted(true);
                         setAgentPanel((current) => ({ ...current, open: true }));
                     }}
+                    filmMode={filmMode}
+                    onArrangeFilm={onArrangeFilm}
                 />
                 <CanvasStageLayer model={model.stage} />
                 <CanvasStageOverlays model={model.overlays} />

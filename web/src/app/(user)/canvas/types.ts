@@ -1,4 +1,14 @@
 import type { InsertAssetPayload } from "@/lib/asset-picker";
+import type {
+    FilmAspect,
+    FilmAsset,
+    FilmAssetKind,
+    FilmConsistencyReview,
+    FilmInteractiveVariable,
+    FilmShot,
+    FilmStructurePlan,
+    FilmStylePresetId,
+} from "@/lib/film/types";
 
 export type Position = {
     x: number;
@@ -23,6 +33,10 @@ export enum CanvasNodeType {
     Source = "source",
     Publish = "publish",
     Comic = "comic",
+    Script = "script",
+    Scene = "scene",
+    Shot = "shot",
+    FilmAsset = "filmAsset",
 }
 
 export type ComicLetterKind = "speech" | "thought" | "caption" | "sfx";
@@ -91,6 +105,70 @@ export type CanvasPublishRecord = {
     mock: boolean;
     status: "issued" | "confirmed";
     publishedUrl?: string;
+};
+
+export type CanvasProjectDomain = "film";
+
+export type CanvasFilmMeta = {
+    aspect: FilmAspect;
+    stylePresetId: FilmStylePresetId;
+    directorStyleId: string;
+    targetDuration?: number;
+    scriptProjectId?: string;
+    scriptHash?: string;
+    interactiveVariables?: FilmInteractiveVariable[];
+    consistencyReview?: FilmConsistencyReview;
+};
+
+export type CanvasConnectionKind = "binding" | "sequence" | "composition";
+
+export type FilmBindingEdgeData = {
+    stateId?: string;
+    continuity?: {
+        outfit?: string;
+        physicalCondition?: string;
+        heldProps?: string[];
+        emotion?: string;
+        intentionalChange?: string;
+    };
+    variantId?: string;
+    source: "manual" | "ai";
+};
+
+export type FilmParseSnapshot = {
+    id: string;
+    createdAt: string;
+    mode: "overwrite" | "append";
+    nodes: CanvasNodeData[];
+    connections: CanvasConnection[];
+};
+
+export type FilmScriptNodeData = {
+    text: string;
+    sourceScriptProjectId?: string;
+    sourceScriptHash?: string;
+    parseSnapshots: FilmParseSnapshot[];
+    structurePlan?: FilmStructurePlan;
+};
+
+export type FilmSceneNodeData = {
+    episodeId: string;
+    episodeTitle: string;
+    name: string;
+    location: string;
+    time: string;
+    mood: string;
+    notes?: string;
+};
+
+export type FilmShotNodeData = Omit<
+    FilmShot,
+    "id" | "characterBindings" | "propBindings" | "locationId" | "locationVariantId"
+>;
+
+export type FilmAssetNodeData = {
+    kind: FilmAssetKind;
+    asset: FilmAsset;
 };
 
 export type CanvasNodeMetadata = {
@@ -209,6 +287,10 @@ export type CanvasNodeMetadata = {
     publishRecord?: CanvasPublishRecord;
     publishStatus?: "idle" | "generating" | "error";
     publishError?: string;
+    filmScript?: FilmScriptNodeData;
+    filmScene?: FilmSceneNodeData;
+    filmShot?: FilmShotNodeData;
+    filmAsset?: FilmAssetNodeData;
 };
 
 export type CanvasDirectorPanorama = {
@@ -246,6 +328,8 @@ export type CanvasConnection = {
     id: string;
     fromNodeId: string;
     toNodeId: string;
+    kind?: CanvasConnectionKind;
+    data?: FilmBindingEdgeData;
 };
 
 export type PendingConnectionCreate = {

@@ -2,7 +2,8 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
 import { nanoid } from "nanoid";
-import { detachRemixNodes } from "../[id]/lib/canvas-source-remix";
+import { buildFilmCanvasProject } from "../utils/film-canvas-project";
+import { buildImportedCanvasProject } from "../utils/canvas-project-import";
 import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
 import { CANVAS_STORE_KEY } from "@/lib/storage-keys";
@@ -11,7 +12,7 @@ import { listCanvasProjects, saveCanvasProject, syncCanvasProjects } from "@/ser
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
-import type { CanvasAgentConfig, CanvasAssistantSession, CanvasConnection, CanvasNodeData, CanvasPendingAgentRequest, ViewportTransform } from "../types";
+import type { CanvasAgentConfig, CanvasAssistantSession, CanvasConnection, CanvasFilmMeta, CanvasNodeData, CanvasPendingAgentRequest, CanvasProjectDomain, ViewportTransform } from "../types";
 
 export type CanvasSidePanelState = {
     open: boolean;
@@ -40,6 +41,8 @@ export type CanvasProject = {
     viewport: ViewportTransform;
     sidePanel: CanvasSidePanelState;
     agentPanel: CanvasSidePanelState;
+    domain?: CanvasProjectDomain;
+    film?: CanvasFilmMeta;
 };
 
 type CanvasStore = {
@@ -47,11 +50,12 @@ type CanvasStore = {
     saveStatus: CanvasSaveStatus;
     projects: CanvasProject[];
     createProject: (title?: string, options?: { agentConfig?: CanvasAgentConfig; pendingAgentRequest?: CanvasPendingAgentRequest }) => string;
+    createFilmProject: (title?: string) => string;
     importProject: (project: Partial<CanvasProject>) => string;
     openProject: (id: string) => CanvasProject | null;
     renameProject: (id: string, title: string) => void;
     deleteProjects: (ids: string[]) => void;
-    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest">>) => void;
+    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest" | "domain" | "film">>) => void;
     syncWithRemote: (token: string, syncEnabled: boolean) => Promise<void>;
     setSyncEnabled: (enabled: boolean) => void;
     retrySave: () => void;
@@ -308,25 +312,26 @@ export const useCanvasStore = create<CanvasStore>()(
                 queueProjectSave(project);
                 return id;
             },
-            importProject: (source) => {
-                const now = new Date().toISOString();
-                const project: CanvasProject = {
+            createFilmProject: (title = "未命名影视画布") => {
+                const project = buildFilmCanvasProject(title, {
                     id: nanoid(),
-                    title: source.title || "导入画布",
-                    createdAt: source.createdAt || now,
-                    updatedAt: now,
-                    nodes: detachRemixNodes(source.nodes || []),
-                    connections: source.connections || [],
-                    chatSessions: source.chatSessions || [],
-                    activeChatId: source.activeChatId || null,
-                    agentConfig: source.agentConfig || null,
-                    autoTitlePending: false,
-                    backgroundMode: source.backgroundMode || "lines",
-                    showImageInfo: source.showImageInfo || false,
-                    viewport: source.viewport || initialViewport,
-                    sidePanel: source.sidePanel || DEFAULT_CANVAS_SIDE_PANEL,
-                    agentPanel: source.agentPanel || DEFAULT_CANVAS_AGENT_PANEL,
-                };
+                    now: new Date().toISOString(),
+                    viewport: initialViewport,
+                    sidePanel: DEFAULT_CANVAS_SIDE_PANEL,
+                    agentPanel: DEFAULT_CANVAS_AGENT_PANEL,
+                });
+                set((state) => ({ projects: [project, ...state.projects] }));
+                queueProjectSave(project);
+                return project.id;
+            },
+            importProject: (source) => {
+                const project = buildImportedCanvasProject(source, {
+                    id: nanoid(),
+                    now: new Date().toISOString(),
+                    viewport: initialViewport,
+                    sidePanel: DEFAULT_CANVAS_SIDE_PANEL,
+                    agentPanel: DEFAULT_CANVAS_AGENT_PANEL,
+                });
                 set((state) => ({
                     projects: [project, ...state.projects],
                 }));

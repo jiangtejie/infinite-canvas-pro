@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { App, Button, Input, Pagination } from "antd";
-import { Download, FileUp, Plus, Trash2 } from "lucide-react";
+import { Clapperboard, Download, FileUp, Plus, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { PunkAura } from "@/components/ui/punk-aura";
@@ -17,6 +17,8 @@ import type { CanvasExportFile } from "./export-types";
 import { useCanvasStore, nextCanvasProjectTitle } from "./stores/use-canvas-store";
 import { useCanvasUiStore } from "./stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "./utils/canvas-export";
+import { generalCanvasProjects, isFilmCanvasProject } from "./utils/canvas-project-domain";
+import { FILM_CANVAS_DEV } from "./utils/film-mode";
 
 export default function CanvasPage() {
     const { message } = App.useApp();
@@ -26,8 +28,14 @@ export default function CanvasPage() {
     const [page, setPage] = useState(1);
     const pageSize = 12;
     const hydrated = useCanvasStore((state) => state.hydrated);
-    const projects = useCanvasStore((state) => state.projects);
+    const allProjects = useCanvasStore((state) => state.projects);
+    const projects = useMemo(() => generalCanvasProjects(allProjects), [allProjects]);
+    const filmProjects = useMemo(
+        () => (FILM_CANVAS_DEV ? allProjects.filter(isFilmCanvasProject) : []),
+        [allProjects],
+    );
     const createProject = useCanvasStore((state) => state.createProject);
+    const createFilmProject = useCanvasStore((state) => state.createFilmProject);
     const importProject = useCanvasStore((state) => state.importProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
@@ -93,9 +101,25 @@ export default function CanvasPage() {
                             <Button disabled={!hydrated} type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>
                                 新建画布
                             </Button>
+                            {FILM_CANVAS_DEV ? (
+                                <Button disabled={!hydrated} icon={<Clapperboard className="size-4" />} onClick={() => enterProject(createFilmProject("未命名影视画布"))}>
+                                    新建影视画布（开发）
+                                </Button>
+                            ) : null}
                         </>
                     }
                 />
+
+                {FILM_CANVAS_DEV && filmProjects.length ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/40 p-3">
+                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">影视画布（开发）</span>
+                        {filmProjects.map((project) => (
+                            <Button key={project.id} size="small" onClick={() => enterProject(project.id)}>
+                                {project.title} · {project.nodes.length} 节点
+                            </Button>
+                        ))}
+                    </div>
+                ) : null}
 
                 {projects.length ? (
                     <div className="flex flex-wrap items-center gap-2">

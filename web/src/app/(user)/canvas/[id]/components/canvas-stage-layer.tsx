@@ -30,6 +30,7 @@ import { type AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import { ConnectionCreateMenu, NodeCreateMenu } from "./canvas-create-menus";
 import { isCanvasReferenceNode } from "../../utils/canvas-resource-references";
 import { fitSourceNodeSize } from "../../utils/canvas-node-size";
+import type { FilmAssetKind } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasConnection, type PendingConnectionCreate, type CanvasNodeData, type ConnectionHandle, type ContextMenuState, type Position } from "../../types";
 import type { ViewportTransform, SelectionBox } from "../../types";
 import type { CanvasAlignmentGuides } from "../../utils/canvas-alignment";
@@ -136,6 +137,8 @@ export type CanvasStageModel = {
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
     projectLoaded: boolean;
     exitNodeReferenceSelection: () => void;
+    filmMode: boolean;
+    createFilmAssetNode: (kind: FilmAssetKind, position?: Position) => void;
 };
 
 /**
@@ -145,6 +148,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     const sourceParseEnabled = useConfigStore((state) => state.publicSettings?.content?.sourceParseEnabled ?? true);
     const {
         theme,
+        filmMode,
+        createFilmAssetNode,
         nodes,
         selectedNodeIds,
         selectedImageCount,
@@ -541,6 +546,11 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                 setAssetPickerOpen(true);
                             }}
                             onClose={() => setNodeCreatePosition(null)}
+                            filmMode={filmMode}
+                            onCreateFilmAsset={(kind) => {
+                                setNodeCreatePosition(null);
+                                createFilmAssetNode(kind, nodeCreatePosition);
+                            }}
                         />
                     ) : null}
                 </InfiniteCanvas>
