@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
 import type { FilmShotEntry } from "./film-studio-types";
-import { filmShotMediaSummary, filmShotViewStats, filmTimelineBlocks } from "./film-shot-views";
+import { filterFilmShotEntries, filmShotMediaSummary, filmShotViewStats, filmTimelineBlocks, groupFilmShots } from "./film-shot-views";
 
 const shot = (duration: number, patch: Partial<NonNullable<CanvasNodeData["metadata"]>["filmShot"]> = {}, metadata: Partial<NonNullable<CanvasNodeData["metadata"]>> = {}): CanvasNodeData => ({
     id: `shot-${duration}-${Object.keys(patch).join("-")}`,
@@ -49,4 +49,24 @@ test("computes view statistics and timeline layout", () => {
         { id: "b", start: 4, end: 6, width: 112 },
         { id: "c", start: 6, end: 12, width: 336 },
     ]);
+});
+
+test("filters shots by scene, media state and keyword", () => {
+    const entries = [
+        entry("a", "scene-1", shot(4, { shotNo: "01", imageUrl: "https://example.com/a.png", description: "天台回头" })),
+        entry("b", "scene-1", shot(2, { shotNo: "02", description: "短刀特写" }, { status: "loading", filmShotTaskKind: "video" })),
+        entry("c", "scene-2", shot(6, { shotNo: "03", description: "雨停警灯" }, { status: "error" })),
+    ];
+    assert.deepEqual(filterFilmShotEntries(entries, { sceneId: "scene-1" }).map((item) => item.shot.id), ["a", "b"]);
+    assert.deepEqual(filterFilmShotEntries(entries, { status: "image" }).map((item) => item.shot.id), ["a"]);
+    assert.deepEqual(filterFilmShotEntries(entries, { status: "generating" }).map((item) => item.shot.id), ["b"]);
+    assert.deepEqual(filterFilmShotEntries(entries, { status: "failed" }).map((item) => item.shot.id), ["c"]);
+    assert.deepEqual(filterFilmShotEntries(entries, { query: "短刀" }).map((item) => item.shot.id), ["b"]);
+    assert.deepEqual(filterFilmShotEntries(entries, { query: "雨停" }).map((item) => item.shot.id), ["c"]);
+});
+
+test("groups shots into 4 or 9 sized chunks", () => {
+    const entries = Array.from({ length: 10 }, (_, index) => entry(String(index), "scene-1", shot(4)));
+    assert.deepEqual(groupFilmShots(entries, 4).map((group) => group.length), [4, 4, 2]);
+    assert.deepEqual(groupFilmShots(entries, 9).map((group) => group.length), [9, 1]);
 });

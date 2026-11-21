@@ -38,3 +38,40 @@ export function filmTimelineBlocks(shots: FilmShotEntry[], pixelsPerSecond = 56)
         return block;
     });
 }
+
+export type FilmShotMediaFilter = "all" | "none" | "image" | "video" | "generating" | "failed";
+
+export type FilmShotFilters = {
+    sceneId?: string;
+    status?: FilmShotMediaFilter;
+    query?: string;
+};
+
+export function filmShotMatchesFilter(entry: FilmShotEntry, filters: FilmShotFilters) {
+    if (filters.sceneId && filters.sceneId !== "all" && entry.sceneId !== filters.sceneId) return false;
+    const media = filmShotMediaSummary(entry.shot);
+    const status = filters.status ?? "all";
+    if (status === "none" && (media.hasImage || media.hasVideo || media.generating)) return false;
+    if (status === "image" && !media.hasImage) return false;
+    if (status === "video" && !media.hasVideo) return false;
+    if (status === "generating" && !media.generating) return false;
+    if (status === "failed" && !media.failed && entry.shot.metadata?.status !== "error") return false;
+    const query = filters.query?.trim().toLowerCase();
+    if (!query) return true;
+    const payload = entry.shot.metadata?.filmShot;
+    return [payload?.shotNo, payload?.description, payload?.dialogue, payload?.prompt, entry.sceneLabel]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+}
+
+export function filterFilmShotEntries(shots: FilmShotEntry[], filters: FilmShotFilters) {
+    return shots.filter((entry) => filmShotMatchesFilter(entry, filters));
+}
+
+export function groupFilmShots<T>(items: T[], size: number) {
+    const chunk = Math.max(1, Math.floor(size));
+    const groups: T[][] = [];
+    for (let index = 0; index < items.length; index += chunk) groups.push(items.slice(index, index + chunk));
+    return groups;
+}
+
