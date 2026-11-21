@@ -149,7 +149,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 <CanvasStageOverlays model={model.overlays} />
                 <CanvasDialogs model={model.dialogs} />
             </section>
-            <div className="h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>
+            <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>
                 <CanvasAssistantPane model={model.assistant} />
             </div>
         </main>
