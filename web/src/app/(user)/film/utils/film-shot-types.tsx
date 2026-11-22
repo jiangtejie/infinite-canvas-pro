@@ -24,7 +24,9 @@ const SHOT_TYPE_ALIASES: Record<string, string> = {
     "主观": "POV",
 };
 
-export const FILM_CAMERA_MOVEMENT_OPTIONS = ["固定", "缓慢横移", "缓慢推进", "微距推进", "手持轻晃", "跟拍", "环绕", "升降", "拉远", "摇镜"];
+export const FILM_CAMERA_MOVEMENT_OPTIONS = ["固定", "缓慢横移", "缓慢推进", "推近", "微距推进", "手持轻晃", "跟拍", "环绕", "升降", "拉远", "缓慢拉远", "摇镜", "左移", "右移", "变焦"];
+
+export const FILM_TRANSITION_OPTIONS = ["硬切", "叠化", "淡入", "淡出", "闪白", "闪黑", "划像", "匹配剪辑", "跳切"];
 
 export function filmShotTypeLabel(value?: string) {
     if (!value) return "景别未设置";

@@ -1,22 +1,22 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { Select } from "antd";
 import { ArrowUpRight, ChevronDown, ChevronUp, Clapperboard, Search } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
-import { FILM_SHOT_TYPE_OPTIONS } from "@/app/(user)/film/utils/film-shot-types";
 import { useFilmViewState, useFilmViewStore, type FilmViewState } from "@/app/(user)/canvas/stores/use-film-view-store";
 import { patchFilmShotNode } from "../lib/film-node-patch";
 import type { FilmShotNodeData } from "../../types";
 import type { FilmStudioModel } from "../lib/film-studio-types";
 import { filterFilmShotEntries, filmShotViewStats, type FilmShotMediaFilter } from "../lib/film-shot-views";
+import { FilmCameraMovementControl, FilmShotTypeControl, FilmTransitionControl } from "./film-shot-basic-controls";
 import { FilmShotMediaBadges } from "./film-shot-media-badges";
 import { FilmShotProfessionalFields } from "./film-shot-professional-fields";
 import { FilmShotSelectionBar } from "./film-shot-selection-bar";
 
-const COLUMNS = "36px 64px 118px 88px 104px 56px minmax(190px,1.6fr) minmax(150px,1.2fr) minmax(110px,0.9fr) minmax(90px,0.65fr) minmax(100px,0.7fr) minmax(100px,0.7fr) minmax(100px,0.7fr) 84px 78px 76px";
-const TABLE_MIN_WIDTH = 1544;
+const COLUMNS = "36px 64px 118px 92px 112px 56px minmax(190px,1.6fr) minmax(150px,1.2fr) minmax(110px,0.9fr) minmax(90px,0.65fr) minmax(100px,0.7fr) minmax(100px,0.7fr) minmax(100px,0.7fr) 92px 78px 76px";
+const TABLE_MIN_WIDTH = 1564;
 const STATUS_OPTIONS: Array<{ value: FilmShotMediaFilter; label: string }> = [
     { value: "all", label: "全部状态" },
     { value: "none", label: "未生成" },
@@ -56,8 +56,9 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
     });
     const toggleExpanded = (shotId: string) => updateView(model.projectId, (current) => {
         const next = new Set(current.expandedShotIds);
-        if (next.has(shotId)) next.delete(shotId);
-        else next.add(shotId);
+        const closing = next.has(shotId);
+        next.clear();
+        if (!closing) next.add(shotId);
         return { ...current, expandedShotIds: next };
     });
     const toggleAll = () => updateView(model.projectId, (current) => {
@@ -92,8 +93,8 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
             </div>
             {model.shots.length ? (
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-auto">
-                    <div style={{ minWidth: TABLE_MIN_WIDTH }}>
-                        <div className="sticky top-0 z-10 grid border-b text-[11px]" style={{ gridTemplateColumns: COLUMNS, borderColor: theme.node.stroke, background: theme.node.panel, color: theme.node.muted }}>
+                    <div style={{ minWidth: TABLE_MIN_WIDTH, "--film-row-hover": theme.node.fill } as CSSProperties}>
+                        <div className="sticky top-0 z-10 grid border-b text-[11px] font-medium" style={{ gridTemplateColumns: COLUMNS, borderColor: theme.node.stroke, background: theme.node.panel, color: theme.node.muted }}>
                             <div className="grid place-items-center px-2 py-2">
                                 <input ref={selectAllRef} type="checkbox" className="size-4" checked={allSelected} onChange={toggleAll} aria-label="全选镜头" />
                             </div>
@@ -115,7 +116,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                     <div
                                         role="button"
                                         tabIndex={0}
-                                        className="grid cursor-default items-center border-b text-xs transition-colors"
+                                        className="grid cursor-default items-center border-b text-xs transition-colors hover:bg-[var(--film-row-hover)]"
                                         style={{ gridTemplateColumns: COLUMNS, borderColor: theme.node.stroke, background: active ? theme.canvas.selectionSoft : undefined, color: theme.node.text }}
                                         onClick={() => model.onSelectShot(entry.shot.id)}
                                         onDoubleClick={(event) => {
@@ -136,9 +137,9 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                             {entry.episodeTitle ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>{entry.episodeTitle}</div> : null}
                                         </div>
                                         <div className="px-2 py-1.5">
-                                            <Select size="small" variant="borderless" className="w-full" value={payload?.shotType || undefined} placeholder="未设置" allowClear popupMatchSelectWidth={false} options={FILM_SHOT_TYPE_OPTIONS} onChange={(value) => update(entry.shot.id, { shotType: value || "" })} aria-label="景别" />
+                                            <FilmShotTypeControl variant="table" value={payload?.shotType} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { shotType: value })} ariaLabel="景别" />
                                         </div>
-                                        <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.cameraMovement || ""} onChange={(event) => update(entry.shot.id, { cameraMovement: event.target.value })} aria-label="运镜" /></div>
+                                        <div className="px-2 py-1.5"><FilmCameraMovementControl variant="table" value={payload?.cameraMovement} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { cameraMovement: value })} ariaLabel="运镜" /></div>
                                         <div className="px-2 py-1.5"><input type="number" min={1} max={60} className="w-12 bg-transparent px-0.5 py-0.5 outline-none tabular-nums" style={{ color: theme.node.text }} value={payload?.duration ?? 4} onChange={(event) => update(entry.shot.id, { duration: Number(event.target.value) || 1 })} aria-label="时长" /></div>
                                         <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.description || ""} onChange={(event) => update(entry.shot.id, { description: event.target.value })} aria-label="描述" /></div>
                                         <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.dialogue || ""} onChange={(event) => update(entry.shot.id, { dialogue: event.target.value })} aria-label="台词" /></div>
@@ -153,7 +154,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                         </div>
                                         <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={imageNotes} style={{ color: imageNotes ? theme.node.text : theme.node.muted }}>{imageNotes || "—"}</div></div>
                                         <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={soundNotes} style={{ color: soundNotes ? theme.node.text : theme.node.muted }}>{soundNotes || "—"}</div></div>
-                                        <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.transition || ""} onChange={(event) => update(entry.shot.id, { transition: event.target.value })} aria-label="转场" /></div>
+                                        <div className="px-2 py-1.5"><FilmTransitionControl variant="table" value={payload?.transition} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { transition: value })} ariaLabel="转场" /></div>
                                         <div className="px-2 py-1.5"><FilmShotMediaBadges theme={theme} shot={entry.shot} compact /></div>
                                         <div className="flex justify-end gap-1 px-2 py-1.5">
                                             <button type="button" className="grid size-6 place-items-center rounded border" style={{ borderColor: isExpanded ? theme.canvas.selectionStroke : theme.node.stroke, color: isExpanded ? theme.node.text : theme.node.muted }} onClick={(event) => { event.stopPropagation(); toggleExpanded(entry.shot.id); }} aria-label={isExpanded ? "收起专业详情" : "展开专业详情"} title={isExpanded ? "收起专业详情" : "展开专业详情"} aria-expanded={isExpanded}>
@@ -164,7 +165,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                             </button>
                                         </div>
                                     </div>
-                                    {isExpanded ? <FilmShotProfessionalFields theme={theme} payload={payload} onUpdate={(patch) => update(entry.shot.id, patch)} /> : null}
+                                    {isExpanded ? <FilmShotProfessionalFields theme={theme} payload={payload} onUpdate={(patch) => update(entry.shot.id, patch)} onClose={() => toggleExpanded(entry.shot.id)} /> : null}
                                 </Fragment>
                             );
                         }) : (
