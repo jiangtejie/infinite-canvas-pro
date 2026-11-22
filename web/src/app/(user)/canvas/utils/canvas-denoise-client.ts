@@ -10,6 +10,7 @@ export type CanvasDenoiseResult = {
     width: number;
     height: number;
     elapsed: number;
+    timings: { model: number; infer: number; l0: number; encode: number };
 };
 
 const MODEL_URL = process.env.NEXT_PUBLIC_DENOISE_MODEL_URL || "/models/esrgan.onnx";
@@ -28,7 +29,7 @@ export function runCanvasDenoise(blob: Blob, params: CanvasDenoiseParams, onProg
 
     const promise = new Promise<CanvasDenoiseResult>((resolve, reject) => {
         rejectRequest = reject;
-        worker.onmessage = (event: MessageEvent<{ id: number; stage?: string; blob?: Blob; width?: number; height?: number; elapsed?: number; error?: string }>) => {
+        worker.onmessage = (event: MessageEvent<{ id: number; stage?: string; blob?: Blob; width?: number; height?: number; elapsed?: number; timings?: CanvasDenoiseResult["timings"]; error?: string }>) => {
             const data = event.data;
             if (data.id !== id) return;
             if (data.stage) {
@@ -38,7 +39,7 @@ export function runCanvasDenoise(blob: Blob, params: CanvasDenoiseParams, onProg
             settled = true;
             worker.terminate();
             if (data.error) reject(new Error(data.error));
-            else resolve({ blob: data.blob as Blob, width: data.width as number, height: data.height as number, elapsed: data.elapsed as number });
+            else resolve({ blob: data.blob as Blob, width: data.width as number, height: data.height as number, elapsed: data.elapsed as number, timings: data.timings ?? { model: 0, infer: 0, l0: 0, encode: 0 } });
         };
         worker.onerror = (event) => {
             settled = true;

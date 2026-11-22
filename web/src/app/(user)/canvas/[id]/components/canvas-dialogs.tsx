@@ -62,7 +62,7 @@ export type CanvasDialogModel = {
     upscaleNode: CanvasNodeData | null;
     upscaleImageNode: (node: CanvasNodeData, params: CanvasImageUpscaleParams) => Promise<void>;
     denoiseNode: CanvasNodeData | null;
-    denoiseImageNode: (node: CanvasNodeData, resultDataUrl: string) => Promise<void>;
+    denoiseImageNode: (node: CanvasNodeData, resultDataUrl: string, mode: "new" | "replace") => Promise<void>;
     angleNode: CanvasNodeData | null;
     generateAngleNode: (node: CanvasNodeData, params: CanvasImageAngleParams) => Promise<void>;
     previewNode: CanvasNodeData | null;
@@ -245,7 +245,7 @@ export function CanvasDialogs({ model }: { model: CanvasDialogModel }) {
 
                 {upscaleNode?.metadata?.content ? <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => closeOverlay()} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} /> : null}
 
-                {denoiseNode?.metadata?.content ? <CanvasNodeDenoiseDialog dataUrl={denoiseNode.metadata.content} open={Boolean(denoiseNode)} onClose={() => closeOverlay()} onConfirm={(resultDataUrl) => void denoiseImageNode(denoiseNode!, resultDataUrl)} /> : null}
+                {denoiseNode?.metadata?.content ? <CanvasNodeDenoiseDialog dataUrl={denoiseNode.metadata.content} open={Boolean(denoiseNode)} onClose={() => closeOverlay()} onConfirm={(resultDataUrl, mode) => void denoiseImageNode(denoiseNode!, resultDataUrl, mode)} /> : null}
 
                 {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => closeOverlay()} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
 

@@ -68,6 +68,7 @@ async function handleRequest(m: CanvasDenoiseRequest) {
         originalContext.drawImage(bitmap, 0, 0);
         bitmap.close();
         const pixels = originalContext.getImageData(0, 0, width, height);
+        const timings = { model: 0, infer: 0, l0: 0, encode: 0 };
 
         const cacheKey = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await m.blob.arrayBuffer()))).join(",") + m.down;
         let rgb: Float32Array;
@@ -75,7 +76,10 @@ async function handleRequest(m: CanvasDenoiseRequest) {
             rgb = cachedResult.rgb.slice();
         } else {
             progress("下载 / 加载 GPU 模型");
+            let phase = performance.now();
             const net = await loadModel(m.modelUrl);
+            timings.model = (performance.now() - phase) / 1000;
+            phase = performance.now();
             cachedResult = null;
             const smallWidth = Math.max(1, Math.round(width * m.down));
             const smallHeight = Math.max(1, Math.round(height * m.down));
@@ -129,18 +133,23 @@ async function handleRequest(m: CanvasDenoiseRequest) {
                 }
             }
             small.width = 1;
+            timings.infer = (performance.now() - phase) / 1000;
             // 最多缓存 96 MiB，避免常见 4K 图重复推理。
             cachedResult = rgb.byteLength <= 96 * 1024 * 1024 ? { key: cacheKey, rgb: rgb.slice() } : null;
         }
 
         if (m.lam > 0) {
             progress("图片平滑（WebGPU）");
+            const phase = performance.now();
             rgb = await gpuL0SmoothLarge(rgb, width, height, m.lam, progress);
+            timings.l0 = (performance.now() - phase) / 1000;
         }
+        const encodeStartedAt = performance.now();
         for (let i = 0; i < width * height; i++) for (let c = 0; c < 3; c++) pixels.data[i * 4 + c] = Math.round(Math.max(0, Math.min(1, rgb[i * 3 + c])) * 255);
         originalContext.putImageData(pixels, 0, 0);
         const blob = await original.convertToBlob({ type: "image/png" });
-        workerScope.postMessage({ id: m.id, blob, width, height, elapsed: (performance.now() - startedAt) / 1000 });
+        timings.encode = (performance.now() - encodeStartedAt) / 1000;
+        workerScope.postMessage({ id: m.id, blob, width, height, elapsed: (performance.now() - startedAt) / 1000, timings });
     } catch (error) {
         workerScope.postMessage({ id: m.id, error: error instanceof Error ? error.message : String(error) });
     }

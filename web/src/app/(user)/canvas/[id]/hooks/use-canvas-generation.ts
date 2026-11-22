@@ -342,11 +342,29 @@ export function useCanvasGeneration({
         }
     }, [closeOverlay, message, openOverlay, selectOnly, setConnections, setNodes]);
 
-    const denoiseImageNode = useCallback(async (node: CanvasNodeData, resultDataUrl: string) => {
+    const denoiseImageNode = useCallback(async (node: CanvasNodeData, resultDataUrl: string, mode: "new" | "replace" = "new") => {
         if (!node.metadata?.content) return;
         closeOverlay();
         try {
             const image = await uploadImage(resultDataUrl);
+            if (mode === "replace") {
+                setNodes((prev) => prev.map((item) => item.id === node.id ? {
+                    ...item,
+                    metadata: {
+                        ...item.metadata,
+                        ...imageMetadata(image),
+                        imageTaskId: undefined,
+                        imageTaskResultId: undefined,
+                        clientTaskId: undefined,
+                        progress: undefined,
+                        startedAt: undefined,
+                        durationMs: undefined,
+                        errorDetails: undefined,
+                    },
+                } : item));
+                message.success("已替换为降噪后的图片");
+                return;
+            }
             const childId = nanoid();
             const child: CanvasNodeData = {
                 id: childId,

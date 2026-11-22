@@ -782,6 +782,7 @@ export function CanvasNodeDenoiseDialog({ dataUrl, open, onClose, onConfirm }: {
                         </Button>
                         <Button
                             type="primary"
+                            danger={outputMode === "replace"}
                             icon={<ImagePlus className="size-4" />}
                             disabled={!result || running || !resultVersion}
                             onClick={() => {
