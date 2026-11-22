@@ -6,6 +6,7 @@ import type {
     FilmConsistencyReview,
     FilmInteractiveVariable,
     FilmShot,
+    FilmShotGroup,
     FilmStructurePlan,
     FilmStylePresetId,
 } from "@/lib/film/types";
@@ -109,6 +110,19 @@ export type CanvasPublishRecord = {
 
 export type CanvasProjectDomain = "film";
 
+export type CanvasFilmAssetQueue = {
+    id: string;
+    startedAt: number;
+    remainingNodeIds: string[];
+};
+
+export type CanvasFilmShotQueue = {
+    id: string;
+    startedAt: number;
+    kind: "image" | "video";
+    remainingShotIds: string[];
+};
+
 export type CanvasFilmMeta = {
     aspect: FilmAspect;
     stylePresetId: FilmStylePresetId;
@@ -118,6 +132,9 @@ export type CanvasFilmMeta = {
     scriptHash?: string;
     interactiveVariables?: FilmInteractiveVariable[];
     consistencyReview?: FilmConsistencyReview;
+    assetQueue?: CanvasFilmAssetQueue;
+    shotQueue?: CanvasFilmShotQueue;
+    shotGroups?: FilmShotGroup[];
 };
 
 export type CanvasConnectionKind = "binding" | "sequence" | "composition";

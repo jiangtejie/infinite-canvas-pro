@@ -4,6 +4,7 @@ import type { FilmEpisode, FilmShot } from "@/lib/film/types";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmParseSnapshot, type FilmScriptNodeData, type FilmShotNodeData } from "../../types";
 import { canvasConnection } from "./canvas-connection";
+import { orderFilmShots } from "./film-layout";
 
 export type FilmParseGraphResult = {
     nodes: CanvasNodeData[];
@@ -40,6 +41,10 @@ export function buildFilmParseGraph(
     const createdConnections: CanvasConnection[] = [];
     let sceneColumn = 0;
     let shotCount = 0;
+    const existingTail = mode === "append"
+        ? orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.Shot), connections).at(-1)?.id ?? ""
+        : "";
+    let previousShotId = existingTail;
     for (const episode of episodes) {
         for (const scene of episode.scenes) {
             const sceneId = nanoid();
@@ -62,7 +67,6 @@ export function buildFilmParseGraph(
                     },
                 },
             });
-            let previousShotId = "";
             for (const [shotIndex, shot] of scene.shots.entries()) {
                 const shotId = nanoid();
                 createdNodes.push({

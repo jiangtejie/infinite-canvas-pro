@@ -1,8 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { ChevronLeft, ChevronRight, Download, Maximize, Pause, Play, Volume2, VolumeX, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { ChevronLeft, ChevronRight, Download, Maximize, Pause, Play, Volume2, VolumeX, X, ZoomIn, ZoomOut } from "lucide-react";
+
+import { actualPreviewZoom, previewZoomPercent, stepPreviewZoom } from "../lib/preview-zoom";
 
 const CanvasPanoramaViewer = dynamic(() => import("../../components/canvas-panorama-viewer"), { ssr: false, loading: () => null });
 
@@ -21,6 +23,8 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
     const [zoom, setZoom] = useState<number>(1);
     const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState<boolean>(false);
+    const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+    const [fitWidth, setFitWidth] = useState(0);
     const [videoDuration, setVideoDuration] = useState(0);
     const [videoTime, setVideoTime] = useState(0);
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -29,6 +33,30 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
     const imgRef = useRef<HTMLImageElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const videoPlayerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setZoom(1);
+        setPanOffset({ x: 0, y: 0 });
+        setNaturalSize(null);
+        setFitWidth(0);
+    }, [src]);
+
+    const zoomIn = useCallback(() => setZoom((value) => stepPreviewZoom(value, 0.25)), []);
+    const zoomOut = useCallback(() => setZoom((value) => {
+        const next = stepPreviewZoom(value, -0.25);
+        if (next <= 1) setPanOffset({ x: 0, y: 0 });
+        return next;
+    }), []);
+    const fitZoom = useCallback(() => {
+        setZoom(1);
+        setPanOffset({ x: 0, y: 0 });
+    }, []);
+    const zoomActual = useCallback(() => {
+        if (!fitWidth || !naturalSize) return;
+        setZoom(actualPreviewZoom(fitWidth, naturalSize.width));
+        setPanOffset({ x: 0, y: 0 });
+    }, [fitWidth, naturalSize]);
+    const zoomPercent = previewZoomPercent(fitWidth, naturalSize?.width ?? 0, zoom);
 
     const toggleVideoPlayback = () => {
         const video = videoRef.current;
@@ -55,17 +83,29 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
             } else if (event.key === "ArrowRight" && hasNext) {
                 event.preventDefault();
                 onNext?.();
+            } else if (!isVideo && !isPanorama && (event.key === "+" || event.key === "=")) {
+                event.preventDefault();
+                zoomIn();
+            } else if (!isVideo && !isPanorama && event.key === "-") {
+                event.preventDefault();
+                zoomOut();
+            } else if (!isVideo && !isPanorama && event.key === "0") {
+                event.preventDefault();
+                fitZoom();
+            } else if (!isVideo && !isPanorama && event.key === "1") {
+                event.preventDefault();
+                zoomActual();
             }
         };
         window.addEventListener("keydown", onKeyDown, true);
         return () => window.removeEventListener("keydown", onKeyDown, true);
-    }, [hasNext, hasPrev, onClose, onNext, onPrev]);
+    }, [fitZoom, hasNext, hasPrev, isPanorama, isVideo, onClose, onNext, onPrev, zoomActual, zoomIn, zoomOut]);
 
     const handleWheel = (e: WheelEvent) => {
         e.stopPropagation();
         e.preventDefault();
         setZoom((z) => {
-            const next = Math.max(0.2, Math.min(8, z - e.deltaY * 0.001));
+            const next = stepPreviewZoom(z, -e.deltaY * 0.001);
             if (next <= 1) setPanOffset({ x: 0, y: 0 });
             return next;
         });
@@ -77,6 +117,17 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
         el.addEventListener("wheel", handleWheel, { passive: false });
         return () => el.removeEventListener("wheel", handleWheel);
     });
+
+    useEffect(() => {
+        if (isVideo || isPanorama) return;
+        const image = imgRef.current;
+        if (!image) return;
+        const update = () => setFitWidth(image.clientWidth);
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(image);
+        return () => observer.disconnect();
+    }, [isPanorama, isVideo, src]);
 
     const handlePointerDown = (e: ReactPointerEvent) => {
         e.stopPropagation();
@@ -213,22 +264,39 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
                     </div>
                 </div>
             ) : (
-                <img
-                    ref={imgRef}
-                    src={src}
-                    alt={alt}
-                    draggable={false}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    className={`max-h-[85vh] max-w-[85vw] object-contain rounded-2xl shadow-[0_24px_72px_rgba(0,0,0,0.4)] ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
-                    onClick={(e) => e.stopPropagation()}
-                    onDragStart={(e) => e.preventDefault()}
-                    style={{
-                        transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-                        transition: isDragging ? "none" : "transform 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                    }}
-                />
+                <>
+                    <img
+                        ref={imgRef}
+                        src={src}
+                        alt={alt}
+                        draggable={false}
+                        onLoad={(event) => {
+                            const image = event.currentTarget;
+                            setNaturalSize({ width: image.naturalWidth, height: image.naturalHeight });
+                            setFitWidth(image.clientWidth);
+                        }}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        className={`max-h-[85vh] max-w-[85vw] object-contain rounded-2xl shadow-[0_24px_72px_rgba(0,0,0,0.4)] ${zoom > 1 ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
+                        onClick={(e) => e.stopPropagation()}
+                        onDragStart={(e) => e.preventDefault()}
+                        style={{
+                            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+                            transition: isDragging ? "none" : "transform 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                        }}
+                    />
+                    <div className="absolute bottom-4 left-1/2 z-[2010] flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/10 bg-black/60 px-1.5 py-1 text-white shadow-lg backdrop-blur" onClick={(event) => event.stopPropagation()}>
+                        <button type="button" aria-label="缩小" onClick={zoomOut} className={VIDEO_PREVIEW_CONTROL_CLASS}><ZoomOut className="size-4" /></button>
+                        <span className="min-w-12 text-center text-xs tabular-nums text-white/80">{zoomPercent}%</span>
+                        <button type="button" aria-label="放大" onClick={zoomIn} className={VIDEO_PREVIEW_CONTROL_CLASS}><ZoomIn className="size-4" /></button>
+                        <span className="mx-1 h-4 w-px bg-white/15" />
+                        <button type="button" aria-label="按原始像素查看" disabled={!naturalSize || !fitWidth} onClick={zoomActual} className="rounded-lg px-2 py-1 text-xs text-white/80 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40">1:1</button>
+                        <button type="button" aria-label="适应窗口" onClick={fitZoom} className="rounded-lg px-2 py-1 text-xs text-white/80 transition-colors hover:bg-white/10 hover:text-white">适应</button>
+                        <span className="mx-1 h-4 w-px bg-white/15" />
+                        <button type="button" aria-label="下载图片" onClick={onDownload} className={VIDEO_PREVIEW_CONTROL_CLASS}><Download className="size-4" /></button>
+                    </div>
+                </>
             )}
         </div>
     );

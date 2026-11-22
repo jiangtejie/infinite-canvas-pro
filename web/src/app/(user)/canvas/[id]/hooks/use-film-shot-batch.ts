@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { createElement, useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { nanoid } from "nanoid";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { CanvasNodeType, type CanvasNodeData } from "../../types";
-import { filmFrameReady, filmVideoMode } from "../lib/film-shot-video-frames";
+import { type CanvasConnection, type CanvasFilmShotQueue, type CanvasNodeData } from "../../types";
+import { planFilmShotBatch } from "../lib/film-batch-preflight";
 import type { FilmShotBatchKind, FilmShotBatchState } from "../lib/film-studio-types";
+import { FilmBatchPlanSummary } from "../components/film-batch-plan-summary";
 
 type Message = {
     success: (content: string) => void;
@@ -15,10 +17,18 @@ type Message = {
 
 type Options = {
     nodesRef: MutableRefObject<CanvasNodeData[]>;
+    connectionsRef: MutableRefObject<CanvasConnection[]>;
     generate: (shotId: string, kind: FilmShotBatchKind) => Promise<void>;
     stop: (shotId: string, kind: FilmShotBatchKind) => Promise<void>;
     ensureConfig: (kind: FilmShotBatchKind) => boolean;
+    resolveReferenceLimit: (kind: FilmShotBatchKind) => number;
+    onQueueChange?: (queue: CanvasFilmShotQueue | null) => void;
     message: Message;
+};
+
+type FilmShotBatchStartOptions = {
+    resume?: { id: string; startedAt: number };
+    skipConfirm?: boolean;
 };
 
 const INITIAL_STATE: FilmShotBatchState = { running: false, kind: null, total: 0, completed: 0, failed: 0, currentTitle: "", currentIndex: 0, currentShotId: "" };
@@ -27,7 +37,7 @@ const NODE_TIMEOUT_MS = 10 * 60 * 1000;
 const ACTIVITY_GRACE_MS = 15000;
 const STOP_GRACE_MS = 5000;
 
-export function useFilmShotBatch({ nodesRef, generate, stop, ensureConfig, message }: Options) {
+export function useFilmShotBatch({ nodesRef, connectionsRef, generate, stop, ensureConfig, resolveReferenceLimit, onQueueChange, message }: Options) {
     const confirm = useConfirm();
     const [state, setState] = useState<FilmShotBatchState>(INITIAL_STATE);
     const runningRef = useRef(false);
@@ -66,58 +76,41 @@ export function useFilmShotBatch({ nodesRef, generate, stop, ensureConfig, messa
         return "failure";
     }, [nodesRef]);
 
-    const startBatch = useCallback(async (shotIds: Iterable<string>, kind: FilmShotBatchKind) => {
+    const startBatch = useCallback(async (shotIds: Iterable<string>, kind: FilmShotBatchKind, options: FilmShotBatchStartOptions = {}) => {
         if (runningRef.current) {
             message.warning("已有批量生成在进行中");
             return;
         }
-        const seen = new Set<string>();
-        const targets: CanvasNodeData[] = [];
-        let skippedText = 0;
-        let skippedBusy = 0;
-        let skippedFrame = 0;
-        for (const shotId of shotIds) {
-            if (seen.has(shotId)) continue;
-            seen.add(shotId);
-            const node = nodesRef.current.find((item) => item.id === shotId);
-            const payload = node?.metadata?.filmShot;
-            if (!node || node.type !== CanvasNodeType.Shot || !payload) continue;
-            if (!(payload.prompt || payload.description || "").trim()) {
-                skippedText += 1;
-                continue;
-            }
-            if (node.metadata?.status === "loading" || node.metadata?.status === "stopping") {
-                skippedBusy += 1;
-                continue;
-            }
-            if (kind === "video" && filmVideoMode(payload) === "frames" && !filmFrameReady(payload.firstFrame)) {
-                skippedFrame += 1;
-                continue;
-            }
-            targets.push(node);
-        }
-        if (!targets.length) {
-            message.warning(skippedText ? "选中的镜头都没有画面描述或提示词" : "请选择可生成的镜头");
+        const plan = planFilmShotBatch(nodesRef.current, connectionsRef.current, shotIds, kind, { maxReferences: resolveReferenceLimit(kind) });
+        if (!plan.ready.length) {
+            if (options.resume) onQueueChange?.(null);
+            const reasons = [...new Set(plan.skipped.map((skip) => skip.message))].slice(0, 3).join("；");
+            message.warning(reasons ? `没有可生成的镜头：${reasons}` : "请选择可生成的镜头");
             return;
         }
         const kindLabel = kind === "image" ? "分镜图" : "分镜视频";
-        const skipped = [
-            skippedText ? `${skippedText} 镜缺描述` : "",
-            skippedBusy ? `${skippedBusy} 镜生成中` : "",
-            skippedFrame ? `${skippedFrame} 镜首尾帧缺首帧` : "",
-        ].filter(Boolean).join("、");
-        if (skipped) message.warning(`已跳过 ${skipped}`);
         if (!ensureConfig(kind)) {
             message.warning(`请先配置可用的${kind === "image" ? "图片" : "视频"}模型`);
             return;
         }
-        const confirmed = await confirm({
-            title: `批量生成${kindLabel}（${targets.length} 镜）`,
-            description: `将按镜头顺序逐个生成${kindLabel}，单个镜头失败不会影响后续；生成过程中可随时停止，已完成结果会保留。`,
-            confirmText: "开始生成",
-            cancelText: "取消",
+        if (!options.skipConfirm) {
+            const confirmed = await confirm({
+                title: `批量生成${kindLabel}（${plan.ready.length} 镜）`,
+                description: createElement(FilmBatchPlanSummary, { plan }),
+                confirmText: "开始生成",
+                cancelText: "返回检查",
+                width: 520,
+                stacked: true,
+            });
+            if (!confirmed) return;
+        }
+        const targets = plan.ready.flatMap((item) => {
+            const node = nodesRef.current.find((candidate) => candidate.id === item.shotId);
+            return node ? [node] : [];
         });
-        if (!confirmed) return;
+        const queueId = options.resume?.id || nanoid();
+        const queueStartedAt = options.resume?.startedAt || Date.now();
+        onQueueChange?.({ id: queueId, startedAt: queueStartedAt, kind, remainingShotIds: targets.map((node) => node.id) });
 
         runningRef.current = true;
         stopRequestedRef.current = false;
@@ -135,6 +128,7 @@ export function useFilmShotBatch({ nodesRef, generate, stop, ensureConfig, messa
                     interrupted = true;
                     break;
                 }
+                onQueueChange?.({ id: queueId, startedAt: queueStartedAt, kind, remainingShotIds: targets.slice(index).map((target) => target.id) });
                 const payload = node.metadata?.filmShot;
                 activeShotRef.current = node.id;
                 setState((prev) => ({ ...prev, currentIndex: index + 1, currentTitle: payload?.shotNo || node.title || `镜头 ${index + 1}`, currentShotId: node.id }));
@@ -158,13 +152,14 @@ export function useFilmShotBatch({ nodesRef, generate, stop, ensureConfig, messa
                 stopRequestedRef.current = false;
                 activeShotRef.current = "";
                 activeKindRef.current = null;
+                onQueueChange?.(null);
                 setState((prev) => ({ ...prev, running: false, currentTitle: "", currentIndex: 0, currentShotId: "" }));
                 if (interrupted) message.warning(`批量${kindLabel}已停止，成功 ${completed} 镜，失败 ${failed} 镜`);
                 else if (failed) message.warning(`批量${kindLabel}完成，成功 ${completed} 镜，失败 ${failed} 镜`);
                 else message.success(`已生成 ${completed} 镜${kindLabel}`);
             }
         }
-    }, [confirm, ensureConfig, generate, message, nodesRef, waitForShot]);
+    }, [confirm, connectionsRef, ensureConfig, generate, message, nodesRef, onQueueChange, resolveReferenceLimit, waitForShot]);
 
     const stopBatch = useCallback(async () => {
         if (!runningRef.current) return;

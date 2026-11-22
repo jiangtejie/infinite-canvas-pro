@@ -21,17 +21,17 @@ const project = (shots: FilmShot[], overrides: Partial<FilmProject> = {}): FilmP
     characters: [], locations: [], props: [], costumes: [], createdAt: "", updatedAt: "", ...overrides,
 });
 
-test("角色缺少身份包时标记缺参考", () => {
+test("角色缺少参考板时标记缺参考", () => {
     const character = asset({ id: "c1", name: "阿青", character: createEmptyCharacterProfile() });
     const report = filmAssetReadiness(project([shot({ characterBindings: [{ characterId: "c1", source: "manual", characterNameSnapshot: "阿青", continuity: {} }] })], { characters: [character] }));
     assert.equal(report.checked, 1);
     assert.equal(report.ready, 0);
     assert.equal(report.missing[0].kind, "character");
-    assert.match(report.missing[0].reason, /身份包/);
+    assert.match(report.missing[0].reason, /参考板/);
 });
 
-test("有身份包但未锁定只进提示不拦", () => {
-    const profile = { ...createEmptyCharacterProfile(), master: slot("master", false) };
+test("有参考板但未锁定只进提示不拦", () => {
+    const profile = { ...createEmptyCharacterProfile(), board: slot("board", false) };
     const character = asset({ id: "c1", name: "阿青", character: profile });
     const report = filmAssetReadiness(project([shot({ characterBindings: [{ characterId: "c1", source: "manual", characterNameSnapshot: "阿青", continuity: {} }] })], { characters: [character] }));
     assert.equal(report.checked, 1);
@@ -43,7 +43,7 @@ test("有身份包但未锁定只进提示不拦", () => {
 test("服装、变体与道具缺概念图时分别标记，未绑定资产不检查", () => {
     const profile = {
         ...createEmptyCharacterProfile(),
-        master: slot("master", true),
+        board: slot("board", true),
         states: [{ id: "st1", name: "正装", description: "", costumeId: "cos1", condition: "", heldPropIds: [], look: emptySlot }],
     };
     const character = asset({ id: "c1", name: "阿青", character: profile });

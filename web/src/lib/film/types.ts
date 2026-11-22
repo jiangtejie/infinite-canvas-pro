@@ -11,6 +11,9 @@ export type FilmImageRef = {
     label?: string;
     prompt?: string;
     model?: string;
+    /** 参考板生成模板与版本，便于回溯版式与提示词。 */
+    templateId?: string;
+    templateVersion?: number;
     width?: number;
     height?: number;
     rating?: 0 | 1 | 2 | 3;
@@ -25,14 +28,6 @@ export type FilmImageSlot = {
     locked: boolean;
 };
 
-export type FilmCharacterPartKey = "face" | "hair" | "upper" | "lower" | "limbs";
-
-export type FilmCharacterPart = {
-    slot: FilmImageSlot;
-    prompt: string;
-    notes: string;
-};
-
 export type FilmCharacterState = {
     id: string;
     name: string;
@@ -45,12 +40,8 @@ export type FilmCharacterState = {
 };
 
 export type FilmCharacterProfile = {
-    parts: Record<FilmCharacterPartKey, FilmCharacterPart>;
-    /** 表情集：label = 喜 / 怒 / 哀 / 惊 / 平静… */
-    expressions: FilmImageSlot;
-    master: FilmImageSlot;
-    card: FilmImageSlot;
-    cardSignature?: string;
+    /** 单一角色参考板，即角色身份包与镜头生成主参考。 */
+    board: FilmImageSlot;
     /** 标志性道具 → project.props。 */
     propIds: string[];
     states: FilmCharacterState[];
@@ -93,8 +84,6 @@ export type FilmShotVariantSuggestion = {
 export type FilmGenerationReferenceRole =
     | "character-package"
     | "character-state"
-    | "character-detail"
-    | "character-expression"
     | "costume"
     | "prop"
     | "location"
@@ -181,13 +170,16 @@ export type FilmShotTask = {
 };
 
 /** 资产设定图任务，记录回写目标（概念图 / 视图 / 部位 / 表情 / 全身合成 / 角色卡 / 场景变体）。 */
-export type FilmAssetTaskTarget = "concept" | "view" | "part" | "expression" | "master" | "card" | "variant";
+export type FilmAssetTaskTarget = "concept" | "view" | "board" | "variant";
 
 export type FilmAssetTask = FilmShotTask & {
     target: FilmAssetTaskTarget;
     label?: string;
-    partKey?: FilmCharacterPartKey;
     variantId?: string;
+    templateId?: string;
+    templateVersion?: number;
+    prompt?: string;
+    model?: string;
 };
 
 export type FilmMediaVersion = {
@@ -441,6 +433,8 @@ export type FilmAsset = {
     status: FilmAssetStatus;
     errorMessage?: string;
     sourceLibraryAssetId?: string;
+    /** 角色参考板当前选择的模板。 */
+    referenceTemplateId?: string;
     tags?: string[];
     /** 概念图 / 设定图（所有类型共有）。 */
     concept: FilmImageSlot;

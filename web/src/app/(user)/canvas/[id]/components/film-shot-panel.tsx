@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { Input, InputNumber, Popover, Select } from "antd";
+import { Input, InputNumber, Modal, Popover, Select } from "antd";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
+import { useCopyText } from "@/hooks/use-copy-text";
 import { CreditSymbol, requestCreditCost } from "@/constant/credits";
 import { clampFilmVideoDuration } from "@/app/(user)/film/utils/film-video-limits";
 import { ModelPicker } from "@/components/model-picker";
@@ -13,9 +14,11 @@ import { useUserStore } from "@/stores/use-user-store";
 import type { FilmAssetKind } from "@/lib/film/types";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import { canvasStatusColors } from "../../lib/canvas-palette";
+import { CANVAS_Z } from "../lib/canvas-layer";
 import type { CanvasNodeData, FilmBindingEdgeData } from "../../types";
 import { patchFilmShotNode } from "../lib/film-node-patch";
 import type { FilmBindingAssetOption, FilmShotBindingChip } from "../lib/film-studio-types";
+import type { FilmContextLens } from "../lib/film-context-lens";
 import { FilmCameraMovementControl, FilmShotTypeControl, FilmTransitionControl } from "./film-shot-basic-controls";
 import { FilmShotProfessionalFields } from "./film-shot-professional-fields";
 import { FilmShotVideoFrames } from "./film-shot-video-frames";
@@ -26,6 +29,7 @@ type FilmShotPanelProps = {
     sceneLabel: string;
     bindings: FilmShotBindingChip[];
     styleName: string | null;
+    contextLenses: { image: FilmContextLens | null; video: FilmContextLens | null };
     canCreateShot: boolean;
     onCreateShot: () => void;
     onUpdate: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
@@ -71,6 +75,67 @@ function FilmCreditHint({ theme, config, videoSeconds }: { theme: CanvasTheme; c
             <span className="inline-flex items-center gap-0.5">视频 {videoCredits > 0 ? <>约 <CreditSymbol />{videoCredits.toLocaleString()}</> : "按后台单价"}</span>
             {user ? <span className="inline-flex items-center gap-0.5">余额 <CreditSymbol />{user.credits.toLocaleString()}</span> : null}
             {user && hasPrice && user.credits < Math.max(imageCredits, videoCredits) ? <a href="/account?tab=recharge" className="text-amber-500 underline-offset-2 hover:underline">余额不足</a> : null}
+        </div>
+    );
+}
+
+function uniqueContextIssues(lenses: { image: FilmContextLens | null; video: FilmContextLens | null }) {
+    const issues = new Map<string, "warning" | "error">();
+    [lenses.image, lenses.video].forEach((lens) => {
+        lens?.issues.forEach((issue) => {
+            if (!issues.has(issue.message) || issue.level === "error") issues.set(issue.message, issue.level);
+        });
+    });
+    return [...issues.entries()].map(([message, level]) => ({ message, level }));
+}
+
+function contextIssueCount(lenses: { image: FilmContextLens | null; video: FilmContextLens | null }) {
+    return uniqueContextIssues(lenses).length;
+}
+
+function ContextLensSummary({ theme, lenses }: { theme: CanvasTheme; lenses: { image: FilmContextLens | null; video: FilmContextLens | null } }) {
+    const [previewOpen, setPreviewOpen] = useState(false);
+    const copyText = useCopyText();
+    const lens = lenses.image ?? lenses.video;
+    if (!lens) return <span className="text-xs" style={{ color: theme.node.muted }}>选择镜头后显示生成上下文。</span>;
+    const details = lens.scene
+        ? [lens.scene.location && `地点 ${lens.scene.location}`, lens.scene.time && `时间 ${lens.scene.time}`, lens.scene.mood && `氛围 ${lens.scene.mood}`, lens.scene.notes && `备注 ${lens.scene.notes}`].filter(Boolean).join(" · ")
+        : "";
+    const issues = uniqueContextIssues(lenses);
+    return (
+        <div className="flex flex-col gap-1.5 text-xs">
+            <div className="flex items-start justify-between gap-2">
+                <span className="shrink-0" style={{ color: theme.node.muted }}>场次</span>
+                <span className="min-w-0 text-right" style={{ color: lens.scene ? theme.node.text : theme.node.muted }}>{lens.scene ? lens.scene.label : "未归属场次"}</span>
+            </div>
+            {details ? <div className="text-[11px] leading-5" style={{ color: theme.node.muted }}>{details}</div> : null}
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]" style={{ color: theme.node.muted }}>
+                <span className="truncate" title={lens.styleName || undefined}>风格 · {lens.styleName || "未设置"}</span>
+                <span>上一镜 · {lens.previousShot ? `#${lens.previousShot.shotNo}` : "无"}</span>
+                <span>分镜图 · {lenses.image?.references.length ?? 0} 参考</span>
+                <span>视频 · {lenses.video?.references.length ?? 0} 参考</span>
+            </div>
+            {issues.slice(0, 4).map((issue) => (
+                <div key={issue.message} className="flex items-start gap-1 text-[11px] leading-4" style={{ color: issue.level === "error" ? canvasStatusColors.error : canvasStatusColors.loading }}>· {issue.message}</div>
+            ))}
+            {issues.length > 4 ? <div className="text-[10px]" style={{ color: theme.node.muted }}>还有 {issues.length - 4} 条提醒，见生成信息。</div> : null}
+            {lens.prompt ? <button type="button" className="self-start text-[11px] underline underline-offset-2" style={{ color: theme.node.muted }} onClick={() => setPreviewOpen(true)}>查看完整提示词</button> : null}
+            <Modal
+                open={previewOpen}
+                onCancel={() => setPreviewOpen(false)}
+                title="完整提示词预览"
+                width={760}
+                zIndex={CANVAS_Z.popover}
+                styles={{ header: { background: theme.node.panel, color: theme.node.text }, body: { background: theme.node.panel, color: theme.node.text, paddingTop: 8 }, footer: { background: theme.node.panel } }}
+                footer={(
+                    <div className="flex justify-end gap-2">
+                        <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={() => copyText(lens.prompt, "提示词已复制")}>复制提示词</button>
+                        <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} onClick={() => setPreviewOpen(false)}>关闭</button>
+                    </div>
+                )}
+            >
+                <pre className="thin-scrollbar max-h-[62vh] overflow-auto whitespace-pre-wrap rounded-lg border p-3 text-xs leading-5" style={{ borderColor: theme.node.stroke, background: theme.node.fill, color: theme.node.text }}>{lens.prompt}</pre>
+            </Modal>
         </div>
     );
 }
@@ -176,7 +241,7 @@ function AddBindingButton({ theme, assets, onAdd, onCreateAsset }: { theme: Canv
     );
 }
 
-export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, taskProgress, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, availableAssets, onAddBinding, onRemoveBinding, onUpdateBinding, onEditAsset, onOpenScript, onCreateAsset, openSections, onToggleSection }: FilmShotPanelProps) {
+export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, contextLenses, canCreateShot, onCreateShot, onUpdate, onClose, imageGenerating, imageError, taskProgress, canGenerateImage, onGenerateImage, onStopImage, videoGenerating, videoError, canGenerateVideo, onGenerateVideo, onStopVideo, availableAssets, onAddBinding, onRemoveBinding, onUpdateBinding, onEditAsset, onOpenScript, onCreateAsset, openSections, onToggleSection }: FilmShotPanelProps) {
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
     const config = useEffectiveConfig();
     const updateConfig = useConfigStore((state) => state.updateConfig);
@@ -227,6 +292,9 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
                             </div>
                         </details>
                         <Field theme={theme} label="动作补充（视频）"><Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.videoPrompt || ""} style={inputStyle} onChange={(event) => update({ videoPrompt: event.target.value })} /></Field>
+                    </Section>
+                    <Section theme={theme} title={`上下文${contextIssueCount(contextLenses) ? ` · ${contextIssueCount(contextLenses)}` : ""}`} open={openSections.has("context")} onToggle={() => onToggleSection("context")}>
+                        <ContextLensSummary theme={theme} lenses={contextLenses} />
                     </Section>
                     <Section theme={theme} title="专业" open={openSections.has("professional")} onToggle={() => onToggleSection("professional")}>
                         <FilmShotProfessionalFields theme={theme} payload={filmShot} onUpdate={update} variant="panel" />

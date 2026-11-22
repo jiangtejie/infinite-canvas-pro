@@ -1,13 +1,13 @@
 import type { FilmAsset, FilmCharacterGenerationSnapshot, FilmGenerationContext, FilmGenerationReference, FilmImageRef, FilmMediaVersion, FilmProject, FilmShot, FilmShotCharacterBinding, FilmVideoMode } from "@/lib/film/types";
 import { directorStyleFor } from "@/lib/film/director-styles";
 import { resolveFilmStyleText } from "@/lib/film/film-styles";
-import { CHARACTER_PART_DEFINITIONS, characterDetailImage, characterPackageImage, ensureCharacterProfile, filmAssetSignature, filmCharacterSignature, findFilmCharacterState } from "./film-character";
+import { characterPackageImage, filmAssetSignature, filmCharacterSignature, findFilmCharacterState } from "./film-character";
 import { formatFilmBindingContinuity, formatFilmContinuityPrompt } from "./film-continuity-sheet";
 import { activeSlotImage } from "./film-image-slot";
 import { buildFilmShotPrompt } from "./film-shot-prompt";
 import { createDefaultSegments, validateSegments } from "./film-video-segments";
 
-export const FILM_GENERATION_COMPILER_VERSION = "film-shot-gen/5";
+export const FILM_GENERATION_COMPILER_VERSION = "film-shot-gen/6";
 export const FILM_IMAGE_REFERENCE_LIMIT = 6;
 
 export type FilmGenerationOptions = {
@@ -17,6 +17,14 @@ export type FilmGenerationOptions = {
     anchorShot?: FilmShot;
     includeStoryboard?: boolean;
     videoMode?: FilmVideoMode;
+    sceneContext?: {
+        episodeTitle: string;
+        name: string;
+        location: string;
+        time: string;
+        mood: string;
+        notes?: string;
+    };
 };
 
 function reference(id: string, role: FilmGenerationReference["role"], image: FilmImageRef, label: string, characterId?: string): FilmGenerationReference {
@@ -28,24 +36,10 @@ function mediaImageRef(source: { id: string; imageUrl?: string; storageKey?: str
     return { id: source.storageKey || source.imageUrl || source.id, url: source.imageUrl || "", storageKey: source.storageKey };
 }
 
-/** 按镜头情绪匹配表情集 label：当前选定版本优先，否则取最新匹配。 */
-function matchingExpressionImage(profile: ReturnType<typeof ensureCharacterProfile>, emotion: string): FilmImageRef | undefined {
-    const needle = emotion.normalize("NFKC").trim().toLowerCase();
-    if (!needle) return undefined;
-    const matches = (image: FilmImageRef) => {
-        const label = (image.label || "").normalize("NFKC").trim().toLowerCase();
-        return Boolean(label) && (needle.includes(label) || label.includes(needle));
-    };
-    const active = activeSlotImage(profile.expressions);
-    if (active && matches(active)) return active;
-    return [...profile.expressions.images].reverse().find(matches);
-}
-
 /** 图片与视频共用的单角色身份/状态/连续性文本；角色名只出现一次（在连续性行）。 */
 function characterSnapshotText(project: Pick<FilmProject, "costumes" | "props">, asset: FilmAsset | undefined, binding: FilmShotCharacterBinding, previousBinding?: FilmShotCharacterBinding): string {
     const state = asset ? findFilmCharacterState(asset, binding.stateId) : undefined;
-    const profile = asset ? ensureCharacterProfile(asset) : undefined;
-    const identity = asset ? [asset.description, asset.visualPrompt, ...(profile ? CHARACTER_PART_DEFINITIONS.map((part) => profile.parts[part.key].prompt) : [])].filter(Boolean).join("；") : "";
+    const identity = asset ? [asset.description, asset.visualPrompt].filter(Boolean).join("；") : "";
     const costume = state?.costumeId ? project.costumes?.find((item) => item.id === state.costumeId) : undefined;
     const heldProps = (state?.heldPropIds || []).map((id) => project.props?.find((item) => item.id === id)?.name || "").filter(Boolean);
     const stateText = state ? [state.description, costume && `服装：${costume.name}`, state.condition && `身体：${state.condition}`, heldProps.length && `持有：${heldProps.join("、")}`].filter(Boolean).join("；") : "";
@@ -61,7 +55,7 @@ export type FilmGenerationProjectContext = Pick<FilmProject, "characters" | "loc
  * 为图片与视频编译同一份角色身份/状态/连续性文本、按配额与预算选择参考图、合成最终提示词并计算输入签名。
  */
 export function buildFilmShotGenerationContext(project: FilmGenerationProjectContext, shot: FilmShot, options: FilmGenerationOptions): FilmGenerationContext {
-    const { medium, maxReferences, previousShot, anchorShot, includeStoryboard, videoMode } = options;
+    const { medium, maxReferences, previousShot, anchorShot, includeStoryboard, videoMode, sceneContext } = options;
     const characters = project.characters || [];
     const locations = project.locations || [];
     const props = project.props || [];
@@ -80,8 +74,6 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
     const packageRefs: FilmGenerationReference[] = [];
     const costumeRefs: FilmGenerationReference[] = [];
     const stateRefs: FilmGenerationReference[] = [];
-    const expressionRefs: FilmGenerationReference[] = [];
-    const detailRefs: FilmGenerationReference[] = [];
 
     for (const binding of shot.characterBindings) {
         const asset = characters.find((item) => item.id === binding.characterId);
@@ -102,8 +94,8 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
         }
         if (frames) continue;
         const packageImage = characterPackageImage(asset);
-        if (packageImage) pushUnique(packageRefs, reference(`package-${asset.id}`, "character-package", packageImage, `${asset.name} 身份包`, asset.id));
-        else warnings.push(`角色「${asset.name}」缺少身份参考图（角色卡或全身图）`);
+        if (packageImage) pushUnique(packageRefs, reference(`package-${asset.id}`, "character-package", packageImage, `${asset.name} 参考板`, asset.id));
+        else warnings.push(`角色「${asset.name}」缺少角色参考板`);
 
         const costume = state?.costumeId ? costumes.find((item) => item.id === state.costumeId) : undefined;
         if (state?.costumeId && !costume) warnings.push(`角色「${asset.name}」引用的服装已删除`);
@@ -112,13 +104,6 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
 
         const lookImage = activeSlotImage(state?.look);
         if (lookImage) pushUnique(stateRefs, reference(`state-${asset.id}`, "character-state", lookImage, `${asset.name} · ${state?.name || ""}`, asset.id));
-
-        const emotion = binding.continuity.emotion?.trim();
-        const expressionImage = emotion ? matchingExpressionImage(ensureCharacterProfile(asset), emotion) : undefined;
-        if (expressionImage) pushUnique(expressionRefs, reference(`expression-${asset.id}-${expressionImage.id}`, "character-expression", expressionImage, `${asset.name} ${expressionImage.label || emotion}`, asset.id));
-
-        const detailImage = characterDetailImage(asset, shot);
-        if (detailImage) pushUnique(detailRefs, reference(`detail-${asset.id}`, "character-detail", detailImage, `${asset.name} 细节`, asset.id));
     }
 
     const propRefs: FilmGenerationReference[] = [];
@@ -160,7 +145,6 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
                 if (locationImage) pushUnique(secondary, reference(`location-${locationAsset.id}`, "location", locationImage, locationAsset.name));
             }
         }
-        secondary.push(...expressionRefs, ...detailRefs);
         if (medium === "image" && previousShot) {
             const image = mediaImageRef(previousShot);
             if (image) pushUnique(secondary, reference(`previous-${previousShot.id}`, "previous-shot", image, `上一镜 ${previousShot.shotNo}`));
@@ -200,6 +184,7 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
     const anchorInstruction = references.some((ref) => ref.role === "anchor-shot") ? "与参考图中的锚点帧保持相同的色调、光线、材质与画风，角色和场景设定不要改变。" : "";
     const promptBase = {
         shot,
+        scene: sceneContext,
         characters: snapshots.map((snapshot) => snapshot.prompt),
         location: locationText,
         continuity: continuityText,

@@ -33,6 +33,23 @@ test("appends a shot to a scene with composition and sequence edges", () => {
     );
 });
 
+test("inserts a new shot after the scene's last shot in the global chain", () => {
+    const scene = (id: string) => node(id, CanvasNodeType.Scene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: id, location: "", time: "", mood: "" } });
+    const a1 = shot("a1");
+    const b1 = shot("b1");
+    const connections: CanvasConnection[] = [
+        { id: "a1-comp", fromNodeId: "scene-a", toNodeId: "a1", kind: "composition" },
+        { id: "b1-comp", fromNodeId: "scene-b", toNodeId: "b1", kind: "composition" },
+        { id: "a1->b1", fromNodeId: "a1", toNodeId: "b1", kind: "sequence" },
+    ];
+    const result = appendFilmShot([scene("scene-a"), scene("scene-b"), a1, b1], connections, "scene-a", { nodeId: "a2" });
+    assert.ok(result);
+    assert.deepEqual(
+        result.connections.filter((edge) => edge.kind === "sequence").map((edge) => `${edge.fromNodeId}->${edge.toNodeId}`),
+        ["a1->a2", "a2->b1"],
+    );
+});
+
 test("creates the first shot without a sequence edge and rejects a missing scene", () => {
     const scene = node("scene", CanvasNodeType.Scene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: "场景 1", location: "", time: "", mood: "" } });
     const result = appendFilmShot([scene], [], "scene", { nodeId: "shot-a" });

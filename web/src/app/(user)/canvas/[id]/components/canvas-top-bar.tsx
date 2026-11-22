@@ -346,7 +346,7 @@ export function CanvasTopBar({
                     {filmMode ? (
                         <>
                             <div className="mt-2 border-t pt-3 text-[11px] font-medium tracking-[0.12em] uppercase" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>影视 Studio</div>
-                            <Shortcut keys={["1–5"]} value="Studio / 镜头表 / 故事板 / 时间轴 / 画布" />
+                            <Shortcut keys={["1–6"]} value="Studio / 镜头表 / 故事板 / 时间轴 / 画布 / 资产" />
                             <Shortcut keys={["S / C"]} value="剧本 / 就绪与一致性检查" />
                             <Shortcut keys={["← / →"]} value="上一镜 / 下一镜" />
                             <Shortcut keys={["G / V"]} value="生成分镜图 / 分镜视频" />

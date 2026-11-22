@@ -2,6 +2,7 @@ import type { FilmAsset, FilmAssetKind, FilmGenerationContext, FilmShot, FilmSho
 import { findFilmCharacterState } from "@/app/(user)/film/utils/film-character";
 import { buildFilmShotGenerationContext, type FilmGenerationOptions } from "@/app/(user)/film/utils/film-shot-generation";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { orderFilmShots } from "./film-layout";
 
 export type FilmGraphGenerationOptions = Omit<FilmGenerationOptions, "previousShot" | "anchorShot"> & {
     includePreviousShot?: boolean;
@@ -59,9 +60,25 @@ export function selectFilmShotFromGraph(node: CanvasNodeData, nodes: CanvasNodeD
 }
 
 function previousShotOf(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string): FilmShot | undefined {
-    const edge = connections.find((item) => item.kind === "sequence" && item.toNodeId === shotId);
-    const node = edge ? nodes.find((item) => item.id === edge.fromNodeId) : undefined;
+    const ordered = orderFilmShots(nodes.filter((item) => item.type === CanvasNodeType.Shot), connections);
+    const index = ordered.findIndex((item) => item.id === shotId);
+    const node = index > 0 ? ordered[index - 1] : undefined;
     return node ? shotFromNode(node, nodes, connections) ?? undefined : undefined;
+}
+
+function sceneContextOf(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string) {
+    const edge = connections.find((item) => item.kind === "composition" && item.toNodeId === shotId);
+    const scene = edge ? nodes.find((item) => item.id === edge.fromNodeId && item.type === CanvasNodeType.Scene) : undefined;
+    const payload = scene?.metadata?.filmScene;
+    if (!payload) return undefined;
+    return {
+        episodeTitle: payload.episodeTitle,
+        name: payload.name,
+        location: payload.location,
+        time: payload.time,
+        mood: payload.mood,
+        notes: payload.notes,
+    };
 }
 
 export function buildFilmShotGenerationFromGraph(    nodes: CanvasNodeData[],
@@ -84,5 +101,6 @@ export function buildFilmShotGenerationFromGraph(    nodes: CanvasNodeData[],
     }, shot, {
         ...generationOptions,
         previousShot: includePreviousShot ? previousShotOf(nodes, connections, shotId) : undefined,
+        sceneContext: sceneContextOf(nodes, connections, shotId),
     });
 }

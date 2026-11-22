@@ -7,12 +7,12 @@ test("storage reference keys cover film, cast, logs and other accounts", () => {
     const data = {
         assets: [{ kind: "image", data: { storageKey: "image:asset" } }],
         projects: [{ metadata: { storageKey: "server:canvas", content: "blob:preview" } }],
-        filmCast: { characters: [{ profile: { parts: { face: { images: [{ storageKey: "server:cast" }] } }, card: { storageKey: "image:card" } } }] },
+        filmCast: { characters: [{ character: { board: { images: [{ storageKey: "server:cast" }] } } }] },
         logKeys: ["video:log", "server:log", "file:log"],
         otherAccounts: [{ state: { projects: [{ nodes: [{ storageKey: "image:other" }] }] } }],
     };
     const keys = collectStorageReferenceKeys(data);
-    assert.deepEqual([...keys].sort(), ["file:log", "image:asset", "image:card", "image:other", "server:canvas", "server:cast", "server:log", "video:log"]);
+    assert.deepEqual([...keys].sort(), ["file:log", "image:asset", "image:other", "server:canvas", "server:cast", "server:log", "video:log"]);
 });
 
 test("image key collector maps known urls and captures node urls", () => {

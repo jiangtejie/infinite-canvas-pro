@@ -4,7 +4,7 @@ import test from "node:test";
 import type { FilmAsset } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { normalizeConnection } from "./canvas-connections";
-import { canAddFilmConnection } from "./film-connections";
+import { canAddFilmConnection, filmSequenceCheck } from "./film-connections";
 
 const asset = (id: string, kind: "character" | "location" | "prop" | "costume" | "style"): CanvasNodeData => ({
     id,
@@ -100,4 +100,31 @@ test("rejects sequence cycles and accepts a valid sequence", () => {
 
     const valid = normalizeConnection("shot", "shot2", withShot2, "source")!;
     assert.equal(canAddFilmConnection(valid, withShot2, []).ok, true);
+});
+
+test("rejects a second predecessor or successor in the global film chain", () => {
+    const shot2 = node("shot2", CanvasNodeType.Shot);
+    const shot3 = node("shot3", CanvasNodeType.Shot);
+    const withShots = [...nodes, shot2, shot3];
+    const existing: CanvasConnection[] = [{ id: "shot->shot2", fromNodeId: "shot", toNodeId: "shot2", kind: "sequence" }];
+    assert.equal(canAddFilmConnection(normalizeConnection("shot", "shot3", withShots, "source")!, withShots, existing).ok, false);
+    assert.equal(canAddFilmConnection(normalizeConnection("shot3", "shot2", withShots, "source")!, withShots, existing).ok, false);
+});
+
+test("reports non-shot sequence endpoints and branching in an existing graph", () => {
+    const shot2 = node("shot2", CanvasNodeType.Shot);
+    const shot3 = node("shot3", CanvasNodeType.Shot);
+    const graph = [...nodes, shot2, shot3];
+    const nonShot = filmSequenceCheck(graph, [{ id: "scene->shot", fromNodeId: "scene1", toNodeId: "shot", kind: "sequence" }]);
+    assert.equal(nonShot.ok, false);
+    const branching = filmSequenceCheck(graph, [
+        { id: "shot->shot2", fromNodeId: "shot", toNodeId: "shot2", kind: "sequence" },
+        { id: "shot->shot3", fromNodeId: "shot", toNodeId: "shot3", kind: "sequence" },
+    ]);
+    assert.equal(branching.ok, false);
+    const valid = filmSequenceCheck(graph, [
+        { id: "shot->shot2", fromNodeId: "shot", toNodeId: "shot2", kind: "sequence" },
+        { id: "shot2->shot3", fromNodeId: "shot2", toNodeId: "shot3", kind: "sequence" },
+    ]);
+    assert.equal(valid.ok, true);
 });

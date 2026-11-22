@@ -8,7 +8,6 @@ import { filmShotTypeLabel } from "@/app/(user)/film/utils/film-shot-types";
 import { useFilmViewState, useFilmViewStore } from "@/app/(user)/canvas/stores/use-film-view-store";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import type { FilmSceneEntry, FilmShotEntry, FilmStudioModel } from "../lib/film-studio-types";
-import { moveFilmShot } from "../lib/film-shot-reorder";
 import { filmShotViewStats, groupFilmShots } from "../lib/film-shot-views";
 import { FilmShotMediaBadges } from "./film-shot-media-badges";
 import { FilmShotSelectionBar } from "./film-shot-selection-bar";
@@ -24,6 +23,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
     const setColumns = (value: 4 | 9) => updateView(model.projectId, (current) => ({ ...current, boardColumns: value }));
     const [dragging, setDragging] = useState<{ shotId: string; sceneId: string } | null>(null);
     const [dropHint, setDropHint] = useState<{ shotId: string; after: boolean } | null>(null);
+    const [emptyOverSceneId, setEmptyOverSceneId] = useState<string | null>(null);
     const draggingRef = useRef<{ shotId: string; sceneId: string } | null>(null);
     const suppressOpenRef = useRef(false);
     const stats = filmShotViewStats(model.shots);
@@ -47,17 +47,21 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
         draggingRef.current = null;
         setDragging(null);
         setDropHint(null);
+        setEmptyOverSceneId(null);
     };
-    const dropBeforeOrAfter = (scene: FilmSceneEntry, targetShotId: string, after: boolean) => {
+    const finishMove = (sceneId: string, targetShotId: string | null, after: boolean) => {
         const dragged = draggingRef.current;
-        if (!dragged || dragged.sceneId !== scene.id) return;
-        const ordered = moveFilmShot(scene.shots.map((entry) => entry.shot.id), dragged.shotId, targetShotId, after);
+        if (!dragged) return;
         suppressOpenRef.current = true;
         window.setTimeout(() => {
             suppressOpenRef.current = false;
         }, 300);
         clearDragging();
-        if (ordered) model.onReorderShots(scene.id, ordered);
+        model.onMoveShot(dragged.shotId, sceneId, targetShotId, after);
+    };
+    const dropBeforeOrAfter = (scene: FilmSceneEntry, targetShotId: string, after: boolean) => {
+        if (!scene.scene) return;
+        finishMove(scene.id, targetShotId, after);
     };
     const toggleSelected = (shotId: string) => updateView(model.projectId, (current) => {
         const next = new Set(current.selectedShotIds);
@@ -82,7 +86,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
                 {[`${stats.shots} 镜`, `${stats.scenes} 场`, `${stats.duration}s`].map((label) => (
                     <span key={label} className="rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{label}</span>
                 ))}
-                {stats.shots > 1 ? <span className="hidden text-[11px] sm:inline" style={{ color: theme.node.muted }}>拖拽卡片排序</span> : null}
+                {stats.shots > 1 ? <span className="hidden text-[11px] sm:inline" style={{ color: theme.node.muted }}>拖拽卡片排序，可移入其他场次</span> : null}
                 <div className="ml-auto flex items-center gap-0.5 rounded-full border p-0.5" style={{ borderColor: theme.node.stroke }}>
                     {([4, 9] as const).map((value) => (
                         <button key={value} type="button" className="rounded-full px-2 py-0.5 text-[11px]" style={{ background: columns === value ? theme.canvas.selectionSoft : undefined, color: columns === value ? theme.node.text : theme.node.muted }} onClick={() => setColumns(value)}>{value} 格</button>
@@ -136,7 +140,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
                                                         onDragEnd={clearDragging}
                                                         onDragOver={(event) => {
                                                             const dragged = draggingRef.current;
-                                                            if (!dragged || dragged.sceneId !== entry.sceneId || dragged.shotId === entry.shot.id) return;
+                                                            if (!dragged || !scene.scene || dragged.shotId === entry.shot.id) return;
                                                             event.preventDefault();
                                                             event.dataTransfer.dropEffect = "move";
                                                             const rect = event.currentTarget.getBoundingClientRect();
@@ -144,8 +148,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
                                                             setDropHint((prev) => (prev?.shotId === entry.shot.id && prev.after === after ? prev : { shotId: entry.shot.id, after }));
                                                         }}
                                                         onDrop={(event) => {
-                                                            const dragged = draggingRef.current;
-                                                            if (!dragged || dragged.sceneId !== entry.sceneId) return;
+                                                            if (!draggingRef.current || !scene.scene) return;
                                                             event.preventDefault();
                                                             const rect = event.currentTarget.getBoundingClientRect();
                                                             dropBeforeOrAfter(scene, entry.shot.id, event.clientX > rect.left + rect.width / 2);
@@ -155,7 +158,22 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
                                             </div>
                                         </div>
                                     )) : (
-                                        <div className="grid place-items-center gap-2 rounded-lg border border-dashed px-4 py-6 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>
+                                        <div
+                                            className="grid place-items-center gap-2 rounded-lg border border-dashed px-4 py-6 text-xs"
+                                            style={{ borderColor: emptyOverSceneId === scene.id ? theme.canvas.selectionStroke : theme.node.stroke, color: theme.node.muted }}
+                                            onDragOver={(event) => {
+                                                if (!draggingRef.current || !scene.scene) return;
+                                                event.preventDefault();
+                                                event.dataTransfer.dropEffect = "move";
+                                                setEmptyOverSceneId((prev) => (prev === scene.id ? prev : scene.id));
+                                            }}
+                                            onDragLeave={() => setEmptyOverSceneId((prev) => (prev === scene.id ? null : prev))}
+                                            onDrop={(event) => {
+                                                if (!draggingRef.current || !scene.scene) return;
+                                                event.preventDefault();
+                                                finishMove(scene.id, null, true);
+                                            }}
+                                        >
                                             <span>本场还没有镜头</span>
                                             {scene.scene ? <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={() => model.onCreateShot(scene.id)}>新增镜头</button> : null}
                                         </div>
@@ -168,7 +186,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
             ) : (
                 <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有场次，去 Studio 或画布新增镜头。</div>
             )}
-            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onGenerate={(kind) => model.onBatchGenerateShots([...selected], kind)} onClear={clearSelection} />
+            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onGenerate={(kind) => model.onBatchGenerateShots([...selected], kind)} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
         </div>
     );
 }

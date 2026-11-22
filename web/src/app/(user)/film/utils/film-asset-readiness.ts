@@ -74,7 +74,7 @@ export function filmAssetReadiness(project: FilmProject, shots?: FilmShot[]): Fi
                 continue;
             }
             const identity = characterIdentitySlot(asset);
-            check(`character:${asset.id}`, "character", asset.name, Boolean(identity.image), identity.locked, "缺少身份包参考（角色卡或全身合成图）", shot.shotNo, asset.id);
+            check(`character:${asset.id}`, "character", asset.name, Boolean(identity.image), identity.locked, "缺少角色参考板", shot.shotNo, asset.id);
 
             const state = binding.stateId ? findFilmCharacterState(asset, binding.stateId) : undefined;
             const costume = state?.costumeId ? (project.costumes || []).find((item) => item.id === state.costumeId) : undefined;

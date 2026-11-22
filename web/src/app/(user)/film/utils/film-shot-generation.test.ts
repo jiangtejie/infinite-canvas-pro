@@ -9,7 +9,7 @@ const imageSlot = (id: string, storageKey?: string) => ({ images: [{ id: `${id}-
 
 const character = (id: string, name: string, overrides: Partial<FilmAsset> = {}): FilmAsset => ({
     id, name, aliases: [], description: `${name}的描述`, visualPrompt: "", status: "ready", concept: { images: [], locked: false },
-    character: { ...createEmptyCharacterProfile(), master: imageSlot(id, `image:${id}`) },
+    character: { ...createEmptyCharacterProfile(), board: imageSlot(id, `image:${id}`) },
     createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", ...overrides,
 });
 
@@ -68,7 +68,7 @@ test("相同输入签名稳定，角色设定与参考图变化都会改变签�
     assert.equal(buildFilmShotGenerationContext(p, s, imageOpts).inputSignature, base.inputSignature);
     const changedDesc = buildFilmShotGenerationContext(project({ characters: [{ ...c, description: "蓝色长发" }] }), s, imageOpts);
     assert.notEqual(changedDesc.inputSignature, base.inputSignature);
-    const changedImage = buildFilmShotGenerationContext(project({ characters: [{ ...c, character: { ...c.character!, master: imageSlot("v2", "image:v2") } }] }), s, imageOpts);
+    const changedImage = buildFilmShotGenerationContext(project({ characters: [{ ...c, character: { ...c.character!, board: imageSlot("v2", "image:v2") } }] }), s, imageOpts);
     assert.notEqual(changedImage.inputSignature, base.inputSignature);
 });
 
@@ -108,16 +108,14 @@ test("绑定角色超过参考预算时明确阻断", () => {
 });
 
 test("预算不足时省略次级参考并给出 warnings", () => {
-    const profile = createEmptyCharacterProfile();
-    profile.parts.face.slot = { images: [{ id: "f1", url: "face.png" }], locked: false };
-    profile.master = imageSlot("c1", "image:c1");
-    const c = character("c1", "甲", { character: profile });
+    const c = character("c1", "甲");
     const loc = character("l1", "场景", { concept: imageSlot("loc", "image:loc") });
-    const s = shot("s1", { shotType: "CU", description: "特写", characterBindings: [binding("c1", "甲")], locationId: "l1" });
-    const ctx = buildFilmShotGenerationContext(project({ characters: [c], locations: [loc] }), s, { medium: "image", maxReferences: 2 });
+    const prop = character("p1", "信", { concept: imageSlot("prop", "image:prop") });
+    const s = shot("s1", { shotType: "CU", description: "特写", characterBindings: [binding("c1", "甲")], propBindings: [{ propId: "p1", propNameSnapshot: "信", source: "manual" }], locationId: "l1" });
+    const ctx = buildFilmShotGenerationContext(project({ characters: [c], props: [prop], locations: [loc] }), s, { medium: "image", maxReferences: 2 });
     assert.equal(ctx.references.length, 2);
-    assert.equal(ctx.references.some((ref) => ref.role === "location"), true);
-    assert.equal(ctx.references.some((ref) => ref.role === "character-detail"), false);
+    assert.equal(ctx.references.some((ref) => ref.role === "prop"), true);
+    assert.equal(ctx.references.some((ref) => ref.role === "location"), false);
     assert.equal(ctx.warnings.some((warning) => /省略|预算/.test(warning)), true);
 });
 
@@ -193,12 +191,9 @@ test("媒体版本状态按自身上下文派生", () => {
     assert.equal(resolveFilmMediaContextState(mediaVersion(context({ missingReferenceIds: ["r1"] })), "sig"), "incomplete");
     assert.equal(resolveFilmMediaContextState(mediaVersion(context()), "sig"), "current");
 });
-test("次级参考按服装、造型、道具、变体、表情/细节、风格的顺序进入预算", () => {
+test("次级参考按服装、造型、道具、变体、风格的顺序进入预算", () => {
     const profile = createEmptyCharacterProfile();
-    profile.master = imageSlot("c1", "image:c1");
-    profile.parts.face.slot = { images: [{ id: "face", url: "face.png" }], locked: false };
-    profile.parts.limbs.slot = { images: [{ id: "limbs", url: "limbs.png" }], locked: false };
-    profile.expressions = { images: [{ id: "exp", url: "exp.png", label: "怒" }], locked: false };
+    profile.board = imageSlot("c1", "image:c1");
     profile.states = [{ id: "s1", name: "受伤", description: "", costumeId: "cos1", condition: "", heldPropIds: ["prop1"], look: { images: [{ id: "look", url: "look.png" }], locked: false } }];
     const c = character("c1", "甲", { character: profile });
     const costume = character("cos1", "白衬衫", { concept: imageSlot("cos1", "image:cos1") });
@@ -218,13 +213,12 @@ test("次级参考按服装、造型、道具、变体、表情/细节、风格�
     });
     const ctx = buildFilmShotGenerationContext(project({ characters: [c], costumes: [costume], props: [prop], locations: [loc], style }), s, { medium: "image", maxReferences: 10 });
     const roles = ctx.references.map((ref) => ref.role);
-    assert.deepEqual(roles.slice(0, 7), ["character-package", "costume", "character-state", "prop", "location-variant", "character-expression", "character-detail"]);
-    assert.equal(roles[roles.length - 1], "style");
+    assert.deepEqual(roles, ["character-package", "costume", "character-state", "prop", "location-variant", "style"]);
 });
 
 test("服装母版更新后角色签名与镜头输入签名都会变化", () => {
     const profile = createEmptyCharacterProfile();
-    profile.master = imageSlot("c1", "image:c1");
+    profile.board = imageSlot("c1", "image:c1");
     profile.states = [{ id: "s1", name: "正装", description: "", costumeId: "cos1", condition: "", heldPropIds: [], look: { images: [], locked: false } }];
     const c = character("c1", "甲", { character: profile });
     const costume = character("cos1", "白衬衫", { concept: imageSlot("cos1", "image:cos1") });

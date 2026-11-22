@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { FilmAsset } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmStyleName } from "./film-selectors";
+import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotBindings, selectFilmShotEntries, selectFilmStyleName } from "./film-selectors";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id,
@@ -59,6 +59,21 @@ test("selects the preferred shot, falls back to the scene's first shot, and hand
     const active = selectActiveFilmShot(emptyScenes, "scene3", null);
     assert.equal(active.scene?.id, "scene3");
     assert.equal(active.shot, null);
+});
+
+test("projects an interleaved global sequence while keeping scene grouping", () => {
+    const interleavedNodes = [scene("scene-a", "ep1", "场景 A"), scene("scene-b", "ep1", "场景 B"), shot("a1"), shot("b1"), shot("a2")];
+    const interleavedConnections: CanvasConnection[] = [
+        { id: "a1-comp", fromNodeId: "scene-a", toNodeId: "a1", kind: "composition" },
+        { id: "a2-comp", fromNodeId: "scene-a", toNodeId: "a2", kind: "composition" },
+        { id: "b1-comp", fromNodeId: "scene-b", toNodeId: "b1", kind: "composition" },
+        { id: "a1->b1", fromNodeId: "a1", toNodeId: "b1", kind: "sequence" },
+        { id: "b1->a2", fromNodeId: "b1", toNodeId: "a2", kind: "sequence" },
+    ];
+    assert.deepEqual(selectFilmShotEntries(interleavedNodes, interleavedConnections).map((entry) => entry.shot.id), ["a1", "b1", "a2"]);
+    const scenes = selectFilmSceneEntries(interleavedNodes, interleavedConnections);
+    assert.deepEqual(scenes[0].shots.map((entry) => entry.shot.id), ["a1", "a2"]);
+    assert.deepEqual(scenes[1].shots.map((entry) => entry.shot.id), ["b1"]);
 });
 
 test("collects binding chips and the style name", () => {

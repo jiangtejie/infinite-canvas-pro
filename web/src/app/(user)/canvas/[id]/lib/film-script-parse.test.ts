@@ -44,6 +44,26 @@ test("builds scene and shot nodes with composition/sequence edges and a snapshot
     assert.equal(snapshots[0].nodes.length, 3);
 });
 
+test("links the last shot of a scene to the first shot of the next scene", () => {
+    const twoScenes: FilmEpisode = {
+        id: "ep-1",
+        title: "第 1 集",
+        scenes: [
+            { id: "scene-1", name: "天台", location: "", time: "", mood: "", shots: [filmShot("a", "01"), filmShot("b", "02")] },
+            { id: "scene-2", name: "仓库", location: "", time: "", mood: "", shots: [filmShot("c", "03")] },
+        ],
+    };
+    const result = buildFilmParseGraph([twoScenes], script, [], [], "overwrite");
+    assert.equal(result.connections.filter((edge) => edge.kind === "sequence").length, 2);
+});
+
+test("links appended scenes after the existing chain tail", () => {
+    const result = buildFilmParseGraph([episode], script, [script, oldScene, oldShot], [oldEdge], "append");
+    const createdShot = result.nodes.find((item) => item.type === CanvasNodeType.Shot && item.metadata?.filmShot?.prompt === "01 prompt");
+    assert.ok(createdShot);
+    assert.ok(result.connections.some((edge) => edge.kind === "sequence" && edge.fromNodeId === oldShot.id && edge.toNodeId === createdShot!.id));
+});
+
 test("undo removes generated nodes and restores overwritten nodes", () => {
     const result = buildFilmParseGraph([episode], script, [script, oldScene, oldShot], [oldEdge], "overwrite");
     const parsedScript: CanvasNodeData = {

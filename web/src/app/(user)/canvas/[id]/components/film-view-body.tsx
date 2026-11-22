@@ -2,6 +2,7 @@
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import type { FilmStudioModel, FilmStudioView } from "../lib/film-studio-types";
+import { FilmAssetOverviewView } from "./film-asset-overview-view";
 import { FilmShotTableView } from "./film-shot-table-view";
 import { FilmStoryboardView } from "./film-storyboard-view";
 import { FilmTimelineView } from "./film-timeline-view";
@@ -12,6 +13,7 @@ export function FilmViewBody({ view, model, theme }: { view: Exclude<FilmStudioV
             {view === "table" ? <FilmShotTableView theme={theme} model={model} /> : null}
             {view === "board" ? <FilmStoryboardView theme={theme} model={model} /> : null}
             {view === "timeline" ? <FilmTimelineView theme={theme} model={model} /> : null}
+            {view === "assets" ? <FilmAssetOverviewView theme={theme} model={model} /> : null}
         </div>
     );
 }

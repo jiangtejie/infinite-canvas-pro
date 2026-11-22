@@ -179,7 +179,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
             ) : (
                 <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有镜头，去 Studio 或画布新增。</div>
             )}
-            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onGenerate={(kind) => model.onBatchGenerateShots([...selected], kind)} onClear={clearSelection} />
+            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onGenerate={(kind) => model.onBatchGenerateShots([...selected], kind)} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
         </div>
     );
 }

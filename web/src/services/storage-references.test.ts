@@ -7,7 +7,7 @@ import { buildStorageReferenceSources } from "./storage-references";
 test("film character and generation references are collected", () => {
     const key = "image:film-character";
     const sources = buildStorageReferenceSources({
-        filmCast: { characters: [{ character: { card: { images: [{ storageKey: key }] }, states: [{ look: { images: [{ storageKey: key }] } }] } }], locations: [], props: [], costumes: [] },
+        filmCast: { characters: [{ character: { board: { images: [{ storageKey: key }] }, states: [{ look: { images: [{ storageKey: key }] } }] } }], locations: [], props: [], costumes: [] },
         logKeys: [],
         otherAccounts: [],
     });

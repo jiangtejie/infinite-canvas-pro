@@ -1,5 +1,5 @@
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { orderSceneShots } from "./film-layout";
+import { orderFilmShots } from "./film-layout";
 import type { FilmSceneEntry, FilmShotBindingChip, FilmShotEntry } from "./film-studio-types";
 
 export const UNASSIGNED_SCENE_ID = "unassigned";
@@ -17,10 +17,41 @@ function byPosition(a: CanvasNodeData, b: CanvasNodeData) {
     return a.position.y - b.position.y || a.position.x - b.position.x;
 }
 
+function sceneOwnerMap(nodes: CanvasNodeData[], connections: CanvasConnection[]) {
+    const shotIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.Shot).map((node) => node.id));
+    const sceneIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.Scene).map((node) => node.id));
+    const owners = new Map<string, string>();
+    connections.forEach((edge) => {
+        if (edge.kind !== "composition" || !shotIds.has(edge.toNodeId) || !sceneIds.has(edge.fromNodeId) || owners.has(edge.toNodeId)) return;
+        owners.set(edge.toNodeId, edge.fromNodeId);
+    });
+    return owners;
+}
+
+/** 全片顺序投影：跨场交错时仍按唯一 sequence 链输出。 */
+export function selectFilmShotEntries(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmShotEntry[] {
+    const owners = sceneOwnerMap(nodes, connections);
+    const sceneById = new Map(nodes.filter((node) => node.type === CanvasNodeType.Scene).map((node) => [node.id, node]));
+    const shots = nodes.filter((node) => node.type === CanvasNodeType.Shot);
+    return orderFilmShots(shots, connections).map((shot, index) => {
+        const scene = owners.get(shot.id) ? sceneById.get(owners.get(shot.id)!) : undefined;
+        return {
+            shot,
+            sceneId: scene?.id ?? UNASSIGNED_SCENE_ID,
+            sceneLabel: scene ? labelFor(scene) : "未分场",
+            episodeTitle: sceneMeta(scene ?? shot)?.episodeTitle || "",
+            index,
+        };
+    });
+}
+
+/** 按场分组投影；场次内镜头顺序始终来自全片链，而不是各场独立数组。 */
 export function selectFilmSceneEntries(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmSceneEntry[] {
-    const shotNodes = nodes.filter((node) => node.type === CanvasNodeType.Shot);
-    const shotById = new Map(shotNodes.map((node) => [node.id, node]));
-    const shotIds = new Set(shotNodes.map((node) => node.id));
+    const globalEntries = selectFilmShotEntries(nodes, connections);
+    const shotsByScene = new Map<string, FilmShotEntry[]>();
+    globalEntries.forEach((entry) => {
+        shotsByScene.set(entry.sceneId, [...(shotsByScene.get(entry.sceneId) || []), entry]);
+    });
     const scenes = nodes
         .filter((node) => node.type === CanvasNodeType.Scene)
         .slice()
@@ -29,54 +60,26 @@ export function selectFilmSceneEntries(nodes: CanvasNodeData[], connections: Can
             const right = sceneMeta(b)?.episodeId || "";
             return left.localeCompare(right) || byPosition(a, b);
         });
-    const composition = new Map<string, string[]>();
-    connections.forEach((edge) => {
-        if (edge.kind !== "composition" || !shotIds.has(edge.toNodeId)) return;
-        composition.set(edge.fromNodeId, [...(composition.get(edge.fromNodeId) || []), edge.toNodeId]);
-    });
-    const assigned = new Set<string>();
-    let index = 0;
     const entries: FilmSceneEntry[] = scenes.map((sceneNode) => {
         const meta = sceneMeta(sceneNode);
-        const episodeTitle = meta?.episodeTitle || "";
-        const name = meta?.name || "";
-        const label = labelFor(sceneNode);
-        const directShots = (composition.get(sceneNode.id) || [])
-            .map((id) => shotById.get(id))
-            .filter((node): node is CanvasNodeData => Boolean(node) && !assigned.has(node!.id));
-        directShots.forEach((node) => assigned.add(node.id));
-        const ordered = orderSceneShots(directShots, connections);
         return {
             id: sceneNode.id,
-            label,
-            episodeTitle,
-            name,
+            label: labelFor(sceneNode),
+            episodeTitle: meta?.episodeTitle || "",
+            name: meta?.name || "",
             scene: sceneNode,
-            shots: ordered.map((shot) => ({
-                shot,
-                sceneId: sceneNode.id,
-                sceneLabel: label,
-                episodeTitle,
-                index: index++,
-            })),
+            shots: shotsByScene.get(sceneNode.id) ?? [],
         };
     });
-    const unassigned = shotNodes.filter((node) => !assigned.has(node.id));
+    const unassigned = shotsByScene.get(UNASSIGNED_SCENE_ID) ?? [];
     if (unassigned.length) {
-        const ordered = orderSceneShots(unassigned, connections);
         entries.push({
             id: UNASSIGNED_SCENE_ID,
             label: "未分场",
             episodeTitle: "",
             name: "未分场",
             scene: null,
-            shots: ordered.map((shot) => ({
-                shot,
-                sceneId: UNASSIGNED_SCENE_ID,
-                sceneLabel: "未分场",
-                episodeTitle: "",
-                index: index++,
-            })),
+            shots: unassigned,
         });
     }
     return entries;

@@ -12,10 +12,7 @@ function collectAssetMedia(asset: FilmAsset, refs: MediaPromotionRef[]) {
     collectSlot(asset.views, refs);
     const profile = asset.character;
     if (profile) {
-        Object.values(profile.parts).forEach((part) => collectSlot(part.slot, refs));
-        collectSlot(profile.expressions, refs);
-        collectSlot(profile.master, refs);
-        collectSlot(profile.card, refs);
+        collectSlot(profile.board, refs);
         for (const state of profile.states) collectSlot(state.look, refs);
     }
     for (const variant of asset.location?.variants || []) collectSlot(variant.concept, refs);

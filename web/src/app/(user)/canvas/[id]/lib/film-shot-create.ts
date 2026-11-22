@@ -1,7 +1,7 @@
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { canvasConnection } from "./canvas-connection";
 import { createCanvasNode } from "./canvas-node-factory";
-import { orderSceneShots } from "./film-layout";
+import { orderFilmShots } from "./film-layout";
+import { moveFilmShotAcrossScenes } from "./film-shot-reorder";
 
 export type FilmShotCreateResult = {
     nodes: CanvasNodeData[];
@@ -23,7 +23,7 @@ export function appendFilmShot(
             .filter((edge) => edge.kind === "composition" && edge.fromNodeId === sceneId)
             .map((edge) => edge.toNodeId),
     );
-    const sceneShots = orderSceneShots(shots.filter((shot) => sceneShotIds.has(shot.id)), connections);
+    const sceneShots = orderFilmShots(shots.filter((shot) => sceneShotIds.has(shot.id)), connections);
     const last = sceneShots[sceneShots.length - 1];
     const shotNo = String(shots.length + 1).padStart(2, "0");
     const shot = createCanvasNode(CanvasNodeType.Shot, {
@@ -41,10 +41,6 @@ export function appendFilmShot(
             prompt: "",
         },
     }, options.nodeId);
-    const nextConnections = [
-        ...connections,
-        canvasConnection(scene.id, shot.id, { kind: "composition" }),
-        ...(last ? [canvasConnection(last.id, shot.id, { kind: "sequence" })] : []),
-    ];
-    return { nodes: [...nodes, shot], connections: nextConnections, shotId: shot.id };
+    const moved = moveFilmShotAcrossScenes([...nodes, shot], connections, shot.id, sceneId, last?.id ?? null, true);
+    return moved ? { ...moved, shotId: shot.id } : null;
 }

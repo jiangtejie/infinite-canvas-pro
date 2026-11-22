@@ -19,6 +19,8 @@ import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { canvasVideoTaskFromMetadata, canvasVideoTaskId } from "../lib/canvas-task-helpers";
 import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate } from "../lib/canvas-task-updates";
 import { applyFilmShotImageTaskUpdate, selectFilmShotImageTaskTargets } from "../lib/film-shot-task-updates";
+import { applyFilmAssetImageTaskUpdate, selectFilmAssetImageTaskTargets } from "../lib/film-asset-task-updates";
+import { isFilmAssetTaskActive } from "../lib/film-asset-image-task";
 import { applyFilmShotVideoTaskUpdate, selectFilmShotVideoTaskTargets } from "../lib/film-shot-video-task-updates";
 import { workflowAudioTask, workflowImageTask, workflowVideoTask } from "../lib/canvas-workflow-tasks";
 
@@ -100,6 +102,22 @@ export function useCanvasTaskPolling({ projectLoaded, nodesRef, effectiveConfig,
                         const task = rememberNodeTask(node.id, node.metadata?.clientTaskId || node.metadata?.imageTaskId, result);
                         if (!isNodeTaskActive(node.id, node.metadata?.clientTaskId)) return;
                         setNodes((prev) => applyFilmShotImageTaskUpdate(prev, node.id, task, node.metadata?.clientTaskId));
+                    })
+                    .catch(() => undefined)
+                    .finally(() => {
+                        pollingImageNodeIdsRef.current.delete(node.id);
+                    });
+            });
+            const filmAssetTargets = selectFilmAssetImageTaskTargets(nodesRef.current);
+            filmAssetTargets.forEach((node) => {
+                const pending = node.metadata?.filmAsset?.asset.pendingTask;
+                if (!pending || pending.kind !== "image" || isFilmAssetTaskActive(pending.id) || pollingImageNodeIdsRef.current.has(node.id)) return;
+                const controller = new AbortController();
+                pollingImageNodeIdsRef.current.set(node.id, controller);
+                void pollCanvasImageTaskStatus(pending.id, controller.signal)
+                    .then((task) => {
+                        if (controller.signal.aborted) return;
+                        setNodes((prev) => applyFilmAssetImageTaskUpdate(prev, node.id, task));
                     })
                     .catch(() => undefined)
                     .finally(() => {

@@ -1,7 +1,19 @@
 import type { FilmAssetKind } from "@/lib/film/types";
 import { EMPTY_FILM_LIBRARY_USAGE, type FilmLibraryUsage } from "@/app/(user)/film/utils/film-library";
 import type { CanvasProject } from "../../stores/use-canvas-store";
-import { CanvasNodeType } from "../../types";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { orderFilmShots } from "./film-layout";
+
+/** 当前资产节点被哪些镜头引用（按全片链顺序返回镜号）。 */
+export function filmAssetBoundShotNumbers(nodes: CanvasNodeData[], connections: CanvasConnection[], assetNodeId: string): string[] {
+    const shotIds = new Set(connections
+        .filter((edge) => edge.kind === "binding" && edge.fromNodeId === assetNodeId)
+        .map((edge) => edge.toNodeId));
+    if (!shotIds.size) return [];
+    return orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.Shot), connections)
+        .filter((node) => shotIds.has(node.id))
+        .map((node) => node.metadata?.filmShot?.shotNo || node.title || node.id);
+}
 
 export function filmCanvasLibraryUsageIndex(projects: CanvasProject[], kind: FilmAssetKind): Map<string, FilmLibraryUsage> {
     const index = new Map<string, FilmLibraryUsage>();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { FileText, ShieldCheck } from "lucide-react";
+import { Boxes, Clapperboard, FileText, Layers, Play, ShieldCheck } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -15,14 +15,22 @@ const VIEWS: Array<[FilmStudioView, string]> = [
     ["board", "故事板"],
     ["timeline", "时间轴"],
     ["graph", "画布"],
+    ["assets", "资产"],
 ];
 
-export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, reviewBadge }: {
+export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, onOpenVersions, onPreview, onOpenProduction, onOpenGroups, previewDisabled, reviewBadge, versionBadge, groupCount }: {
     view: FilmStudioView;
     onChange: (view: FilmStudioView) => void;
     onReview?: () => void;
     onOpenScript?: () => void;
+    onOpenVersions?: () => void;
+    onPreview?: () => void;
+    onOpenProduction?: () => void;
+    onOpenGroups?: () => void;
+    previewDisabled?: boolean;
     reviewBadge?: { errors: number; warnings: number; stale: boolean };
+    versionBadge?: number;
+    groupCount?: number;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const reviewIssueCount = reviewBadge ? reviewBadge.errors + reviewBadge.warnings : 0;
@@ -46,6 +54,15 @@ export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, r
             if (key === "s" && onOpenScript) {
                 event.preventDefault();
                 onOpenScript();
+            } else if (key === "p" && onPreview && !previewDisabled) {
+                event.preventDefault();
+                onPreview();
+            } else if (key === "m" && onOpenProduction && !previewDisabled) {
+                event.preventDefault();
+                onOpenProduction();
+            } else if (key === "o" && onOpenGroups) {
+                event.preventDefault();
+                onOpenGroups();
             } else if (key === "c" && onReview) {
                 event.preventDefault();
                 onReview();
@@ -53,7 +70,7 @@ export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, r
         };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
-    }, [onChange, onOpenScript, onReview]);
+    }, [onChange, onOpenGroups, onOpenProduction, onOpenScript, onPreview, onReview, previewDisabled]);
     return (
         <div className="absolute inset-x-0 top-16 flex h-11 items-center gap-2 border-b px-3" style={{ zIndex: CANVAS_Z.hoverToolbar, background: theme.canvas.background, borderColor: theme.node.stroke }}>
             <div className="thin-scrollbar flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
@@ -74,6 +91,28 @@ export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, r
                 {onOpenScript ? (
                     <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs" style={{ color: theme.node.muted }} onClick={onOpenScript} title="剧本 (S)">
                         <FileText className="size-3.5" />剧本
+                    </button>
+                ) : null}
+                {onPreview ? (
+                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs disabled:opacity-40" style={{ color: theme.node.muted }} onClick={onPreview} disabled={previewDisabled} title={previewDisabled ? "有镜头后可预览" : "成片预览 (P)"}>
+                        <Play className="size-3.5" />预览
+                    </button>
+                ) : null}
+                {onOpenProduction ? (
+                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs disabled:opacity-40" style={{ color: theme.node.muted }} onClick={onOpenProduction} disabled={previewDisabled} title={previewDisabled ? "有镜头后可制作" : "镜头制作队列 (M)"}>
+                        <Clapperboard className="size-3.5" />制作
+                    </button>
+                ) : null}
+                {onOpenGroups ? (
+                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs" style={{ color: theme.node.muted }} onClick={onOpenGroups} title="镜头组 (O)">
+                        <Boxes className="size-3.5" />组
+                        {groupCount ? <span className="font-mono text-[10px] tabular-nums">· {groupCount}</span> : null}
+                    </button>
+                ) : null}
+                {onOpenVersions ? (
+                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs" style={{ color: theme.node.muted }} onClick={onOpenVersions} title="版本评审">
+                        <Layers className="size-3.5" />版本
+                        {versionBadge ? <span className="font-mono text-[10px] tabular-nums">· {versionBadge}</span> : null}
                     </button>
                 ) : null}
                 {onReview ? (

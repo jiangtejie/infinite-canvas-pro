@@ -93,6 +93,7 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                         sceneLabel={sceneLabel}
                         bindings={model.activeBindings}
                         styleName={model.styleName}
+                        contextLenses={model.contextLenses}
                         canCreateShot={canCreateShot}
                         onCreateShot={() => model.onCreateShot()}
                         onUpdate={model.onUpdateShot}
@@ -169,6 +170,9 @@ export function FilmStudioBody({ model, theme }: { model: FilmStudioModel; theme
                         if (!activeShot) return;
                         model.onUpdateShot(activeShot.shot.id, (node) => ({ ...patchFilmShotNode(node, { videoUrl: version.url, videoStorageKey: version.storageKey || "", errorMessage: "" }), metadata: { ...node.metadata, status: "success", errorDetails: undefined, filmShotTaskKind: undefined } }));
                     }}
+                    generationInPanel={panelOpen}
+                    contextLenses={model.contextLenses}
+                    onCompareVersions={model.onOpenVersionCompare}
                 />
                 {stripOpen ? (
                     <div className="shrink-0">

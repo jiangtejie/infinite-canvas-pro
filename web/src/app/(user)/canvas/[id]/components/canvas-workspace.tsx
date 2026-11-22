@@ -19,6 +19,13 @@ import { FilmViewBody } from "./film-view-body";
 import { FilmStudioViewSwitch } from "./film-studio-view-switch";
 import { FilmShotBatchProgress } from "./film-shot-batch-progress";
 import { FilmReviewDrawer } from "./film-review-drawer";
+import { FilmAssetProposalDialog } from "./film-asset-proposal-dialog";
+import { FilmAssetProductionDialog } from "./film-asset-production-dialog";
+import { FilmPreviewOverlay } from "./film-preview-overlay";
+import { FilmShotGroupsDialog } from "./film-shot-groups-dialog";
+import { FilmShotProductionDialog } from "./film-shot-production-dialog";
+import { FilmStructureProposalDialog } from "./film-structure-proposal-dialog";
+import { FilmVersionRoomDialog } from "./film-version-room-dialog";
 import { filmReviewIsStale, selectFilmReview } from "../lib/film-review";
 
 type CanvasShellModel = {
@@ -206,7 +213,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     </>
                 )}
                 <CanvasDialogs model={model.dialogs} />
-                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} /> : null}
+                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onOpenVersions={filmStudio.onOpenVersionBatch} onPreview={filmStudio.onOpenPreview} onOpenProduction={filmStudio.onOpenShotProduction} onOpenGroups={filmStudio.shotGroups.onOpen} groupCount={filmStudio.shotGroups.groups.length} previewDisabled={!filmStudio.shots.length} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} versionBadge={filmStudio.versionRoomCount} /> : null}
                 {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} bottomOffset={filmBatchBottom} currentProgress={batchCurrentProgress} /> : null}
                 {filmStudio ? (
                     <FilmReviewDrawer
@@ -223,6 +230,13 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                         }}
                     />
                 ) : null}
+                {filmStudio?.structureProposal ? <FilmStructureProposalDialog theme={theme} {...filmStudio.structureProposal} /> : null}
+                {filmStudio?.assetProposal ? <FilmAssetProposalDialog theme={theme} {...filmStudio.assetProposal} /> : null}
+                {filmStudio?.assetProduction?.open ? <FilmAssetProductionDialog theme={theme} {...filmStudio.assetProduction} /> : null}
+                {filmStudio?.previewOpen ? <FilmPreviewOverlay theme={theme} model={filmStudio} onClose={filmStudio.onClosePreview} /> : null}
+                {filmStudio?.shotProductionOpen ? <FilmShotProductionDialog theme={theme} shots={filmStudio.shots} batch={filmStudio.shotBatch} onStart={(shotIds, kind) => filmStudio.onBatchGenerateShots(shotIds, kind)} onStop={filmStudio.onStopShotBatch} onClose={filmStudio.onCloseShotProduction} /> : null}
+                {filmStudio?.shotGroups.open ? <FilmShotGroupsDialog theme={theme} projectId={filmStudio.projectId} groups={filmStudio.shotGroups.groups} onCreate={filmStudio.shotGroups.onCreate} onRename={filmStudio.shotGroups.onRename} onDelete={filmStudio.shotGroups.onDelete} onSelect={filmStudio.shotGroups.onSelect} onPreview={filmStudio.shotGroups.onPreview} onClose={filmStudio.shotGroups.onClose} /> : null}
+                {filmStudio?.versionRoom ? <FilmVersionRoomDialog theme={theme} {...filmStudio.versionRoom} /> : null}
             </section>
             {!filmViewMode ? (
             <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>

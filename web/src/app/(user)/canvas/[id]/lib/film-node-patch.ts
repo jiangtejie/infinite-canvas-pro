@@ -16,6 +16,18 @@ export function patchFilmShotNode(node: CanvasNodeData, patch: Partial<FilmShotN
     return { ...node, metadata: { ...node.metadata, filmShot: { ...node.metadata.filmShot, ...patch } } };
 }
 
+export function updateFilmAssetNode(node: CanvasNodeData, updater: (asset: FilmAsset) => FilmAsset, now = new Date().toISOString()): CanvasNodeData {
+    if (!node.metadata?.filmAsset) return node;
+    const payload = node.metadata.filmAsset;
+    return {
+        ...node,
+        metadata: {
+            ...node.metadata,
+            filmAsset: { ...payload, asset: { ...updater(payload.asset), updatedAt: now } },
+        },
+    };
+}
+
 export function patchFilmAssetNode(node: CanvasNodeData, patch: Partial<FilmAsset>, now = new Date().toISOString()): CanvasNodeData {
     if (!node.metadata?.filmAsset) return node;
     const payload = node.metadata.filmAsset;

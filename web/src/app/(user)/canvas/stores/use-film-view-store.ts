@@ -25,7 +25,7 @@ const EMPTY_FILM_VIEW_STATE: FilmViewState = {
     playhead: 0,
     panelWidth: 320,
     stripOpen: true,
-    openShotSections: new Set(["basic", "visual"]),
+    openShotSections: new Set(["basic", "visual", "context"]),
 };
 
 type FilmViewStore = {
