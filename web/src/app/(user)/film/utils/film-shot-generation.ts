@@ -1,12 +1,13 @@
 import type { FilmAsset, FilmCharacterGenerationSnapshot, FilmGenerationContext, FilmGenerationReference, FilmImageRef, FilmMediaVersion, FilmProject, FilmShot, FilmShotCharacterBinding, FilmVideoMode } from "@/lib/film/types";
+import { directorStyleFor } from "@/lib/film/director-styles";
 import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { CHARACTER_PART_DEFINITIONS, characterDetailImage, characterPackageImage, ensureCharacterProfile, filmAssetSignature, filmCharacterSignature, findFilmCharacterState } from "./film-character";
 import { formatFilmBindingContinuity, formatFilmContinuityPrompt } from "./film-continuity-sheet";
-import { filmShotTypeLabel } from "./film-shot-types";
 import { activeSlotImage } from "./film-image-slot";
-import { composeFilmVideoPrompt, createDefaultSegments, validateSegments } from "./film-video-segments";
+import { buildFilmShotPrompt } from "./film-shot-prompt";
+import { createDefaultSegments, validateSegments } from "./film-video-segments";
 
-export const FILM_GENERATION_COMPILER_VERSION = "film-shot-gen/3";
+export const FILM_GENERATION_COMPILER_VERSION = "film-shot-gen/5";
 export const FILM_IMAGE_REFERENCE_LIMIT = 6;
 
 export type FilmGenerationOptions = {
@@ -53,7 +54,7 @@ function characterSnapshotText(project: Pick<FilmProject, "costumes" | "props">,
     return setting ? `${continuityLine} 设定：${setting}` : continuityLine;
 }
 
-export type FilmGenerationProjectContext = Pick<FilmProject, "characters" | "locations" | "props" | "costumes" | "style">;
+export type FilmGenerationProjectContext = Pick<FilmProject, "characters" | "locations" | "props" | "costumes" | "style"> & Partial<Pick<FilmProject, "visualStyle" | "stylePreset" | "directorStyleId">>;
 
 /**
  * 唯一的镜头生成上下文编译器：纯函数，不读浏览器、不加载图片、不调用模型。
@@ -189,36 +190,39 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
     }
     for (const snapshot of snapshots) snapshot.references = references.filter((ref) => ref.characterId === snapshot.characterId);
 
-    const characterBlock = [...snapshots.map((snapshot) => snapshot.prompt), locationText].filter(Boolean).join("\n");
-    const characterContextText = characterBlock ? `【角色与场景】\n${characterBlock}` : "";
-    const styleText = resolveFilmStyleText(project);
+    const directorStyle = directorStyleFor(project.directorStyleId);
+    const styleText = [
+        resolveFilmStyleText(project),
+        directorStyle && [directorStyle.visual, directorStyle.camera.grammar, directorStyle.camera.movement, directorStyle.prompts.imageSuffix].filter(Boolean).join("；"),
+    ].filter(Boolean).join("；");
     const continuityText = shot.continuity ? formatFilmContinuityPrompt(shot.continuity) : "";
+    const previousInstruction = references.some((ref) => ref.role === "previous-shot") ? "参考图中的上一镜画面用于衔接本镜，保持人物位置、道具状态和环境光线一致。" : "";
+    const anchorInstruction = references.some((ref) => ref.role === "anchor-shot") ? "与参考图中的锚点帧保持相同的色调、光线、材质与画风，角色和场景设定不要改变。" : "";
+    const promptBase = {
+        shot,
+        characters: snapshots.map((snapshot) => snapshot.prompt),
+        location: locationText,
+        continuity: continuityText,
+        style: styleText,
+        previousInstruction,
+        anchorInstruction,
+    };
 
     let prompt: string;
     if (medium === "video") {
         const segments = shot.videoSegments?.length ? shot.videoSegments : createDefaultSegments(shot.duration);
         const validation = validateSegments(segments, shot.duration);
         if (validation) throw new Error(validation);
-        const composed = composeFilmVideoPrompt({
-            segments,
-            shotTypeLabel: filmShotTypeLabel(shot.shotType),
-            cameraMovement: shot.cameraMovement || "",
-            description: shot.description || "",
-            videoPrompt: shot.videoPrompt || "",
-            styleText,
-            performance: shot.performance,
-            soundDesign: shot.soundDesign,
-            mode: frames ? "frames" : "reference",
+        prompt = buildFilmShotPrompt({
+            ...promptBase,
+            medium: "video",
+            videoSegments: segments,
+            videoMode: frames ? "frames" : "reference",
             hasFirstFrame: frames && Boolean(shot.firstFrame),
-            hints: "",
+            hasLastFrame: frames && Boolean(shot.lastFrame),
         });
-        prompt = [continuityText, characterContextText, composed].filter(Boolean).join("\n\n");
     } else {
-        const promptText = (shot.prompt || shot.description).trim();
-        const styleLine = styleText ? `${promptText}\n\n视觉风格：${styleText}` : promptText;
-        const previousInstruction = references.some((ref) => ref.role === "previous-shot") ? "参考图中的上一镜画面用于衔接本镜，保持人物位置、道具状态和环境光线一致。" : "";
-        const anchorInstruction = references.some((ref) => ref.role === "anchor-shot") ? "与参考图中的锚点帧保持相同的色调、光线、材质与画风，角色和场景设定不要改变。" : "";
-        prompt = [continuityText, styleLine, characterContextText, previousInstruction, anchorInstruction].filter(Boolean).join("\n\n");
+        prompt = buildFilmShotPrompt({ ...promptBase, medium: "image" });
     }
 
     const inputSignature = JSON.stringify({

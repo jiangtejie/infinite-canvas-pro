@@ -158,6 +158,30 @@ test("视频分段非法时阻断编译", () => {
     assert.throws(() => buildFilmShotGenerationContext(project(), s, { medium: "video", maxReferences: 8, videoMode: "reference" }), /结束在镜头时长/);
 });
 
+test("专业维度进入图片和视频提示词并改变签名", () => {
+    const s = shot("s1", {
+        composition: "三分法",
+        lighting: "侧逆光",
+        colorTone: "低饱和冷调",
+        lens: "35mm",
+        transition: "叠化",
+        coverage: "建立",
+        performance: { objective: "确认来人", emotion: "警惕", subtext: "", bodyLanguage: "肩背绷紧", intensity: 4 },
+        soundDesign: { ambience: "雨声", sfx: "", music: "", dialogueTone: "低声" },
+    });
+    const image = buildFilmShotGenerationContext(project(), s, imageOpts);
+    assert.match(image.prompt, /构图：三分法/);
+    assert.match(image.prompt, /光线：侧逆光/);
+    assert.match(image.prompt, /色彩：低饱和冷调/);
+    assert.match(image.prompt, /焦段：35mm/);
+    assert.match(image.prompt, /转场：叠化/);
+    assert.match(image.prompt, /覆盖：建立/);
+    assert.match(image.prompt, /情绪：警惕/);
+    const video = buildFilmShotGenerationContext(project(), { ...s, videoSegments: [{ id: "seg", start: 0, end: 5, prompt: "回头" }] }, { medium: "video", maxReferences: 8, videoMode: "reference" });
+    assert.match(video.prompt, /台词语气：低声/);
+    assert.notEqual(buildFilmShotGenerationContext(project(), { ...s, composition: "居中对称" }, imageOpts).inputSignature, image.inputSignature);
+});
+
 const mediaVersion = (generationContext?: FilmGenerationContext): FilmMediaVersion => ({ id: "v", url: "u", createdAt: "", generationContext });
 const context = (overrides: Partial<FilmGenerationContext> = {}): FilmGenerationContext => ({
     inputSignature: "sig", compilerVersion: "film-shot-gen/1", prompt: "", characters: [], references: [], missingReferenceIds: [], warnings: [], createdAt: "", ...overrides,

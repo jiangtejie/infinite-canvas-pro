@@ -16,6 +16,7 @@ import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { CanvasNodeData, FilmBindingEdgeData } from "../../types";
 import { patchFilmShotNode } from "../lib/film-node-patch";
 import type { FilmBindingAssetOption, FilmShotBindingChip } from "../lib/film-studio-types";
+import { FilmCameraMovementControl, FilmShotTypeControl, FilmTransitionControl } from "./film-shot-basic-controls";
 import { FilmShotProfessionalFields } from "./film-shot-professional-fields";
 import { FilmShotVideoFrames } from "./film-shot-video-frames";
 
@@ -66,7 +67,7 @@ function FilmCreditHint({ theme, config, videoSeconds }: { theme: CanvasTheme; c
     const hasPrice = imageCredits > 0 || videoCredits > 0;
     return (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[46px] text-[10px]" style={{ color: theme.node.muted }}>
-            <span className="inline-flex items-center gap-0.5">图片 {imageCredits > 0 ? <>约 <CreditSymbol />{imageCredits.toLocaleString()}</> : "按后台单价"}</span>
+            <span className="inline-flex items-center gap-0.5">分镜图 {imageCredits > 0 ? <>约 <CreditSymbol />{imageCredits.toLocaleString()}</> : "按后台单价"}</span>
             <span className="inline-flex items-center gap-0.5">视频 {videoCredits > 0 ? <>约 <CreditSymbol />{videoCredits.toLocaleString()}</> : "按后台单价"}</span>
             {user ? <span className="inline-flex items-center gap-0.5">余额 <CreditSymbol />{user.credits.toLocaleString()}</span> : null}
             {user && hasPrice && user.credits < Math.max(imageCredits, videoCredits) ? <a href="/account?tab=recharge" className="text-amber-500 underline-offset-2 hover:underline">余额不足</a> : null}
@@ -190,7 +191,7 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
             <div className="flex items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: theme.node.stroke }}>
                 <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">镜头设置</div>
-                    <div className="truncate text-xs" style={{ color: theme.node.muted }}>{sceneLabel}{filmShot?.shotNo ? ` · ${filmShot.shotNo}` : ""}</div>
+                    <div className="truncate text-xs" style={{ color: theme.node.muted }}>{sceneLabel}</div>
                 </div>
                 <button type="button" className="grid size-8 place-items-center rounded-lg text-base opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="收起镜头设置">×</button>
             </div>
@@ -208,24 +209,24 @@ export function FilmShotPanel({ theme, shot, sceneLabel, bindings, styleName, ca
                     <Section theme={theme} title="基础" open={openSections.has("basic")} onToggle={() => onToggleSection("basic")}>
                         <div className="grid grid-cols-2 gap-2">
                             <Field theme={theme} label="镜号"><Input value={filmShot?.shotNo || ""} style={inputStyle} onChange={(event) => update({ shotNo: event.target.value })} /></Field>
-                            <Field theme={theme} label="景别"><Input value={filmShot?.shotType || ""} style={inputStyle} onChange={(event) => update({ shotType: event.target.value })} /></Field>
+                            <Field theme={theme} label="景别"><FilmShotTypeControl value={filmShot?.shotType} style={inputStyle} onChange={(value) => update({ shotType: value })} /></Field>
                             <Field theme={theme} label="时长（秒）"><InputNumber min={1} max={60} value={filmShot?.duration ?? 4} style={{ ...inputStyle, width: "100%" }} onChange={(value) => update({ duration: value ?? 4 })} /></Field>
-                            <Field theme={theme} label="运镜"><Input value={filmShot?.cameraMovement || ""} style={inputStyle} onChange={(event) => update({ cameraMovement: event.target.value })} /></Field>
+                            <Field theme={theme} label="运镜"><FilmCameraMovementControl value={filmShot?.cameraMovement} style={inputStyle} onChange={(value) => update({ cameraMovement: value })} /></Field>
                             <div className="col-span-2">
-                                <Field theme={theme} label="转场"><Input value={filmShot?.transition || ""} style={inputStyle} onChange={(event) => update({ transition: event.target.value })} /></Field>
+                                <Field theme={theme} label="转场"><FilmTransitionControl value={filmShot?.transition} style={inputStyle} onChange={(value) => update({ transition: value })} /></Field>
                             </div>
                         </div>
                     </Section>
                     <Section theme={theme} title="画面" open={openSections.has("visual")} onToggle={() => onToggleSection("visual")}>
                         <Field theme={theme} label="描述"><Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={filmShot?.description || ""} style={inputStyle} onChange={(event) => update({ description: event.target.value })} /></Field>
-                        <Field theme={theme} label="画面提示词"><Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={filmShot?.prompt || ""} style={inputStyle} onChange={(event) => update({ prompt: event.target.value })} /></Field>
+                        <Field theme={theme} label="创作补充"><Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} placeholder="只写结构化字段无法表达的动作或意图，系统会与镜头字段统一编译" value={filmShot?.prompt || ""} style={inputStyle} onChange={(event) => update({ prompt: event.target.value })} /></Field>
                         <details className="rounded-lg border px-2 py-1.5" style={{ borderColor: theme.node.stroke }}>
                             <summary className="cursor-pointer text-[11px]" style={{ color: theme.node.muted }}>高级提示词（负面）</summary>
                             <div className="mt-2">
                                 <Field theme={theme} label="负面提示词"><Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.negativePrompt || ""} style={inputStyle} onChange={(event) => update({ negativePrompt: event.target.value })} /></Field>
                             </div>
                         </details>
-                        <Field theme={theme} label="视频提示词"><Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.videoPrompt || ""} style={inputStyle} onChange={(event) => update({ videoPrompt: event.target.value })} /></Field>
+                        <Field theme={theme} label="动作补充（视频）"><Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.videoPrompt || ""} style={inputStyle} onChange={(event) => update({ videoPrompt: event.target.value })} /></Field>
                     </Section>
                     <Section theme={theme} title="专业" open={openSections.has("professional")} onToggle={() => onToggleSection("professional")}>
                         <FilmShotProfessionalFields theme={theme} payload={filmShot} onUpdate={update} variant="panel" />

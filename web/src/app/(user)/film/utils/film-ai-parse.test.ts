@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { directorStyleFor } from "@/lib/film/director-styles";
-
 import { filmAiRowsToEpisodes, mergeFilmEpisodes, parseFilmAiShotRows, splitScriptIntoChunks } from "./film-ai-parse";
 import type { FilmEpisode } from "@/lib/film/types";
 
@@ -69,7 +67,7 @@ test("视觉扩展字段映射与台词回退", () => {
     assert.equal(shot.transition, "硬切");
     const second = episodes[0].scenes[0].shots[1];
     assert.equal(second.dialogue, "台词 B");
-    assert.equal(second.prompt, "画面 B");
+    assert.equal(second.prompt, "");
 });
 
 test("可选字段空字符串不写入，空描述时 prompt 为空", () => {
@@ -86,23 +84,12 @@ test("可选字段空字符串不写入，空描述时 prompt 为空", () => {
     assert.equal(shot.transition, undefined);
 });
 
-test("传入导演风格时 prompt 追加风格后缀且已包含时不重复追加", () => {
-    const style = directorStyleFor("oriental-grand");
-    assert.ok(style);
-    const suffix = style.prompts.imageSuffix;
+test("imagePrompt 只作为创作补充，不回落画面描述", () => {
     const episodes = filmAiRowsToEpisodes([
         { description: "画面 C" },
-        { description: "已有画面", imagePrompt: `已有画面，${suffix}` },
-    ], { directorStyle: style });
+        { description: "已有画面", imagePrompt: "补充动作" },
+    ]);
     const shots = episodes[0].scenes[0].shots;
-    assert.equal(shots[0].prompt, `画面 C，${suffix}`);
-    assert.equal(shots[1].prompt, `已有画面，${suffix}`);
-    assert.equal(shots[1].prompt.includes(suffix) && shots[1].prompt.split(suffix).length - 1, 1);
-});
-
-test("有导演风格但无画面内容时 prompt 保持为空", () => {
-    const style = directorStyleFor("oriental-grand");
-    assert.ok(style);
-    const episodes = filmAiRowsToEpisodes([{ sound: "环境声" }], { directorStyle: style });
-    assert.equal(episodes[0].scenes[0].shots[0].prompt, "");
+    assert.equal(shots[0].prompt, "");
+    assert.equal(shots[1].prompt, "补充动作");
 });

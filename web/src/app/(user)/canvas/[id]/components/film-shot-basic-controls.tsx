@@ -9,7 +9,7 @@ import { FILM_CAMERA_MOVEMENT_OPTIONS, FILM_SHOT_TYPE_OPTIONS, FILM_TRANSITION_O
 type FilmOptionControlProps = {
     value?: string;
     onChange: (value: string) => void;
-    variant?: "panel" | "table";
+    variant?: "panel" | "compact" | "table";
     className?: string;
     style?: CSSProperties;
     ariaLabel?: string;
@@ -19,6 +19,7 @@ type FilmOptionControlProps = {
 
 const VARIANT_CLASSES = {
     panel: "h-8 w-full rounded-md border px-2 text-sm outline-none",
+    compact: "h-7 w-full rounded-md border px-2 text-xs outline-none",
     table: "w-full border-0 bg-transparent px-0.5 py-0.5 text-xs outline-none",
 } as const;
 
@@ -38,6 +39,10 @@ export function FilmCameraMovementControl(props: FilmOptionControlProps) {
 
 export function FilmTransitionControl(props: FilmOptionControlProps) {
     return <FilmOptionInput {...props} options={FILM_TRANSITION_OPTIONS} ariaLabel={props.ariaLabel || "转场"} placeholder={props.placeholder || "硬切 / 叠化"} />;
+}
+
+export function FilmOptionControl({ options, ...props }: FilmOptionControlProps & { options: string[] }) {
+    return <FilmOptionInput {...props} options={options} />;
 }
 
 function FilmOptionInput({ value, onChange, options, variant = "panel", className = "", style, ariaLabel, placeholder, disabled }: FilmOptionControlProps & { options: string[] }) {

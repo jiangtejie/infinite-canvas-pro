@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 
-import type { FilmPerformance, FilmSoundDesign, FilmVideoSegment } from "@/lib/film/types";
+import type { FilmVideoSegment } from "@/lib/film/types";
 
 export function createDefaultSegments(duration: number): FilmVideoSegment[] {
     return [{ id: nanoid(), start: 0, end: Math.max(1, Math.round(duration)), prompt: "" }];
@@ -62,60 +62,3 @@ export function removeVideoSegment(segments: FilmVideoSegment[], segmentId: stri
     return nextSegments;
 }
 
-export type ComposeVideoPromptInput = {
-    segments: FilmVideoSegment[];
-    shotTypeLabel: string;
-    cameraMovement: string;
-    description: string;
-    videoPrompt?: string;
-    styleText?: string;
-    performance?: FilmPerformance;
-    soundDesign?: FilmSoundDesign;
-    mode: "reference" | "frames";
-    hasFirstFrame?: boolean;
-    hints?: string;
-};
-
-function formatSeconds(value: number) {
-    return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/.0$/, "");
-}
-
-export function composeFilmVideoPrompt(input: ComposeVideoPromptInput): string {
-    const parts: string[] = [];
-    if (input.styleText) parts.push(`视觉风格：${input.styleText}`);
-    const sceneLines = [
-        input.description ? `画面内容：${input.description}` : "",
-        input.shotTypeLabel ? `景别：${input.shotTypeLabel}` : "",
-        input.cameraMovement ? `运镜：${input.cameraMovement}` : "",
-        input.videoPrompt?.trim() ? `补充动作：${input.videoPrompt.trim()}` : "",
-        input.performance ? `表演：${[
-            input.performance.objective ? `目标 ${input.performance.objective}` : "",
-            input.performance.emotion ? `情绪 ${input.performance.emotion}` : "",
-            input.performance.subtext ? `潜台词 ${input.performance.subtext}` : "",
-            input.performance.bodyLanguage ? `肢体 ${input.performance.bodyLanguage}` : "",
-            input.performance.intensity ? `强度 ${input.performance.intensity}/5` : "",
-        ].filter(Boolean).join("；")}` : "",
-        input.soundDesign ? `声音意图：${[
-            input.soundDesign.ambience ? `环境声 ${input.soundDesign.ambience}` : "",
-            input.soundDesign.sfx ? `音效 ${input.soundDesign.sfx}` : "",
-            input.soundDesign.music ? `音乐 ${input.soundDesign.music}` : "",
-            input.soundDesign.dialogueTone ? `台词语气 ${input.soundDesign.dialogueTone}` : "",
-        ].filter(Boolean).join("；")}` : "",
-        input.hints ? `参考角色与场景：${input.hints}` : "",
-    ].filter(Boolean);
-    if (sceneLines.length) parts.push(sceneLines.join("；"));
-
-    const timeline = [...input.segments]
-        .sort((left, right) => left.start - right.start)
-        .map((segment) => `${formatSeconds(segment.start)}-${formatSeconds(segment.end)}s：${segment.prompt.trim() || "保持当前画面状态"}`)
-        .join("；");
-    parts.push(`请严格按时间段控制动作节奏：${timeline}。`);
-
-    if (input.mode === "frames") {
-        if (input.hasFirstFrame) parts.push("保持首帧中的人物外观、构图与光线，不要切镜。");
-    } else {
-        parts.push("保持角色与场景外观一致，不要切镜。");
-    }
-    parts.push("避免画面跳变、镜头切换、人物变形、闪烁、字幕与水印。");
-    return parts.join("\n\n");
-}

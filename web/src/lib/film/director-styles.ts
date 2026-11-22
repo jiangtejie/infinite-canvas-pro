@@ -195,10 +195,3 @@ export function directorStyleLabel(id?: string) {
     return directorStyleFor(id)?.name || "";
 }
 
-/** 给已有镜头 prompt 补风格；已包含时原样返回。 */
-export function appendDirectorStyleToPrompt(prompt: string, style?: DirectorStyle) {
-    if (!style || !prompt.trim()) return prompt;
-    const suffix = style.prompts.imageSuffix;
-    if (!suffix) return prompt;
-    return prompt.includes(suffix.slice(0, 8)) ? prompt : [prompt.trim(), suffix].filter(Boolean).join("，");
-}
