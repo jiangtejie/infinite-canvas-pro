@@ -50,18 +50,19 @@ import { undoFilmParseGraph } from "./lib/film-script-parse";
 import { filmReviewFingerprint } from "./lib/film-review";
 import { selectFilmReviewInput } from "./lib/film-review-input";
 import { applyFilmShotImageTaskUpdate } from "./lib/film-shot-task-updates";
-import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotContexts, selectFilmShotEntries, selectFilmStyleName } from "./lib/film-selectors";
+import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotContexts, selectFilmShotContextsByShot, selectFilmShotEntries, selectFilmStyleName } from "./lib/film-selectors";
 import { selectFilmShotContextLens } from "./lib/film-context-lens";
 import { EMPTY_FILM_CONTEXT_CENTER, selectFilmContextCenter } from "./lib/film-context-center";
 import { filmAssetBoundShotNumbers } from "./lib/film-library-usage";
 import { applyFilmDirectorAnalysis, requestFilmDirectorAnalysis, type FilmDirectorAnalysisProposal, type FilmDirectorAnalysisSelection, type FilmDirectorAnalysisStage } from "./lib/film-director-analysis";
 import { EMPTY_FILM_ASSET_PRODUCTION_PLAN, planFilmAssetProduction } from "./lib/film-asset-production";
+import { EMPTY_FILM_ASSET_VIEW, selectFilmAssetView } from "./lib/film-asset-view";
 import { EMPTY_FILM_PRODUCTION_PLAN, selectFilmProductionPlan } from "./lib/film-production-plan";
 import { createFilmShotGroup, removeFilmShotGroup, renameFilmShotGroup, selectFilmShotGroups } from "./lib/film-shot-groups";
 import { filmContextAsset, updateFilmContextAssetNode } from "./lib/film-node-patch";
 import { getFilmQuickConnectActions, type FilmCommandResult } from "./lib/film-node-registry";
 import { applyFilmVersionSelections, selectFilmVersionShots, type FilmVersionKind } from "./lib/film-version-room";
-import type { FilmContextNodeOption, FilmDirectorBoardModel, FilmProductionKind, FilmProductionOpenOptions, FilmShotBatchKind, FilmShotContextChip, FilmShotContextCreatableKind, FilmStudioView } from "./lib/film-studio-types";
+import type { FilmContextNodeOption, FilmDirectorBoardModel, FilmProductionKind, FilmProductionOpenOptions, FilmShotBatchKind, FilmShotContextCreatableKind, FilmViewMode } from "./lib/film-studio-types";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
 import { buildGenerationConfig } from "./lib/canvas-generation-config";
 import { cloneCanvasNodes } from "./lib/canvas-clone";
@@ -174,7 +175,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         if (!filmInspectorNode || !filmContextAsset(filmInspectorNode)) return [];
         return filmAssetBoundShotNumbers(nodes, connections, filmInspectorNode.id);
     }, [connections, filmInspectorNode, nodes]);
-    const [studioView, setStudioView] = useState<FilmStudioView>("board");
+    const [studioView, setStudioView] = useState<FilmViewMode>("board");
     const [shotFocusOpen, setShotFocusOpen] = useState(false);
     const [directorAnalysis, setDirectorAnalysis] = useState<{
         scriptNodeId: string;
@@ -204,13 +205,13 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const [consistencyReviewing, setConsistencyReviewing] = useState(false);
     const [activeSceneId, setActiveSceneId] = useState<string | null>(null);
     const [activeShotId, setActiveShotId] = useState<string | null>(null);
-    const filmScenes = useMemo(
-        () => (filmMode ? selectFilmSceneEntries(nodes, connections) : []),
-        [filmMode, nodes, connections],
-    );
     const filmShots = useMemo(
         () => (filmMode ? selectFilmShotEntries(nodes, connections) : []),
         [filmMode, nodes, connections],
+    );
+    const filmScenes = useMemo(
+        () => (filmMode ? selectFilmSceneEntries(nodes, connections, filmShots) : []),
+        [filmMode, nodes, connections, filmShots],
     );
     const openFilmShotFocus = useCallback((shotId: string) => {
         setActiveShotId(shotId);
@@ -230,13 +231,10 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const filmInspectorShotIndex = filmInspectorNode ? filmShots.findIndex((entry) => entry.shot.id === filmInspectorNode.id) : -1;
     const filmInspectorPreviousShot = filmInspectorShotIndex > 0 ? filmShots[filmInspectorShotIndex - 1] : undefined;
     const filmInspectorNextShot = filmInspectorShotIndex >= 0 && filmInspectorShotIndex < filmShots.length - 1 ? filmShots[filmInspectorShotIndex + 1] : undefined;
-    const filmContextsByShot = useMemo(() => {
-        const result: Record<string, FilmShotContextChip[]> = {};
-        filmShots.forEach((entry) => {
-            result[entry.shot.id] = selectFilmShotContexts(nodes, connections, entry.shot.id);
-        });
-        return result;
-    }, [connections, filmShots, nodes]);
+    const filmContextsByShot = useMemo(
+        () => (filmMode ? selectFilmShotContextsByShot(nodes, connections, filmShots.map((entry) => entry.shot.id)) : {}),
+        [connections, filmMode, filmShots, nodes],
+    );
     const filmContextLenses = useMemo(() => {
         const shotNode = activeFilm.shot?.shot ?? null;
         if (!shotNode) return { image: null, video: null };
@@ -264,12 +262,16 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         [connections, nodes, versionRoom],
     );
     const filmContextCenter = useMemo(
-        () => (filmMode ? selectFilmContextCenter(nodes, connections, filmCostumes) : EMPTY_FILM_CONTEXT_CENTER),
-        [connections, filmCostumes, filmMode, nodes],
+        () => (filmMode ? selectFilmContextCenter(nodes, connections, filmCostumes, filmShots) : EMPTY_FILM_CONTEXT_CENTER),
+        [connections, filmCostumes, filmMode, filmShots, nodes],
+    );
+    const filmAssetView = useMemo(
+        () => (filmMode ? selectFilmAssetView(nodes, connections, filmContextCenter) : EMPTY_FILM_ASSET_VIEW),
+        [connections, filmContextCenter, filmMode, nodes],
     );
     const filmAssetProductionPlan = useMemo(
-        () => (filmMode ? planFilmAssetProduction(nodes, connections) : EMPTY_FILM_ASSET_PRODUCTION_PLAN),
-        [connections, filmMode, nodes],
+        () => (filmMode ? planFilmAssetProduction(nodes, connections, filmAssetView) : EMPTY_FILM_ASSET_PRODUCTION_PLAN),
+        [connections, filmAssetView, filmMode, nodes],
     );
     const filmProductionPlan = useMemo(
         () => (filmMode && productionOpen ? selectFilmProductionPlan(nodes, connections, {
@@ -281,8 +283,9 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             videoMaxReferences: filmVideoReferenceLimit(effectiveConfig.videoModel || effectiveConfig.model),
             assetQueue: currentProject?.film?.assetQueue,
             shotQueue: currentProject?.film?.shotQueue,
+            assetPlan: filmAssetProductionPlan,
         }) : EMPTY_FILM_PRODUCTION_PLAN),
-        [connections, currentProject?.film?.assetQueue, currentProject?.film?.shotQueue, effectiveConfig.model, effectiveConfig.videoModel, filmMode, nodes, productionAssetIds, productionEntryKind, productionOpen, productionShotIds, productionShotKind],
+        [connections, currentProject?.film?.assetQueue, currentProject?.film?.shotQueue, effectiveConfig.model, effectiveConfig.videoModel, filmAssetProductionPlan, filmMode, nodes, productionAssetIds, productionEntryKind, productionOpen, productionShotIds, productionShotKind],
     );
     const filmShotQueueBusy = useMemo(
         () => filmShots.some((entry) => entry.shot.metadata?.status === "loading" || entry.shot.metadata?.status === "stopping"),
@@ -924,6 +927,19 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         }
         setPreviewShotIds(valid);
         setPreviewOpen(true);
+        setShotGroupsOpen(false);
+    }, [filmShots, message]);
+
+    const produceShotGroup = useCallback((shotIds: string[]) => {
+        const valid = shotIds.filter((shotId) => filmShots.some((entry) => entry.shot.id === shotId));
+        if (!valid.length) {
+            message.warning("组内镜头已不存在");
+            return;
+        }
+        setProductionAssetIds(undefined);
+        setProductionShotIds(valid);
+        setProductionEntryKind(undefined);
+        setProductionOpen(true);
         setShotGroupsOpen(false);
     }, [filmShots, message]);
 
@@ -2702,7 +2718,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         ownedAssetQueueIdsRef.current.add(queue.id);
         const remaining = queue.remainingNodeIds.filter((nodeId) => {
             const item = filmAssetProductionPlan.items.find((candidate) => candidate.nodeId === nodeId);
-            return item && !item.ready && !item.pending;
+            return item && !item.ready && !item.pending && !item.blocked;
         });
         if (!remaining.length) {
             updateFilmAssetQueue(null);
@@ -2791,6 +2807,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             onDelete: deleteShotGroup,
             onSelect: selectShotGroup,
             onPreview: previewShotGroup,
+            onProduce: produceShotGroup,
         },
         onSaveShotGroup: openShotGroups,
         aspect: currentProject?.film?.aspect ?? "16:9",

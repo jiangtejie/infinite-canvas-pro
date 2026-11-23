@@ -8,7 +8,7 @@ export type FilmViewState = {
     tableQuery: string;
     boardColumns: 4 | 9;
     selectedShotIds: Set<string>;
-    expandedShotIds: Set<string>;
+    expandedShotId: string | null;
     panelWidth: number;
     stripOpen: boolean;
     openShotSections: Set<string>;
@@ -20,7 +20,7 @@ const EMPTY_FILM_VIEW_STATE: FilmViewState = {
     tableQuery: "",
     boardColumns: 4,
     selectedShotIds: new Set(),
-    expandedShotIds: new Set(),
+    expandedShotId: null,
     panelWidth: 320,
     stripOpen: true,
     openShotSections: new Set(["visual", "language", "context", "generation"]),

@@ -1,5 +1,6 @@
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmContextRole } from "../../types";
 import { orderFilmShots } from "./film-layout";
+import { filmContextRoleOfNode } from "./film-node-kind";
 import type { FilmSceneEntry, FilmShotContextChip, FilmShotEntry } from "./film-studio-types";
 
 export const UNASSIGNED_SCENE_ID = "unassigned";
@@ -46,8 +47,8 @@ export function selectFilmShotEntries(nodes: CanvasNodeData[], connections: Canv
 }
 
 /** 按场分组投影；场次内镜头顺序始终来自全片链，而不是各场独立数组。 */
-export function selectFilmSceneEntries(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmSceneEntry[] {
-    const globalEntries = selectFilmShotEntries(nodes, connections);
+export function selectFilmSceneEntries(nodes: CanvasNodeData[], connections: CanvasConnection[], shotEntries?: FilmShotEntry[]): FilmSceneEntry[] {
+    const globalEntries = shotEntries ?? selectFilmShotEntries(nodes, connections);
     const shotsByScene = new Map<string, FilmShotEntry[]>();
     globalEntries.forEach((entry) => {
         shotsByScene.set(entry.sceneId, [...(shotsByScene.get(entry.sceneId) || []), entry]);
@@ -111,53 +112,49 @@ export function selectFilmShotFocus(entries: FilmShotEntry[], activeShotId: stri
     };
 }
 
-export function selectFilmShotContexts(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string): FilmShotContextChip[] {
-    const seen = new Set<string>();
-    const chips: FilmShotContextChip[] = [];
-    for (const edge of connections) {
-        if (edge.kind !== "context" || edge.toNodeId !== shotId || seen.has(edge.fromNodeId)) continue;
-        const node = nodes.find((item) => item.id === edge.fromNodeId);
-        const role = contextRoleForNode(node);
-        if (!node || !role || role !== edge.data.role) continue;
-        seen.add(edge.fromNodeId);
-        const asset = node.metadata?.filmCharacter?.asset
-            ?? node.metadata?.filmLocation?.asset
-            ?? node.metadata?.filmProp?.asset
-            ?? node.metadata?.filmStyle?.asset;
-        const states = asset?.character?.states.map((state) => ({ id: state.id, name: state.name })) ?? [];
-        const variants = asset?.location?.variants.map((variant) => ({ id: variant.id, name: variant.name })) ?? [];
-        chips.push({
-            id: node.id,
-            edgeId: edge.id,
-            role,
-            name: asset?.name || node.metadata?.filmBeat?.title || node.title,
-            stateId: edge.data.stateId,
-            stateName: states.find((state) => state.id === edge.data.stateId)?.name,
-            variantId: edge.data.variantId,
-            variantName: variants.find((variant) => variant.id === edge.data.variantId)?.name,
-            continuity: edge.data.continuity,
-            states,
-            variants,
-        });
-    }
-    return chips;
+function shotContextChip(edge: Extract<CanvasConnection, { kind: "context" }>, node: CanvasNodeData, role: FilmContextRole): FilmShotContextChip {
+    const asset = node.metadata?.filmCharacter?.asset
+        ?? node.metadata?.filmLocation?.asset
+        ?? node.metadata?.filmProp?.asset
+        ?? node.metadata?.filmStyle?.asset;
+    const states = asset?.character?.states.map((state) => ({ id: state.id, name: state.name })) ?? [];
+    const variants = asset?.location?.variants.map((variant) => ({ id: variant.id, name: variant.name })) ?? [];
+    return {
+        id: node.id,
+        edgeId: edge.id,
+        role,
+        name: asset?.name || node.metadata?.filmBeat?.title || node.title,
+        stateId: edge.data.stateId,
+        stateName: states.find((state) => state.id === edge.data.stateId)?.name,
+        variantId: edge.data.variantId,
+        variantName: variants.find((variant) => variant.id === edge.data.variantId)?.name,
+        continuity: edge.data.continuity,
+        states,
+        variants,
+    };
 }
 
-function contextRoleForNode(node: CanvasNodeData | undefined): FilmContextRole | null {
-    switch (node?.type) {
-        case CanvasNodeType.FilmCharacter:
-            return node.metadata?.filmCharacter ? "character" : null;
-        case CanvasNodeType.FilmLocation:
-            return node.metadata?.filmLocation ? "location" : null;
-        case CanvasNodeType.FilmProp:
-            return node.metadata?.filmProp ? "prop" : null;
-        case CanvasNodeType.FilmStyle:
-            return node.metadata?.filmStyle ? "style" : null;
-        case CanvasNodeType.FilmBeat:
-            return node.metadata?.filmBeat ? "beat" : null;
-        default:
-            return null;
+/** 全片 context 投影：一次建立节点索引并扫描连线，供镜头表、检查器与聚焦共用。 */
+export function selectFilmShotContextsByShot(nodes: CanvasNodeData[], connections: CanvasConnection[], shotIds?: Iterable<string>): Record<string, FilmShotContextChip[]> {
+    const allowed = shotIds ? new Set(shotIds) : null;
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const seen = new Set<string>();
+    const result: Record<string, FilmShotContextChip[]> = {};
+    for (const edge of connections) {
+        if (edge.kind !== "context" || (allowed && !allowed.has(edge.toNodeId))) continue;
+        const node = nodeById.get(edge.fromNodeId);
+        const role = filmContextRoleOfNode(node);
+        if (!node || !role || role !== edge.data.role) continue;
+        const key = `${edge.toNodeId}:${node.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        (result[edge.toNodeId] ||= []).push(shotContextChip(edge, node, role));
     }
+    return result;
+}
+
+export function selectFilmShotContexts(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string): FilmShotContextChip[] {
+    return selectFilmShotContextsByShot(nodes, connections, [shotId])[shotId] ?? [];
 }
 
 export function selectFilmStyleName(nodes: CanvasNodeData[]): string | null {

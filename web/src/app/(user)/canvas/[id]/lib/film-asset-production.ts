@@ -10,6 +10,8 @@ export type FilmAssetProductionItem = {
     asset: FilmAsset;
     name: string;
     ready: boolean;
+    blocked: boolean;
+    blockedReason: string;
     pending: boolean;
     usedShots: number;
     usedScenes: number;
@@ -65,17 +67,16 @@ export const EMPTY_FILM_ASSET_PRODUCTION_PLAN: FilmAssetProductionPlan = {
 const KIND_ORDER: Record<FilmContextCenterRole, number> = { character: 0, location: 1, prop: 2, style: 3 };
 
 export function defaultFilmAssetProductionSelection(plan: FilmAssetProductionPlan) {
-    return new Set(plan.items.filter((item) => !item.ready && !item.pending).map((item) => item.nodeId));
+    return new Set(plan.items.filter((item) => !item.ready && !item.pending && !item.blocked).map((item) => item.nodeId));
 }
 
 export function initialFilmAssetProductionSelection(plan: FilmAssetProductionPlan, preferred?: string[]) {
     return preferred
-        ? new Set(plan.items.filter((item) => preferred.includes(item.nodeId) && !item.pending).map((item) => item.nodeId))
+        ? new Set(plan.items.filter((item) => preferred.includes(item.nodeId) && !item.pending && !item.blocked).map((item) => item.nodeId))
         : defaultFilmAssetProductionSelection(plan);
 }
 
-export function planFilmAssetProduction(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmAssetProductionPlan {
-    const view = selectFilmAssetView(nodes, connections);
+export function planFilmAssetProduction(nodes: CanvasNodeData[], connections: CanvasConnection[], view = selectFilmAssetView(nodes, connections)): FilmAssetProductionPlan {
     const items = (Object.keys(view.groups) as FilmContextCenterRole[]).flatMap((kind) => view.groups[kind].map((item) => {
         const template = kind === "character" ? filmReferenceBoardTemplate(item.asset.referenceTemplateId) : null;
         return {
@@ -84,6 +85,8 @@ export function planFilmAssetProduction(nodes: CanvasNodeData[], connections: Ca
             asset: item.asset,
             name: item.name,
             ready: item.productionReady,
+            blocked: item.productionBlocked,
+            blockedReason: item.productionBlockedReason,
             pending: item.pending,
             usedShots: item.usedShots,
             usedScenes: item.usedScenes,

@@ -2,7 +2,8 @@ import type { FilmAsset } from "@/lib/film/types";
 import { characterPackageImage } from "@/app/(user)/film/utils/film-character";
 import { activeSlotImage } from "@/app/(user)/film/utils/film-image-slot";
 import type { CanvasConnection, CanvasNodeData } from "../../types";
-import { filmContextAsset, filmContextAssetKey, type FilmContextAssetKey } from "./film-node-patch";
+import { filmContextAsset } from "./film-node-patch";
+import { filmContextRoleOfNode } from "./film-node-kind";
 import { selectFilmShotEntries } from "./film-selectors";
 
 export type FilmContextCenterRole = "character" | "location" | "prop" | "style";
@@ -19,6 +20,8 @@ export type FilmContextCard = {
     description: string;
     ready: boolean;
     productionReady: boolean;
+    productionBlocked: boolean;
+    productionBlockedReason: string;
     pending: boolean;
     sourceLibraryAssetId?: string;
     usedShots: FilmContextShotReference[];
@@ -38,13 +41,6 @@ export type FilmContextCenterView = {
 
 const ROLES: FilmContextCenterRole[] = ["character", "location", "prop", "style"];
 
-const ROLE_BY_KEY: Record<FilmContextAssetKey, FilmContextCenterRole> = {
-    filmCharacter: "character",
-    filmLocation: "location",
-    filmProp: "prop",
-    filmStyle: "style",
-};
-
 export const EMPTY_FILM_CONTEXT_CENTER: FilmContextCenterView = {
     groups: { character: [], location: [], prop: [], style: [] },
     issues: [],
@@ -52,8 +48,8 @@ export const EMPTY_FILM_CONTEXT_CENTER: FilmContextCenterView = {
 };
 
 function roleOf(node: CanvasNodeData): FilmContextCenterRole | null {
-    const key = filmContextAssetKey(node);
-    return key ? ROLE_BY_KEY[key] : null;
+    const role = filmContextRoleOfNode(node);
+    return role && role !== "beat" ? role : null;
 }
 
 /** 角色看参考板，其余上下文看概念图。 */
@@ -79,8 +75,7 @@ function missingCostumeRefs(asset: FilmAsset, costumes: FilmAsset[], stateIds: S
 }
 
 /** 上下文中心：角色/场景/道具/风格的项目副本、参考就绪与 context 边引用关系。 */
-export function selectFilmContextCenter(nodes: CanvasNodeData[], connections: CanvasConnection[], costumes: FilmAsset[] = []): FilmContextCenterView {
-    const entries = selectFilmShotEntries(nodes, connections);
+export function selectFilmContextCenter(nodes: CanvasNodeData[], connections: CanvasConnection[], costumes: FilmAsset[] = [], entries = selectFilmShotEntries(nodes, connections)): FilmContextCenterView {
     const entryByShotId = new Map(entries.map((entry) => [entry.shot.id, entry]));
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const shotRef = (entry: (typeof entries)[number]): FilmContextShotReference => ({
@@ -129,14 +124,26 @@ export function selectFilmContextCenter(nodes: CanvasNodeData[], connections: Ca
                 return entries.filter((entry) => shotIds.has(entry.shot.id)).map((entry) => `镜头 ${shotRef(entry).shotNo} 引用的场景变体缺少概念图`);
             })
             : [];
+        const staleVariantRefs = role === "location"
+            ? entries.filter((entry) => current?.staleVariants.has(entry.shot.id)).map((entry) => `镜头 ${shotRef(entry).shotNo} 引用的场景变体已失效`)
+            : [];
         const costumeMissingRefs = role === "character" ? missingCostumeRefs(asset, costumes, current?.stateIds || new Set<string>()) : [];
-        const productionReady = role === "location" && current?.locationVariants.size && !current.locationBaseUsed ? true : baseReady;
+        const variantIssues = [...variantMissingRefs, ...staleVariantRefs];
+        const productionBlocked = role === "location" && variantIssues.length > 0;
+        const productionBlockedReason = productionBlocked
+            ? [baseRequired && !baseReady ? missingReferenceLabel(role) : "", ...variantIssues].filter(Boolean).join("；")
+            : "";
+        const productionReady = productionBlocked
+            ? false
+            : role === "location" && current?.locationVariants.size && !current.locationBaseUsed
+                ? true
+                : baseReady;
         const missingRefs = [...new Set([
             baseRequired && !baseReady ? missingReferenceLabel(role) : "",
             ...variantMissingRefs,
             ...costumeMissingRefs,
             ...entries.filter((entry) => current?.staleStates.has(entry.shot.id)).map((entry) => `镜头 ${shotRef(entry).shotNo} 引用的造型状态已失效`),
-            ...entries.filter((entry) => current?.staleVariants.has(entry.shot.id)).map((entry) => `镜头 ${shotRef(entry).shotNo} 引用的场景变体已失效`),
+            ...staleVariantRefs,
         ].filter(Boolean))];
         groups[role].push({
             nodeId: node.id,
@@ -146,6 +153,8 @@ export function selectFilmContextCenter(nodes: CanvasNodeData[], connections: Ca
             description: asset.description || "",
             ready: !missingRefs.length,
             productionReady,
+            productionBlocked,
+            productionBlockedReason,
             pending: Boolean(asset.pendingTask),
             sourceLibraryAssetId: asset.sourceLibraryAssetId,
             usedShots,

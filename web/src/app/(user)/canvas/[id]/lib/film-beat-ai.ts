@@ -2,14 +2,12 @@ import { nanoid } from "nanoid";
 
 import type { AiConfig } from "@/stores/use-config-store";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
-import { createCanvasImageTask, pollCanvasImageTaskStatus, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
+import { createCanvasImageTask, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
 import type { ReferenceImage } from "@/types/image";
 import type { FilmBeatNodeData } from "../../types";
-import { canvasImageTaskURLs, canvasTaskCompleted, canvasTaskFailed } from "./canvas-task-helpers";
+import { canvasImageTaskURLs, canvasTaskFailed } from "./canvas-task-helpers";
 import { buildFilmBeatDecompositionPrompt, filmBeatFrameCount, parseFilmBeatFrames, type FilmBeatContextSummary } from "./film-beat";
-
-const PREVIEW_POLL_INTERVAL_MS = 1200;
-const PREVIEW_TIMEOUT_MS = 10 * 60 * 1000;
+import { waitForCanvasImageTask } from "./film-image-task-wait";
 
 /** 一次文本请求把动作拆成九格；失败由调用方恢复原状，不新增任务轮询。 */
 export async function requestFilmBeatFrames(config: AiConfig, beat: FilmBeatNodeData, context?: FilmBeatContextSummary, signal?: AbortSignal): Promise<string[]> {
@@ -38,21 +36,18 @@ export async function runFilmBeatPreviewTask(options: {
     onTaskStarted?: (task: CanvasImageTask) => void;
 }): Promise<{ url: string; storageKey?: string; model?: string }> {
     const imageConfig = { ...options.config, count: "1", size: "1:1" } as SeedableImageConfig;
-    let current = await createCanvasImageTask(imageConfig, options.prompt, options.references ?? [], {
+    const started = await createCanvasImageTask(imageConfig, options.prompt, options.references ?? [], {
         signal: options.signal,
         nodeId: options.nodeId,
         sourceId: options.projectId,
         clientTaskId: `client_film_beat_preview_${nanoid()}`,
     });
-    options.onTaskStarted?.(current);
-    const startedAt = Date.now();
-    while (!canvasTaskCompleted(current.status) && !canvasTaskFailed(current.status)) {
-        if (Date.now() - startedAt > PREVIEW_TIMEOUT_MS) throw new Error("九宫格预览生成超时，请稍后重试");
-        await new Promise((resolve) => setTimeout(resolve, PREVIEW_POLL_INTERVAL_MS));
-        options.signal.throwIfAborted();
-        current = await pollCanvasImageTaskStatus(current.id, options.signal);
-        options.onProgress?.(Math.max(0, Math.min(100, current.progress ?? 0)));
-    }
+    options.onTaskStarted?.(started);
+    const current = await waitForCanvasImageTask(started, {
+        signal: options.signal,
+        timeoutMessage: "九宫格预览生成超时，请稍后重试",
+        onProgress: options.onProgress,
+    });
     if (canvasTaskFailed(current.status)) throw new Error(current.error?.message || "九宫格预览生成失败");
     const url = canvasImageTaskURLs(current)[0];
     if (!url) throw new Error("接口没有返回九宫格预览");

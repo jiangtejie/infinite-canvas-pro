@@ -2,7 +2,7 @@ import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import type { FilmAsset } from "@/lib/film/types";
 import { FILM_IMAGE_REFERENCE_LIMIT } from "@/app/(user)/film/utils/film-shot-generation";
 import type { CanvasConnection, CanvasNodeData } from "../../types";
-import { defaultFilmAssetProductionSelection, planFilmAssetProduction } from "./film-asset-production";
+import { defaultFilmAssetProductionSelection, planFilmAssetProduction, type FilmAssetProductionPlan } from "./film-asset-production";
 import { planFilmShotBatch } from "./film-batch-preflight";
 import type { FilmContextCenterRole } from "./film-context-center";
 import { selectFilmShotEntries } from "./film-selectors";
@@ -63,6 +63,7 @@ export type FilmProductionOptions = {
     videoMaxReferences?: number;
     assetQueue?: { remainingNodeIds: string[] } | null;
     shotQueue?: { remainingShotIds: string[]; kind: FilmShotBatchKind } | null;
+    assetPlan?: FilmAssetProductionPlan;
 };
 
 /** 制作中心读模型：组合既有资产计划、镜头计划与批量预检，不创建第二套执行状态。 */
@@ -71,11 +72,11 @@ export function selectFilmProductionPlan(nodes: CanvasNodeData[], connections: C
     const assetScope = options.assetIds !== undefined || options.entryKind === "asset";
     const shotScope = options.shotIds !== undefined || options.entryKind === "image" || options.entryKind === "video";
     const scoped = assetScope || shotScope;
-    const assetPlan = planFilmAssetProduction(nodes, connections);
+    const assetPlan = options.assetPlan ?? planFilmAssetProduction(nodes, connections);
     const assetSelection = options.assetIds ? new Set(options.assetIds) : scoped && !assetScope ? new Set<string>() : defaultFilmAssetProductionSelection(assetPlan);
     const assets: FilmProductionAssetItem[] = assetPlan.items.map((item) => {
         const failed = item.asset.status === "failed" && Boolean(item.asset.errorMessage);
-        const status: FilmProductionStatus = item.pending ? "busy" : failed ? "failed" : item.ready ? "done" : "ready";
+        const status: FilmProductionStatus = item.pending ? "busy" : failed ? "failed" : item.blocked ? "blocked" : item.ready ? "done" : "ready";
         return {
             id: item.nodeId,
             target: "asset",
@@ -87,8 +88,8 @@ export function selectFilmProductionPlan(nodes: CanvasNodeData[], connections: C
             groupId: item.kind,
             group: FILM_ASSET_KIND_LABELS[item.kind],
             status,
-            canStart: !item.pending,
-            reason: item.pending ? "生成中" : failed ? item.asset.errorMessage || "上次生成失败" : item.ready ? "已有参考" : "",
+            canStart: !item.pending && !item.blocked,
+            reason: item.pending ? "生成中" : failed ? item.asset.errorMessage || "上次生成失败" : item.blocked ? item.blockedReason : item.ready ? "已有参考" : "",
             selected: assetSelection.has(item.nodeId),
         };
     });

@@ -48,6 +48,31 @@ export function orderFilmShots(shots: CanvasNodeData[], connections: CanvasConne
     return ordered;
 }
 
+export type FilmBoardRelations = {
+    /** 镜头所属场次；异常重复 composition 时与布局背景统一采用首个。 */
+    ownerByShot: Map<string, string>;
+    beatTargetByBeat: Map<string, string>;
+    beatsByShot: Map<string, CanvasNodeData[]>;
+};
+
+/** 导演板布局与背景共用的场次归属、节拍目标投影，避免两套派生漂移。 */
+export function buildFilmBoardRelations(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmBoardRelations {
+    const sceneIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.FilmScene).map((node) => node.id));
+    const shotIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.FilmShot).map((node) => node.id));
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+    const relations: FilmBoardRelations = { ownerByShot: new Map(), beatTargetByBeat: new Map(), beatsByShot: new Map() };
+    connections.forEach((edge) => {
+        if (edge.kind === "composition" && sceneIds.has(edge.fromNodeId) && shotIds.has(edge.toNodeId) && !relations.ownerByShot.has(edge.toNodeId)) {
+            relations.ownerByShot.set(edge.toNodeId, edge.fromNodeId);
+        }
+        if (edge.kind !== "context" || edge.data.role !== "beat" || !shotIds.has(edge.toNodeId)) return;
+        if (!relations.beatTargetByBeat.has(edge.fromNodeId)) relations.beatTargetByBeat.set(edge.fromNodeId, edge.toNodeId);
+        const beat = nodeById.get(edge.fromNodeId);
+        if (beat) relations.beatsByShot.set(edge.toNodeId, [...(relations.beatsByShot.get(edge.toNodeId) || []), beat]);
+    });
+    return relations;
+}
+
 function byScene(a: CanvasNodeData, b: CanvasNodeData) {
     const left = a.metadata?.filmScene?.episodeId || "";
     const right = b.metadata?.filmScene?.episodeId || "";
@@ -87,14 +112,11 @@ export function arrangeFilmDirectorBoard(nodes: CanvasNodeData[], connections: C
     scenes.forEach((scene, index) => positions.set(scene.id, { x: index * FILM_LAYOUT.columnWidth, y: 0 }));
 
     const shots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
-    const owner = new Map<string, string>();
-    connections.forEach((edge) => {
-        if (edge.kind === "composition" && sceneColumn.has(edge.fromNodeId)) owner.set(edge.toNodeId, edge.fromNodeId);
-    });
+    const relations = buildFilmBoardRelations(nodes, connections);
     const columnShots = new Map<string, CanvasNodeData[]>();
     const looseShots: CanvasNodeData[] = [];
     orderFilmShots(shots, connections).forEach((shot) => {
-        const sceneId = owner.get(shot.id);
+        const sceneId = relations.ownerByShot.get(shot.id);
         if (sceneId) columnShots.set(sceneId, [...(columnShots.get(sceneId) || []), shot]);
         else looseShots.push(shot);
     });
@@ -110,12 +132,6 @@ export function arrangeFilmDirectorBoard(nodes: CanvasNodeData[], connections: C
         .sort((a, b) => contextRank(a) - contextRank(b) || contextName(a).localeCompare(contextName(b)) || byPosition(a, b));
     contexts.forEach((context, index) => positions.set(context.id, { x: FILM_LAYOUT.contextX, y: index * FILM_LAYOUT.contextRowHeight }));
 
-    const shotIds = new Set(shots.map((shot) => shot.id));
-    const beatTarget = new Map<string, string>();
-    connections.forEach((edge) => {
-        if (edge.kind !== "context" || edge.data.role !== "beat" || !shotIds.has(edge.toNodeId)) return;
-        if (!beatTarget.has(edge.fromNodeId)) beatTarget.set(edge.fromNodeId, edge.toNodeId);
-    });
     let bandRow = contexts.length;
     const beatCount = new Map<string, number>();
     nodes
@@ -123,7 +139,7 @@ export function arrangeFilmDirectorBoard(nodes: CanvasNodeData[], connections: C
         .slice()
         .sort(byPosition)
         .forEach((beat) => {
-            const target = beatTarget.get(beat.id);
+            const target = relations.beatTargetByBeat.get(beat.id);
             const targetPosition = target ? positions.get(target) : undefined;
             if (targetPosition) {
                 const index = beatCount.get(target!) ?? 0;

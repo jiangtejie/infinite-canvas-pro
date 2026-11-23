@@ -34,7 +34,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
     const sceneId = viewState.tableSceneId;
     const status = viewState.tableStatus;
     const query = viewState.tableQuery;
-    const expanded = viewState.expandedShotIds;
+    const expandedShotId = viewState.expandedShotId;
     const selected = useMemo(() => {
         const valid = new Set(model.shots.map((entry) => entry.shot.id));
         return new Set([...viewState.selectedShotIds].filter((id) => valid.has(id)));
@@ -53,13 +53,10 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
         else next.add(shotId);
         return { ...current, selectedShotIds: next };
     });
-    const toggleExpanded = (shotId: string) => updateView(model.projectId, (current) => {
-        const next = new Set(current.expandedShotIds);
-        const closing = next.has(shotId);
-        next.clear();
-        if (!closing) next.add(shotId);
-        return { ...current, expandedShotIds: next };
-    });
+    const toggleExpanded = (shotId: string) => updateView(model.projectId, (current) => ({
+        ...current,
+        expandedShotId: current.expandedShotId === shotId ? null : shotId,
+    }));
     const toggleAll = () => updateView(model.projectId, (current) => {
         const next = new Set(current.selectedShotIds);
         if (allSelected) filteredShots.forEach((entry) => next.delete(entry.shot.id));
@@ -109,7 +106,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                             const imageNotes = [payload?.lens, payload?.composition, payload?.lighting, payload?.colorTone].filter(Boolean).join(" · ");
                             const soundNotes = [payload?.audio, payload?.soundDesign?.ambience, payload?.soundDesign?.sfx, payload?.soundDesign?.music, payload?.soundDesign?.dialogueTone].filter(Boolean).join(" · ");
                             const active = entry.shot.id === activeId;
-                            const isExpanded = expanded.has(entry.shot.id);
+                            const isExpanded = expandedShotId === entry.shot.id;
                             return (
                                 <Fragment key={entry.shot.id}>
                                     <div
@@ -159,7 +156,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                             <button type="button" className="grid size-6 place-items-center rounded border" style={{ borderColor: isExpanded ? theme.canvas.selectionStroke : theme.node.stroke, color: isExpanded ? theme.node.text : theme.node.muted }} onClick={(event) => { event.stopPropagation(); toggleExpanded(entry.shot.id); }} aria-label={isExpanded ? "收起专业详情" : "展开专业详情"} title={isExpanded ? "收起专业详情" : "展开专业详情"} aria-expanded={isExpanded}>
                                                 {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
                                             </button>
-                                            <button type="button" className="grid size-6 place-items-center rounded border" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={(event) => { event.stopPropagation(); openShot(entry.shot.id); }} aria-label={`在 Studio 打开 ${payload?.shotNo || entry.shot.title}`} title="在 Studio 打开">
+                                            <button type="button" className="grid size-6 place-items-center rounded border" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={(event) => { event.stopPropagation(); openShot(entry.shot.id); }} aria-label={`打开镜头聚焦 ${payload?.shotNo || entry.shot.title}`} title="打开镜头聚焦">
                                                 <ArrowUpRight className="size-3.5" />
                                             </button>
                                         </div>
@@ -176,7 +173,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                     </div>
                 </div>
             ) : (
-                <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有镜头，去 Studio 或画布新增。</div>
+                <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有镜头，去导演板新增。</div>
             )}
             <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onOpenProduction={() => model.onOpenProduction({ shotIds: [...selected] })} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
         </div>

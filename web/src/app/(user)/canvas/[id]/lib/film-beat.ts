@@ -5,6 +5,7 @@ import { FILM_CONTEXT_ROLE_LABELS } from "./film-studio-types";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmBeatNodeData, type FilmContextRole, type Position } from "../../types";
 import { createCanvasNode } from "./canvas-node-factory";
 import { orderFilmShots } from "./film-layout";
+import { filmContextRoleOfNode } from "./film-node-kind";
 
 export const FILM_BEAT_DEFAULT_TITLE = "动作节拍";
 
@@ -150,11 +151,8 @@ export function filmBeatPrompt(beat?: FilmBeatNodeData): string {
 }
 
 function contextRoleForNode(node: CanvasNodeData | undefined): FilmBeatContextRole | null {
-    if (node?.type === CanvasNodeType.FilmCharacter && node.metadata?.filmCharacter) return "character";
-    if (node?.type === CanvasNodeType.FilmLocation && node.metadata?.filmLocation) return "location";
-    if (node?.type === CanvasNodeType.FilmProp && node.metadata?.filmProp) return "prop";
-    if (node?.type === CanvasNodeType.FilmStyle && node.metadata?.filmStyle) return "style";
-    return null;
+    const role = filmContextRoleOfNode(node);
+    return role && role !== "beat" ? role : null;
 }
 
 export function selectFilmBeatContexts(nodes: CanvasNodeData[], connections: CanvasConnection[], beatId: string): FilmBeatContextSummary {

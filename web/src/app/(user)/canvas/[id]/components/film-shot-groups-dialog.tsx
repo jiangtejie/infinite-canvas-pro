@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Input, Modal } from "antd";
-import { Check, Eye, FolderPlus, Pencil, Trash2, X } from "lucide-react";
+import { Check, Clapperboard, Eye, FolderPlus, Pencil, Trash2, X } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -18,10 +18,11 @@ type Props = {
     onDelete: (id: string) => void;
     onSelect: (shotIds: string[]) => void;
     onPreview: (shotIds: string[]) => void;
+    onProduce: (shotIds: string[]) => void;
     onClose: () => void;
 };
 
-export function FilmShotGroupsDialog({ theme, projectId, groups, onCreate, onRename, onDelete, onSelect, onPreview, onClose }: Props) {
+export function FilmShotGroupsDialog({ theme, projectId, groups, onCreate, onRename, onDelete, onSelect, onPreview, onProduce, onClose }: Props) {
     const confirm = useConfirm();
     const viewState = useFilmViewState(projectId);
     const selectedShotIds = [...viewState.selectedShotIds];
@@ -87,6 +88,7 @@ export function FilmShotGroupsDialog({ theme, projectId, groups, onCreate, onRen
                                     {group.removedCount ? <span className="text-[10px]" style={{ color: theme.node.muted }}>已移除 {group.removedCount} 镜</span> : null}
                                     <span className="ml-auto flex items-center gap-1">
                                         <button type="button" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={!shotIds.length} onClick={() => onSelect(shotIds)}><Check className="size-2.5" />选入镜头表</button>
+                                        <button type="button" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text }} disabled={!shotIds.length} onClick={() => onProduce(shotIds)}><Clapperboard className="size-2.5" />制作组</button>
                                         <button type="button" className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={!shotIds.length} onClick={() => onPreview(shotIds)}><Eye className="size-2.5" />预览组</button>
                                         <button type="button" className="grid size-6 place-items-center rounded" style={{ color: theme.node.muted }} onClick={() => void remove(group)} aria-label={`删除镜头组 ${group.title}`}><Trash2 className="size-3" /></button>
                                     </span>

@@ -1,36 +1,11 @@
+import { isFilmCanvasNodeType } from "../../utils/film-mode";
 import { CanvasNodeType, type CanvasConnection, type CanvasConnectionInput, type CanvasNodeData } from "../../types";
-import type { FilmContextRole } from "./film-graph-types";
+import { filmContextRoleOfNode } from "./film-node-kind";
 
 export type FilmConnectionCheck = { ok: true } | { ok: false; reason: string; nodeIds?: string[] };
 
-function isFilmNode(node: CanvasNodeData): node is CanvasNodeData & { type: CanvasNodeType } {
-    return [
-        CanvasNodeType.FilmScript,
-        CanvasNodeType.FilmScene,
-        CanvasNodeType.FilmShot,
-        CanvasNodeType.FilmCharacter,
-        CanvasNodeType.FilmLocation,
-        CanvasNodeType.FilmProp,
-        CanvasNodeType.FilmStyle,
-        CanvasNodeType.FilmBeat,
-    ].includes(node.type);
-}
-
-function contextRoleForNode(node: CanvasNodeData): FilmContextRole | null {
-    switch (node.type) {
-        case CanvasNodeType.FilmCharacter:
-            return node.metadata?.filmCharacter ? "character" : null;
-        case CanvasNodeType.FilmLocation:
-            return node.metadata?.filmLocation ? "location" : null;
-        case CanvasNodeType.FilmProp:
-            return node.metadata?.filmProp ? "prop" : null;
-        case CanvasNodeType.FilmStyle:
-            return node.metadata?.filmStyle ? "style" : null;
-        case CanvasNodeType.FilmBeat:
-            return node.metadata?.filmBeat ? "beat" : null;
-        default:
-            return null;
-    }
+function isFilmNode(node: CanvasNodeData) {
+    return isFilmCanvasNodeType(node.type);
 }
 
 /** 全片单链校验：镜头顺序只能是一条线性链。 */
@@ -78,7 +53,7 @@ function checkComposition(connection: CanvasConnectionInput, nodesById: Map<stri
 function checkContext(connection: Extract<CanvasConnectionInput, { kind: "context" }>, nodesById: Map<string, CanvasNodeData>, connections: CanvasConnection[]): FilmConnectionCheck {
     const source = nodesById.get(connection.fromNodeId);
     const target = nodesById.get(connection.toNodeId);
-    const role = source ? contextRoleForNode(source) : null;
+    const role = filmContextRoleOfNode(source);
     if (!role || target?.type !== CanvasNodeType.FilmShot) {
         return { ok: false, reason: "上下文只能从影视上下文节点连接到镜头", nodeIds: [connection.fromNodeId, connection.toNodeId] };
     }

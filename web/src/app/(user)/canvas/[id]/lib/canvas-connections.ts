@@ -1,6 +1,7 @@
-import { CanvasNodeType, type CanvasConnectionInput, type CanvasNodeData, type ConnectionHandle, type FilmContextRole } from "../../types";
+import { CanvasNodeType, type CanvasConnectionInput, type CanvasNodeData, type ConnectionHandle } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { isFilmCanvasNodeType } from "../../utils/film-mode";
+import { filmContextRoleOfNode } from "./film-node-kind";
 
 export type CanvasNormalizedConnection = CanvasConnectionInput;
 
@@ -16,30 +17,13 @@ export function isPublishUpstreamNode(node: CanvasNodeData) {
     return node.type === CanvasNodeType.Text || isCanvasImageNodeType(node.type);
 }
 
-function filmContextRole(type: CanvasNodeType): FilmContextRole | null {
-    switch (type) {
-        case CanvasNodeType.FilmCharacter:
-            return "character";
-        case CanvasNodeType.FilmLocation:
-            return "location";
-        case CanvasNodeType.FilmProp:
-            return "prop";
-        case CanvasNodeType.FilmStyle:
-            return "style";
-        case CanvasNodeType.FilmBeat:
-            return "beat";
-        default:
-            return null;
-    }
-}
-
 function normalizeFilmConnection(
     first: CanvasNodeData,
     second: CanvasNodeData,
     firstHandleType: "source" | "target",
 ): CanvasNormalizedConnection | null {
-    const firstRole = filmContextRole(first.type);
-    const secondRole = filmContextRole(second.type);
+    const firstRole = filmContextRoleOfNode(first);
+    const secondRole = filmContextRoleOfNode(second);
     if (firstRole && second.type === CanvasNodeType.FilmShot) {
         return { fromNodeId: first.id, toNodeId: second.id, kind: "context", data: { role: firstRole, source: "manual" } };
     }

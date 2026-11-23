@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { FILM_LAYOUT } from "../lib/film-layout";
+import { buildFilmBoardRelations, FILM_LAYOUT } from "../lib/film-layout";
 
 type BoardRect = {
     left: number;
@@ -41,15 +41,7 @@ function sceneLabel(node: CanvasNodeData) {
 function buildBoardLayout(nodes: CanvasNodeData[], connections: CanvasConnection[]) {
     const scenes = nodes.filter((node) => node.type === CanvasNodeType.FilmScene);
     const shots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
-    const sceneIds = new Set(scenes.map((scene) => scene.id));
-    const nodeById = new Map(nodes.map((node) => [node.id, node]));
-    const owner = new Map<string, string>();
-    const beatsByShot = new Map<string, CanvasNodeData[]>();
-    connections.forEach((edge) => {
-        if (edge.kind === "composition" && sceneIds.has(edge.fromNodeId) && !owner.has(edge.toNodeId)) owner.set(edge.toNodeId, edge.fromNodeId);
-        const beat = edge.kind === "context" && edge.data.role === "beat" ? nodeById.get(edge.fromNodeId) : undefined;
-        if (beat) beatsByShot.set(edge.toNodeId, [...(beatsByShot.get(edge.toNodeId) || []), beat]);
-    });
+    const { ownerByShot: owner, beatsByShot } = buildFilmBoardRelations(nodes, connections);
     const shotsByScene = new Map<string, CanvasNodeData[]>();
     const looseShots: CanvasNodeData[] = [];
     shots.forEach((shot) => {

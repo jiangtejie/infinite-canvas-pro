@@ -7,18 +7,18 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import { CANVAS_Z } from "../lib/canvas-layer";
-import type { FilmStudioView } from "../lib/film-studio-types";
+import type { FilmViewMode } from "../lib/film-studio-types";
 
-const VIEWS: Array<[FilmStudioView, string]> = [
+const VIEWS: Array<[FilmViewMode, string]> = [
     ["board", "导演板"],
     ["table", "镜头表"],
     ["storyboard", "故事板"],
     ["assets", "上下文"],
 ];
 
-export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, onOpenVersions, onPreview, onOpenProduction, onOpenGroups, previewDisabled, reviewBadge, versionBadge, groupCount }: {
-    view: FilmStudioView;
-    onChange: (view: FilmStudioView) => void;
+export function FilmViewSwitch({ view, onChange, onReview, onOpenScript, onOpenVersions, onPreview, onOpenProduction, onOpenGroups, previewDisabled, reviewBadge, versionBadge, groupCount }: {
+    view: FilmViewMode;
+    onChange: (view: FilmViewMode) => void;
     onReview?: () => void;
     onOpenScript?: () => void;
     onOpenVersions?: () => void;

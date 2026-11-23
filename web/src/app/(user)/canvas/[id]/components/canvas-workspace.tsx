@@ -17,7 +17,7 @@ import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
 import { FilmDirectorBoard } from "./film-director-board";
 import { FilmShotFocus } from "./film-shot-focus";
 import { FilmViewBody } from "./film-view-body";
-import { FilmStudioViewSwitch } from "./film-studio-view-switch";
+import { FilmViewSwitch } from "./film-view-switch";
 import { FilmShotBatchProgress } from "./film-shot-batch-progress";
 import { FilmReviewDrawer } from "./film-review-drawer";
 import { FilmPreviewOverlay } from "./film-preview-overlay";
@@ -209,7 +209,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 )}
                 {filmStudio?.shotFocusOpen ? <FilmShotFocus model={filmStudio} theme={theme} /> : null}
                 <CanvasDialogs model={model.dialogs} />
-                {filmStudio && !filmStudio.shotFocusOpen ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onOpenVersions={filmStudio.onOpenVersionBatch} onPreview={filmStudio.onOpenPreview} onOpenProduction={filmStudio.onOpenProduction} onOpenGroups={filmStudio.shotGroups.onOpen} groupCount={filmStudio.shotGroups.groups.length} previewDisabled={!filmStudio.shots.length} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} versionBadge={filmStudio.versionRoomCount} /> : null}
+                {filmStudio && !filmStudio.shotFocusOpen ? <FilmViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onOpenVersions={filmStudio.onOpenVersionBatch} onPreview={filmStudio.onOpenPreview} onOpenProduction={filmStudio.onOpenProduction} onOpenGroups={filmStudio.shotGroups.onOpen} groupCount={filmStudio.shotGroups.groups.length} previewDisabled={!filmStudio.shots.length} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} versionBadge={filmStudio.versionRoomCount} /> : null}
                 {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} bottomOffset={filmBatchBottom} currentProgress={batchCurrentProgress} /> : null}
                 {filmStudio ? (
                     <FilmReviewDrawer
@@ -227,7 +227,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 ) : null}
                 {filmStudio?.productionCenter?.open ? <FilmProductionCenter theme={theme} {...filmStudio.productionCenter} /> : null}
                 {filmStudio?.previewOpen ? <FilmPreviewOverlay theme={theme} model={filmStudio} onClose={filmStudio.onClosePreview} /> : null}
-                {filmStudio?.shotGroups.open ? <FilmShotGroupsDialog theme={theme} projectId={filmStudio.projectId} groups={filmStudio.shotGroups.groups} onCreate={filmStudio.shotGroups.onCreate} onRename={filmStudio.shotGroups.onRename} onDelete={filmStudio.shotGroups.onDelete} onSelect={filmStudio.shotGroups.onSelect} onPreview={filmStudio.shotGroups.onPreview} onClose={filmStudio.shotGroups.onClose} /> : null}
+                {filmStudio?.shotGroups.open ? <FilmShotGroupsDialog theme={theme} projectId={filmStudio.projectId} groups={filmStudio.shotGroups.groups} onCreate={filmStudio.shotGroups.onCreate} onRename={filmStudio.shotGroups.onRename} onDelete={filmStudio.shotGroups.onDelete} onSelect={filmStudio.shotGroups.onSelect} onPreview={filmStudio.shotGroups.onPreview} onProduce={filmStudio.shotGroups.onProduce} onClose={filmStudio.shotGroups.onClose} /> : null}
                 {filmStudio?.versionRoom ? <FilmVersionRoomDialog theme={theme} {...filmStudio.versionRoom} /> : null}
             </section>
             {!filmBoardActive ? (

@@ -62,10 +62,10 @@ export function useFilmAssetProduction({ nodesRef, connectionsRef, projectId, up
         }
         const plan = planFilmAssetProduction(nodesRef.current, connectionsRef.current);
         const selected = new Set(nodeIds);
-        const targets = plan.items.filter((item) => selected.has(item.nodeId) && !item.pending);
+        const targets = plan.items.filter((item) => selected.has(item.nodeId) && !item.pending && !item.blocked);
         if (!targets.length) {
             onQueueChange?.(null);
-            message.warning("所选资产已在生成中或不存在");
+            message.warning("所选资产不可执行、已在生成中或不存在");
             return;
         }
         const queueId = resume?.id || nanoid();

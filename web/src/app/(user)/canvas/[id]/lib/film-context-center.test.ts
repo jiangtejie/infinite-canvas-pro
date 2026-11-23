@@ -160,8 +160,12 @@ test("checks the used location variant instead of requiring the base concept", (
     const missingCard = view.groups.location.find((card) => card.nodeId === "loc-missing")!;
     assert.equal(readyCard.ready, true);
     assert.equal(readyCard.productionReady, true);
+    assert.equal(readyCard.productionBlocked, false);
     assert.deepEqual(readyCard.missingRefs, []);
     assert.equal(missingCard.ready, false);
+    assert.equal(missingCard.productionReady, false);
+    assert.equal(missingCard.productionBlocked, true);
+    assert.match(missingCard.productionBlockedReason, /变体/);
     assert.deepEqual(missingCard.missingRefs, ["镜头 02 引用的场景变体缺少概念图"]);
 });
 

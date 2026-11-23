@@ -101,6 +101,20 @@ test("starts from preferred node IDs but ignores pending assets", () => {
     assert.deepEqual([...initialFilmAssetProductionSelection(plan)], ["char-missing"]);
 });
 
+test("blocks a location whose only referenced variant has no concept", () => {
+    const location = assetNode("loc", "location", "雨夜天台");
+    location.metadata!.filmLocation!.asset.location = { variants: [{ id: "v1", name: "雨夜", description: "", concept: createFilmImageSlot() }] };
+    const plan = planFilmAssetProduction([sceneNode(), shotNode("s1"), location], [
+        { id: "c1", fromNodeId: "scene", toNodeId: "s1", kind: "composition" },
+        { id: "b1", fromNodeId: "loc", toNodeId: "s1", kind: "context", data: { role: "location", source: "manual", variantId: "v1" } },
+    ]);
+    const item = plan.items[0];
+    assert.equal(item.ready, false);
+    assert.equal(item.blocked, true);
+    assert.match(item.blockedReason, /变体/);
+    assert.deepEqual([...defaultFilmAssetProductionSelection(plan)], []);
+});
+
 test("does not queue a location that is only referenced through a ready variant", () => {
     const location = assetNode("loc", "location", "雨夜天台");
     const locationAsset = location.metadata!.filmLocation!.asset;

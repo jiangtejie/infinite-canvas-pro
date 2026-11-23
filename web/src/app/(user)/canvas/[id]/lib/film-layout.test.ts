@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { FilmAsset } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../../types";
-import { arrangeFilmDirectorBoard, FILM_LAYOUT, orderFilmShots } from "./film-layout";
+import { arrangeFilmDirectorBoard, buildFilmBoardRelations, FILM_LAYOUT, orderFilmShots } from "./film-layout";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}, position: Position = { x: 0, y: 0 }): CanvasNodeData => ({
     id,
@@ -135,6 +135,17 @@ test("keeps beat nodes beside their context target shot", () => {
     assert.ok(Math.abs(beatPosition.y - target.y) < FILM_LAYOUT.rowHeight);
     assert.equal(connections.filter((edge) => edge.kind === "context").length, 1);
     assert.equal(connections.find((edge) => edge.id === "beat-1->shot-2")?.toNodeId, "shot-2");
+});
+
+test("shares first-wins composition and beat relations between layout and overlay", () => {
+    const nodes = [scene("scene-a", "ep-1", "A"), scene("scene-b", "ep-2", "B"), shot("shot-1"), beat("beat-1")];
+    const connections = [composition("scene-a", "shot-1"), composition("scene-b", "shot-1"), beatContext("beat-1", "shot-1")];
+    const relations = buildFilmBoardRelations(nodes, connections);
+    assert.equal(relations.ownerByShot.get("shot-1"), "scene-a");
+    assert.equal(relations.beatTargetByBeat.get("beat-1"), "shot-1");
+    assert.deepEqual(relations.beatsByShot.get("shot-1")?.map((item) => item.id), ["beat-1"]);
+    const arranged = arrangeFilmDirectorBoard(nodes, connections);
+    assert.equal(positionOf(arranged, "shot-1").x, 0);
 });
 
 test("appends unassigned shots after the last scene column", () => {

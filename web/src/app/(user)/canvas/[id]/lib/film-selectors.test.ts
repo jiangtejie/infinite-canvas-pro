@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { FilmAsset } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotContexts, selectFilmShotEntries, selectFilmShotFocus, selectFilmStyleName } from "./film-selectors";
+import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotContexts, selectFilmShotContextsByShot, selectFilmShotEntries, selectFilmShotFocus, selectFilmStyleName } from "./film-selectors";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id,
@@ -140,4 +140,11 @@ test("selects context chips but never treats derived edges as context", () => {
     assert.deepEqual(chips[0].continuity, { emotion: "紧张" });
     assert.ok(chips[1].variants.some((variant) => variant.id === "variant-1" && variant.name === "雨夜"));
     assert.equal(selectFilmStyleName(nodes), "style");
+});
+
+test("projects all shot contexts in one pass with the same chips as per-shot selection", () => {
+    const byShot = selectFilmShotContextsByShot(nodes, connections, ["shot1", "shot2"]);
+    assert.deepEqual(byShot.shot1, selectFilmShotContexts(nodes, connections, "shot1"));
+    assert.equal(byShot.shot2, undefined);
+    assert.deepEqual(Object.keys(byShot), ["shot1"]);
 });

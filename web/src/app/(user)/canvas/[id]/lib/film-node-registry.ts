@@ -1,4 +1,5 @@
 import { createCharacterState } from "@/app/(user)/film/utils/film-character";
+import { isFilmCanvasNodeType } from "../../utils/film-mode";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../../types";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { createCanvasNode } from "./canvas-node-factory";
@@ -6,6 +7,7 @@ import { createFilmAsset } from "./film-asset-factory";
 import { createFilmBeatNode } from "./film-beat";
 import { addFilmContextEdge } from "./film-context-edges";
 import type { FilmContextRole, FilmNodeType } from "./film-graph-types";
+import { filmContextRoleOfNode } from "./film-node-kind";
 import { appendFilmShot } from "./film-shot-create";
 import { moveFilmShotAcrossScenes } from "./film-shot-reorder";
 
@@ -94,9 +96,7 @@ export const FILM_NODE_TYPE_BY_CANVAS_TYPE: Partial<Record<CanvasNodeType, FilmN
     [CanvasNodeType.FilmBeat]: "filmBeat",
 };
 
-export function isFilmNodeType(type: CanvasNodeType): type is CanvasNodeType.FilmScript | CanvasNodeType.FilmScene | CanvasNodeType.FilmShot | CanvasNodeType.FilmCharacter | CanvasNodeType.FilmLocation | CanvasNodeType.FilmProp | CanvasNodeType.FilmStyle | CanvasNodeType.FilmBeat {
-    return type in FILM_NODE_TYPE_BY_CANVAS_TYPE;
-}
+export const isFilmNodeType = isFilmCanvasNodeType;
 
 export type FilmQuickConnectActionId =
     | "create-shot"
@@ -149,18 +149,8 @@ const CONTEXT_ACTION_ROLES: Partial<Record<FilmQuickConnectActionId, FilmContext
 
 const DEFAULT_FILM_ACTIONS: FilmQuickConnectActionId[] = ["create-scene", "create-character", "create-location", "create-prop", "create-beat"];
 
-/** 节点的上下文角色；只认专用影视节点 payload。 */
-export function filmContextRole(node: CanvasNodeData): FilmContextRole | null {
-    if (node.type === CanvasNodeType.FilmCharacter && node.metadata?.filmCharacter) return "character";
-    if (node.type === CanvasNodeType.FilmLocation && node.metadata?.filmLocation) return "location";
-    if (node.type === CanvasNodeType.FilmProp && node.metadata?.filmProp) return "prop";
-    if (node.type === CanvasNodeType.FilmStyle && node.metadata?.filmStyle) return "style";
-    if (node.type === CanvasNodeType.FilmBeat && node.metadata?.filmBeat) return "beat";
-    return null;
-}
-
 function contextNodes(nodes: CanvasNodeData[], role: FilmContextRole): CanvasNodeData[] {
-    return nodes.filter((node) => filmContextRole(node) === role);
+    return nodes.filter((node) => filmContextRoleOfNode(node) === role);
 }
 
 function contextActionTarget(role: FilmContextRole): FilmNodeType {
@@ -244,7 +234,7 @@ function createShot(sourceNode: CanvasNodeData, nodes: CanvasNodeData[], connect
     if (!sceneId) return { error: "当前项目没有场次节点，先创建场次" };
     const appended = appendFilmShot(nodes, connections, sceneId);
     if (!appended) return { error: "该场次无法创建镜头" };
-    const role = filmContextRole(sourceNode);
+    const role = filmContextRoleOfNode(sourceNode);
     if (!role || sourceNode.type === CanvasNodeType.FilmScene) {
         return { nodes: appended.nodes, connections: appended.connections, nodeId: appended.shotId };
     }

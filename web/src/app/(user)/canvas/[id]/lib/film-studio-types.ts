@@ -7,7 +7,7 @@ import type { FilmProductionPlan } from "./film-production-plan";
 import type { FilmShotGroupSummary } from "./film-shot-groups";
 import type { FilmVersionKind, FilmVersionShot } from "./film-version-room";
 
-export type FilmStudioView = "board" | "table" | "storyboard" | "assets";
+export type FilmViewMode = "board" | "table" | "storyboard" | "assets";
 export type FilmProductionKind = "asset" | FilmShotBatchKind;
 export type FilmProductionOpenOptions = { assetIds?: string[]; shotIds?: string[]; kind?: FilmProductionKind };
 
@@ -74,8 +74,8 @@ export type FilmShotBatchState = {
 
 export type FilmDirectorBoardModel = {
     projectId: string;
-    view: FilmStudioView;
-    onViewChange: (view: FilmStudioView) => void;
+    view: FilmViewMode;
+    onViewChange: (view: FilmViewMode) => void;
     onArrangeBoard: () => void;
     shotFocusOpen: boolean;
     onOpenShotFocus: (shotId: string) => void;
@@ -94,6 +94,7 @@ export type FilmDirectorBoardModel = {
         onDelete: (id: string) => void;
         onSelect: (shotIds: string[]) => void;
         onPreview: (shotIds: string[]) => void;
+        onProduce: (shotIds: string[]) => void;
     };
     onSaveShotGroup: (shotIds: string[]) => void;
     aspect: FilmAspect;

@@ -179,7 +179,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
                     </div>
                 </div>
             ) : (
-                <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有场次，去 Studio 或画布新增镜头。</div>
+                <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有场次，去导演板新增镜头。</div>
             )}
             <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onOpenProduction={() => model.onOpenProduction({ shotIds: [...selected] })} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
         </div>

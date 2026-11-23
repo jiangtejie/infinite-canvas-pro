@@ -52,6 +52,17 @@ test("resolves groups in film order with media and removed counts", () => {
     assert.equal(summary.removedCount, 1);
 });
 
+test("counts version-pool-only media as generated", () => {
+    const shots = [
+        entry("s1", 4, { imageVersions: [{ id: "i1", url: "https://example.com/1.png", createdAt: "2026-11-22T00:00:00.000Z" }] }),
+        entry("s2", 4, { videoVersions: [{ id: "v1", url: "https://example.com/2.mp4", createdAt: "2026-11-22T00:00:00.000Z" }] }),
+    ];
+    const [summary] = selectFilmShotGroups([group({ shotIds: ["s1", "s2"] })], shots);
+    assert.equal(summary.imageCount, 1);
+    assert.equal(summary.videoCount, 1);
+    assert.equal(summary.missingCount, 0);
+});
+
 test("creates, renames and removes groups", () => {
     const created = createFilmShotGroup([], "  开场  ", ["a", "b", "a"]);
     assert.equal(created.length, 1);

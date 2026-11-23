@@ -10,6 +10,8 @@ export type FilmAssetViewItem = {
     description: string;
     ready: boolean;
     productionReady: boolean;
+    productionBlocked: boolean;
+    productionBlockedReason: string;
     pending: boolean;
     sourceLibraryAssetId?: string;
     usedShots: number;
@@ -28,8 +30,7 @@ export const EMPTY_FILM_ASSET_VIEW: FilmAssetView = {
 };
 
 /** 资产生产用的扁平投影：与上下文中心共用同一份专用节点与 context 边真相。 */
-export function selectFilmAssetView(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmAssetView {
-    const center = selectFilmContextCenter(nodes, connections);
+export function selectFilmAssetView(nodes: CanvasNodeData[], connections: CanvasConnection[], center = selectFilmContextCenter(nodes, connections)): FilmAssetView {
     const groups: FilmAssetView["groups"] = { character: [], location: [], prop: [], style: [] };
     (Object.keys(center.groups) as FilmContextCenterRole[]).forEach((kind) => {
         groups[kind] = center.groups[kind].map((card) => ({
@@ -40,6 +41,8 @@ export function selectFilmAssetView(nodes: CanvasNodeData[], connections: Canvas
             description: card.description,
             ready: card.ready,
             productionReady: card.productionReady,
+            productionBlocked: card.productionBlocked,
+            productionBlockedReason: card.productionBlockedReason,
             pending: card.pending,
             sourceLibraryAssetId: card.sourceLibraryAssetId,
             usedShots: card.usedShots.length,

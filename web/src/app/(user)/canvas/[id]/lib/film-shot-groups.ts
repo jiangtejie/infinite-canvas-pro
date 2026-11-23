@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 
 import type { FilmShotGroup } from "@/lib/film/types";
+import { filmShotMediaSummary } from "./film-shot-views";
 import type { FilmShotEntry } from "./film-studio-types";
 
 export type FilmShotGroupSummary = FilmShotGroup & {
@@ -23,10 +24,9 @@ export function selectFilmShotGroups(groups: FilmShotGroup[] | undefined, shots:
         for (const entry of resolved) {
             const payload = entry.shot.metadata?.filmShot;
             duration += Math.max(0.5, Number(payload?.duration) || 4);
-            const hasVideo = Boolean(payload?.videoUrl || payload?.videoStorageKey);
-            const hasImage = Boolean(payload?.imageUrl || payload?.storageKey);
-            if (hasVideo) videoCount += 1;
-            else if (hasImage) imageCount += 1;
+            const media = filmShotMediaSummary(entry.shot);
+            if (media.hasVideo) videoCount += 1;
+            else if (media.hasImage) imageCount += 1;
             else missingCount += 1;
         }
         return {

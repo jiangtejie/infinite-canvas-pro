@@ -98,6 +98,30 @@ test("carries queue remaining items and failure state into the plan", () => {
     ]);
 });
 
+test("blocks a location with a missing referenced variant instead of marking it done", () => {
+    const blockedLocation = node("loc", CanvasNodeType.FilmLocation, {
+        filmLocation: {
+            asset: {
+                ...createFilmAsset("location", 1),
+                name: "天台",
+                location: { variants: [{ id: "v1", name: "雨夜", description: "", concept: createFilmImageSlot() }] },
+            },
+        },
+    });
+    const plan = selectFilmProductionPlan([
+        scene("scene", "天台"),
+        shot("s1"),
+        blockedLocation,
+    ], [
+        composition("scene", "s1"),
+        { id: "loc->s1", fromNodeId: "loc", toNodeId: "s1", kind: "context", data: { role: "location", variantId: "v1", source: "manual" } },
+    ], { imageMaxReferences: 10, videoMaxReferences: 10 });
+    assert.deepEqual(plan.assets.map((item) => [item.id, item.status, item.canStart, item.selected]), [
+        ["loc", "blocked", false, false],
+    ]);
+    assert.match(plan.assets[0].reason, /变体/);
+});
+
 test("uses existing preflight skip reasons for the active shot kind", () => {
     const { nodes, connections } = project();
     const image = selectFilmProductionPlan(nodes, connections, { shotKind: "image", imageMaxReferences: 10, videoMaxReferences: 10 });

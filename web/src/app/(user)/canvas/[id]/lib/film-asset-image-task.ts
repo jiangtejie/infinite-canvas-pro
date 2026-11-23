@@ -3,15 +3,13 @@ import { nanoid } from "nanoid";
 import type { FilmAsset, FilmAssetKind, FilmImageRef } from "@/lib/film/types";
 import type { ReferenceImage } from "@/types/image";
 import type { AiConfig } from "@/stores/use-config-store";
-import { createCanvasImageTask, pollCanvasImageTaskStatus, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
+import { createCanvasImageTask, type CanvasImageTask, type SeedableImageConfig } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
 import { ensureCharacterProfile } from "@/app/(user)/film/utils/film-character";
 import { activeSlotImage } from "@/app/(user)/film/utils/film-image-slot";
 import { compressFilmReference } from "@/app/(user)/film/utils/film-image-compress";
-import { canvasImageTaskURLs, canvasTaskCompleted, canvasTaskFailed } from "./canvas-task-helpers";
-
-const POLL_INTERVAL_MS = 1200;
-const TIMEOUT_MS = 10 * 60 * 1000;
+import { canvasImageTaskURLs, canvasTaskFailed } from "./canvas-task-helpers";
+import { waitForCanvasImageTask } from "./film-image-task-wait";
 
 export type FilmAssetImageTaskResult = {
     url: string;
@@ -84,15 +82,11 @@ export async function runFilmAssetImageTask(options: {
     activeAssetTaskIds.add(task.id);
     try {
         options.onTaskStarted?.(task);
-        let current = task;
-        const startedAt = Date.now();
-        while (!canvasTaskCompleted(current.status) && !canvasTaskFailed(current.status)) {
-            if (Date.now() - startedAt > TIMEOUT_MS) throw new Error("资产参考图生成超时，请稍后重试");
-            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-            options.signal.throwIfAborted();
-            current = await pollCanvasImageTaskStatus(current.id, options.signal);
-            options.onProgress?.(current.progress ?? 0);
-        }
+        const current = await waitForCanvasImageTask(task, {
+            signal: options.signal,
+            timeoutMessage: "资产参考图生成超时，请稍后重试",
+            onProgress: options.onProgress,
+        });
         if (canvasTaskFailed(current.status)) throw new Error(current.error?.message || "资产参考图生成失败");
         const url = canvasImageTaskURLs(current)[0];
         if (!url) throw new Error("接口没有返回资产参考图");

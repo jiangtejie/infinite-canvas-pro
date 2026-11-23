@@ -1,18 +1,8 @@
 import { CanvasNodeType } from "../types";
+import { FILM_NODE_TYPES } from "../[id]/lib/film-node-kind";
 
-export const FILM_CANVAS_DEV = process.env.NEXT_PUBLIC_ENABLE_FILM_CANVAS === "1";
+const FILM_NODE_TYPE_SET = new Set<CanvasNodeType>(FILM_NODE_TYPES);
 
-const FILM_NODE_TYPES: CanvasNodeType[] = [
-    CanvasNodeType.FilmScript,
-    CanvasNodeType.FilmScene,
-    CanvasNodeType.FilmShot,
-    CanvasNodeType.FilmCharacter,
-    CanvasNodeType.FilmLocation,
-    CanvasNodeType.FilmProp,
-    CanvasNodeType.FilmStyle,
-    CanvasNodeType.FilmBeat,
-];
-
-export function isFilmCanvasNodeType(type: CanvasNodeType) {
-    return FILM_NODE_TYPES.includes(type);
+export function isFilmCanvasNodeType(type: CanvasNodeType): type is (typeof FILM_NODE_TYPES)[number] {
+    return FILM_NODE_TYPE_SET.has(type);
 }

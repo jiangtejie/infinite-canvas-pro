@@ -41,13 +41,14 @@ const canvasFilmNodeTypes = [
     CanvasNodeType.FilmStyle,
     CanvasNodeType.FilmBeat,
 ];
-const node = (id: string, type: CanvasNodeType): CanvasNodeData => ({
+const node = (id: string, type: CanvasNodeType, metadata?: CanvasNodeData["metadata"]): CanvasNodeData => ({
     id,
     type,
     title: id,
     position: { x: 0, y: 0 },
     width: 200,
     height: 100,
+    metadata,
 });
 
 // @ts-expect-error Context edges require a role.
@@ -113,9 +114,9 @@ test("keeps film node sizes and node specs aligned with the public enum", () => 
 
 test("normalizes context and structural connections with the graph contract", () => {
     const nodes = [
-        node("character", CanvasNodeType.FilmCharacter),
-        node("location", CanvasNodeType.FilmLocation),
-        node("style", CanvasNodeType.FilmStyle),
+        node("character", CanvasNodeType.FilmCharacter, { filmCharacter: { asset: {} as never } }),
+        node("location", CanvasNodeType.FilmLocation, { filmLocation: { asset: {} as never } }),
+        node("style", CanvasNodeType.FilmStyle, { filmStyle: { asset: {} as never } }),
         node("scene", CanvasNodeType.FilmScene),
         node("shot", CanvasNodeType.FilmShot),
         node("next-shot", CanvasNodeType.FilmShot),
