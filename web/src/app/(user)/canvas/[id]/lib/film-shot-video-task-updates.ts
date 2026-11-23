@@ -7,7 +7,7 @@ import { canvasTaskCompleted, canvasTaskFailed } from "./canvas-task-helpers";
 
 export function selectFilmShotVideoTaskTargets(nodes: CanvasNodeData[]) {
     return nodes.filter((node) =>
-        node.type === CanvasNodeType.Shot
+        node.type === CanvasNodeType.FilmShot
         && node.metadata?.status === NODE_STATUS_LOADING
         && node.metadata?.filmShot?.pendingTask?.kind === "video");
 }

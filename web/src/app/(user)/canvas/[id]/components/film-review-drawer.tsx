@@ -1,56 +1,66 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Drawer } from "antd";
 import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
-import type { FilmAnimaticIssue } from "@/app/(user)/film/utils/film-animatic";
 import type { CanvasFilmMeta } from "../../types";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import { CANVAS_Z } from "../lib/canvas-layer";
-import { filmReviewIsStale, type FilmReviewReport } from "../lib/film-review";
-import type { FilmStudioModel } from "../lib/film-studio-types";
+import type { FilmReviewIssue, FilmReviewReport } from "../lib/film-review";
+import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
 
-const SOURCE_LABELS: Record<FilmAnimaticIssue["source"], string> = {
+const SOURCE_LABELS: Record<FilmReviewIssue["source"], string> = {
     duration: "时长",
     pacing: "节奏",
     coverage: "覆盖",
-    continuity: "连续性",
     binding: "绑定",
     style: "风格",
     consistency: "AI 一致性",
-    branch: "分支",
 };
 
 export function FilmReviewDrawer({ open, onClose, theme, model, report, film, onOpenShot }: {
     open: boolean;
     onClose: () => void;
     theme: CanvasTheme;
-    model: FilmStudioModel;
+    model: FilmDirectorBoardModel;
     report: FilmReviewReport | null;
     film?: CanvasFilmMeta;
     onOpenShot: (shotId: string) => void;
 }) {
-    const shotIdByNo = useMemo(() => new Map(model.shots.flatMap((entry) => {
-        const shotNo = entry.shot.metadata?.filmShot?.shotNo;
-        return shotNo ? [[shotNo, entry.shot.id] as const] : [];
-    })), [model.shots]);
-    const openShotNo = (shotNo: string) => {
-        const shotId = shotIdByNo.get(shotNo);
-        if (shotId) onOpenShot(shotId);
+    const openShotIds = (shotIds: string[]) => {
+        const shotId = shotIds[0];
+        if (shotId) {
+            onClose();
+            onOpenShot(shotId);
+        }
     };
-    const openIssue = (issue: FilmAnimaticIssue) => {
-        if (issue.shotId) {
-            onOpenShot(issue.shotId);
+    const openContext = (nodeId?: string) => {
+        if (!nodeId) return false;
+        onClose();
+        model.onLocateAsset(nodeId);
+        return true;
+    };
+    const openIssue = (issue: FilmReviewIssue) => {
+        if (issue.targetReview) {
+            if (model.consistencyReviewing || !report?.shotCount) return;
+            model.onRunConsistencyReview();
             return;
         }
-        const shotId = issue.sceneId ? model.scenes.find((scene) => scene.id === issue.sceneId)?.shots[0]?.shot.id : undefined;
-        if (shotId) onOpenShot(shotId);
+        if (openContext(issue.targetContextNodeId)) return;
+        if (issue.targetShotId) {
+            onClose();
+            onOpenShot(issue.targetShotId);
+            return;
+        }
+        if (issue.targetNodeId) {
+            onClose();
+            model.onSceneChange(issue.targetNodeId);
+        }
     };
     const review = film?.consistencyReview;
-    const reviewStale = filmReviewIsStale(review, report?.fingerprint);
 
     return (
         <Drawer
@@ -88,16 +98,10 @@ export function FilmReviewDrawer({ open, onClose, theme, model, report, film, on
                             </span>
                         ) : null}
                     </div>
-                    {reviewStale ? (
-                        <div className="flex items-start gap-1.5 rounded-lg border px-3 py-2 text-xs leading-5" style={{ borderColor: canvasStatusColors.loading, color: theme.node.text }}>
-                            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" style={{ color: canvasStatusColors.loading }} />
-                            镜头、绑定或项目设置已变化，上次 AI 结论可能过期，建议重新检查。
-                        </div>
-                    ) : null}
                     {review?.summary ? <div className="rounded-lg border px-3 py-2 text-xs leading-5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>{review.summary}</div> : null}
                     <Section theme={theme} title="缺参考">
                         {report.readiness.missing.length ? report.readiness.missing.map((item) => (
-                            <button key={item.key} type="button" className="flex w-full items-start gap-2 rounded-lg border px-2 py-1.5 text-left" style={{ borderColor: theme.node.stroke, background: theme.node.fill }} onClick={() => item.shotNos[0] && openShotNo(item.shotNos[0])}>
+                            <button key={item.key} type="button" className="flex w-full items-start gap-2 rounded-lg border px-2 py-1.5 text-left" style={{ borderColor: theme.node.stroke, background: theme.node.fill }} onClick={() => { if (!openContext(item.contextNodeId)) openShotIds(item.shotIds); }}>
                                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" style={{ color: canvasStatusColors.loading }} />
                                 <span className="min-w-0">
                                     <span className="block text-xs" style={{ color: theme.node.text }}>{FILM_ASSET_KIND_LABELS[item.kind]} · {item.name}</span>
@@ -108,7 +112,7 @@ export function FilmReviewDrawer({ open, onClose, theme, model, report, film, on
                     </Section>
                     <Section theme={theme} title="未锁定">
                         {report.readiness.unlocked.length ? report.readiness.unlocked.map((item) => (
-                            <button key={item.key} type="button" className="flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-xs" style={{ borderColor: theme.node.stroke, background: theme.node.fill }} onClick={() => item.shotNos[0] && openShotNo(item.shotNos[0])}>
+                            <button key={item.key} type="button" className="flex w-full items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-left text-xs" style={{ borderColor: theme.node.stroke, background: theme.node.fill }} onClick={() => openShotIds(item.shotIds)}>
                                 <span className="truncate" style={{ color: theme.node.text }}>{FILM_ASSET_KIND_LABELS[item.kind]} · {item.name}</span>
                                 <span className="shrink-0 text-[11px]" style={{ color: theme.node.muted }}>{item.shotNos.length} 镜</span>
                             </button>

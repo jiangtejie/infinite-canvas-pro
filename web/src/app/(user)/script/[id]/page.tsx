@@ -91,7 +91,7 @@ export default function ScriptProjectPage() {
         const shotCount = episodes.reduce((total, episode) => total + episode.scenes.reduce((sceneTotal, scene) => sceneTotal + scene.shots.length, 0), 0);
         const filmProjectId = createFilmProject(`${project.title} · 分镜`);
         const created = useCanvasStore.getState().projects.find((item) => item.id === filmProjectId);
-        const scriptNode = created?.nodes.find((node) => node.type === CanvasNodeType.Script);
+        const scriptNode = created?.nodes.find((node) => node.type === CanvasNodeType.FilmScript);
         if (!created || !scriptNode) return;
         const scriptNodeWithText = {
             ...scriptNode,

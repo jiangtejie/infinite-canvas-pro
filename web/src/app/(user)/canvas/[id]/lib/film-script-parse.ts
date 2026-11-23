@@ -26,14 +26,14 @@ export function buildFilmParseGraph(
     connections: CanvasConnection[],
     mode: "overwrite" | "append" = "overwrite",
 ): FilmParseGraphResult {
-    const removableNodes = mode === "overwrite" ? nodes.filter((node) => node.type === CanvasNodeType.Scene || node.type === CanvasNodeType.Shot) : [];
+    const removableNodes = mode === "overwrite" ? nodes.filter((node) => node.type === CanvasNodeType.FilmScene || node.type === CanvasNodeType.FilmShot) : [];
     const removedNodeIds = new Set(removableNodes.map((node) => node.id));
     const removedConnections = connections.filter((edge) => removedNodeIds.has(edge.fromNodeId) || removedNodeIds.has(edge.toNodeId));
     const removedConnectionIds = new Set(removedConnections.map((edge) => edge.id));
-    const appendScenes = mode === "append" ? nodes.filter((node) => node.type === CanvasNodeType.Scene).length : 0;
-    const sceneWidth = NODE_DEFAULT_SIZE[CanvasNodeType.Scene].width;
-    const sceneHeight = NODE_DEFAULT_SIZE[CanvasNodeType.Scene].height;
-    const shotHeight = NODE_DEFAULT_SIZE[CanvasNodeType.Shot].height;
+    const appendScenes = mode === "append" ? nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length : 0;
+    const sceneWidth = NODE_DEFAULT_SIZE[CanvasNodeType.FilmScene].width;
+    const sceneHeight = NODE_DEFAULT_SIZE[CanvasNodeType.FilmScene].height;
+    const shotHeight = NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].height;
     const baseX = scriptNode.position.x + scriptNode.width + START_GAP + appendScenes * (sceneWidth + COLUMN_GAP);
     const baseY = scriptNode.position.y;
 
@@ -42,7 +42,7 @@ export function buildFilmParseGraph(
     let sceneColumn = 0;
     let shotCount = 0;
     const existingTail = mode === "append"
-        ? orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.Shot), connections).at(-1)?.id ?? ""
+        ? orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.FilmShot), connections).at(-1)?.id ?? ""
         : "";
     let previousShotId = existingTail;
     for (const episode of episodes) {
@@ -50,7 +50,7 @@ export function buildFilmParseGraph(
             const sceneId = nanoid();
             createdNodes.push({
                 id: sceneId,
-                type: CanvasNodeType.Scene,
+                type: CanvasNodeType.FilmScene,
                 title: scene.name || "场次",
                 position: { x: baseX + sceneColumn * (sceneWidth + COLUMN_GAP), y: baseY },
                 width: sceneWidth,
@@ -71,10 +71,10 @@ export function buildFilmParseGraph(
                 const shotId = nanoid();
                 createdNodes.push({
                     id: shotId,
-                    type: CanvasNodeType.Shot,
+                    type: CanvasNodeType.FilmShot,
                     title: shot.shotNo || "镜头",
                     position: { x: baseX + sceneColumn * (sceneWidth + COLUMN_GAP), y: baseY + sceneHeight + 40 + shotIndex * (shotHeight + SHOT_GAP) },
-                    width: NODE_DEFAULT_SIZE[CanvasNodeType.Shot].width,
+                    width: NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].width,
                     height: shotHeight,
                     metadata: { status: "idle", filmShot: shotPayload(shot) },
                 });

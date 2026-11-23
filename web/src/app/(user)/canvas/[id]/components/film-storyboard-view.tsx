@@ -7,12 +7,12 @@ import type { CanvasTheme } from "@/lib/canvas-theme";
 import { filmShotTypeLabel } from "@/app/(user)/film/utils/film-shot-types";
 import { useFilmViewState, useFilmViewStore } from "@/app/(user)/canvas/stores/use-film-view-store";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
-import type { FilmSceneEntry, FilmShotEntry, FilmStudioModel } from "../lib/film-studio-types";
+import type { FilmSceneEntry, FilmShotEntry, FilmDirectorBoardModel } from "../lib/film-studio-types";
 import { filmShotViewStats, groupFilmShots } from "../lib/film-shot-views";
 import { FilmShotMediaBadges } from "./film-shot-media-badges";
 import { FilmShotSelectionBar } from "./film-shot-selection-bar";
 
-export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model: FilmStudioModel }) {
+export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model: FilmDirectorBoardModel }) {
     const viewState = useFilmViewState(model.projectId);
     const updateView = useFilmViewStore((state) => state.update);
     const columns = viewState.boardColumns;
@@ -33,8 +33,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
             suppressOpenRef.current = false;
             return;
         }
-        model.onSelectShot(shotId);
-        model.onViewChange("studio");
+        model.onOpenShotFocus(shotId);
     };
     const startDragging = (shotId: string, sceneId: string) => {
         const next = { shotId, sceneId };
@@ -113,10 +112,6 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
                                             <div className="mb-1.5 flex items-center gap-2 px-0.5 text-[10px]" style={{ color: theme.node.muted }}>
                                                 <span>第 {groupIndex + 1} 组</span>
                                                 <span>· {group.length} 镜</span>
-                                                <span className="ml-auto flex items-center gap-1">
-                                                    <button type="button" className="rounded-full border px-2 py-0.5 text-[10px] disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={model.shotBatch.running} onClick={() => model.onBatchGenerateShots(group.map((entry) => entry.shot.id), "image")}>本组出图</button>
-                                                    <button type="button" className="rounded-full border px-2 py-0.5 text-[10px] disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={model.shotBatch.running} onClick={() => model.onBatchGenerateShots(group.map((entry) => entry.shot.id), "video")}>本组视频</button>
-                                                </span>
                                             </div>
                                             <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                                                 {group.map((entry) => (
@@ -186,7 +181,7 @@ export function FilmStoryboardView({ theme, model }: { theme: CanvasTheme; model
             ) : (
                 <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有场次，去 Studio 或画布新增镜头。</div>
             )}
-            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onGenerate={(kind) => model.onBatchGenerateShots([...selected], kind)} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
+            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onOpenProduction={() => model.onOpenProduction({ shotIds: [...selected] })} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
         </div>
     );
 }

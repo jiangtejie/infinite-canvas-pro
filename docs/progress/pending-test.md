@@ -3,6 +3,167 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 影视画布：完整自动化与浏览器验收（Task 19–20）
+
+- 自动化：`bun test` 143 文件 748 条通过；`bun run typecheck` 0 错误；`bun run lint` 0 告警；`git diff --check` 无空白错误。禁用重复路径搜索只剩 `createFilmProject` 当前工厂名与历史测试标题。
+- 浏览器实测（临时项目已删除）：`/film` 新建后默认进入导演板；场次新增镜头生成镜头 01 与场景 composition，新增第二镜显示上一镜 01；Shot Focus 编辑描述后导演板卡同步；镜头表/故事板选区都打开同一制作中心；上下文中心只有角色/场景/道具/风格并在生产中心带入风格资产；分镜预演显示标尺/场次分段/播放头并能打开 Shot Focus；Version Room 通过节点版本数打开，验证当前版本、上下文/无上下文文案与“设为当前”入口；检查抽屉列出覆盖/风格问题，点击风格问题关闭抽屉并选中目标节点；通用检查器镜头分支为只读概览；`/canvas` 正常加载。
+- 验收中发现并修复：从导演板切到镜头表/上下文再返回时，尺寸 ResizeObserver 仍绑定已卸载容器，`visibleNodes` 为空导致节点消失。已让尺寸监听随视图重建，复测切回导演板节点正常。最终复核又封死影视节点通用右键菜单/提示词面板/复制粘贴重复路径；点击镜头节点直接打开唯一 Shot Focus，卡片菜单保留只读“镜头概览”。浏览器复测：点击镜头节点进入 Shot Focus，风格节点右键不再出现通用菜单，临时项目已删除。
+- 规格裁定：镜头卡保持紧凑摘要，不做卡内完整编辑器；点击节点或“打开镜头聚焦”统一进入 Shot Focus，因此全项目只有一个 `FilmShotEditor`。`CanvasFilmMeta.shotGroups` 作为轻量镜头选集记录保留，不承载镜头业务真源。
+- 后续审查修复：多选仅影视节点时 Ctrl+D 不再粘贴上一次的通用剪贴板内容；通用剪贴板只收集泛化节点并保留组内展开。`FilmShotPanelProps` 清理已删除的 `mode` 键约束。
+- 未实测：真实图片/视频生成与任务续跑、快速连线拖拽菜单、真实视频播放、长片性能、跨设备媒体、移动端和浅色主题。Version Room 的“设为当前”因注入的两个版本共用同一 URL，未对节点标签切换做最终视觉确认；设置入口与纯函数测试已验证。
+- 临时项目 `临时验收-导演板-2041`、最终复核临时项目和注入版本、截图均已清理，未创建文库条目。
+
+## 影视画布：清理旧 helper 与重复编辑器（Task 17）
+
+- 删除 `film-edits.ts` 及其测试：项目级资产创建统一走 `film-asset-factory` 的 `createFilmAsset` / `importFilmAsset`，所有 canvas/film 测试引用已迁移；不再保留旧剧集/场次/镜头数组编辑器。
+- `film-library.ts` 删除旧 `FilmProject` 使用统计（当前库页面与选择器已使用 canvas 项目的 `filmCanvasLibraryUsageIndex`），只保留库条目查找/覆盖/写入能力；`film-video-task.ts` 只保留仍在使用的 `filmVideoTaskRef`，删除无调用的启动/轮询/停止 helper。
+- 删除无引用的 `film-asset-production-dialog.tsx` 与 `film-shot-production-dialog.tsx`，制作中心是唯一批量生产界面；保留镜头聚焦使用的 `FilmShotPanel` 包装与唯一 `FilmShotEditor`。
+- 角色资产编辑不再显示独立“概念图”槽位，缩略图优先使用角色参考板；生成编译器测试新增“角色只使用 board，不把 concept 作为下游参考”。服装仍保留母版库与角色造型引用，但不进入项目节点/上下文一级组/生产队列。
+- 验证：`bun test "src/app/(user)/film/utils" "src/app/(user)/canvas/[id]/lib"` 共 75 文件 439 条通过；全仓 typecheck 0 错误；lint 0 告警。复审修复补齐了 `importFilmAsset` 独立性测试，并把角色库预览/图片任务参考统一到参考板；`film-media-sync` 只保留母版库媒体升级，旧 `FilmProject` 类型删除。
+- 未实测：资产检查器角色槽位、库页面服装 tab、删除旧弹窗后的制作中心入口、旧项目/旧数据打开行为与浏览器交互；隐藏帧相关交互未实测。
+
+## 影视画布：删除旧互动/场记/Stage 概念（Task 16）
+
+- 删除 `film-branch`、`film-interactive`、`film-continuity-sheet`、`film-animatic`、`film-binding-check` 与 `film-stages` 及其测试；镜头互动分支、互动变量、旧场记交接单、旧 animatic 覆盖规则和独立 Stage 模型不再进入编译或检查。
+- `FilmShot` 移除 branches / continuity / continuityCheck；`FilmProject` 移除 stage、interactiveVariables、shotConnections；`FilmShotConnection`、`FilmShotBranch`、`FilmInteractiveVariable`、`FilmContinuitySheet`、`FilmStage` 类型删除。角色连续性只保留 context 边 `continuity` 与生成绑定快照。
+- 旧的 `film-shot-generation` 不再拼接场记交接单；检查继续使用图原生 review 规则。角色绑定连续性格式化收敛到 `film-binding-continuity.ts`。
+- 通用画布侧栏、助手节点徽标、项目卡和 mini-map 的旧 Script/Scene/Shot/FilmAsset 枚举清理，改读专用影视节点或移除影视入口；`CanvasFilmMeta` 补回 `shotGroups`。
+- 验证：`bun test "web/src/app/(user)/canvas/[id]/lib" "web/src/app/(user)/film/utils"` 共 75 个文件 449 条通过；`bun run typecheck` 全仓 0 错误；`bun run lint` 0 告警。
+- 未实测：旧画布数据不迁移是既定策略；真实旧项目打开后只会见剩余专用节点/通用节点，未做浏览器迁移验收。导演分析仍以非持久化的 `FilmEpisode` 中间 DTO 调用 AI；旧 `FilmProject` helper 已在 Task 17 删除。
+
+## 影视画布：图原生检查与只读检查器（Task 15）
+
+- `FilmReviewReport.issues` 增加稳定目标：`targetNodeId`、`targetShotId`、`targetContextNodeId`、`targetReview`。场次/覆盖问题定位场次与首个相关镜头，镜头节奏/时长/角色提及/失效造型定位镜头，风格规则定位风格节点，项目级一致性与过期 AI 检查定位到检查入口。
+- 缺参考条目新增 `contextNodeId`：角色/场景/道具按绑定的上下文节点定位，场景变体按变体引用定位，造型服装按角色节点定位；已删除资产没有可定位节点时回退到首个镜头。检查抽屉按“上下文 → 镜头 → 场次”优先导航。
+- 检查抽屉删除独立过期横幅，过期 AI 结论作为 `targetReview` 检查项显示，点击重新运行 AI 检查；抽屉只展示和导航，不修改镜头载荷。
+- `CanvasFilmInspector` 的镜头分支改为只读概览：镜号/景别/时长/运镜/转场/状态、画面描述与创作补充、图片/视频版本数、上一镜/下一镜、上下文 chip，以及“打开镜头聚焦 / 在导演板定位”动作；不再提供第二套镜头字段表单。
+- 检查导航按「上下文节点 → 镜头 → 场次」优先；风格问题因此先定位风格节点。过期 AI 检查项在检查进行中或零镜头时不会重复触发。已删除服装仍能定位到引用的角色上下文节点。
+- 验证：`film-review.test.ts` 12 条、`film-asset-readiness.test.ts` 6 条，共 18 条通过（目标节点、上下文目标、变体/道具/删除服装、风格节点、过期检查）；`bun run lint` 通过；相关文件定向 typecheck 无诊断，全仓 typecheck 剩 39 条后续任务诊断。
+- 未实测：真实检查抽屉点击上下文/风格/镜头/场次目标、过期 AI 项点击重跑、只读检查器的上下文/上一镜/下一镜摘要与聚焦/定位动作；隐藏帧 hover/断点/计时器相关交互未实测。
+
+## 影视画布：统一版本管理（Task 14）
+
+- Version Room 成为唯一版本管理表面：对比面板新增该版本的角色/造型、参考、警告、缺参考与提示词摘要；上传或旧版本明确显示没有生成上下文；只有一个版本时也可打开版本评审，只显示单栏当前版本。
+- 舞台移除可点击的 v1/v2… 版本选择和“对比”按钮，改为只显示「当前 vN · N 个版本 · 版本评审」，点击打开 Version Room；镜头聚焦的版本切换回调已删除，版本只能通过 Version Room 设为当前。
+- 生成信息面板移除版本历史列表，只保留当前媒体/当前版本/版本数与本次或当前版本的提示词、角色、参考、警告；版本切换不再从这里发生。
+- 镜头节点显示当前图片/视频版本标签与各自版本数；节点版本操作在版本数大于 0 时即可打开 Version Room，不再要求多版本。
+- `film-version-room.ts` 的版本镜头投影改读专用 `FilmShot` 节点，移除最后一个旧 `CanvasNodeType.Shot` 版本路径。
+- 版本历史写回链路同步切到专用 `FilmShot`：图片/视频任务目标选择、任务停止分类与镜头组校验不再依赖旧 `Shot`；节点卡与舞台都按 URL 或 storageKey 识别当前版本；生成任务进行中切换当前版本会保留 pending 状态。
+- 验证：版本管理、镜头任务回写、视频任务回写、镜头组、镜头生产 5 个测试文件 18 条通过（当前版本识别、批量挑选、应用版本保留历史、有/无生成上下文摘要、版本写回历史、storageKey 当前版本、pending 保留）；`bun run lint` 通过；相关文件定向 typecheck 无诊断，全仓 typecheck 剩 39 条后续任务诊断，仍不声称全量通过。
+- 未实测：真实多版本图片/视频在 Version Room 的对比与设为当前、批量挑选、单版本打开、上传/旧版本无上下文提示、舞台与生成信息的浏览器布局，以及移动端/浅色主题；隐藏帧 hover/断点/计时器相关交互未实测。
+
+## 影视画布：分镜预演合并时间轴（Task 13）
+
+- `film-animatic-preview.ts` 新增 `selectFilmPreviewEntries(shots, shotIds)`，镜头选集筛选仍按全片顺序；`buildFilmPreviewTimeline` 继续作为唯一时间线构建器，重算镜头块、场次分段、总时长与媒体统计。当前字段缺失时回退版本池最新图片/视频，跨场回跳时按起始时间生成独立场次分段，避免重复 key 与误高亮。
+- `FilmPreviewOverlay` 改名为「分镜预演」，新增时间标尺、场次分段条、当前场次高亮、播放头、点击场次跳转与键盘 `Home` 提示；原有播放/暂停、上一镜/下一镜、拖动点击定位、静音、打开镜头聚焦保持不变，明确不加入音频、字幕或导出。
+- 删除未接入的 `film-timeline-view.tsx`、`FilmViewState.playhead` 与 `filmTimelineBlocks`，独立时间轴组件、第二套播放 interval 和独立播放头不再保留；四视图切换仍为导演板/镜头表/故事板/上下文。顶部快捷键帮助同步改为「上下文」。
+- 验证：分镜预演 7 条、镜头视图 6 条，共 13 条 focused 测试通过；`bun run lint` 通过；相关文件定向 typecheck 无诊断，全仓 typecheck 剩 50 条后续任务诊断，仍不声称全量通过。
+- 未实测：真实视频镜头下新增标尺/场次条/播放头与点击场次的浏览器布局、长片时间轴性能、镜头选集与真实视频播放的交互、移动端/浅色主题；隐藏帧 hover/断点/计时器与 rAF 行为未实测。
+
+## 影视画布：制作中心（Task 12）
+
+- 新增 `film-production-plan.ts`：`selectFilmProductionPlan(nodes, connections, options)` 组合既有资产生产计划、镜头生产计划与 `planFilmShotBatch` 预检，统一输出资产/镜头条目、选中 ID、队列剩余数、失败/完成、编译警告、跳过原因和可执行状态；资产失败读取 `asset.status/errorMessage`，镜头可执行性以预检的 ready 集合为准，没有新增 runner 或任务状态。
+- 新增 `film-production-center.tsx`：单个 Modal 提供全部/资产/镜头/失败/已完成标签、分镜图/视频切换、资产与镜头勾选、全选可执行、执行前跳过原因、当前任务进度、停止、定位回原节点，以及分别启动资产/镜头选中项；底层继续调用 `useFilmAssetProduction` 和 `useFilmShotBatch`。
+- 上下文中心“制作选中/制作中心”、镜头表与故事板的选区栏、顶栏“制作”统一打开制作中心并带入当前选择；故事板删除“本组出图/本组视频”直接执行按钮，选区栏收敛为一个“制作中心”入口；单镜生成仍直接执行，不经过制作中心。
+- `film-batch-preflight.ts` 改读专用 `FilmShot` 节点与 graph 生成上下文；其测试改用专用镜头、角色节点与 `context` 边，不再使用旧 `Shot` / `FilmAsset` / `binding`。
+- 验证：制作计划、批量预检、资产生产、镜头生产 4 个 focused 文件 18 条通过；`canvas/[id]/lib` 全量 340 条中 338 通过，2 条失败仍来自未迁移的 `canvas-film-node-factory.test.ts` 旧枚举 fixture；`bun run lint` 通过；定向 typecheck 在 Task 12 文件无诊断，`canvas-editor` 仍只剩既有 7 条 `shotGroups`/旧 `Shot`；全仓 typecheck 从 60 条降至 51 条，仍不声称全量通过。
+- 从上下文中心/镜头表/故事板带入选中时，只默认勾选本次入口范围；其他范围不自动勾选，顶栏打开“全部”时才同时给出两侧默认缺失项。
+- 未实测：制作中心真实浏览器布局与标签/弹窗叠层、从镜头表/故事板/上下文中心带入选中的真实执行、资产与镜头分别启动后的进度/停止、失败重试、刷新后续跑与队列提示、顶部制作中心在无镜头项目下的表现，以及移动端/浅色主题；隐藏帧 hover/断点/计时器相关交互未实测。
+
+## 影视画布：上下文中心（Task 11）
+
+- 新增 `film-context-center.ts`：`selectFilmContextCenter(nodes, connections, costumes)` 只按专用角色/场景/道具/风格节点与 `context` 边派生四组上下文卡，输出使用镜头（按全片 `sequence`）、按 sceneId 去重的使用场次、受影响镜头、缺参考、待生成、母版库来源与角色造型的服装引用。缺参考覆盖角色板、场景/道具/风格基础参考、镜头引用的场景变体缺图、造型引用的服装删除或缺图；风格卡按全片影响所有镜头；重复风格节点返回 error 级 issue 并保留全部卡片，缺少风格返回 warning。
+- 新增 `film-context-center.tsx` 替换旧资产概览：角色/场景/道具/风格四组展示参考缩略图、就绪/生成中/缺参考、母版库来源、使用镜头/场次与缺失原因；支持编辑节点、画布定位、从母版库导入/更新（含缺失时的风格导入）、勾选上下文后带 node IDs 打开资产生产、点击镜号打开镜头聚焦。旧「资产清单/场景覆盖」二级模式删除，场景覆盖改由检查模型逐场输出「N 个镜头未绑定角色/场景」。
+- `film-asset-view.ts` 改为上下文中心的资产生产投影（同为四组，不再含服装与场景覆盖），`planFilmAssetProduction`、上下文生产弹窗与队列按该投影工作；生产就绪与卡片共享 `productionReady`，角色缺服装、场景仅引用已就绪变体时不会误列为基础概念图/参考板生成目标；从上下文中心启动生产会带入选中的专用节点 ID。
+- `film-library-usage.ts`：`filmAssetBoundShotNumbers` 只按 `context` 边返回按全片链排序的镜号；母版库使用统计改为扫描专用节点与 context 边，服装引用从角色造型状态的 `costumeId`（库 id）派生，不再有项目服装节点。
+- `film-asset-task-updates.ts`、`use-canvas-task-polling.ts`、`use-film-asset-production.ts` 的待生成/回写/参考读取改用专用节点 payload，资产队列从上下文中心启动后能真实执行；CanvasEditor 检查器引用列表改用专用节点判断，资产创建/母版库导入只创建角色/场景/道具/风格节点（服装拒绝、风格唯一）。
+- 验证：Task 11 复审修复后，上下文中心/检查/资产生产/资产视图/选择器/母版库使用 6 个测试文件 40 条通过；`bun run lint`（web 全仓）通过；改动目标文件定向 typecheck 无新增诊断，完整 typecheck 仍剩 7 条既有 `canvas-editor` `shotGroups`/旧 `Shot` 诊断（全仓另有多处后续任务消费者），不声称全量通过；`git diff --check` 通过。
+- 未实测：真实参考图与 context 引用镜头下的上下文卡使用/影响统计、缺变体/服装参考的卡片提示、从上下文中心启动生产队列的真实生成与刷新续跑、母版库更新的影响提示、风格母版库导入、移动端与浅色主题；隐藏帧 hover/断点/计时器相关交互未实测。
+
+## 影视画布：动作节拍节点（Task 10）
+
+- 新增 `film-beat.ts`：`createFilmBeatNode(position, mode = "grid9", nodeId?)` 复用 `createCanvasNode` 生成固定 9 帧的动作节拍节点；`updateFilmBeatFrame` / `updateFilmBeatFrames` / `updateFilmBeatTitle` / `updateFilmBeatPrompt` / `updateFilmBeatTask` / `updateFilmBeatPreview` 都是不可变最小写入，grid9 始终保持 9 帧，越界或同值返回原节点。
+- 新增 `filmBeatPrompt(beat)`：按「自定义标题 / 动作过程 / 非空节拍（保留格位序号）」合成镜头编译器可消费的文本；`selectFilmBeatContexts(nodes, connections, beatId)` 从 `context(role: "beat")` 反向找出引用镜头，按全片 `sequence` 排序，汇总这些镜头的非 beat 上下文（角色/场景/道具/风格，去重）与镜号、描述、场次标签，作为节拍卡与定位动作的只读投影。
+- `film-shot-generation-context.ts` 的 beat 关联改为调用 `filmBeatPrompt`，不再只拼 `beat.prompt`；修改任一格节拍会改变关联镜头的最终 prompt 与 `inputSignature`，镜头卡随之显示「需更新」。没有复制第二套镜头编译器。
+- 新增 `film-beat-node-card.tsx` 并通过 `film-node-card` dispatcher 使用：展示总提示词、九格可编辑文本、非空帧数、关联镜头/上下文摘要、预览图、生成进度与错误；动作包括 AI 拆解动作、生成九宫格预览、停止生成、定位引用镜头、编辑节点。只实现 grid9；grid4/timeline 只保留数据扩展位，未实现编辑器。
+- AI 拆解动作复用当前文本模型与 `requestCanvasAgentTurn`，一次请求返回 JSON 9 帧并写回；失败恢复请求前的状态、进度与帧内容，停止会中断文本请求并落到已停止状态。生成预览复用现有 `createCanvasImageTask` + `pollCanvasImageTaskStatus` 图片任务链路，以 1:1 九宫格提示词生成单张预览并写入 `filmBeat.preview` 槽位；参考图取第一个关联镜头的生成上下文并复用 `loadFilmShotGenerationReferences`，没有关联镜头时按空参考继续，没有新增第二套镜头编译器。预览成功同时把节点 `metadata.status/progress/errorDetails` 写为 success/100/清空，卡片状态、进度与按钮禁用统一读节点 metadata；刷新复位后残留的 `filmBeat.status: loading` 不再阻塞重新拆解或生成。未新增 store 或任务类型。
+- 节拍标题以 `node.title` 为准并同步写回 `filmBeat.title`：卡片头改名与检查器改名都会同时更新两处，卡片显示、AI 拆解提示词与关联镜头提示词读同一份标题。九格文本框额外隔离右键菜单；预览任务 id 只在仍持有同一 controller 时清理，切换项目或卸载时会中断拆解/预览请求。
+- 节拍节点检查器补齐 `FilmBeat` 分支：可编辑标题、总提示词与 9 格内容，并展示非空格数与错误信息，修复 Task 6 遗留的「动作节拍上下文 chip 打开空抽屉」。
+- 快速创建菜单的节拍创建统一走 `createFilmBeatNode`。
+- 验证：`film-beat.test.ts` 13 条、`film-shot-generation-context.test.ts` 8 条、`film-context-edges` 6 条、`film-selectors` 7 条、`film-node-summary` 5 条、`film-node-registry` 15 条，共 54 条 focused 测试通过；`bun run lint` 通过；改动目标文件定向 typecheck 无新增诊断，完整 typecheck 仍有 151 条既有诊断（`canvas-editor.tsx` 仍是既有的 15 条旧 `filmAsset` / `shotGroups` / 旧枚举），不声称全量通过；`git diff --check` 通过。
+- 未实测：真实文本模型下九格动作拆解的连贯性与字段质量、真实图片模型下九宫格预览的格数/顺序/画面一致性以及参考图对一致性的影响、卡片九格输入在画布缩放与移动端的编辑体验、停止在云端渠道的成功/失败回退、预览任务刷新页面后的恢复（当前不续跑，状态复位后可以重新生成），以及浅色/深色主题；隐藏帧 hover、断点、计时器与 rAF 行为未实测。
+
+## 影视画布：导演分析中心（Task 9）
+
+- 剧本检查器只保留一个「导演分析」入口，合并原「AI 拆镜」与「AI 提取资产」：一次请求同时复用现有拆镜与资产提取，结果进入 `FilmDirectorAnalysisProposal`（结构、镜头、资产、冲突、统计、剧本 hash），确认前不写画布。
+- 新增单个「导演分析」弹窗，含结构、镜头、资产、应用预览四个标签：支持替换/追加、按场勾选、按资产勾选、按名称/别名关联提及镜头、冲突列表与一次应用；服装显示为「仅母版库」，不创建项目一级节点、不绑定。
+- 应用命令 `applyFilmDirectorAnalysis` 一次原子写入：只写勾选场次；角色/场景/道具创建为专用节点，同类别同名或同别名资产复用不重复创建；为新建场次补 `script-analysis` 的 `derived` 来源边；提及边使用 `context` + `source: "ai"` 与正确 role，应用后按最终镜头文本重新匹配，不依赖旧 shot ID；每镜最多一个场景且同资产不重复连。
+- 本次应用创建/删除的节点与连线精确写入剧本节点解析快照（含新建资产和提及边），继续只保留最近 3 次；失败或取消不修改图，撤销一次恢复分析前的节点与连线。
+- `film-script-assets.ts` 已删除旧 `addFilmShotBinding` 导入与泛化 `filmAsset` 节点创建，改为专用节点和 `addFilmContextEdge`；`film-script-parse.ts` 同步硬切到 `filmScene` / `filmShot`，不再生成旧 Scene/Shot 节点。
+- 验证：`film-director-analysis` 8 条、`film-script-parse` 4 条、`film-script-assets` 3 条、`film-structure-proposal` 4 条、`film-context-edges` 与 `film-selectors` 合计 32 条 focused 测试通过；`bun run lint` 通过；改动目标文件定向 typecheck 无诊断，完整 typecheck 仍被旧 `filmAsset` / `shotGroups` / 旧枚举消费者阻塞，不声称全量通过。
+- 未实测：真实文本模型下结构与资产并行提取的进度、四标签弹窗的浏览器布局与切换、场次/资产勾选与应用预览、替换/追加后的图示、撤销一次恢复、超长剧本/多集提案，以及浅色/移动端；隐藏帧 hover、断点、计时器与 rAF 行为未实测。
+
+## 影视画布：导演板布局与默认壳层（Task 8）
+
+- 新增纯布局 `arrangeFilmDirectorBoard(nodes, connections)` 并移除旧 `arrangeFilmNodes` / `orderSceneShots`：场次按集与位置形成稳定列，镜头按全片 `sequence` 落在所属 `composition` 场次列内（跨场交错时列内 y 仍遵循全片顺序），剧本/风格/角色/场景/道具进入主镜头列左侧上下文带，动作节拍贴在其上下文目标镜头右侧，未分场镜头排到最后一个尾列；只写回节点 `position`，不修改边数据、不新增 store 或持久化布局索引。
+- `film-layout.ts` 已硬切到影视专用节点类型（`filmScene` / `filmShot` / `filmScript` / `filmCharacter` / `filmLocation` / `filmProp` / `filmStyle` / `filmBeat`），不保留旧 Scene/Shot/FilmAsset/Script 分支或别名；其他旧枚举消费者仍由后续任务迁移。
+- 新增 `FilmDirectorLayout` 非交互视觉层（`pointer-events: none`）：以世界坐标渲染场次列背景、列标签（集·场次·镜数）、未分场列与上下文带标签，通过 `CanvasStageModel.backgroundLayer` 进入无限画布世界层，垫在连线与节点之下，不再覆盖节点底色；不复制节点数据，列/带随平移缩放与真实节点天然对齐；列框、标签随画布一起缩放。
+- 新增 `FilmDirectorBoard` 外壳：包装现有 `CanvasStageLayer` + `CanvasStageOverlays`，把导演板视觉层作为 `backgroundLayer` 交给舞台，并叠加影视紧凑工具栏（整理布局、适应全部）；视图切换统一由常驻四视图切换条提供，工具栏不再重复镜头表/故事板/资产入口；`CanvasWorkspace` 的 board 分支改用它，非影视舞台不变；`CanvasTopBar` 的「按场整理」按钮与回调已移除，整理布局只保留导演板工具栏一个入口。
+- 验证：`film-layout.test.ts` 8 条通过（场景列、全片顺序、上下文带、节拍贴镜、未分场尾列、边不变、通用节点不变）；`film-selectors` + `film-node-summary` 共 12 条通过，focused 三套 20 条通过；`bun run lint --max-warnings=0` 通过；改动目标文件定向 typecheck 无新诊断（`canvas-editor.tsx` 仅剩既有旧 `filmAsset` / `shotGroups` / 旧枚举 15 条），完整 typecheck 仍为 209 条既有诊断，不声称全量通过；`git diff --check` 通过。复审修复后复跑 focused 三套 20 条、`bun run lint`、定向 typecheck 与 `git diff --check`，结果一致。
+- 未实测：真实浏览器中的导演板列背景/标签与节点在平移缩放下的对齐（多档缩放、深浅主题、移动端）、整理布局后的视觉效果与撤销、工具栏按钮、四视图切换与镜头聚焦往返；列背景与列标签位于世界层，会随画布缩放（拉远时标签偏小），节点拖入列头区域时标签可能被节点遮住；隐藏帧 hover、断点、计时器与 rAF 行为未实测。
+
+## 影视画布：导演板 + 镜头聚焦（Task 7）
+
+- 影视一级视图收敛为「导演板 / 镜头表 / 故事板 / 资产」；移除 Studio、画布、时间轴一级入口。`view === "board"` 的临时通用舞台承载已由 Task 8 的 `FilmDirectorBoard` 替换。
+- 新增 `FilmShotFocus` 沉浸覆盖层（顶栏下方全屏区域）：返回导演板、上一镜/下一镜与全片序号、舞台媒体（图片/视频切换、下载、全屏、在导演板中定位）、版本条与版本对比、生成信息/上下文面板、镜头条、面板拖宽与收起、生成状态；Esc 关闭，←/→ 切换镜头，G/V 触发生成。
+- 复审修复：镜头聚焦的 Esc/←/→/G/V 只在存在可见 Modal/Drawer 时让位（按 `checkVisibility` 与布局/计算样式判断，关闭后残留的弹层 DOM 不再阻塞）；影视模式顶栏隐藏通用侧栏开关与助手展开入口。顶栏「按场整理」按钮已由 Task 8 移除，整理布局只在导演板工具栏。打开并关闭 antd 弹层后的键盘路径尚未在真实浏览器实测。
+- 打开/关闭聚焦只使用现有 active shot 选择与一个布尔 UI 状态；关闭后仍停留在同一镜头/场次，不写项目数据、不新增 store。左侧面板复用 `FilmShotPanel` 容器与唯一 `FilmShotEditor`，不复制镜头字段。
+- `FilmStudioModel` 更名为 `FilmDirectorBoardModel`，新增 `shotFocusOpen` / `onOpenShotFocus` / `onCloseShotFocus`；镜头表、故事板、成片预览、检查抽屉与镜头节点「打开镜头聚焦」统一走该入口，不再 `onViewChange("studio")`。
+- 镜头编辑器与导演板模型的上下文添加/新建上下文资产、生成/停止、版本对比命令改为显式携带 `shotId`；生成状态由调用方按传入镜头计算。旧的无 `shotId` 回调已移除，新编辑器不依赖隐式 active shot。
+- 新增纯投影 `selectFilmShotFocus(entries, activeShotId)`（当前镜 + 全片链上一镜/下一镜）与 3 条 selector 测试：板内选中打开聚焦、关闭返回同一镜头、编辑 payload 后仍保持 active shot。
+- 验证：`film-selectors` + `film-shot-create` 10 条通过；focused 五套 27 条通过；邻近 canvas lib 294 条中 274 通过 / 20 条既有失败 / 1 error（对比 Task 6 基线只多 3 条新测试）；`bun run lint` 通过；改动文件定向 typecheck 无新增诊断，完整 typecheck 仍为 228 条既有旧调用方诊断，不声称全量通过。复审修复后复跑 focused 五套 27 条通过、`bun run lint` 通过、改动文件定向 typecheck 无新增诊断、`git diff --check` 通过。
+- 未实测：镜头聚焦的真实浏览器布局与交互（打开/返回、上一镜/下一镜、Esc、G/V、面板拖宽、镜头条、版本/生成信息、全屏）、打开并关闭 antd Modal/Drawer 后的聚焦快捷键、影视四视图顶栏侧栏/助手入口隐藏、导演板标签与四视图切换、移动端与浅色主题；隐藏帧 hover、断点、计时器与 rAF 行为未实测。
+
+## 影视画布：统一镜头编辑器（Task 6）
+
+- 新增唯一 `FilmShotEditor`：接收单个镜头节点、上下文 chips、可添加上下文、图片/视频 Context Lens、风格名、可选的展开分区状态和显式命令回调，不读取项目 store；`mode: "node" | "focus"` 只控制密度，两种模式都通过 `patchFilmShotNode` 与 context 边命令写入同一份数据。
+- 编辑区固定为五区：画面（描述、创作补充、负面提示词、视频动作补充、当前媒体摘要）、镜头语言（镜号/景别/运镜/时长/转场 + 专业影像字段）、表演（台词 + 表演与声音设计字段）、上下文（Lens 摘要、chips 增删改、风格、剧本入口）、生成（模型与积分、生成/停止、首尾帧）。
+- `FilmShotPanel` 改为纯容器：只保留标题/收起、无镜头空态和滚动布局，渲染 `FilmShotEditor`；旧字段、旧绑定编辑器、模型与生成按钮不再有第二套实现。
+- `FilmShotProfessionalFields` 删除旧场记交接单（continuity）标签页与字段渲染，保留影像/表演/声音/提示词分组；镜头表继续使用最小 table variant，编辑器通过 `groups` 复用同一组件。
+- `film-node-patch.ts` 删除旧泛化 `filmAsset` patch/update helper，画布编辑器的资产更新改用 `updateFilmContextAssetNode`；`film-node-patch.test.ts` fixture 全部改为影视专用节点类型，并新增镜头编辑保留媒体/版本/任务字段、不改原节点、上下文命令不写入镜头 payload 三条测试。
+- 默认展开分区调整为“画面 / 镜头语言 / 上下文 / 生成”，与新的五区一致。
+- 验证：Task 6 focused 27 条通过（patch/context edges/summary/生成上下文/selector）；改动目标文件 eslint 通过；定向 typecheck（editor、panel、professional-fields、basic-controls、film-node-patch 及其 film-studio-body、镜头表使用点）无诊断；完整 typecheck 仍被旧 `filmAsset` 消费者阻塞。
+- 未实测：节点展开态与 Shot Focus 尚未接入该编辑器（Task 7 接线），当前只有 Studio 左栏使用；分区折叠、上下文 chip 编辑、模型切换与积分、生成/停止、首尾帧选择的浏览器表现未实测；隐藏帧 hover、断点、计时器和 rAF 行为未实测。
+
+## 影视画布：图原生生成与检查输入（Task 3）
+
+- 生成适配器只读取 `filmScript` / `filmScene` / `filmShot` / 专用上下文节点及 `composition` / `sequence` / `context` 边，再进入既有镜头提示词编译器；动作节拍提示词会并入镜头编译输入。
+- 新增 `FilmGraphReviewInput`，就绪检查和 AI 一致性检查消费 scenes / shots / contexts / assets / style / script / filmMeta，不再为画布 review 构造 `FilmProject` 或 episodes 数组；媒体字段仍被指纹忽略，状态、变体、连续性和缺失引用检查保持。
+- 风格节点每项目唯一，风格圣经全局进入每镜生成与 review；镜头 `context(role: "style")` 表示关系/影响范围，不门控风格编译。镜头面板只能链接现有风格节点，不能重复创建项目级 style 节点。
+- Graph review 保留空场与未分场镜头、全片 sequence 顺序、目标时长偏差和导演风格规则；空场进入 AI review context 并产生不依赖导演风格的通用覆盖问题；就绪聚合保留稳定镜头节点 ID，检查中心按 ID 跳转；重复镜号仅在 AI 结果包含足够且唯一的场次/集信息时定位到具体镜头，否则保留未定位状态。
+- 验证：前轮 Tasks 2–3 focused suites 56 条通过；本轮 fix focused suites 33 条通过；`bun run lint --max-warnings=0`（web 包）和 `git diff --check` 通过；完整 typecheck 仍被旧 `filmAsset` helper 与 Task 1/2 硬切后的其他旧消费者阻塞。
+- 未实测：浏览器中的剧本拆镜入口与风格检查器、检查中心、真实 AI 一致性调用、真实图片/视频生成、多标签页/跨设备、移动端与浅色主题；隐藏帧 hover、断点、计时器和 rAF 行为未实测。
+
+
+## 影视画布：影视专用快速创建/连线菜单（Task 5）
+
+- 新增 `getFilmQuickConnectActions(sourceNode, nodes, connections)`：场次提供新增镜头、动作节拍、引用角色/场景/道具/风格；镜头提供后续镜头、动作节拍、引用角色/场景/道具/风格；角色提供创建镜头、造型状态、动作节拍；场景/道具/风格/节拍提供创建镜头；非影视源不显示影视动作；空画布影视菜单提供新建剧本/场次/角色/场景/道具/节拍，不创建第二个风格圣经。
+- 动作结果统一返回 `FilmCommandResult`，复用 `appendFilmShot`、`addFilmContextEdge`、`moveFilmShotAcrossScenes` 建立节点与边；失败返回领域错误并显示 warning，不静默、不返回半成品节点。
+- 场次上的上下文动作按裁定只创建或定位上下文节点，不建立 scene → shot 的 context 边；风格动作只链接项目唯一的风格圣经，镜头上的风格动作建立关系边但不门控风格。
+- 影视模式拖拽连线菜单与空白双击菜单改用 `FilmQuickConnectMenu`：拖拽连线只展示当前节点可连接的影视动作，隐藏「通用资源」；空白双击保留「通用资源」折叠区（文本/图片/视频/音频/全景/3D/配置/素材源/发布/漫画）；上传与素材库保留在「添加资源」，选择后菜单关闭并清空创建位置/待连线状态；普通模式继续使用 `NodeCreateMenu`。
+- 动作成功后在编辑器选中并定位新节点；`NodeCreateMenu` 已删除旧 Script/Scene/Shot/FilmAsset 影视分支。
+- 验证：Task 5 focused 21 条通过（含 context edges，本轮补空画布动作列表、上下文源创建镜头连线、失败不修改输入图 3 条）；邻近 film summary/shot create/reorder/connections 25 条通过；`bun run lint --max-warnings=0` 通过；改动文件定向 typecheck 无新增诊断；完整 typecheck 仍被旧影视调用方阻塞。
+- 未实测：影视菜单、拖拽连线、空画布影视创建、创建后选中定位、风格 context 与失败 warning 的真实浏览器表现；浅色/深色主题、画布缩放下的菜单位置与移动端；隐藏帧 hover、断点、计时器和 rAF 行为未实测。
+
+## 影视画布：影视节点注册表与专用卡片（Task 4）
+
+- 新增 `FILM_NODE_REGISTRY`：八个影视节点类型分别提供 label、description、defaultSize（直接引用 `NODE_DEFAULT_SIZE`）、allowedCreateActions 与 renderKind；角色节点的创建动作按设计补充“创建造型状态”。
+- 新增 `summarizeFilmNode` 摘要投影：镜头卡显示镜号、场次、景别/运镜/时长、描述、上下文 chips、上一镜、编译参考数量、媒体/空镜、版本数、待生成与需更新状态；场次卡显示受影响镜头数，角色/场景/道具/风格卡显示自身设定与受影响镜头数。
+- 画布节点改为按类型渲染 `FilmNodeShell` + 专用卡片，旧 `FilmAssetNodeCard` 分支已删除；外壳支持标题编辑、折叠、宽度调整、状态徽标、需更新徽标与动作槽。
+- 画布编辑器已向舞台接线：生成分镜图/视频、版本对比、打开镜头聚焦、剧本检查器、资产设定编辑、新增镜头与镜头媒体全屏预览；摘要选项由编辑器按当前视频模型参考上限与服装状态统一 memo，避免错误显示“需更新”。
+- 验证：Task 4 focused 13 条通过；本轮 lint 与改动文件定向 typecheck 过滤通过；完整 typecheck 仍被旧影视调用方阻塞。
+- 未实测：影视节点卡片、动作按钮、媒体预览、版本对比、聚焦跳转与剧本/资产检查器入口的浏览器交互；需更新/受影响徽标的真实数据联动；折叠态信息、hover、断点与浅色主题。
+
 ## 影视画布：镜头组（10A）
 
 - 镜头表 / 故事板多选后新增「存为组」；镜头组保存到项目 `film.shotGroups`，组内镜头按全片顺序解析，镜头删除后自动忽略。

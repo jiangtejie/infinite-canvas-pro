@@ -16,6 +16,7 @@ function FilmShotThumb({ shot, theme }: { shot: CanvasNodeData; theme: CanvasThe
     return (
         <span className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg" style={{ background: theme.node.fill }}>
             {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <span className="font-mono text-lg font-semibold tabular-nums" style={{ color: theme.node.text }}>{filmShot?.shotNo || "—"}</span>}
+            {src ? <span className="absolute left-1 top-1 rounded bg-black/55 px-1 font-mono text-[9px] leading-4 text-white">{filmShot?.shotNo || "—"}</span> : null}
             {status === "loading" ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: theme.canvas.selectionStroke }} /> : null}
             {status === "error" ? <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full" style={{ background: canvasStatusColors.error }} /> : null}
             {filmShot?.videoUrl ? <span className="absolute bottom-1.5 left-1.5 grid size-5 place-items-center rounded-full bg-black/60 text-white"><Play className="size-3 fill-current" /></span> : null}

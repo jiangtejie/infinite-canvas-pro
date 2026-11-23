@@ -8,7 +8,7 @@ import { defaultFilmShotProductionSelection, planFilmShotProduction } from "./fi
 const entry = (id: string, patch: Partial<FilmShotNodeData> = {}, status: CanvasNodeStatus = "idle", sceneId = "scene-a", sceneLabel = "第 1 集 · 场景 A"): FilmShotEntry => ({
     shot: {
         id,
-        type: CanvasNodeType.Shot,
+        type: CanvasNodeType.FilmShot,
         title: id,
         position: { x: 0, y: 0 },
         width: 420,

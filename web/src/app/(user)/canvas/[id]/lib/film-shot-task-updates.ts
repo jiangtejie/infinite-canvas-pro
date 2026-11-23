@@ -7,7 +7,7 @@ import { canvasImageTaskURLs, canvasTaskCompleted, canvasTaskFailed } from "./ca
 
 export function selectFilmShotImageTaskTargets(nodes: CanvasNodeData[]) {
     return nodes.filter((node) =>
-        node.type === CanvasNodeType.Shot
+        node.type === CanvasNodeType.FilmShot
         && node.metadata?.status === NODE_STATUS_LOADING
         && node.metadata?.imageTaskId
         && node.metadata?.filmShot?.pendingTask?.kind === "image");

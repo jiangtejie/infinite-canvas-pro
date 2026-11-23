@@ -32,10 +32,10 @@ export function useCanvasTaskControl({ nodeTaskRunsRef, nodesRef, historyRef, la
         const node = nodesRef.current.find((item) => item.id === nodeId);
         const id = nodeTaskRunsRef.current.get(nodeId)?.id || node?.metadata?.clientTaskId;
         if (!node || !id || node.metadata?.isBatchRoot || (node.metadata?.status !== "loading" && node.metadata?.status !== "stopping" && !nodeTaskRunsRef.current.get(nodeId)?.submission)) return;
-        const shotVideo = node.type === CanvasNodeType.Shot && (node.metadata?.filmShotTaskKind ?? node.metadata?.filmShot?.pendingTask?.kind) === "video";
+        const shotVideo = node.type === CanvasNodeType.FilmShot && (node.metadata?.filmShotTaskKind ?? node.metadata?.filmShot?.pendingTask?.kind) === "video";
         const kind = isCanvasImageNodeType(node.type)
             ? "image"
-            : node.type === CanvasNodeType.Shot
+            : node.type === CanvasNodeType.FilmShot
                 ? (shotVideo ? "video" : "image")
                 : node.type === CanvasNodeType.Video
                     ? "video"

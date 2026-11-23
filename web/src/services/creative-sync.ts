@@ -136,11 +136,11 @@ const domains: SyncDomain[] = [
         media: {
             needs: (value) => {
                 const snapshot = filmLibrary(value as Partial<FilmLibrarySnapshot>);
-                return filmMediaNeedsPromotion([], [...snapshot.characters, ...snapshot.locations, ...snapshot.props, ...snapshot.costumes, ...snapshot.styles]);
+                return filmMediaNeedsPromotion([...snapshot.characters, ...snapshot.locations, ...snapshot.props, ...snapshot.costumes, ...snapshot.styles]);
             },
             collect: (value, token) => {
                 const snapshot = filmLibrary(value as Partial<FilmLibrarySnapshot>);
-                return collectFilmMediaPromotions([], [...snapshot.characters, ...snapshot.locations, ...snapshot.props, ...snapshot.costumes, ...snapshot.styles], token);
+                return collectFilmMediaPromotions([...snapshot.characters, ...snapshot.locations, ...snapshot.props, ...snapshot.costumes, ...snapshot.styles], token);
             },
             apply: (value, replacements) => {
                 const applied = applyFilmMediaPromotionsToLibrary(filmLibrary(value as Partial<FilmLibrarySnapshot>), replacements);

@@ -1,4 +1,4 @@
-import type { FilmEpisode, FilmProject, FilmShot } from "@/lib/film/types";
+import type { FilmShot } from "@/lib/film/types";
 import { directorStyleFor, type DirectorStyle, type DirectorStyleRule } from "@/lib/film/director-styles";
 
 export type FilmStyleIssueLevel = "error" | "warning" | "info";
@@ -30,16 +30,7 @@ export type FilmStyleReport = {
     metrics: FilmStyleMetrics;
 };
 
-type SceneShots = { sceneId: string; sceneName: string; episodeTitle: string; shots: FilmShot[] };
-
-export function collectSceneShots(episodes: FilmEpisode[]): SceneShots[] {
-    return episodes.flatMap((episode) => episode.scenes.map((scene) => ({
-        sceneId: scene.id,
-        sceneName: scene.name,
-        episodeTitle: episode.title,
-        shots: scene.shots,
-    })));
-}
+export type FilmStyleSceneShots = { sceneId: string; sceneName: string; episodeTitle: string; shots: FilmShot[] };
 
 function ratio(count: number, total: number) {
     return total > 0 ? count / total : 0;
@@ -50,7 +41,7 @@ function includesAny(value: string, words: string[]) {
     return words.some((word) => word && text.includes(word));
 }
 
-function checkRule(rule: DirectorStyleRule, scenes: SceneShots[]): FilmStyleIssue[] {
+function checkRule(rule: DirectorStyleRule, scenes: FilmStyleSceneShots[]): FilmStyleIssue[] {
     const issues: FilmStyleIssue[] = [];
     const allShots = scenes.flatMap((scene) => scene.shots);
     const total = allShots.length;
@@ -125,9 +116,8 @@ function checkRule(rule: DirectorStyleRule, scenes: SceneShots[]): FilmStyleIssu
 }
 
 /** 校验项目镜头是否符合所选导演风格语法。没有选风格时返回空报告（score 100）。 */
-export function checkFilmStyle(project: Pick<FilmProject, "episodes" | "directorStyleId">): FilmStyleReport {
-    const style = directorStyleFor(project.directorStyleId);
-    const scenes = collectSceneShots(project.episodes || []);
+export function checkFilmStyleScenes(scenes: FilmStyleSceneShots[], directorStyleId?: string): FilmStyleReport {
+    const style = directorStyleFor(directorStyleId);
     const allShots = scenes.flatMap((scene) => scene.shots);
     const metrics: FilmStyleMetrics = {
         shotCount: allShots.length,
@@ -165,18 +155,5 @@ export function checkFilmStyle(project: Pick<FilmProject, "episodes" | "director
         issues,
         metrics,
     };
-}
-
-/** 单个镜头视角的风格提示（用于镜头详情面板，不用整片规则）。 */
-export function checkShotStyle(shot: FilmShot, style?: DirectorStyle): FilmStyleIssue[] {
-    if (!style) return [];
-    const issues: FilmStyleIssue[] = [];
-    const text = shot.prompt + " " + shot.description;
-    if (!shot.prompt.trim() && !shot.description.trim()) {
-        issues.push({ id: "shot-prompt-empty", ruleId: "prompt", level: "info", message: "还没有画面描述或镜头 prompt，生成前建议补上", shotId: shot.id });
-    } else if (!includesAny(text, style.visual.keywords)) {
-        issues.push({ id: "shot-style-keywords", ruleId: "visual-keywords", level: "info", message: "镜头 prompt 未包含风格关键词：" + style.visual.keywords.slice(0, 3).join(" / "), shotId: shot.id });
-    }
-    return issues;
 }
 

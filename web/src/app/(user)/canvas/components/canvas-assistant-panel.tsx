@@ -73,7 +73,7 @@ import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
 
 const PANEL_MOTION_MS = 500;
 const PANEL_MOTION_SECONDS = PANEL_MOTION_MS / 1000;
-const ASSISTANT_NODE_TYPE_META = {
+const ASSISTANT_NODE_TYPE_META: Partial<Record<CanvasNodeType, { Icon: typeof FileText; label: string }>> = {
     [CanvasNodeType.Image]: { Icon: ImageIcon, label: "图片" },
     [CanvasNodeType.Panorama]: { Icon: ImageIcon, label: "全景图" },
     [CanvasNodeType.Video]: { Icon: Video, label: "视频" },
@@ -85,10 +85,6 @@ const ASSISTANT_NODE_TYPE_META = {
     [CanvasNodeType.Source]: { Icon: Link2, label: "素材源" },
     [CanvasNodeType.Publish]: { Icon: Send, label: "发布" },
     [CanvasNodeType.Comic]: { Icon: BookOpen, label: "漫画册" },
-    [CanvasNodeType.Script]: { Icon: FileText, label: "剧本" },
-    [CanvasNodeType.Scene]: { Icon: Clapperboard, label: "场次" },
-    [CanvasNodeType.Shot]: { Icon: Video, label: "镜头" },
-    [CanvasNodeType.FilmAsset]: { Icon: BookOpen, label: "影视资产" },
 };
 const ASSISTANT_NODE_STATUS_COLOR: Record<string, string> = {
     success: canvasStatusColors.success,
@@ -715,7 +711,7 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, onRetryNo
         code: ({ node, className, children, ...props }) => {
             const canvasNode = nodeById.get(String(children).trim());
             if (node?.position?.start.line === node?.position?.end.line && canvasNode) {
-                const { Icon, label: typeLabel } = ASSISTANT_NODE_TYPE_META[canvasNode.type];
+                const { Icon, label: typeLabel } = ASSISTANT_NODE_TYPE_META[canvasNode.type] ?? { Icon: FileText, label: "节点" };
                 const hasImage = isCanvasImageNodeType(canvasNode.type) && canvasNode.metadata?.content;
                 const nodeStatus = canvasNodeDisplayStatus(canvasNode);
                 return (

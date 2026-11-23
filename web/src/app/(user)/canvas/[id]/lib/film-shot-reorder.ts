@@ -26,11 +26,11 @@ export function moveFilmShotAcrossScenes(
     targetShotId: string | null,
     after: boolean,
 ): { nodes: CanvasNodeData[]; connections: CanvasConnection[] } | null {
-    const shot = nodes.find((node) => node.id === shotId && node.type === CanvasNodeType.Shot);
-    const targetScene = nodes.find((node) => node.id === targetSceneId && node.type === CanvasNodeType.Scene);
+    const shot = nodes.find((node) => node.id === shotId && node.type === CanvasNodeType.FilmShot);
+    const targetScene = nodes.find((node) => node.id === targetSceneId && node.type === CanvasNodeType.FilmScene);
     if (!shot || !targetScene || targetShotId === shotId) return null;
-    if (targetShotId && !nodes.find((node) => node.id === targetShotId && node.type === CanvasNodeType.Shot)) return null;
-    const shots = nodes.filter((node) => node.type === CanvasNodeType.Shot);
+    if (targetShotId && !nodes.find((node) => node.id === targetShotId && node.type === CanvasNodeType.FilmShot)) return null;
+    const shots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
     const shotIds = new Set(shots.map((node) => node.id));
     const orderedIds = orderFilmShots(shots, connections).map((node) => node.id).filter((id) => id !== shotId);
     const sceneOf = new Map<string, string>();

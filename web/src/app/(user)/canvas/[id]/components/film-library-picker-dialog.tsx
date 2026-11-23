@@ -88,7 +88,7 @@ export function FilmLibraryPickerDialog({ open, theme, kind, currentAssetName, o
                     <span className="min-w-0 truncate text-[11px]" style={{ color: theme.node.muted }}>{selected && usage ? `${selected.name} · ${usage.projects} 个项目使用 · ${usage.bindings} 处引用` : "选择一个库条目"}</span>
                     <div className="flex shrink-0 gap-2">
                         <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={onClose}>取消</button>
-                        {kind !== "style" ? <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={!selected} onClick={() => selected && onImport(selected)}>导入为新资产节点</button> : null}
+                        {kind !== "costume" && !(kind === "style" && currentAssetName) ? <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={!selected} onClick={() => selected && onImport(selected)}>导入为新资产节点</button> : null}
                         {currentAssetName && onReplace ? <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={!selected} onClick={() => selected && onReplace(selected)}>替换当前资产</button> : null}
                     </div>
                 </div>

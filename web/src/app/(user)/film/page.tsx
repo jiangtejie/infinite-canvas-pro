@@ -48,7 +48,7 @@ export default function FilmPage() {
                 <PageHeader
                     eyebrow="影视创作"
                     title="影视项目"
-                    description="每个影视项目是一份画布文档：剧本、场次、镜头、资产与输出都在节点和边上，按 Studio、镜头表、故事板或时间轴查看。"
+                    description="每个影视项目是一份画布文档：剧本、场次、镜头、资产与输出都在节点和边上，按导演板、镜头表、故事板或上下文查看。"
                     meta={
                         <>
                             <span className="chip chip-acid">{projects.length} 个项目</span>

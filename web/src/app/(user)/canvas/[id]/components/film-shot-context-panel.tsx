@@ -3,40 +3,25 @@
 import { AlertTriangle, History, X } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
-import type { FilmGenerationReferenceRole, FilmMediaVersion } from "@/lib/film/types";
-import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
+import { FILM_CONTEXT_ROLE_LABELS } from "../lib/film-studio-types";
+import { FILM_REFERENCE_ROLE_LABELS } from "../lib/film-reference-labels";
 import { useCopyText } from "@/hooks/use-copy-text";
 import type { FilmShotNodeData } from "../../types";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { FilmContextLens } from "../lib/film-context-lens";
 
-const REFERENCE_ROLE_LABELS: Record<FilmGenerationReferenceRole, string> = {
-    "character-package": "角色参考板",
-    "character-state": "造型",
-    costume: "服装",
-    prop: "道具",
-    location: "场景",
-    "location-variant": "场景变体",
-    style: "风格",
-    "previous-shot": "上一镜",
-    "anchor-shot": "锚定镜",
-    storyboard: "分镜参考",
-    "first-frame": "首帧",
-    "last-frame": "尾帧",
-};
-
-export function FilmShotContextPanel({ theme, filmShot, media, preview, onSelectVersion, onClose }: {
+export function FilmShotContextPanel({ theme, filmShot, media, preview, onClose }: {
     theme: CanvasTheme;
     filmShot?: FilmShotNodeData;
     media: "image" | "video";
     preview?: FilmContextLens | null;
-    onSelectVersion: (version: FilmMediaVersion) => void;
     onClose: () => void;
 }) {
     const copyText = useCopyText();
     const versions = (media === "video" ? filmShot?.videoVersions : filmShot?.imageVersions) ?? [];
     const currentUrl = media === "video" ? filmShot?.videoUrl : filmShot?.imageUrl;
-    const activeVersion = versions.find((version) => version.url === currentUrl) ?? versions.at(-1);
+    const currentStorageKey = media === "video" ? filmShot?.videoStorageKey : filmShot?.storageKey;
+    const activeVersion = versions.find((version) => (currentUrl && version.url === currentUrl) || (currentStorageKey && version.storageKey === currentStorageKey)) ?? versions.at(-1);
     const activeIndex = activeVersion ? versions.indexOf(activeVersion) : -1;
     const pending = filmShot?.pendingTask;
     const context = pending?.generationContext ?? activeVersion?.generationContext;
@@ -59,23 +44,9 @@ export function FilmShotContextPanel({ theme, filmShot, media, preview, onSelect
                 <div className="flex flex-wrap items-center gap-1.5 text-[11px]" style={{ color: theme.node.muted }}>
                     <span>{media === "video" ? "视频" : "分镜图"}</span>
                     {activeIndex >= 0 ? <span>· 当前 v{activeIndex + 1}</span> : null}
+                    {versions.length ? <span>· {versions.length} 个版本</span> : null}
                     {pending ? <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}>本次{pending.kind === "video" ? "视频" : "图片"}生成中</span> : null}
                 </div>
-                <section className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium tracking-[0.12em] uppercase" style={{ color: theme.node.muted }}>版本历史 · {versions.length}</span>
-                    {versions.length ? [...versions].reverse().map((version) => {
-                        const index = versions.indexOf(version);
-                        const active = activeVersion?.id === version.id;
-                        return (
-                            <button key={version.id} type="button" className="flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs" style={{ borderColor: active ? theme.canvas.selectionStroke : theme.node.stroke, background: active ? theme.canvas.selectionSoft : theme.node.fill, color: theme.node.text }} onClick={() => onSelectVersion(version)} aria-pressed={active}>
-                                <span className="font-mono tabular-nums">v{index + 1}</span>
-                                <span className="min-w-0 flex-1 truncate" style={{ color: theme.node.muted }}>{formatVersionTime(version.createdAt)}</span>
-                                {version.generationContext ? <span className="shrink-0 text-[10px]" style={{ color: theme.node.muted }}>有上下文</span> : null}
-                                {active ? <span className="shrink-0 text-[10px]" style={{ color: theme.canvas.selectionStroke }}>当前</span> : null}
-                            </button>
-                        );
-                    }) : <span className="text-[11px]" style={{ color: theme.node.muted }}>还没有生成版本。</span>}
-                </section>
                 {context ? (
                     <>
                         {pending ? <ContextSection theme={theme} title="本次生成提示词" onCopy={() => copyText(context.prompt, "提示词已复制")}><PromptText theme={theme} value={context.prompt} /></ContextSection> : (
@@ -95,7 +66,7 @@ export function FilmShotContextPanel({ theme, filmShot, media, preview, onSelect
                                 <div className="flex flex-col gap-1">
                                     {context.references.map((reference) => (
                                         <div key={reference.id} className="flex min-w-0 items-center gap-1.5 text-[11px]">
-                                            <span className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{REFERENCE_ROLE_LABELS[reference.role] || reference.role}</span>
+                                            <span className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{FILM_REFERENCE_ROLE_LABELS[reference.role] || reference.role}</span>
                                             <span className="truncate" style={{ color: theme.node.text }} title={reference.label}>{reference.label}</span>
                                         </div>
                                     ))}
@@ -124,7 +95,7 @@ export function FilmShotContextPanel({ theme, filmShot, media, preview, onSelect
                                 {preview.scene ? <span className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>场次 · {preview.scene.label}</span> : null}
                                 {preview.styleName ? <span className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>风格 · {preview.styleName}</span> : null}
                                 {preview.previousShot ? <span className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>上一镜 · #{preview.previousShot.shotNo}</span> : null}
-                                {preview.bindings.map((binding) => <span key={binding.edgeId} className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>{FILM_ASSET_KIND_LABELS[binding.kind]} · {binding.name}{binding.stateName ? ` · ${binding.stateName}` : ""}{binding.variantName ? ` · ${binding.variantName}` : ""}</span>)}
+                                {preview.contexts.map((context) => <span key={context.edgeId} className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>{FILM_CONTEXT_ROLE_LABELS[context.role]} · {context.name}{context.stateName ? ` · ${context.stateName}` : ""}{context.variantName ? ` · ${context.variantName}` : ""}</span>)}
                             </div>
                             {sceneDetails ? <span className="text-[11px] leading-5" style={{ color: theme.node.muted }}>{sceneDetails}</span> : null}
                         </section>
@@ -135,7 +106,7 @@ export function FilmShotContextPanel({ theme, filmShot, media, preview, onSelect
                                 <div className="flex flex-col gap-1">
                                     {preview.references.map((reference) => (
                                         <div key={`${reference.role}-${reference.label}`} className="flex min-w-0 items-center gap-1.5 text-[11px]">
-                                            <span className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{REFERENCE_ROLE_LABELS[reference.role] || reference.role}</span>
+                                            <span className="shrink-0 rounded border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{FILM_REFERENCE_ROLE_LABELS[reference.role] || reference.role}</span>
                                             <span className="truncate" style={{ color: theme.node.text }} title={reference.label}>{reference.label}</span>
                                         </div>
                                     ))}

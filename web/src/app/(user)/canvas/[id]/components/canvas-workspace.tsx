@@ -13,19 +13,18 @@ import { CanvasStageLayer, type CanvasStageModel } from "./canvas-stage-layer";
 import { CanvasStageOverlays, type CanvasStageOverlaysModel } from "./canvas-stage-overlays";
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
 import { useFilmViewState } from "../../stores/use-film-view-store";
-import type { FilmStudioModel } from "../lib/film-studio-types";
-import { FilmStudioBody } from "./film-studio-body";
+import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
+import { FilmDirectorBoard } from "./film-director-board";
+import { FilmShotFocus } from "./film-shot-focus";
 import { FilmViewBody } from "./film-view-body";
 import { FilmStudioViewSwitch } from "./film-studio-view-switch";
 import { FilmShotBatchProgress } from "./film-shot-batch-progress";
 import { FilmReviewDrawer } from "./film-review-drawer";
-import { FilmAssetProposalDialog } from "./film-asset-proposal-dialog";
-import { FilmAssetProductionDialog } from "./film-asset-production-dialog";
 import { FilmPreviewOverlay } from "./film-preview-overlay";
+import { FilmProductionCenter } from "./film-production-center";
 import { FilmShotGroupsDialog } from "./film-shot-groups-dialog";
-import { FilmShotProductionDialog } from "./film-shot-production-dialog";
-import { FilmStructureProposalDialog } from "./film-structure-proposal-dialog";
 import { FilmVersionRoomDialog } from "./film-version-room-dialog";
+import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { filmReviewIsStale, selectFilmReview } from "../lib/film-review";
 
 type CanvasShellModel = {
@@ -56,7 +55,6 @@ type CanvasShellModel = {
     redoCanvas: () => void;
     agentPanel: CanvasSidePanelState;
     filmMode: boolean;
-    onArrangeFilm: () => void;
 };
 
 
@@ -66,7 +64,7 @@ export type CanvasWorkspaceModel = {
     overlays: CanvasStageOverlaysModel;
     dialogs: CanvasDialogModel;
     assistant: CanvasAssistantModel;
-    filmStudio?: FilmStudioModel;
+    filmStudio?: FilmDirectorBoardModel;
 };
 
 export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
@@ -98,12 +96,12 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         redoCanvas,
         agentPanel,
         filmMode,
-        onArrangeFilm,
     } = model.shell;
     const filmStudio = model.filmStudio;
-    const filmViewMode = Boolean(filmStudio && filmStudio.view !== "graph");
+    const filmBoardActive = Boolean(filmStudio);
+    const filmCostumes = useFilmCastStore((state) => state.costumes);
     const [filmReviewOpen, setFilmReviewOpen] = useState(false);
-    const filmReviewReport = useMemo(() => (filmMode ? selectFilmReview(nodes, model.stage.connections, currentProject?.film, currentProject?.title) : null), [currentProject, filmMode, model.stage.connections, nodes]);
+    const filmReviewReport = useMemo(() => (filmMode ? selectFilmReview(nodes, model.stage.connections, currentProject?.film, currentProject?.title, filmCostumes) : null), [currentProject, filmCostumes, filmMode, model.stage.connections, nodes]);
     const filmReviewStale = filmReviewIsStale(currentProject?.film?.consistencyReview, filmReviewReport?.fingerprint);
     const filmReviewBadge = filmReviewReport ? {
         errors: filmReviewReport.issues.filter((issue) => issue.level === "error").length,
@@ -111,7 +109,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         stale: filmReviewStale,
     } : undefined;
     const filmViewState = useFilmViewState(filmStudio?.projectId ?? "");
-    const filmBatchBottom = filmStudio?.view === "studio" ? (filmViewState.stripOpen ? 180 : 52) : 96;
+    const filmBatchBottom = filmStudio?.shotFocusOpen && filmViewState.stripOpen ? 180 : 96;
     const batchCurrentNode = filmStudio?.shotBatch.currentShotId ? nodes.find((node) => node.id === filmStudio.shotBatch.currentShotId) : undefined;
     const batchCurrentProgress = batchCurrentNode?.metadata?.progress ?? 0;
     const zenMode = useCanvasUiStore((state) => state.zenMode);
@@ -136,7 +134,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 if (selection?.toString() && panel?.contains(selection.anchorNode) && !panel.contains(event.target as Node)) selection.removeAllRanges();
             }}
         >
-            {!filmViewMode ? (
+            {!filmBoardActive ? (
             <CanvasSidePanel
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
@@ -193,27 +191,25 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                         setAgentPanel((current) => ({ ...current, open: true }));
                     }}
                     filmMode={filmMode}
-                    onArrangeFilm={onArrangeFilm}
                     filmScenes={filmStudio?.scenes.map((scene) => ({ id: scene.id, label: scene.label }))}
                     activeSceneId={filmStudio?.activeSceneId ?? undefined}
                     onSceneChange={filmStudio?.onSceneChange}
-                    studioView={filmStudio?.view === "graph" ? "graph" : filmStudio ? "studio" : undefined}
                 />
-                {filmStudio && filmStudio.view !== "graph" ? (
-                    filmStudio.view === "studio" ? <FilmStudioBody model={filmStudio} theme={theme} /> : <FilmViewBody view={filmStudio.view} model={filmStudio} theme={theme} />
-                ) : filmStudio ? (
-                    <div className="absolute inset-x-0 bottom-0 top-[108px] max-sm:top-[116px]">
-                        <CanvasStageLayer model={model.stage} />
-                        <CanvasStageOverlays model={model.overlays} />
-                    </div>
+                {filmStudio ? (
+                    filmStudio.view === "board" ? (
+                        <FilmDirectorBoard stage={model.stage} overlays={model.overlays} film={filmStudio} />
+                    ) : (
+                        <FilmViewBody view={filmStudio.view} model={filmStudio} theme={theme} />
+                    )
                 ) : (
                     <>
                         <CanvasStageLayer model={model.stage} />
                         <CanvasStageOverlays model={model.overlays} />
                     </>
                 )}
+                {filmStudio?.shotFocusOpen ? <FilmShotFocus model={filmStudio} theme={theme} /> : null}
                 <CanvasDialogs model={model.dialogs} />
-                {filmStudio ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onOpenVersions={filmStudio.onOpenVersionBatch} onPreview={filmStudio.onOpenPreview} onOpenProduction={filmStudio.onOpenShotProduction} onOpenGroups={filmStudio.shotGroups.onOpen} groupCount={filmStudio.shotGroups.groups.length} previewDisabled={!filmStudio.shots.length} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} versionBadge={filmStudio.versionRoomCount} /> : null}
+                {filmStudio && !filmStudio.shotFocusOpen ? <FilmStudioViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onOpenVersions={filmStudio.onOpenVersionBatch} onPreview={filmStudio.onOpenPreview} onOpenProduction={filmStudio.onOpenProduction} onOpenGroups={filmStudio.shotGroups.onOpen} groupCount={filmStudio.shotGroups.groups.length} previewDisabled={!filmStudio.shots.length} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} versionBadge={filmStudio.versionRoomCount} /> : null}
                 {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} bottomOffset={filmBatchBottom} currentProgress={batchCurrentProgress} /> : null}
                 {filmStudio ? (
                     <FilmReviewDrawer
@@ -224,21 +220,17 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                         report={filmReviewReport}
                         film={currentProject?.film}
                         onOpenShot={(shotId) => {
-                            filmStudio.onSelectShot(shotId);
-                            filmStudio.onViewChange("studio");
+                            filmStudio.onOpenShotFocus(shotId);
                             setFilmReviewOpen(false);
                         }}
                     />
                 ) : null}
-                {filmStudio?.structureProposal ? <FilmStructureProposalDialog theme={theme} {...filmStudio.structureProposal} /> : null}
-                {filmStudio?.assetProposal ? <FilmAssetProposalDialog theme={theme} {...filmStudio.assetProposal} /> : null}
-                {filmStudio?.assetProduction?.open ? <FilmAssetProductionDialog theme={theme} {...filmStudio.assetProduction} /> : null}
+                {filmStudio?.productionCenter?.open ? <FilmProductionCenter theme={theme} {...filmStudio.productionCenter} /> : null}
                 {filmStudio?.previewOpen ? <FilmPreviewOverlay theme={theme} model={filmStudio} onClose={filmStudio.onClosePreview} /> : null}
-                {filmStudio?.shotProductionOpen ? <FilmShotProductionDialog theme={theme} shots={filmStudio.shots} batch={filmStudio.shotBatch} onStart={(shotIds, kind) => filmStudio.onBatchGenerateShots(shotIds, kind)} onStop={filmStudio.onStopShotBatch} onClose={filmStudio.onCloseShotProduction} /> : null}
                 {filmStudio?.shotGroups.open ? <FilmShotGroupsDialog theme={theme} projectId={filmStudio.projectId} groups={filmStudio.shotGroups.groups} onCreate={filmStudio.shotGroups.onCreate} onRename={filmStudio.shotGroups.onRename} onDelete={filmStudio.shotGroups.onDelete} onSelect={filmStudio.shotGroups.onSelect} onPreview={filmStudio.shotGroups.onPreview} onClose={filmStudio.shotGroups.onClose} /> : null}
                 {filmStudio?.versionRoom ? <FilmVersionRoomDialog theme={theme} {...filmStudio.versionRoom} /> : null}
             </section>
-            {!filmViewMode ? (
+            {!filmBoardActive ? (
             <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>
                 <CanvasAssistantPane model={model.assistant} />
             </div>

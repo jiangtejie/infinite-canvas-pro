@@ -10,7 +10,7 @@ const context = { inputSignature: "sig-video" } as FilmGenerationContext;
 
 const shotNode = (status: "loading" | "success" | "error" = "loading", clientTaskId = "video-client-1"): CanvasNodeData => ({
     id: "shot",
-    type: CanvasNodeType.Shot,
+    type: CanvasNodeType.FilmShot,
     title: "镜头",
     position: { x: 0, y: 0 },
     width: 300,

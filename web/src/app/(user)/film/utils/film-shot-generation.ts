@@ -1,8 +1,8 @@
-import type { FilmAsset, FilmCharacterGenerationSnapshot, FilmGenerationContext, FilmGenerationReference, FilmImageRef, FilmMediaVersion, FilmProject, FilmShot, FilmShotCharacterBinding, FilmVideoMode } from "@/lib/film/types";
+import type { FilmAsset, FilmCharacterGenerationSnapshot, FilmGenerationContext, FilmGenerationReference, FilmImageRef, FilmMediaVersion, FilmShot, FilmShotCharacterBinding, FilmVideoMode } from "@/lib/film/types";
 import { directorStyleFor } from "@/lib/film/director-styles";
 import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { characterPackageImage, filmAssetSignature, filmCharacterSignature, findFilmCharacterState } from "./film-character";
-import { formatFilmBindingContinuity, formatFilmContinuityPrompt } from "./film-continuity-sheet";
+import { formatFilmBindingContinuity } from "./film-binding-continuity";
 import { activeSlotImage } from "./film-image-slot";
 import { buildFilmShotPrompt } from "./film-shot-prompt";
 import { createDefaultSegments, validateSegments } from "./film-video-segments";
@@ -37,7 +37,7 @@ function mediaImageRef(source: { id: string; imageUrl?: string; storageKey?: str
 }
 
 /** 图片与视频共用的单角色身份/状态/连续性文本；角色名只出现一次（在连续性行）。 */
-function characterSnapshotText(project: Pick<FilmProject, "costumes" | "props">, asset: FilmAsset | undefined, binding: FilmShotCharacterBinding, previousBinding?: FilmShotCharacterBinding): string {
+function characterSnapshotText(project: Pick<FilmGenerationProjectContext, "costumes" | "props">, asset: FilmAsset | undefined, binding: FilmShotCharacterBinding, previousBinding?: FilmShotCharacterBinding): string {
     const state = asset ? findFilmCharacterState(asset, binding.stateId) : undefined;
     const identity = asset ? [asset.description, asset.visualPrompt].filter(Boolean).join("；") : "";
     const costume = state?.costumeId ? project.costumes?.find((item) => item.id === state.costumeId) : undefined;
@@ -48,7 +48,16 @@ function characterSnapshotText(project: Pick<FilmProject, "costumes" | "props">,
     return setting ? `${continuityLine} 设定：${setting}` : continuityLine;
 }
 
-export type FilmGenerationProjectContext = Pick<FilmProject, "characters" | "locations" | "props" | "costumes" | "style"> & Partial<Pick<FilmProject, "visualStyle" | "stylePreset" | "directorStyleId">>;
+export type FilmGenerationProjectContext = {
+    characters?: FilmAsset[];
+    locations?: FilmAsset[];
+    props?: FilmAsset[];
+    costumes?: FilmAsset[];
+    style?: FilmAsset;
+    visualStyle?: string;
+    stylePreset?: string;
+    directorStyleId?: string;
+};
 
 /**
  * 唯一的镜头生成上下文编译器：纯函数，不读浏览器、不加载图片、不调用模型。
@@ -179,7 +188,6 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
         resolveFilmStyleText(project),
         directorStyle && [directorStyle.visual, directorStyle.camera.grammar, directorStyle.camera.movement, directorStyle.prompts.imageSuffix].filter(Boolean).join("；"),
     ].filter(Boolean).join("；");
-    const continuityText = shot.continuity ? formatFilmContinuityPrompt(shot.continuity) : "";
     const previousInstruction = references.some((ref) => ref.role === "previous-shot") ? "参考图中的上一镜画面用于衔接本镜，保持人物位置、道具状态和环境光线一致。" : "";
     const anchorInstruction = references.some((ref) => ref.role === "anchor-shot") ? "与参考图中的锚点帧保持相同的色调、光线、材质与画风，角色和场景设定不要改变。" : "";
     const promptBase = {
@@ -187,7 +195,6 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
         scene: sceneContext,
         characters: snapshots.map((snapshot) => snapshot.prompt),
         location: locationText,
-        continuity: continuityText,
         style: styleText,
         previousInstruction,
         anchorInstruction,

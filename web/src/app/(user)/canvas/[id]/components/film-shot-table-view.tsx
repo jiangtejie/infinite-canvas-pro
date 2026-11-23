@@ -8,7 +8,7 @@ import type { CanvasTheme } from "@/lib/canvas-theme";
 import { useFilmViewState, useFilmViewStore, type FilmViewState } from "@/app/(user)/canvas/stores/use-film-view-store";
 import { patchFilmShotNode } from "../lib/film-node-patch";
 import type { FilmShotNodeData } from "../../types";
-import type { FilmStudioModel } from "../lib/film-studio-types";
+import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
 import { filterFilmShotEntries, filmShotViewStats, type FilmShotMediaFilter } from "../lib/film-shot-views";
 import { FilmCameraMovementControl, FilmShotTypeControl, FilmTransitionControl } from "./film-shot-basic-controls";
 import { FilmShotMediaBadges } from "./film-shot-media-badges";
@@ -26,7 +26,7 @@ const STATUS_OPTIONS: Array<{ value: FilmShotMediaFilter; label: string }> = [
     { value: "failed", label: "生成失败" },
 ];
 
-export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model: FilmStudioModel }) {
+export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model: FilmDirectorBoardModel }) {
     const stats = filmShotViewStats(model.shots);
     const activeId = model.activeShot?.shot.id;
     const viewState = useFilmViewState(model.projectId);
@@ -45,8 +45,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
     const sceneOptions = [{ value: "all", label: "全部场次" }, ...model.scenes.map((scene) => ({ value: scene.id, label: scene.label }))];
     const update = (shotId: string, patch: Partial<FilmShotNodeData>) => model.onUpdateShot(shotId, (node) => patchFilmShotNode(node, patch));
     const openShot = (shotId: string) => {
-        model.onSelectShot(shotId);
-        model.onViewChange("studio");
+        model.onOpenShotFocus(shotId);
     };
     const toggleSelected = (shotId: string) => updateView(model.projectId, (current) => {
         const next = new Set(current.selectedShotIds);
@@ -102,11 +101,11 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                         </div>
                         {filteredShots.length ? filteredShots.map((entry) => {
                             const payload = entry.shot.metadata?.filmShot;
-                            const bindings = model.bindingsByShot[entry.shot.id] ?? [];
-                            const characters = bindings.filter((binding) => binding.kind === "character").map((binding) => `${binding.name}${binding.stateName ? ` · ${binding.stateName}` : ""}`);
-                            const emotion = bindings.flatMap((binding) => binding.kind === "character" ? [binding.continuity?.emotion] : []).find(Boolean) || payload?.performance?.emotion || "";
-                            const props = bindings.filter((binding) => binding.kind === "prop").map((binding) => binding.name);
-                            const locationBinding = bindings.find((binding) => binding.kind === "location");
+                            const contexts = model.contextsByShot[entry.shot.id] ?? [];
+                            const characters = contexts.filter((context) => context.role === "character").map((context) => `${context.name}${context.stateName ? ` · ${context.stateName}` : ""}`);
+                            const emotion = contexts.flatMap((context) => context.role === "character" ? [context.continuity?.emotion] : []).find(Boolean) || payload?.performance?.emotion || "";
+                            const props = contexts.filter((context) => context.role === "prop").map((context) => context.name);
+                            const locationContext = contexts.find((context) => context.role === "location");
                             const imageNotes = [payload?.lens, payload?.composition, payload?.lighting, payload?.colorTone].filter(Boolean).join(" · ");
                             const soundNotes = [payload?.audio, payload?.soundDesign?.ambience, payload?.soundDesign?.sfx, payload?.soundDesign?.music, payload?.soundDesign?.dialogueTone].filter(Boolean).join(" · ");
                             const active = entry.shot.id === activeId;
@@ -149,8 +148,8 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                         </div>
                                         <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={props.join("、")} style={{ color: props.length ? theme.node.text : theme.node.muted }}>{props.join("、") || "—"}</div></div>
                                         <div className="min-w-0 px-2 py-1.5">
-                                            <div className="truncate" title={locationBinding?.name || ""} style={{ color: locationBinding?.name ? theme.node.text : theme.node.muted }}>{locationBinding?.name || "—"}</div>
-                                            {locationBinding?.variantName ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>{locationBinding.variantName}</div> : null}
+                                            <div className="truncate" title={locationContext?.name || ""} style={{ color: locationContext?.name ? theme.node.text : theme.node.muted }}>{locationContext?.name || "—"}</div>
+                                            {locationContext?.variantName ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>{locationContext.variantName}</div> : null}
                                         </div>
                                         <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={imageNotes} style={{ color: imageNotes ? theme.node.text : theme.node.muted }}>{imageNotes || "—"}</div></div>
                                         <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={soundNotes} style={{ color: soundNotes ? theme.node.text : theme.node.muted }}>{soundNotes || "—"}</div></div>
@@ -179,7 +178,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
             ) : (
                 <div className="grid flex-1 place-items-center text-sm" style={{ color: theme.node.muted }}>还没有镜头，去 Studio 或画布新增。</div>
             )}
-            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onGenerate={(kind) => model.onBatchGenerateShots([...selected], kind)} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
+            <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onOpenProduction={() => model.onOpenProduction({ shotIds: [...selected] })} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
         </div>
     );
 }

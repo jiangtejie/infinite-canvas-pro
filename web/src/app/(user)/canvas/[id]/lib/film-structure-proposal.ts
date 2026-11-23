@@ -62,8 +62,8 @@ export function buildFilmStructureProposal(
         }),
     }));
     const current = {
-        scenes: nodes.filter((node) => node.type === CanvasNodeType.Scene).length,
-        shots: nodes.filter((node) => node.type === CanvasNodeType.Shot).length,
+        scenes: nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length,
+        shots: nodes.filter((node) => node.type === CanvasNodeType.FilmShot).length,
     };
     const issues: FilmProposalIssue[] = [];
     if (!scenes || !shots) issues.push({ level: "error", message: "提案中没有可写入的场次或镜头" });

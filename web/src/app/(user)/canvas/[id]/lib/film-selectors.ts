@@ -1,6 +1,6 @@
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmContextRole } from "../../types";
 import { orderFilmShots } from "./film-layout";
-import type { FilmSceneEntry, FilmShotBindingChip, FilmShotEntry } from "./film-studio-types";
+import type { FilmSceneEntry, FilmShotContextChip, FilmShotEntry } from "./film-studio-types";
 
 export const UNASSIGNED_SCENE_ID = "unassigned";
 
@@ -18,8 +18,8 @@ function byPosition(a: CanvasNodeData, b: CanvasNodeData) {
 }
 
 function sceneOwnerMap(nodes: CanvasNodeData[], connections: CanvasConnection[]) {
-    const shotIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.Shot).map((node) => node.id));
-    const sceneIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.Scene).map((node) => node.id));
+    const shotIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.FilmShot).map((node) => node.id));
+    const sceneIds = new Set(nodes.filter((node) => node.type === CanvasNodeType.FilmScene).map((node) => node.id));
     const owners = new Map<string, string>();
     connections.forEach((edge) => {
         if (edge.kind !== "composition" || !shotIds.has(edge.toNodeId) || !sceneIds.has(edge.fromNodeId) || owners.has(edge.toNodeId)) return;
@@ -31,8 +31,8 @@ function sceneOwnerMap(nodes: CanvasNodeData[], connections: CanvasConnection[])
 /** 全片顺序投影：跨场交错时仍按唯一 sequence 链输出。 */
 export function selectFilmShotEntries(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmShotEntry[] {
     const owners = sceneOwnerMap(nodes, connections);
-    const sceneById = new Map(nodes.filter((node) => node.type === CanvasNodeType.Scene).map((node) => [node.id, node]));
-    const shots = nodes.filter((node) => node.type === CanvasNodeType.Shot);
+    const sceneById = new Map(nodes.filter((node) => node.type === CanvasNodeType.FilmScene).map((node) => [node.id, node]));
+    const shots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
     return orderFilmShots(shots, connections).map((shot, index) => {
         const scene = owners.get(shot.id) ? sceneById.get(owners.get(shot.id)!) : undefined;
         return {
@@ -53,7 +53,7 @@ export function selectFilmSceneEntries(nodes: CanvasNodeData[], connections: Can
         shotsByScene.set(entry.sceneId, [...(shotsByScene.get(entry.sceneId) || []), entry]);
     });
     const scenes = nodes
-        .filter((node) => node.type === CanvasNodeType.Scene)
+        .filter((node) => node.type === CanvasNodeType.FilmScene)
         .slice()
         .sort((a, b) => {
             const left = sceneMeta(a)?.episodeId || "";
@@ -100,34 +100,67 @@ export function selectActiveFilmShot(
     return { scene, shot };
 }
 
-export function selectFilmShotBindings(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string): FilmShotBindingChip[] {
+/** 镜头聚焦只跟随唯一 active shot；上一镜/下一镜始终来自全片顺序链。 */
+export function selectFilmShotFocus(entries: FilmShotEntry[], activeShotId: string | null): { entry: FilmShotEntry | null; index: number; prev: FilmShotEntry | null; next: FilmShotEntry | null } {
+    const index = activeShotId ? entries.findIndex((entry) => entry.shot.id === activeShotId) : -1;
+    return {
+        entry: index >= 0 ? entries[index] : null,
+        index,
+        prev: index > 0 ? entries[index - 1] : null,
+        next: index >= 0 && index < entries.length - 1 ? entries[index + 1] : null,
+    };
+}
+
+export function selectFilmShotContexts(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string): FilmShotContextChip[] {
     const seen = new Set<string>();
-    return connections
-        .filter((edge) => edge.kind === "binding" && edge.toNodeId === shotId)
-        .flatMap((edge) => {
-            if (seen.has(edge.fromNodeId)) return [];
-            const node = nodes.find((item) => item.id === edge.fromNodeId);
-            const payload = node?.metadata?.filmAsset;
-            if (!node || !payload) return [];
-            seen.add(edge.fromNodeId);
-            const asset = payload.asset;
-            return [{
-                id: node.id,
-                edgeId: edge.id,
-                kind: payload.kind,
-                name: asset.name || node.title,
-                stateId: edge.data?.stateId,
-                stateName: asset.character?.states.find((state) => state.id === edge.data?.stateId)?.name,
-                variantId: edge.data?.variantId,
-                variantName: asset.location?.variants.find((variant) => variant.id === edge.data?.variantId)?.name,
-                continuity: edge.data?.continuity,
-                states: asset.character?.states.map((state) => ({ id: state.id, name: state.name })) ?? [],
-                variants: asset.location?.variants.map((variant) => ({ id: variant.id, name: variant.name })) ?? [],
-            }];
+    const chips: FilmShotContextChip[] = [];
+    for (const edge of connections) {
+        if (edge.kind !== "context" || edge.toNodeId !== shotId || seen.has(edge.fromNodeId)) continue;
+        const node = nodes.find((item) => item.id === edge.fromNodeId);
+        const role = contextRoleForNode(node);
+        if (!node || !role || role !== edge.data.role) continue;
+        seen.add(edge.fromNodeId);
+        const asset = node.metadata?.filmCharacter?.asset
+            ?? node.metadata?.filmLocation?.asset
+            ?? node.metadata?.filmProp?.asset
+            ?? node.metadata?.filmStyle?.asset;
+        const states = asset?.character?.states.map((state) => ({ id: state.id, name: state.name })) ?? [];
+        const variants = asset?.location?.variants.map((variant) => ({ id: variant.id, name: variant.name })) ?? [];
+        chips.push({
+            id: node.id,
+            edgeId: edge.id,
+            role,
+            name: asset?.name || node.metadata?.filmBeat?.title || node.title,
+            stateId: edge.data.stateId,
+            stateName: states.find((state) => state.id === edge.data.stateId)?.name,
+            variantId: edge.data.variantId,
+            variantName: variants.find((variant) => variant.id === edge.data.variantId)?.name,
+            continuity: edge.data.continuity,
+            states,
+            variants,
         });
+    }
+    return chips;
+}
+
+function contextRoleForNode(node: CanvasNodeData | undefined): FilmContextRole | null {
+    switch (node?.type) {
+        case CanvasNodeType.FilmCharacter:
+            return node.metadata?.filmCharacter ? "character" : null;
+        case CanvasNodeType.FilmLocation:
+            return node.metadata?.filmLocation ? "location" : null;
+        case CanvasNodeType.FilmProp:
+            return node.metadata?.filmProp ? "prop" : null;
+        case CanvasNodeType.FilmStyle:
+            return node.metadata?.filmStyle ? "style" : null;
+        case CanvasNodeType.FilmBeat:
+            return node.metadata?.filmBeat ? "beat" : null;
+        default:
+            return null;
+    }
 }
 
 export function selectFilmStyleName(nodes: CanvasNodeData[]): string | null {
-    const style = nodes.find((node) => node.type === CanvasNodeType.FilmAsset && node.metadata?.filmAsset?.kind === "style");
-    return style ? style.metadata?.filmAsset?.asset.name || style.title || null : null;
+    const style = nodes.find((node) => node.type === CanvasNodeType.FilmStyle && node.metadata?.filmStyle);
+    return style ? style.metadata?.filmStyle?.asset.name || style.title || null : null;
 }

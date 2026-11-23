@@ -1,13 +1,14 @@
 import { nanoid } from "nanoid";
 
 import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
-import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
-import type { FilmConsistencyIssue, FilmConsistencyReview, FilmProject } from "@/lib/film/types";
+import type { FilmConsistencyIssue, FilmConsistencyReview } from "@/lib/film/types";
+import type { FilmGraphReviewInput } from "@/app/(user)/canvas/[id]/lib/film-review-input";
 import { directorStyleFor } from "@/lib/film/director-styles";
 import { scriptTextHash } from "@/lib/film/film-script-import";
 import { structurePlanPromptContext } from "./film-ai-structure";
-import { filmCharacterSignature, findFilmCharacterState } from "./film-character";
+import { filmCharacterSignature } from "./film-character";
+import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 
 const MAX_CONTEXT_SHOTS = 160;
 
@@ -21,85 +22,93 @@ const CONSISTENCY_PROMPT = `你是影视项目的一致性监理（script superv
 5. 绑定：镜头出场角色/状态绑定与台词、画面描述不一致，提到角色但未绑定。
 不要重复机械检查（总时长、镜头数量、单镜成场）——这些由预演层负责。
 只输出 JSON 对象，不要 Markdown、不要解释：
-{"summary":"一句话整体判断","issues":[{"level":"error|warning|info","category":"structure|continuity|style|binding","message":"具体到哪场哪镜、哪里矛盾","suggestion":"可执行的修正方向","shotNo":"01","scene":"1-1 街道"}]}
+{"summary":"一句话整体判断","issues":[{"level":"error|warning|info","category":"structure|continuity|style|binding","message":"具体到哪场哪镜、哪里矛盾","suggestion":"可执行的修正方向","shotNo":"01","scene":"1-1 街道","episode":"第1集"}]}
 issues 最多 12 条，按严重程度排序；没有问题时 issues 返回空数组。`;
 
-export async function requestFilmConsistencyReview(config: AiConfig, project: FilmProject): Promise<FilmConsistencyReview> {
+export async function requestFilmConsistencyReview(config: AiConfig, input: FilmGraphReviewInput): Promise<FilmConsistencyReview> {
     const turn = await requestCanvasAgentTurn({
         config,
         systemPrompt: CONSISTENCY_PROMPT,
-        messages: [{ role: "user", content: buildFilmConsistencyContext(project) }],
+        messages: [{ role: "user", content: buildFilmConsistencyContext(input) }],
         tools: [],
         toolMode: "prompt-json",
     });
-    return parseFilmConsistencyReview(turn.content, project);
+    return parseFilmConsistencyReview(turn.content, input);
 }
 
-export function buildFilmConsistencyContext(project: FilmProject) {
-    const style = directorStyleFor(project.directorStyleId);
-    const characterById = new Map((project.characters || []).map((asset) => [asset.id, asset]));
-    const locationById = new Map((project.locations || []).map((asset) => [asset.id, asset]));
-    const propById = new Map((project.props || []).map((asset) => [asset.id, asset]));
-    const costumeById = new Map((project.costumes || []).map((asset) => [asset.id, asset]));
-    let shotCount = 0;
-    const episodes = (project.episodes || []).slice(0, 60).map((episode) => ({
-        episode: episode.title,
-        scenes: episode.scenes.slice(0, 40).map((scene) => ({
-            name: scene.name,
-            location: scene.location,
-            time: scene.time,
-            shots: scene.shots.slice(0, 20).flatMap((shot) => {
-                if (shotCount >= MAX_CONTEXT_SHOTS) return [];
-                shotCount += 1;
-                return [{
-                    shotNo: shot.shotNo,
-                    shotType: shot.shotType,
-                    cameraMovement: shot.cameraMovement,
-                    coverage: shot.coverage,
-                    description: (shot.description || "").slice(0, 120),
-                    dialogue: (shot.dialogue || "").slice(0, 120),
-                    audio: (shot.audio || "").slice(0, 80),
-                    prompt: (shot.prompt || "").slice(0, 120),
-                    characters: shot.characterBindings.map((binding) => {
-                        const asset = characterById.get(binding.characterId);
-                        const state = asset ? findFilmCharacterState(asset, binding.stateId) : undefined;
-                        const costume = state?.costumeId ? costumeById.get(state.costumeId) : undefined;
-                        return {
-                            characterId: binding.characterId,
-                            name: asset?.name || binding.characterNameSnapshot,
-                            aliases: asset?.aliases || [],
-                            state: state?.name || binding.stateNameSnapshot || "",
-                            costume: costume?.name || "",
-                            heldProps: (state?.heldPropIds || []).map((id) => propById.get(id)?.name || "").filter(Boolean),
-                            signature: asset ? filmCharacterSignature(asset, { costumes: project.costumes, props: project.props }) : "",
-                            continuity: binding.continuity,
-                        };
-                    }),
-                    props: (shot.propBindings || []).map((binding) => propById.get(binding.propId)?.name || binding.propNameSnapshot),
-                    location: shot.locationId ? locationById.get(shot.locationId)?.name || "" : "",
-                    variant: shot.locationVariantId ? locationById.get(shot.locationId || "")?.location?.variants.find((item) => item.id === shot.locationVariantId)?.name || "" : "",
-                    continuityCheck: shot.continuityCheck,
-                    performance: shot.performance,
-                    soundDesign: shot.soundDesign,
-                }];
-            }),
-        })),
+export function buildFilmConsistencyContext(input: FilmGraphReviewInput) {
+    const style = directorStyleFor(input.filmMeta?.directorStyleId);
+    const characters = input.assets.characters;
+    const locations = input.assets.locations;
+    const props = input.assets.props;
+    const scenes = input.scenes.map((scene) => ({
+        id: scene.id,
+        episode: scene.episodeTitle,
+        name: scene.name,
+        location: scene.location,
+        time: scene.time,
+        shotIds: scene.shotIds,
     }));
+    const shots = input.shots.slice(0, MAX_CONTEXT_SHOTS).map((entry) => {
+        const shot = entry.shot;
+        const contexts = entry.contexts;
+        const scene = entry.scene;
+        return {
+            shotNo: shot.shotNo,
+            shotType: shot.shotType,
+            cameraMovement: shot.cameraMovement,
+            coverage: shot.coverage,
+            description: (shot.description || "").slice(0, 120),
+            dialogue: (shot.dialogue || "").slice(0, 120),
+            audio: (shot.audio || "").slice(0, 80),
+            prompt: (shot.prompt || "").slice(0, 120),
+            scene: scene ? { episode: scene.episodeTitle, name: scene.name, location: scene.location, time: scene.time } : { episode: "", name: "未分场", location: "", time: "" },
+            characters: contexts.filter((context) => context.role === "character").map((context) => {
+                const asset = context.asset;
+                const state = asset?.character?.states.find((item) => item.id === context.stateId);
+                return {
+                    characterId: asset?.id || context.nodeId,
+                    name: asset?.name || context.name,
+                    aliases: asset?.aliases || [],
+                    state: state?.name || "",
+                    costume: state?.costumeId ? input.assets.costumes.find((item) => item.id === state.costumeId)?.name || "" : "",
+                    heldProps: (state?.heldPropIds || []).map((id) => props.find((item) => item.id === id)?.name || "").filter(Boolean),
+                    signature: asset ? filmCharacterSignature(asset, { costumes: input.assets.costumes, props }) : "",
+                    continuity: context.continuity,
+                };
+            }),
+            props: contexts.filter((context) => context.role === "prop").map((context) => context.asset?.name || context.name),
+            location: contexts.find((context) => context.role === "location")?.asset?.name || "",
+            variant: (() => {
+                const context = contexts.find((item) => item.role === "location");
+                return context?.variantId
+                    ? context.asset?.location?.variants.find((item) => item.id === context.variantId)?.name || ""
+                    : "";
+            })(),
+            performance: shot.performance,
+            soundDesign: shot.soundDesign,
+        };
+    });
     return JSON.stringify({
-        title: project.title,
-        targetDuration: project.targetDuration,
+        title: input.title,
+        targetDuration: input.filmMeta?.targetDuration,
         style: style ? { name: style.name, camera: style.camera, visual: style.visual, rules: style.rules.map((rule) => rule.label) } : undefined,
-        structurePlan: structurePlanPromptContext(project.structurePlan) || undefined,
-        characters: (project.characters || []).map((asset) => asset.name).slice(0, 40),
-        locations: (project.locations || []).map((asset) => asset.name).slice(0, 40),
-        props: (project.props || []).map((asset) => asset.name).slice(0, 40),
-        costumes: (project.costumes || []).map((asset) => asset.name).slice(0, 40),
-        styleBible: project.style?.visualPrompt || undefined,
-        episodes,
+        scenes,
+        structurePlan: structurePlanPromptContext(input.script?.structurePlan) || undefined,
+        characters: characters.map((asset) => asset.name).slice(0, 40),
+        locations: locations.map((asset) => asset.name).slice(0, 40),
+        props: props.map((asset) => asset.name).slice(0, 40),
+        costumes: input.assets.costumes.map((asset) => asset.name).slice(0, 40),
+        styleBible: input.style?.visualPrompt || undefined,
+        shots,
     });
 }
 
-export function parseFilmConsistencyReview(content: string, project: FilmProject): FilmConsistencyReview {
+export function filmReviewContextText(input: FilmGraphReviewInput) {
+    return buildFilmConsistencyContext(input);
+}
+
+export function parseFilmConsistencyReview(content: string, input: FilmGraphReviewInput): FilmConsistencyReview {
     const body = extractAiJsonBlock(cleanAiJsonText(content), "object");
     if (!body) throw new Error("AI 一致性检查结果不是有效 JSON");
     let parsed: unknown;
@@ -110,17 +119,34 @@ export function parseFilmConsistencyReview(content: string, project: FilmProject
     }
     const record = (parsed || {}) as Record<string, unknown>;
     const rawIssues = Array.isArray(record.issues) ? record.issues : [];
-    const allShots = (project.episodes || []).flatMap((episode) => episode.scenes.flatMap((scene) => scene.shots.map((shot) => ({ shot, scene }))));
+    const shots = input.shots.map((entry) => ({ shot: entry.shot, scene: entry.scene }));
     const issues: FilmConsistencyIssue[] = rawIssues
         .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
         .slice(0, 12)
         .map((item) => {
             const shotNo = String(item.shotNo || "").trim();
             const sceneName = String(item.scene || "").trim();
-            const matchedShot = shotNo ? allShots.find((entry) => entry.shot.shotNo === shotNo) : undefined;
-            const matchedScene = sceneName
-                ? allShots.find((entry) => entry.scene.name.includes(sceneName) || sceneName.includes(entry.scene.name))
-                : undefined;
+            const episodeTitle = String(item.episode || "").trim();
+            const matchingShots = shotNo ? shots.filter((entry) => entry.shot.shotNo === shotNo) : [];
+            const matchingScenes = sceneName || episodeTitle
+                ? input.scenes.filter((scene) => (!episodeTitle || scene.episodeTitle === episodeTitle)
+                    && (!sceneName || scene.name.includes(sceneName) || sceneName.includes(scene.name)))
+                : [];
+            const reportedScene = matchingScenes.length === 1 ? matchingScenes[0] : undefined;
+            let matchedShot: typeof shots[number] | undefined;
+            let matchedScene: typeof input.scenes[number] | undefined;
+            if (!shotNo) {
+                matchedScene = reportedScene;
+            } else if (matchingShots.length === 1) {
+                matchedShot = matchingShots[0];
+                matchedScene = matchedShot.scene;
+            } else if (matchingShots.length > 1 && reportedScene) {
+                const sceneShots = matchingShots.filter((entry) => entry.scene?.id === reportedScene.id);
+                if (sceneShots.length === 1) {
+                    matchedShot = sceneShots[0];
+                    matchedScene = reportedScene;
+                }
+            }
             const level = item.level === "error" || item.level === "info" ? item.level : "warning";
             const category = item.category === "structure" || item.category === "style" || item.category === "binding" ? item.category : "continuity";
             return {
@@ -130,11 +156,11 @@ export function parseFilmConsistencyReview(content: string, project: FilmProject
                 message: String(item.message || "").trim(),
                 suggestion: String(item.suggestion || "").trim() || undefined,
                 shotId: matchedShot?.shot.id,
-                sceneId: matchedShot?.scene.id || matchedScene?.scene.id,
+                sceneId: matchedShot?.scene?.id || matchedScene?.id,
             };
         })
         .filter((issue) => issue.message);
-    const hashSource = project.scriptHash || project.scriptText || JSON.stringify(project.episodes || []);
+    const hashSource = input.filmMeta?.scriptHash || input.script?.sourceScriptHash || input.script?.text || filmReviewContextText(input);
     return {
         scriptHash: scriptTextHash(hashSource),
         reviewedAt: new Date().toISOString(),

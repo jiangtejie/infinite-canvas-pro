@@ -8,6 +8,7 @@ import type { CanvasTheme } from "@/lib/canvas-theme";
 import type { FilmMediaVersion } from "@/lib/film/types";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import { canvasStatusColors } from "../../lib/canvas-palette";
+import { FILM_REFERENCE_ROLE_LABELS } from "../lib/film-reference-labels";
 import { defaultFilmVersionPair, filmVersionSummary, type FilmVersionKind, type FilmVersionShot } from "../lib/film-version-room";
 
 export type FilmVersionRoomMode = "compare" | "batch";
@@ -66,9 +67,9 @@ export function FilmVersionRoomDialog({ theme, mode, kind, shots, activeShotId, 
                                 <span>镜头 #{activeShot.shotNo}</span>
                                 <span>· {activeShot.versions.length} 个版本</span>
                             </div>
-                            <div className="grid gap-3 md:grid-cols-2">
+                            <div className={`grid gap-3 ${activeShot.versions.length > 1 ? "md:grid-cols-2" : ""}`}>
                                 <VersionPane theme={theme} kind={kind} version={activeShot.versions.find((version) => version.id === leftId) ?? null} versions={activeShot.versions} selectedId={leftId} onSelect={setLeftId} currentId={activeShot.currentVersionId} onSetCurrent={(versionId) => onSetCurrent(activeShot.shotId, kind, versionId)} />
-                                <VersionPane theme={theme} kind={kind} version={activeShot.versions.find((version) => version.id === rightId) ?? null} versions={activeShot.versions} selectedId={rightId} onSelect={setRightId} currentId={activeShot.currentVersionId} onSetCurrent={(versionId) => onSetCurrent(activeShot.shotId, kind, versionId)} />
+                                {activeShot.versions.length > 1 ? <VersionPane theme={theme} kind={kind} version={activeShot.versions.find((version) => version.id === rightId) ?? null} versions={activeShot.versions} selectedId={rightId} onSelect={setRightId} currentId={activeShot.currentVersionId} onSetCurrent={(versionId) => onSetCurrent(activeShot.shotId, kind, versionId)} /> : null}
                             </div>
                         </div>
                     ) : <div className="grid min-h-[220px] place-items-center px-5 text-sm" style={{ color: theme.node.muted }}>当前镜头还没有可对比的{kind === "image" ? "分镜图" : "视频"}版本。</div>
@@ -138,14 +139,24 @@ function VersionPane({ theme, kind, version, versions, selectedId, onSelect, cur
             </div>
             <div className="flex flex-wrap gap-1 text-[10px]" style={{ color: theme.node.muted }}>
                 <span>v{index + 1}</span>
-                {summary?.characters ? <span>· 角色 {summary.characters}</span> : null}
-                {summary?.references ? <span>· 参考 {summary.references}</span> : null}
-                {summary?.warnings ? <span style={{ color: canvasStatusColors.loading }}>· 警告 {summary.warnings}</span> : null}
+                {summary?.characters.length ? <span>· 角色 {summary.characters.length}</span> : null}
+                {summary?.references.length ? <span>· 参考 {summary.references.length}</span> : null}
+                {summary?.warnings.length ? <span style={{ color: canvasStatusColors.loading }}>· 警告 {summary.warnings.length}</span> : null}
                 {summary?.missing ? <span style={{ color: canvasStatusColors.error }}>· 缺参考 {summary.missing}</span> : null}
             </div>
-            <div className="thin-scrollbar max-h-24 overflow-y-auto whitespace-pre-wrap rounded-md border px-2 py-1.5 text-[10px] leading-4" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>
-                {summary?.prompt || "该版本没有记录生成提示词。"}
-            </div>
+            {summary?.hasContext ? (
+                <>
+                    <div className="thin-scrollbar max-h-24 overflow-y-auto whitespace-pre-wrap rounded-md border px-2 py-1.5 text-[10px] leading-4" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>
+                        {summary.prompt || "该版本没有记录生成提示词。"}
+                    </div>
+                    <div className="thin-scrollbar flex max-h-24 flex-col gap-1.5 overflow-y-auto rounded-md border px-2 py-1.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>
+                        {summary.characters.length ? <div className="flex flex-wrap gap-1">{summary.characters.map((character, characterIndex) => <span key={`${character.name}-${characterIndex}`} className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>{character.name}{character.stateName ? ` · ${character.stateName}` : ""}</span>)}</div> : null}
+                        {summary.references.length ? <div className="flex flex-col gap-0.5">{summary.references.map((reference, referenceIndex) => <div key={`${reference.role}-${referenceIndex}`} className="flex min-w-0 items-center gap-1"><span className="shrink-0 rounded border px-1 py-0.5" style={{ borderColor: theme.node.stroke }}>{FILM_REFERENCE_ROLE_LABELS[reference.role] || reference.role}</span><span className="truncate" style={{ color: theme.node.text }}>{reference.label}</span></div>)}</div> : null}
+                        {summary.warnings.map((warning, warningIndex) => <div key={`${warning}-${warningIndex}`} style={{ color: canvasStatusColors.loading }}>警告：{warning}</div>)}
+                        {summary.missing ? <div style={{ color: canvasStatusColors.error }}>缺参考 {summary.missing} 项</div> : null}
+                    </div>
+                </>
+            ) : <span className="rounded-md border px-2 py-1.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>该版本没有记录生成上下文，可能是上传或旧版本。</span>}
             <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px]" style={{ color: theme.node.muted }}>{summary?.compilerVersion || "无编译器记录"}</span>
                 {version && version.id !== currentId ? <button type="button" className="rounded-full border px-2 py-1 text-[10px]" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} onClick={() => onSetCurrent(version.id)}>设为当前</button> : <span className="inline-flex items-center gap-1 text-[10px]" style={{ color: theme.node.muted }}><Check className="size-3" />当前版本</span>}

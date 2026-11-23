@@ -1,57 +1,71 @@
-import type { FilmAsset, FilmAssetKind, FilmGenerationContext, FilmShot, FilmShotCharacterBinding, FilmShotPropBinding } from "@/lib/film/types";
+import type { FilmAsset, FilmGenerationContext, FilmShot, FilmShotCharacterBinding, FilmShotPropBinding } from "@/lib/film/types";
 import { findFilmCharacterState } from "@/app/(user)/film/utils/film-character";
 import { buildFilmShotGenerationContext, type FilmGenerationOptions } from "@/app/(user)/film/utils/film-shot-generation";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { filmBeatPrompt } from "./film-beat";
 import { orderFilmShots } from "./film-layout";
 
 export type FilmGraphGenerationOptions = Omit<FilmGenerationOptions, "previousShot" | "anchorShot"> & {
     includePreviousShot?: boolean;
+    costumes?: FilmAsset[];
 };
 
-function payloadOf(node: CanvasNodeData | undefined) {
-    return node?.type === CanvasNodeType.FilmAsset ? node.metadata?.filmAsset : undefined;
+function assetOf(node: CanvasNodeData | undefined): FilmAsset | undefined {
+    if (node?.type === CanvasNodeType.FilmCharacter) return node.metadata?.filmCharacter?.asset;
+    if (node?.type === CanvasNodeType.FilmLocation) return node.metadata?.filmLocation?.asset;
+    if (node?.type === CanvasNodeType.FilmProp) return node.metadata?.filmProp?.asset;
+    if (node?.type === CanvasNodeType.FilmStyle) return node.metadata?.filmStyle?.asset;
+    return undefined;
 }
 
-function assetsOfKind(nodes: CanvasNodeData[], kind: FilmAssetKind): FilmAsset[] {
-    return nodes.flatMap((node) => {
-        const payload = payloadOf(node);
-        return payload?.kind === kind ? [payload.asset] : [];
-    });
+function assetsOfType(nodes: CanvasNodeData[], type: CanvasNodeType, payloadKey: "filmCharacter" | "filmLocation" | "filmProp" | "filmStyle"): FilmAsset[] {
+    return nodes.flatMap((node) => node.type === type && node.metadata?.[payloadKey] ? [node.metadata[payloadKey]!.asset] : []);
 }
 
 function shotFromNode(node: CanvasNodeData, nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmShot | null {
     const payload = node.metadata?.filmShot;
     if (!payload) return null;
-    const incoming = connections.filter((edge) => edge.kind === "binding" && edge.toNodeId === node.id);
+    const incoming = connections.filter((edge) => edge.kind === "context" && edge.toNodeId === node.id);
     const characterBindings: FilmShotCharacterBinding[] = incoming.flatMap((edge) => {
-        const source = nodes.find((item) => item.id === edge.fromNodeId);
-        const assetPayload = payloadOf(source);
-        if (!source || !assetPayload || assetPayload.kind !== "character") return [];
-        const state = findFilmCharacterState(assetPayload.asset, edge.data?.stateId);
+        if (edge.kind !== "context" || edge.data.role !== "character") return [];
+        const source = nodes.find((item) => item.id === edge.fromNodeId && item.type === CanvasNodeType.FilmCharacter);
+        const asset = assetOf(source);
+        if (!source || !asset) return [];
+        const state = findFilmCharacterState(asset, edge.data.stateId);
         return [{
-            characterId: assetPayload.asset.id,
-            stateId: edge.data?.stateId,
-            source: edge.data?.source ?? "manual",
-            characterNameSnapshot: assetPayload.asset.name,
+            characterId: asset.id,
+            stateId: edge.data.stateId,
+            source: edge.data.source,
+            characterNameSnapshot: asset.name,
             stateNameSnapshot: state?.name,
-            continuity: edge.data?.continuity ?? {},
+            continuity: edge.data.continuity ?? {},
         }];
     });
     const propBindings: FilmShotPropBinding[] = incoming.flatMap((edge) => {
-        const source = nodes.find((item) => item.id === edge.fromNodeId);
-        const assetPayload = payloadOf(source);
-        if (!source || !assetPayload || assetPayload.kind !== "prop") return [];
-        return [{ propId: assetPayload.asset.id, propNameSnapshot: assetPayload.asset.name, source: edge.data?.source ?? "manual" }];
+        if (edge.kind !== "context" || edge.data.role !== "prop") return [];
+        const source = nodes.find((item) => item.id === edge.fromNodeId && item.type === CanvasNodeType.FilmProp);
+        const asset = assetOf(source);
+        return asset ? [{ propId: asset.id, propNameSnapshot: asset.name, source: edge.data.source }] : [];
     });
-    const locationEdge = incoming.find((edge) => payloadOf(nodes.find((item) => item.id === edge.fromNodeId))?.kind === "location");
-    const locationAsset = locationEdge ? payloadOf(nodes.find((item) => item.id === locationEdge.fromNodeId))?.asset : undefined;
+    const locationEdge = incoming.find((edge) => {
+        if (edge.kind !== "context" || edge.data.role !== "location") return false;
+        return nodes.some((item) => item.id === edge.fromNodeId && item.type === CanvasNodeType.FilmLocation && assetOf(item));
+    });
+    const locationAsset = locationEdge ? assetOf(nodes.find((item) => item.id === locationEdge.fromNodeId)) : undefined;
+    const beatPrompts = incoming.flatMap((edge) => {
+        if (edge.kind !== "context" || edge.data.role !== "beat") return [];
+        const beat = nodes.find((item) => item.id === edge.fromNodeId && item.type === CanvasNodeType.FilmBeat)?.metadata?.filmBeat;
+        const text = filmBeatPrompt(beat);
+        return text ? [text] : [];
+    });
     return {
         ...payload,
         id: node.id,
+        prompt: [payload.prompt, ...beatPrompts].filter(Boolean).join("\n"),
         characterBindings,
         propBindings,
         locationId: locationAsset?.id,
-        locationVariantId: locationEdge?.data?.variantId,
+        locationVariantId: locationEdge?.kind === "context" ? locationEdge.data.variantId : undefined,
     } as FilmShot;
 }
 
@@ -60,7 +74,7 @@ export function selectFilmShotFromGraph(node: CanvasNodeData, nodes: CanvasNodeD
 }
 
 function previousShotOf(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string): FilmShot | undefined {
-    const ordered = orderFilmShots(nodes.filter((item) => item.type === CanvasNodeType.Shot), connections);
+    const ordered = orderFilmShots(nodes.filter((item) => item.type === CanvasNodeType.FilmShot), connections);
     const index = ordered.findIndex((item) => item.id === shotId);
     const node = index > 0 ? ordered[index - 1] : undefined;
     return node ? shotFromNode(node, nodes, connections) ?? undefined : undefined;
@@ -68,7 +82,7 @@ function previousShotOf(nodes: CanvasNodeData[], connections: CanvasConnection[]
 
 function sceneContextOf(nodes: CanvasNodeData[], connections: CanvasConnection[], shotId: string) {
     const edge = connections.find((item) => item.kind === "composition" && item.toNodeId === shotId);
-    const scene = edge ? nodes.find((item) => item.id === edge.fromNodeId && item.type === CanvasNodeType.Scene) : undefined;
+    const scene = edge ? nodes.find((item) => item.id === edge.fromNodeId && item.type === CanvasNodeType.FilmScene) : undefined;
     const payload = scene?.metadata?.filmScene;
     if (!payload) return undefined;
     return {
@@ -81,23 +95,24 @@ function sceneContextOf(nodes: CanvasNodeData[], connections: CanvasConnection[]
     };
 }
 
-export function buildFilmShotGenerationFromGraph(    nodes: CanvasNodeData[],
+export function buildFilmShotGenerationFromGraph(
+    nodes: CanvasNodeData[],
     connections: CanvasConnection[],
     shotId: string,
     options: FilmGraphGenerationOptions,
 ): FilmGenerationContext | null {
-    const node = nodes.find((item) => item.id === shotId && item.type === CanvasNodeType.Shot);
+    const node = nodes.find((item) => item.id === shotId && item.type === CanvasNodeType.FilmShot);
     if (!node) return null;
     const shot = shotFromNode(node, nodes, connections);
     if (!shot) return null;
-    const { includePreviousShot = true, ...generationOptions } = options;
-    const style = nodes.find((item) => payloadOf(item)?.kind === "style");
+    const { includePreviousShot = true, costumes = [], ...generationOptions } = options;
+    const style = assetsOfType(nodes, CanvasNodeType.FilmStyle, "filmStyle")[0];
     return buildFilmShotGenerationContext({
-        characters: assetsOfKind(nodes, "character"),
-        locations: assetsOfKind(nodes, "location"),
-        props: assetsOfKind(nodes, "prop"),
-        costumes: assetsOfKind(nodes, "costume"),
-        style: style ? payloadOf(style)!.asset : undefined,
+        characters: assetsOfType(nodes, CanvasNodeType.FilmCharacter, "filmCharacter"),
+        locations: assetsOfType(nodes, CanvasNodeType.FilmLocation, "filmLocation"),
+        props: assetsOfType(nodes, CanvasNodeType.FilmProp, "filmProp"),
+        costumes,
+        style,
     }, shot, {
         ...generationOptions,
         previousShot: includePreviousShot ? previousShotOf(nodes, connections, shotId) : undefined,

@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createFilmAsset } from "@/app/(user)/film/utils/film-edits";
+import { createFilmAsset } from "./film-asset-factory";
 import { createEmptyCharacterProfile } from "@/app/(user)/film/utils/film-character";
 import { appendSlotImage, createFilmImageSlot } from "@/app/(user)/film/utils/film-image-slot";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmShotNodeData } from "../../types";
-import { defaultFilmAssetProductionSelection, planFilmAssetProduction } from "./film-asset-production";
+import { defaultFilmAssetProductionSelection, initialFilmAssetProductionSelection, planFilmAssetProduction } from "./film-asset-production";
 
 const sceneNode = (): CanvasNodeData => ({
     id: "scene",
-    type: CanvasNodeType.Scene,
+    type: CanvasNodeType.FilmScene,
     title: "咖啡馆",
     position: { x: 700, y: 100 },
     width: 360,
@@ -19,7 +19,7 @@ const sceneNode = (): CanvasNodeData => ({
 
 const shotNode = (id: string): CanvasNodeData => ({
     id,
-    type: CanvasNodeType.Shot,
+    type: CanvasNodeType.FilmShot,
     title: id,
     position: { x: 700, y: 380 },
     width: 420,
@@ -30,24 +30,22 @@ const shotNode = (id: string): CanvasNodeData => ({
 const assetNode = (id: string, kind: "character" | "location" | "style", name: string, withBoard = false): CanvasNodeData => {
     const asset = createFilmAsset(kind, 1);
     const image = { id: `${id}-image`, url: "https://example.com/a.png", source: "upload" as const, createdAt: "2026-11-22T00:00:00.000Z" };
+    const payload = {
+        ...asset,
+        name,
+        ...(kind === "character" ? { character: { ...createEmptyCharacterProfile(), board: withBoard ? appendSlotImage(createFilmImageSlot(), image) : createFilmImageSlot() } } : {}),
+        ...(kind === "location" && withBoard ? { concept: appendSlotImage(createFilmImageSlot(), image) } : {}),
+    };
     return {
         id,
-        type: CanvasNodeType.FilmAsset,
+        type: kind === "character" ? CanvasNodeType.FilmCharacter : kind === "location" ? CanvasNodeType.FilmLocation : CanvasNodeType.FilmStyle,
         title: name,
         position: { x: 0, y: 0 },
         width: 360,
         height: 420,
         metadata: {
             status: "idle",
-            filmAsset: {
-                kind,
-                asset: {
-                    ...asset,
-                    name,
-                    ...(kind === "character" ? { character: { ...createEmptyCharacterProfile(), board: withBoard ? appendSlotImage(createFilmImageSlot(), image) : createFilmImageSlot() } } : {}),
-                    ...(kind === "location" && withBoard ? { concept: appendSlotImage(createFilmImageSlot(), image) } : {}),
-                },
-            },
+            ...(kind === "character" ? { filmCharacter: { asset: payload } } : kind === "location" ? { filmLocation: { asset: payload } } : { filmStyle: { asset: payload } }),
         },
     };
 };
@@ -55,12 +53,12 @@ const assetNode = (id: string, kind: "character" | "location" | "style", name: s
 const connections = (): CanvasConnection[] => [
     { id: "c1", fromNodeId: "scene", toNodeId: "s1", kind: "composition" },
     { id: "c2", fromNodeId: "scene", toNodeId: "s2", kind: "composition" },
-    { id: "b1", fromNodeId: "char-ready", toNodeId: "s1", kind: "binding", data: { source: "manual" } },
-    { id: "b2", fromNodeId: "char-ready", toNodeId: "s2", kind: "binding", data: { source: "manual" } },
-    { id: "b3", fromNodeId: "loc", toNodeId: "s1", kind: "binding", data: { source: "manual" } },
+    { id: "b1", fromNodeId: "char-ready", toNodeId: "s1", kind: "context", data: { role: "character", source: "manual" } },
+    { id: "b2", fromNodeId: "char-ready", toNodeId: "s2", kind: "context", data: { role: "character", source: "manual" } },
+    { id: "b3", fromNodeId: "loc", toNodeId: "s1", kind: "context", data: { role: "location", source: "manual" } },
 ];
 
-test("plans all assets with readiness, usage and reference target", () => {
+test("plans all context nodes with readiness, usage and reference target", () => {
     const nodes = [
         sceneNode(), shotNode("s1"), shotNode("s2"),
         assetNode("char-missing", "character", "阿青"),
@@ -85,10 +83,42 @@ test("plans all assets with readiness, usage and reference target", () => {
 
 test("excludes pending asset tasks from the default selection", () => {
     const pendingNode = assetNode("char-pending", "character", "阿青");
-    pendingNode.metadata!.filmAsset!.asset.pendingTask = { kind: "image", id: "task", startedAt: 1, target: "board" };
+    pendingNode.metadata!.filmCharacter!.asset.pendingTask = { kind: "image", id: "task", startedAt: 1, target: "board" };
     const plan = planFilmAssetProduction([pendingNode, assetNode("loc", "location", "旧城咖啡馆")], []);
     assert.deepEqual(plan.totals, { assets: 2, missing: 1, ready: 0, pending: 1 });
     assert.deepEqual([...defaultFilmAssetProductionSelection(plan)], ["loc"]);
+});
+
+test("starts from preferred node IDs but ignores pending assets", () => {
+    const pending = assetNode("char-pending", "character", "待生成");
+    pending.metadata!.filmCharacter!.asset.pendingTask = { kind: "image", id: "task", startedAt: 1, target: "board" };
+    const plan = planFilmAssetProduction([
+        pending,
+        assetNode("char-ready", "character", "沈迟", true),
+        assetNode("char-missing", "character", "阿青"),
+    ], []);
+    assert.deepEqual([...initialFilmAssetProductionSelection(plan, ["char-pending", "char-ready"])], ["char-ready"]);
+    assert.deepEqual([...initialFilmAssetProductionSelection(plan)], ["char-missing"]);
+});
+
+test("does not queue a location that is only referenced through a ready variant", () => {
+    const location = assetNode("loc", "location", "雨夜天台");
+    const locationAsset = location.metadata!.filmLocation!.asset;
+    locationAsset.location = { variants: [{ id: "v1", name: "雨夜", description: "", concept: appendSlotImage(createFilmImageSlot(), { id: "v1-image", url: "https://example.com/v1.png", source: "upload", createdAt: "2026-11-22T00:00:00.000Z" }) }] };
+    const plan = planFilmAssetProduction([sceneNode(), shotNode("s1"), location], [
+        { id: "c1", fromNodeId: "scene", toNodeId: "s1", kind: "composition" },
+        { id: "b1", fromNodeId: "loc", toNodeId: "s1", kind: "context", data: { role: "location", source: "manual", variantId: "v1" } },
+    ]);
+    assert.equal(plan.items[0].ready, true);
+    assert.deepEqual([...defaultFilmAssetProductionSelection(plan)], []);
+});
+
+test("keeps a character production target ready when only its costume reference is missing", () => {
+    const character = assetNode("char-ready", "character", "沈迟", true);
+    character.metadata!.filmCharacter!.asset.character!.states = [{ id: "st-1", name: "正装", description: "", costumeId: "cos-gone", condition: "", heldPropIds: [], look: createFilmImageSlot() }];
+    const plan = planFilmAssetProduction([character], []);
+    assert.equal(plan.items[0].ready, true);
+    assert.deepEqual([...defaultFilmAssetProductionSelection(plan)], []);
 });
 
 test("sorts missing before ready and used assets first within a kind", () => {
@@ -100,7 +130,7 @@ test("sorts missing before ready and used assets first within a kind", () => {
     ];
     const plan = planFilmAssetProduction(nodes, [
         { id: "c1", fromNodeId: "scene", toNodeId: "s1", kind: "composition" },
-        { id: "b1", fromNodeId: "char-missing-used", toNodeId: "s1", kind: "binding", data: { source: "manual" } },
+        { id: "b1", fromNodeId: "char-missing-used", toNodeId: "s1", kind: "context", data: { role: "character", source: "manual" } },
     ]);
     assert.deepEqual(plan.items.map((item) => item.name), ["阿青", "路人", "沈迟"]);
     assert.deepEqual(plan.items.map((item) => item.usedShots), [1, 0, 0]);

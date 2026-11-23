@@ -21,10 +21,14 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Source]: { width: 520, height: 380, title: "素材源" },
     [CanvasNodeType.Publish]: { width: 520, height: 380, title: "发布" },
     [CanvasNodeType.Comic]: { width: 360, height: 320, title: "漫画册" },
-    [CanvasNodeType.Script]: { width: 520, height: 380, title: "剧本" },
-    [CanvasNodeType.Scene]: { width: 360, height: 240, title: "场次" },
-    [CanvasNodeType.Shot]: { width: 420, height: 320, title: "镜头" },
-    [CanvasNodeType.FilmAsset]: { width: 360, height: 420, title: "影视资产" },
+    [CanvasNodeType.FilmScript]: { width: 520, height: 380, title: "剧本" },
+    [CanvasNodeType.FilmScene]: { width: 360, height: 240, title: "场次" },
+    [CanvasNodeType.FilmShot]: { width: 420, height: 320, title: "镜头" },
+    [CanvasNodeType.FilmCharacter]: { width: 360, height: 420, title: "角色" },
+    [CanvasNodeType.FilmLocation]: { width: 360, height: 420, title: "场景" },
+    [CanvasNodeType.FilmProp]: { width: 360, height: 420, title: "道具" },
+    [CanvasNodeType.FilmStyle]: { width: 360, height: 420, title: "风格圣经" },
+    [CanvasNodeType.FilmBeat]: { width: 480, height: 420, title: "动作节拍" },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
@@ -72,19 +76,19 @@ export const NODE_SPECS = {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Comic],
         metadata: { status: "idle", comicBook: { pageNodeIds: [], format: "page", direction: "rtl" } },
     },
-    [CanvasNodeType.Script]: {
-        ...NODE_DEFAULT_SIZE[CanvasNodeType.Script],
+    [CanvasNodeType.FilmScript]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmScript],
         metadata: { status: "idle", filmScript: { text: "", parseSnapshots: [] } },
     },
-    [CanvasNodeType.Scene]: {
-        ...NODE_DEFAULT_SIZE[CanvasNodeType.Scene],
+    [CanvasNodeType.FilmScene]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmScene],
         metadata: {
             status: "idle",
             filmScene: { episodeId: "", episodeTitle: "", name: "", location: "", time: "", mood: "" },
         },
     },
-    [CanvasNodeType.Shot]: {
-        ...NODE_DEFAULT_SIZE[CanvasNodeType.Shot],
+    [CanvasNodeType.FilmShot]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot],
         metadata: {
             status: "idle",
             filmShot: {
@@ -99,8 +103,24 @@ export const NODE_SPECS = {
             },
         },
     },
-    [CanvasNodeType.FilmAsset]: {
-        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmAsset],
+    [CanvasNodeType.FilmCharacter]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmCharacter],
+        metadata: { status: "idle" },
+    },
+    [CanvasNodeType.FilmLocation]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmLocation],
+        metadata: { status: "idle" },
+    },
+    [CanvasNodeType.FilmProp]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmProp],
+        metadata: { status: "idle" },
+    },
+    [CanvasNodeType.FilmStyle]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmStyle],
+        metadata: { status: "idle" },
+    },
+    [CanvasNodeType.FilmBeat]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmBeat],
         metadata: { status: "idle" },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;

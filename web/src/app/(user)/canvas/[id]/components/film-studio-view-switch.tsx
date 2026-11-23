@@ -10,12 +10,10 @@ import { CANVAS_Z } from "../lib/canvas-layer";
 import type { FilmStudioView } from "../lib/film-studio-types";
 
 const VIEWS: Array<[FilmStudioView, string]> = [
-    ["studio", "Studio"],
+    ["board", "导演板"],
     ["table", "镜头表"],
-    ["board", "故事板"],
-    ["timeline", "时间轴"],
-    ["graph", "画布"],
-    ["assets", "资产"],
+    ["storyboard", "故事板"],
+    ["assets", "上下文"],
 ];
 
 export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, onOpenVersions, onPreview, onOpenProduction, onOpenGroups, previewDisabled, reviewBadge, versionBadge, groupCount }: {
@@ -57,7 +55,7 @@ export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, o
             } else if (key === "p" && onPreview && !previewDisabled) {
                 event.preventDefault();
                 onPreview();
-            } else if (key === "m" && onOpenProduction && !previewDisabled) {
+            } else if (key === "m" && onOpenProduction) {
                 event.preventDefault();
                 onOpenProduction();
             } else if (key === "o" && onOpenGroups) {
@@ -94,12 +92,12 @@ export function FilmStudioViewSwitch({ view, onChange, onReview, onOpenScript, o
                     </button>
                 ) : null}
                 {onPreview ? (
-                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs disabled:opacity-40" style={{ color: theme.node.muted }} onClick={onPreview} disabled={previewDisabled} title={previewDisabled ? "有镜头后可预览" : "成片预览 (P)"}>
-                        <Play className="size-3.5" />预览
+                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs disabled:opacity-40" style={{ color: theme.node.muted }} onClick={onPreview} disabled={previewDisabled} title={previewDisabled ? "有镜头后可预演" : "分镜预演 (P)"}>
+                        <Play className="size-3.5" />预演
                     </button>
                 ) : null}
                 {onOpenProduction ? (
-                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs disabled:opacity-40" style={{ color: theme.node.muted }} onClick={onOpenProduction} disabled={previewDisabled} title={previewDisabled ? "有镜头后可制作" : "镜头制作队列 (M)"}>
+                    <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs" style={{ color: theme.node.muted }} onClick={() => onOpenProduction()} title="制作中心 (M)">
                         <Clapperboard className="size-3.5" />制作
                     </button>
                 ) : null}

@@ -13,7 +13,7 @@ const version = (id: string, createdAt = "2026-11-22T00:00:00.000Z"): FilmMediaV
 });
 const shotNode = (id: string, payload: Partial<FilmShotNodeData>): CanvasNodeData => ({
     id,
-    type: CanvasNodeType.Shot,
+    type: CanvasNodeType.FilmShot,
     title: id,
     position: { x: 0, y: 0 },
     width: 300,
@@ -64,6 +64,34 @@ test("applies image and video selections without deleting version history", () =
     assert.equal(next[0].metadata?.status, "success");
 });
 
+test("detects the current version by storage key and applies batch picks across shots", () => {
+    const image1 = version("i1");
+    const image2 = { ...version("i2"), url: "https://cdn.example.com/i2-signed.png", storageKey: "i2-key" };
+    const node = shotNode("media", { imageUrl: "https://expired.example.com/i2.png", storageKey: "i2-key", imageVersions: [image1, image2] });
+    assert.equal(selectFilmVersionShots([node], [], "image")[0].currentVersionId, "i2");
+    const next = applyFilmVersionSelections([a, b], [
+        { shotId: "a", kind: "image", versionId: "a2" },
+        { shotId: "b", kind: "image", versionId: "b1" },
+    ]);
+    assert.equal(next.find((item) => item.id === "a")?.metadata?.filmShot?.storageKey, "key-a2");
+    assert.equal(next.find((item) => item.id === "b")?.metadata?.filmShot?.imageUrl, version("b1").url);
+});
+
+test("keeps a pending generation task when switching the current version", () => {
+    const node = shotNode("pending", {
+        imageUrl: "old.png",
+        storageKey: "old-key",
+        imageVersions: [version("i1"), version("i2")],
+        pendingTask: { kind: "video", id: "task-1", startedAt: 1 },
+    });
+    node.metadata = { ...node.metadata, status: "loading", filmShotTaskKind: "video" };
+    const next = applyFilmVersionSelections([node], [{ shotId: "pending", kind: "image", versionId: "i2" }])[0];
+    assert.equal(next.metadata?.filmShot?.imageUrl, version("i2").url);
+    assert.equal(next.metadata?.filmShot?.pendingTask?.id, "task-1");
+    assert.equal(next.metadata?.status, "loading");
+    assert.equal(next.metadata?.filmShotTaskKind, "video");
+});
+
 test("leaves nodes untouched for unknown versions or missing shots", () => {
     const node = shotNode("media", { imageUrl: "old.png", storageKey: "old-key", imageVersions: [version("i1")] });
     const next = applyFilmVersionSelections([node], [
@@ -73,17 +101,37 @@ test("leaves nodes untouched for unknown versions or missing shots", () => {
     assert.equal(next[0], node);
 });
 
-test("summarizes generation metadata for a version", () => {
+test("summarizes generation metadata and context for a version", () => {
     const withContext = {
         ...version("ctx"),
         generationContext: {
             prompt: "提示词",
             compilerVersion: "film-shot-gen/4",
-            characters: [{}, {}],
-            references: [{}],
+            characters: [{ characterName: "阿青", stateName: "正装" }],
+            references: [{ role: "style", label: "冷峻电影感" }],
             warnings: ["警告"],
             missingReferenceIds: ["missing"],
         },
     } as never;
-    assert.deepEqual(filmVersionSummary(withContext), { prompt: "提示词", compilerVersion: "film-shot-gen/4", characters: 2, references: 1, warnings: 1, missing: 1 });
+    assert.deepEqual(filmVersionSummary(withContext), {
+        hasContext: true,
+        prompt: "提示词",
+        compilerVersion: "film-shot-gen/4",
+        characters: [{ name: "阿青", stateName: "正装" }],
+        references: [{ role: "style", label: "冷峻电影感" }],
+        warnings: ["警告"],
+        missing: 1,
+    });
+});
+
+test("summarizes uploaded or old versions without generation context", () => {
+    assert.deepEqual(filmVersionSummary(version("upload")), {
+        hasContext: false,
+        prompt: "",
+        compilerVersion: "",
+        characters: [],
+        references: [],
+        warnings: [],
+        missing: 0,
+    });
 });

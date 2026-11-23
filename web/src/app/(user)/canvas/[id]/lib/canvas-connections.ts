@@ -1,13 +1,8 @@
-import { CanvasNodeType, type CanvasConnectionKind, type CanvasNodeData, type ConnectionHandle, type FilmBindingEdgeData } from "../../types";
+import { CanvasNodeType, type CanvasConnectionInput, type CanvasNodeData, type ConnectionHandle, type FilmContextRole } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { isFilmCanvasNodeType } from "../../utils/film-mode";
 
-export type CanvasNormalizedConnection = {
-    fromNodeId: string;
-    toNodeId: string;
-    kind?: CanvasConnectionKind;
-    data?: FilmBindingEdgeData;
-};
+export type CanvasNormalizedConnection = CanvasConnectionInput;
 
 export function getConnectionTargetAnchor(node: CanvasNodeData, current: ConnectionHandle) {
     return {
@@ -21,8 +16,21 @@ export function isPublishUpstreamNode(node: CanvasNodeData) {
     return node.type === CanvasNodeType.Text || isCanvasImageNodeType(node.type);
 }
 
-function filmAssetKind(node: CanvasNodeData) {
-    return node.type === CanvasNodeType.FilmAsset ? node.metadata?.filmAsset?.kind : undefined;
+function filmContextRole(type: CanvasNodeType): FilmContextRole | null {
+    switch (type) {
+        case CanvasNodeType.FilmCharacter:
+            return "character";
+        case CanvasNodeType.FilmLocation:
+            return "location";
+        case CanvasNodeType.FilmProp:
+            return "prop";
+        case CanvasNodeType.FilmStyle:
+            return "style";
+        case CanvasNodeType.FilmBeat:
+            return "beat";
+        default:
+            return null;
+    }
 }
 
 function normalizeFilmConnection(
@@ -30,27 +38,21 @@ function normalizeFilmConnection(
     second: CanvasNodeData,
     firstHandleType: "source" | "target",
 ): CanvasNormalizedConnection | null {
-    if (first.type === CanvasNodeType.FilmAsset && second.type === CanvasNodeType.Shot) {
-        const kind = filmAssetKind(first);
-        if (kind === "character" || kind === "location" || kind === "prop") {
-            return { fromNodeId: first.id, toNodeId: second.id, kind: "binding", data: { source: "manual" } };
-        }
-        return null;
+    const firstRole = filmContextRole(first.type);
+    const secondRole = filmContextRole(second.type);
+    if (firstRole && second.type === CanvasNodeType.FilmShot) {
+        return { fromNodeId: first.id, toNodeId: second.id, kind: "context", data: { role: firstRole, source: "manual" } };
     }
-    if (first.type === CanvasNodeType.Shot && second.type === CanvasNodeType.FilmAsset) {
-        const kind = filmAssetKind(second);
-        if (kind === "character" || kind === "location" || kind === "prop") {
-            return { fromNodeId: second.id, toNodeId: first.id, kind: "binding", data: { source: "manual" } };
-        }
-        return null;
+    if (first.type === CanvasNodeType.FilmShot && secondRole) {
+        return { fromNodeId: second.id, toNodeId: first.id, kind: "context", data: { role: secondRole, source: "manual" } };
     }
-    if (first.type === CanvasNodeType.Scene && second.type === CanvasNodeType.Shot) {
+    if (first.type === CanvasNodeType.FilmScene && second.type === CanvasNodeType.FilmShot) {
         return { fromNodeId: first.id, toNodeId: second.id, kind: "composition" };
     }
-    if (first.type === CanvasNodeType.Shot && second.type === CanvasNodeType.Scene) {
+    if (first.type === CanvasNodeType.FilmShot && second.type === CanvasNodeType.FilmScene) {
         return { fromNodeId: second.id, toNodeId: first.id, kind: "composition" };
     }
-    if (first.type === CanvasNodeType.Shot && second.type === CanvasNodeType.Shot) {
+    if (first.type === CanvasNodeType.FilmShot && second.type === CanvasNodeType.FilmShot) {
         return firstHandleType === "source"
             ? { fromNodeId: first.id, toNodeId: second.id, kind: "sequence" }
             : { fromNodeId: second.id, toNodeId: first.id, kind: "sequence" };

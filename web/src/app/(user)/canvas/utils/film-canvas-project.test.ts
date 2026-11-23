@@ -12,7 +12,7 @@ const context = {
     agentPanel: { open: false, width: 464 },
 };
 
-test("builds a film canvas document with script, unique style and one scene", () => {
+test("new film projects use specialized film node types", () => {
     const project = buildFilmCanvasProject("测试影视", context);
 
     assert.equal(project.id, "film-1");
@@ -20,15 +20,22 @@ test("builds a film canvas document with script, unique style and one scene", ()
     assert.equal(project.film?.aspect, "16:9");
     assert.equal(project.nodes.length, 3);
     assert.equal(project.connections.length, 0);
+    assert.deepEqual(project.nodes.map((node) => node.type), [
+        CanvasNodeType.FilmScript,
+        CanvasNodeType.FilmStyle,
+        CanvasNodeType.FilmScene,
+    ]);
+    assert.equal(Object.values(CanvasNodeType).includes("filmAsset" as CanvasNodeType), false);
 
-    const scripts = project.nodes.filter((node) => node.type === CanvasNodeType.Script);
-    const scenes = project.nodes.filter((node) => node.type === CanvasNodeType.Scene);
-    const styles = project.nodes.filter((node) => node.metadata?.filmAsset?.kind === "style");
+    const scripts = project.nodes.filter((node) => node.type === CanvasNodeType.FilmScript);
+    const scenes = project.nodes.filter((node) => node.type === CanvasNodeType.FilmScene);
+    const styles = project.nodes.filter((node) => node.type === CanvasNodeType.FilmStyle);
     assert.equal(scripts.length, 1);
     assert.equal(scenes.length, 1);
     assert.equal(styles.length, 1);
     assert.equal(scripts[0]?.metadata?.filmScript?.text, "");
     assert.equal(scenes[0]?.metadata?.filmScene?.episodeTitle, "第 1 集");
+    assert.equal(styles[0]?.metadata?.filmStyle?.asset.name, "风格圣经 1");
 });
 
 test("falls back to a default title", () => {

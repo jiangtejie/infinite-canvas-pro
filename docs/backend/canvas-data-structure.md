@@ -20,7 +20,7 @@ description: 画布本地存储、节点结构、媒体文件与清理机制
 
 同一 `app_state` 下还有这些模块的基础键，媒体引用清理会一并扫描：
 
-- 影视项目 `infinite-canvas:film_store`、影视角色/场景库 `infinite-canvas:film_cast_store`
+- 影视项目不再是独立存储：随 `infinite-canvas:canvas_store` 的 `domain: "film"` 画布项目保存；`infinite-canvas:film_store` 只作为旧键清理。影视母版库仍在 `infinite-canvas:film_cast_store`
 - 漫画项目 `infinite-canvas:comic_store`、漫画角色/场景库 `infinite-canvas:comic_cast_store`
 - 营销资料 `infinite-canvas:marketing_store`
 

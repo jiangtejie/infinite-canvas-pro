@@ -30,7 +30,7 @@ export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onC
 
     return (
         <div className="flex flex-col gap-3">
-            <SlotEditor theme={theme} title={kind === "style" ? "风格参考" : "概念图"} slot={asset.concept} nextLabel={kind === "style" ? "风格参考" : "概念图"} onChange={(concept) => onChange({ concept })} />
+            {kind !== "character" ? <SlotEditor theme={theme} title={kind === "style" ? "风格参考" : "概念图"} slot={asset.concept} nextLabel={kind === "style" ? "风格参考" : "概念图"} onChange={(concept) => onChange({ concept })} /> : null}
             {kind === "location" || kind === "prop" || kind === "costume" ? (
                 <SlotEditor theme={theme} title="设定图（角度 / 细节）" slot={asset.views ?? createFilmImageSlot()} onChange={(views) => onChange({ views })} />
             ) : null}

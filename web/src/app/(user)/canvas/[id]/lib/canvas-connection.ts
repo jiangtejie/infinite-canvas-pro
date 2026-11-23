@@ -1,9 +1,8 @@
-import type { CanvasConnection, CanvasConnectionKind, FilmBindingEdgeData } from "../../types";
+import type { CanvasConnection, CanvasConnectionInput } from "../../types";
 
-export type CanvasConnectionOptions = {
-    kind?: CanvasConnectionKind;
-    data?: FilmBindingEdgeData;
-};
+type WithoutConnectionEndpoints<T> = T extends CanvasConnectionInput ? Omit<T, "fromNodeId" | "toNodeId"> : never;
+
+export type CanvasConnectionOptions = WithoutConnectionEndpoints<CanvasConnectionInput>;
 
 /** 生成稳定的连线 id：同一对节点只会有一条同向结构边。 */
 export function canvasConnection(

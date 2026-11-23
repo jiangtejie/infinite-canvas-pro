@@ -6,6 +6,7 @@ import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Contex
 import { cloneCanvasConnections, cloneCanvasNodes } from "../lib/canvas-clone";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { NODE_STATUS_SUCCESS } from "../lib/canvas-node-constants";
+import { isFilmNodeType } from "../lib/film-node-registry";
 
 type CanvasClipboard = {
     nodes: CanvasNodeData[];
@@ -28,6 +29,24 @@ type CanvasClipboardOptions = {
     onPromptPanelChange: (nodeId: string | null) => void;
     notify: (text: string) => void;
 };
+
+/** 可进入剪贴板的节点：泛化画布节点及其组内子节点；影视专用节点不参与通用复制。 */
+export function selectClipboardNodes(nodes: CanvasNodeData[], selectedIds: Iterable<string>): CanvasNodeData[] {
+    const copiedIds = new Set(selectedIds);
+    nodes.forEach((node) => {
+        if (node.type !== CanvasNodeType.Group || !copiedIds.has(node.id)) return;
+        nodes.forEach((child) => {
+            if (child.metadata?.groupId === node.id) copiedIds.add(child.id);
+        });
+    });
+    return nodes
+        .filter((node) => copiedIds.has(node.id) && !isFilmNodeType(node.type))
+        .map((node) => ({
+            ...node,
+            position: { ...node.position },
+            metadata: node.metadata ? { ...node.metadata } : undefined,
+        }));
+}
 
 /**
  * 画布节点复制/粘贴：内部剪贴板、偏移与连线重建，以及系统剪贴板文本/图片的粘贴。
@@ -52,30 +71,15 @@ export function useCanvasClipboard({
 
     const copySelectedNodes = useCallback(() => {
         const selectedIds = selectedNodeIdsRef.current;
-        if (!selectedIds.size) return;
-
-        const copiedIds = new Set(selectedIds);
-        nodesRef.current.forEach((node) => {
-            if (node.type !== CanvasNodeType.Group || !selectedIds.has(node.id)) return;
-            nodesRef.current.forEach((child) => {
-                if (child.metadata?.groupId === node.id) copiedIds.add(child.id);
-            });
-        });
-
-        const copiedNodes = nodesRef.current
-            .filter((node) => copiedIds.has(node.id))
-            .map((node) => ({
-                ...node,
-                position: { ...node.position },
-                metadata: node.metadata ? { ...node.metadata } : undefined,
-            }));
-
-        if (!copiedNodes.length) return;
-
+        if (!selectedIds.size) return false;
+        const copiedNodes = selectClipboardNodes(nodesRef.current, selectedIds);
+        if (!copiedNodes.length) return false;
+        const copiedNodeIds = new Set(copiedNodes.map((node) => node.id));
         clipboardRef.current = {
             nodes: copiedNodes,
-            connections: connectionsRef.current.filter((connection) => copiedIds.has(connection.fromNodeId) && copiedIds.has(connection.toNodeId)).map((connection) => ({ ...connection })),
+            connections: connectionsRef.current.filter((connection) => copiedNodeIds.has(connection.fromNodeId) && copiedNodeIds.has(connection.toNodeId)).map((connection) => ({ ...connection })),
         };
+        return true;
     }, [connectionsRef, nodesRef, selectedNodeIdsRef]);
 
     const pasteCopiedNodes = useCallback((offsetFromSelection = false) => {
@@ -113,7 +117,7 @@ export function useCanvasClipboard({
             duplicateNode(selectedIds[0]);
             return;
         }
-        copySelectedNodes();
+        if (!copySelectedNodes()) return;
         pasteCopiedNodes(true);
     }, [copySelectedNodes, duplicateNode, pasteCopiedNodes, selectedNodeIdsRef]);
 

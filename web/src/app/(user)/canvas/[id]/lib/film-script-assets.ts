@@ -2,13 +2,13 @@ import { nanoid } from "nanoid";
 
 import type { FilmAssetSuggestion, FilmAssetSuggestionKind } from "@/lib/film/film-asset-suggestions";
 import { filmAssetSuggestionKey, normalizeFilmAssetSuggestionName } from "@/lib/film/film-asset-suggestions";
-import type { FilmAsset } from "@/lib/film/types";
-import { createFilmAsset } from "@/app/(user)/film/utils/film-edits";
+import type { FilmAsset, FilmEpisode } from "@/lib/film/types";
 import { NODE_DEFAULT_SIZE } from "../../constants";
-import type { CanvasConnection, CanvasNodeData } from "../../types";
+import type { CanvasNodeData, Position } from "../../types";
 import { CanvasNodeType } from "../../types";
-import { addFilmShotBinding } from "./film-shot-bindings";
-import { selectFilmShotEntries } from "./film-selectors";
+import { createFilmAsset } from "./film-asset-factory";
+
+export type FilmAssetProjectKind = Exclude<FilmAssetSuggestionKind, "costume">;
 
 export type FilmScriptAssetProposalItem = FilmAssetSuggestion & {
     existingNodeId: string | null;
@@ -25,31 +25,29 @@ export type FilmScriptAssetProposal = {
     };
 };
 
-export type FilmScriptAssetApplyResult = {
-    nodes: CanvasNodeData[];
-    connections: CanvasConnection[];
-    createdNodes: CanvasNodeData[];
-    createdCount: number;
-    boundCount: number;
+const PROJECT_NODE_TYPES: Record<FilmAssetProjectKind, CanvasNodeType> = {
+    character: CanvasNodeType.FilmCharacter,
+    location: CanvasNodeType.FilmLocation,
+    prop: CanvasNodeType.FilmProp,
 };
 
-const ASSET_COLUMN_GAP = 80;
-const ASSET_ROW_GAP = 36;
+export function isFilmAssetProjectKind(kind: FilmAssetSuggestionKind): kind is FilmAssetProjectKind {
+    return kind !== "costume";
+}
 
+/** 资产提案只读现有专用节点和提案镜头文本；不创建节点、不写边。 */
 export function buildFilmScriptAssetProposal(
     suggestions: FilmAssetSuggestion[],
     nodes: CanvasNodeData[],
-    connections: CanvasConnection[],
+    episodes: FilmEpisode[] = [],
 ): FilmScriptAssetProposal {
-    const sceneTextById = sceneTexts(nodes);
-    const shotEntries = selectFilmShotEntries(nodes, connections);
     const items = suggestions.map((suggestion) => {
         const key = suggestion.key || filmAssetSuggestionKey(suggestion.kind, suggestion.name);
         return {
             ...suggestion,
             key,
-            existingNodeId: findExistingAssetNode(nodes, suggestion)?.id ?? null,
-            mentionShotIds: mentionShotIds(suggestion, shotEntries, sceneTextById),
+            existingNodeId: findFilmScriptAssetNode(nodes, suggestion)?.id ?? null,
+            mentionShotIds: mentionShotIds(suggestion, episodes),
         };
     });
     const mentions = new Set(items.flatMap((item) => item.mentionShotIds));
@@ -66,116 +64,69 @@ export function buildFilmScriptAssetProposal(
     };
 }
 
-export function applyFilmScriptAssetProposal(
-    scriptNode: CanvasNodeData,
-    items: FilmScriptAssetProposalItem[],
-    options: { bindToShots: boolean },
-    nodes: CanvasNodeData[],
-    connections: CanvasConnection[],
-): FilmScriptAssetApplyResult {
-    const size = NODE_DEFAULT_SIZE[CanvasNodeType.FilmAsset];
-    const kindCounts = new Map<FilmAssetSuggestionKind, number>();
-    nodes.forEach((node) => {
-        const kind = node.metadata?.filmAsset?.kind;
-        if (node.type === CanvasNodeType.FilmAsset && kind && kind !== "style") kindCounts.set(kind, (kindCounts.get(kind) ?? 0) + 1);
-    });
-    const createdNodes: CanvasNodeData[] = [];
-    const nodeIdByKey = new Map<string, string>();
-    let cursorY = scriptNode.position.y;
-    for (const item of items) {
-        if (item.existingNodeId) {
-            nodeIdByKey.set(item.key, item.existingNodeId);
-            continue;
-        }
-        const count = (kindCounts.get(item.kind) ?? 0) + 1;
-        kindCounts.set(item.kind, count);
-        const asset: FilmAsset = {
-            ...createFilmAsset(item.kind, count),
-            name: item.name,
-            aliases: item.aliases,
-            description: item.description,
-            visualPrompt: item.visualPrompt,
-        };
-        const node: CanvasNodeData = {
-            id: nanoid(),
-            type: CanvasNodeType.FilmAsset,
-            title: item.name,
-            position: { x: scriptNode.position.x - ASSET_COLUMN_GAP - size.width, y: cursorY },
-            width: size.width,
-            height: size.height,
-            metadata: { status: "idle", filmAsset: { kind: item.kind, asset } },
-        };
-        createdNodes.push(node);
-        nodeIdByKey.set(item.key, node.id);
-        cursorY += size.height + ASSET_ROW_GAP;
-    }
-
-    const nextNodes = createdNodes.length ? [...nodes, ...createdNodes] : nodes;
-    let nextConnections = connections;
-    let boundCount = 0;
-    if (options.bindToShots) {
-        for (const item of items) {
-            if (item.kind === "costume") continue;
-            const nodeId = nodeIdByKey.get(item.key);
-            if (!nodeId) continue;
-            for (const shotId of item.mentionShotIds) {
-                const result = addFilmShotBinding(nextNodes, nextConnections, shotId, nodeId, { source: "ai" });
-                if ("error" in result) continue;
-                nextConnections = result.connections;
-                boundCount += 1;
-            }
-        }
-    }
-
+/** 创建角色、场景或道具专用节点；服装和风格不进入项目一级节点。 */
+export function createFilmScriptAssetNode(
+    kind: FilmAssetProjectKind,
+    suggestion: Pick<FilmAssetSuggestion, "name" | "aliases" | "description" | "visualPrompt">,
+    position: Position,
+    index = 1,
+): CanvasNodeData {
+    const type = PROJECT_NODE_TYPES[kind];
+    const size = NODE_DEFAULT_SIZE[type];
+    const asset: FilmAsset = {
+        ...createFilmAsset(kind, index),
+        name: suggestion.name,
+        aliases: suggestion.aliases,
+        description: suggestion.description,
+        visualPrompt: suggestion.visualPrompt,
+    };
     return {
-        nodes: nextNodes,
-        connections: nextConnections,
-        createdNodes,
-        createdCount: createdNodes.length,
-        boundCount,
+        id: nanoid(),
+        type,
+        title: suggestion.name,
+        position,
+        width: size.width,
+        height: size.height,
+        metadata: {
+            status: "idle",
+            ...(kind === "character" ? { filmCharacter: { asset } } : kind === "location" ? { filmLocation: { asset } } : { filmProp: { asset } }),
+        },
     };
 }
 
-function findExistingAssetNode(nodes: CanvasNodeData[], suggestion: FilmAssetSuggestion) {
+/** 同类别、同名或同别名即视为已有资产；服装不在项目节点内匹配。 */
+export function findFilmScriptAssetNode(nodes: CanvasNodeData[], suggestion: FilmAssetSuggestion): CanvasNodeData | undefined {
+    const kind = suggestion.kind;
+    if (!isFilmAssetProjectKind(kind)) return undefined;
     const suggestionNames = new Set([suggestion.name, ...suggestion.aliases].map(normalizeFilmAssetSuggestionName).filter(Boolean));
+    if (!suggestionNames.size) return undefined;
     return nodes.find((node) => {
-        const payload = node.metadata?.filmAsset;
-        if (node.type !== CanvasNodeType.FilmAsset || payload?.kind !== suggestion.kind) return false;
-        const assetNames = [payload.asset.name, ...(payload.asset.aliases || [])].map(normalizeFilmAssetSuggestionName).filter(Boolean);
-        return assetNames.some((name) => suggestionNames.has(name));
+        const asset = projectAsset(node, kind);
+        if (!asset) return false;
+        return [asset.name, ...(asset.aliases || [])].map(normalizeFilmAssetSuggestionName).some((name) => suggestionNames.has(name));
     });
 }
 
-function sceneTexts(nodes: CanvasNodeData[]) {
-    const texts = new Map<string, string>();
-    nodes.forEach((node) => {
-        if (node.type !== CanvasNodeType.Scene) return;
-        const meta = node.metadata?.filmScene;
-        if (!meta) return;
-        texts.set(node.id, normalizeFilmAssetSuggestionName([meta.episodeTitle, meta.name, meta.location, meta.notes].filter(Boolean).join(" ")));
-    });
-    return texts;
+function projectAsset(node: CanvasNodeData, kind: FilmAssetProjectKind): FilmAsset | undefined {
+    if (kind === "character") return node.type === CanvasNodeType.FilmCharacter ? node.metadata?.filmCharacter?.asset : undefined;
+    if (kind === "location") return node.type === CanvasNodeType.FilmLocation ? node.metadata?.filmLocation?.asset : undefined;
+    return node.type === CanvasNodeType.FilmProp ? node.metadata?.filmProp?.asset : undefined;
 }
 
-function mentionShotIds(
-    suggestion: FilmAssetSuggestion,
-    shotEntries: ReturnType<typeof selectFilmShotEntries>,
-    sceneTextById: Map<string, string>,
-) {
+function mentionShotIds(suggestion: FilmAssetSuggestion, episodes: FilmEpisode[]) {
     const terms = [suggestion.name, ...suggestion.aliases].map(normalizeFilmAssetSuggestionName).filter(Boolean);
     if (!terms.length) return [];
-    const matched = new Set<string>();
-    for (const entry of shotEntries) {
-        const shotText = normalizeFilmAssetSuggestionName([
-            entry.shot.title,
-            entry.shot.metadata?.filmShot?.description,
-            entry.shot.metadata?.filmShot?.dialogue,
-            entry.shot.metadata?.filmShot?.prompt,
-        ].filter(Boolean).join(" "));
-        const sceneText = sceneTextById.get(entry.sceneId) || "";
-        if (terms.some((term) => shotText.includes(term)) || (suggestion.kind === "location" && terms.some((term) => sceneText.includes(term)))) {
-            matched.add(entry.shot.id);
+    const matched: string[] = [];
+    for (const episode of episodes) {
+        for (const scene of episode.scenes) {
+            const sceneText = normalizeFilmAssetSuggestionName([episode.title, scene.name, scene.location].filter(Boolean).join(" "));
+            for (const shot of scene.shots) {
+                const shotText = normalizeFilmAssetSuggestionName([shot.shotNo, shot.description, shot.dialogue, shot.prompt].filter(Boolean).join(" "));
+                if (terms.some((term) => shotText.includes(term)) || (suggestion.kind === "location" && terms.some((term) => sceneText.includes(term)))) {
+                    matched.push(shot.id);
+                }
+            }
         }
     }
-    return shotEntries.filter((entry) => matched.has(entry.shot.id)).map((entry) => entry.shot.id);
+    return [...new Set(matched)];
 }

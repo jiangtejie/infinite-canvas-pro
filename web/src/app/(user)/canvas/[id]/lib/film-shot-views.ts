@@ -12,8 +12,8 @@ export function filmShotMediaSummary(shot: CanvasNodeData): FilmShotMediaSummary
     const payload = shot.metadata?.filmShot;
     const taskKind = shot.metadata?.filmShotTaskKind;
     return {
-        hasImage: Boolean(payload?.imageUrl || payload?.storageKey),
-        hasVideo: Boolean(payload?.videoUrl || payload?.videoStorageKey),
+        hasImage: Boolean(payload?.imageUrl || payload?.storageKey || payload?.imageVersions?.length),
+        hasVideo: Boolean(payload?.videoUrl || payload?.videoStorageKey || payload?.videoVersions?.length),
         generating: shot.metadata?.status === "loading" && (taskKind === "image" || taskKind === "video") ? taskKind : null,
         failed: shot.metadata?.status === "error" && Boolean(payload?.lastFailedTaskKind || taskKind),
     };
@@ -27,16 +27,6 @@ export function filmShotViewStats(shots: FilmShotEntry[]) {
         images: shots.filter((entry) => filmShotMediaSummary(entry.shot).hasImage).length,
         videos: shots.filter((entry) => filmShotMediaSummary(entry.shot).hasVideo).length,
     };
-}
-
-export function filmTimelineBlocks(shots: FilmShotEntry[], pixelsPerSecond = 56) {
-    let start = 0;
-    return shots.map((entry) => {
-        const duration = Math.max(1, entry.shot.metadata?.filmShot?.duration ?? 0);
-        const block = { entry, start, end: start + duration, width: duration * pixelsPerSecond };
-        start += duration;
-        return block;
-    });
 }
 
 export type FilmShotMediaFilter = "all" | "none" | "image" | "video" | "generating" | "failed";
@@ -64,7 +54,6 @@ export function filmShotMatchesFilter(entry: FilmShotEntry, filters: FilmShotFil
         payload?.description, payload?.dialogue, payload?.audio,
         payload?.prompt, payload?.negativePrompt, payload?.videoPrompt,
         payload?.coverage, payload?.composition, payload?.lighting, payload?.colorTone, payload?.lens, payload?.transition,
-        payload?.continuityCheck,
         payload?.performance?.objective, payload?.performance?.emotion, payload?.performance?.subtext, payload?.performance?.bodyLanguage,
         payload?.soundDesign?.ambience, payload?.soundDesign?.sfx, payload?.soundDesign?.music, payload?.soundDesign?.dialogueTone,
         entry.sceneLabel,

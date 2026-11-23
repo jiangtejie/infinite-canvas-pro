@@ -1,4 +1,3 @@
-export type FilmStage = "script" | "cast" | "storyboard" | "edit";
 
 export type FilmAspect = "9:16" | "16:9" | "2.39:1" | "4:3" | "1:1";
 
@@ -153,6 +152,7 @@ export type FilmStylePresetId =
     | "film"
     | "pixel";
 
+/** 母版库资产类别；项目 Director Board 的上下文节点由 FilmNodeType 单独表达。 */
 export type FilmAssetKind = "character" | "location" | "prop" | "costume" | "style";
 
 export type FilmAssetStatus = "idle" | "ready" | "failed";
@@ -280,22 +280,6 @@ export type FilmScriptAnalysis = {
     scenes: FilmScriptSceneAnalysis[];
 };
 
-export type FilmContinuitySheet = {
-    shotNo: string;
-    version: string;
-    prevFrameSummary: string;
-    nextFrameRequirement: string;
-    characterState: string;
-    propState: string;
-    environment: string;
-    cameraParams: string;
-    audioState: string;
-    emotionNarrative: string;
-    risks: string;
-    forbidden: string;
-    referenceAssets: string;
-};
-
 /** 表演意图：给演员/视频模型的情绪与动作指令。 */
 export type FilmPerformance = {
     objective: string;
@@ -313,41 +297,6 @@ export type FilmSoundDesign = {
     dialogueTone: string;
 };
 
-export type FilmInteractiveVariableType = "boolean" | "number" | "string";
-
-export type FilmInteractiveVariable = {
-    id: string;
-    name: string;
-    type: FilmInteractiveVariableType;
-    initialValue: string;
-};
-
-export type FilmBranchConditionOperator = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "truthy" | "falsy";
-
-export type FilmBranchCondition = {
-    variableId: string;
-    operator: FilmBranchConditionOperator;
-    value?: string;
-};
-
-export type FilmBranchEffect = {
-    variableId: string;
-    operation: "set" | "add";
-    value: string;
-};
-
-/** 互动分支：一个选项可以选择目标镜头，并按条件显示、选择后修改变量。 */
-export type FilmShotBranch = {
-    label: string;
-    condition: string;
-    nextShotId?: string;
-    /** 结构化显示条件；为空表示总是显示。 */
-    conditions?: FilmBranchCondition[];
-    conditionLogic?: "all" | "any";
-    /** 选择该分支后对互动变量生效。 */
-    effects?: FilmBranchEffect[];
-};
-
 export type FilmShot = {
     id: string;
     shotNo: string;
@@ -361,8 +310,6 @@ export type FilmShot = {
     negativePrompt?: string;
     performance?: FilmPerformance;
     soundDesign?: FilmSoundDesign;
-    /** 一个镜头上的多个互动分支选项。 */
-    branches?: FilmShotBranch[];
     /** 结构层标记：建立/反应/细节/关系/过渡，用于覆盖检查。 */
     coverage?: string;
     /** 视觉层补充：构图/光线/色彩/镜头/转场，来自视觉代理。 */
@@ -390,8 +337,6 @@ export type FilmShot = {
     errorMessage?: string;
     imageVersions?: FilmMediaVersion[];
     videoVersions?: FilmMediaVersion[];
-    continuity?: FilmContinuitySheet;
-    continuityCheck?: string;
     pendingTask?: FilmShotTask;
 };
 
@@ -455,14 +400,6 @@ export type FilmShotGroup = {
     createdAt: string;
 };
 
-/** 镜头之间的连线关系（有向），用于在导演台标记镜头的承接/对照关系。 */
-export type FilmShotConnection = {
-    id: string;
-    fromShotId: string;
-    toShotId: string;
-    createdAt: string;
-};
-
 export type FilmStructureBeat = {
     type: string;
     summary: string;
@@ -507,40 +444,4 @@ export type FilmConsistencyReview = {
     issues: FilmConsistencyIssue[];
     /** 检查时的输入指纹；与当前项目不一致说明结果已过期。 */
     graphFingerprint?: string;
-};
-
-export type FilmProject = {
-    id: string;
-    title: string;
-    visualStyle: string;
-    aspect: FilmAspect;
-    stylePreset: FilmStylePresetId;
-    /** 导演风格语法预设 id（可选；旧项目没有该字段时按普通电影感处理）。 */
-    directorStyleId?: string;
-    /** 目标成片时长（秒），用于预演验证时长偏差；为空则不校验。 */
-    targetDuration?: number;
-    /** 结构代理生成的场次计划（中间表示，不直接展示为画面）。 */
-    structurePlan?: FilmStructurePlan;
-    /** 一致性代理最近一次检查结果。 */
-    consistencyReview?: FilmConsistencyReview;
-    /** 互动影游变量表；分支条件与效果引用这些变量。 */
-    interactiveVariables?: FilmInteractiveVariable[];
-    stage: FilmStage;
-    scriptText: string;
-    /** 来源剧本项目，用于从影视工作台回看剧本并按最新剧本重新解析。 */
-    scriptProjectId?: string;
-    scriptHash?: string;
-    episodes: FilmEpisode[];
-    characters: FilmAsset[];
-    locations: FilmAsset[];
-    props: FilmAsset[];
-    costumes: FilmAsset[];
-    /** 项目唯一风格圣经：concept 放色彩/光影/质感参考，visualPrompt 放风格规则。 */
-    style?: FilmAsset;
-    scriptDocument?: FilmScriptDocument;
-    scriptAnalysis?: FilmScriptAnalysis;
-    shotGroups?: FilmShotGroup[];
-    shotConnections?: FilmShotConnection[];
-    createdAt: string;
-    updatedAt: string;
 };

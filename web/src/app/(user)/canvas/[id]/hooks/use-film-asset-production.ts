@@ -13,6 +13,7 @@ import { buildFilmAssetConceptPrompt } from "@/app/(user)/film/utils/film-asset-
 import { buildFilmReferenceBoardPrompt } from "@/app/(user)/film/utils/film-reference-board-templates";
 import type { CanvasConnection, CanvasFilmAssetQueue, CanvasNodeData } from "../../types";
 import { loadFilmAssetReferences, runFilmAssetImageTask } from "../lib/film-asset-image-task";
+import { filmContextAsset } from "../lib/film-node-patch";
 import {
     EMPTY_FILM_ASSET_PRODUCTION,
     planFilmAssetProduction,
@@ -92,10 +93,10 @@ export function useFilmAssetProduction({ nodesRef, connectionsRef, projectId, up
                 abortRef.current = controller;
                 try {
                     const node = nodesRef.current.find((candidate) => candidate.id === item.nodeId);
-                    const payload = node?.metadata?.filmAsset;
-                    if (!node || !payload) throw new Error("资产节点已不存在");
-                    const asset = payload.asset;
-                    const style = nodesRef.current.find((candidate) => candidate.metadata?.filmAsset?.kind === "style")?.metadata?.filmAsset?.asset;
+                    const asset = node ? filmContextAsset(node) : undefined;
+                    if (!node || !asset) throw new Error("上下文节点已不存在");
+                    const styleNode = nodesRef.current.find((candidate) => candidate.metadata?.filmStyle);
+                    const style = styleNode ? filmContextAsset(styleNode) : undefined;
                     const prompt = item.kind === "character"
                         ? buildFilmReferenceBoardPrompt(asset, item.templateId)
                         : buildFilmAssetConceptPrompt(item.kind, asset, style);

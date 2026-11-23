@@ -23,7 +23,7 @@ export function selectFilmVersionShots(
     options: { minVersions?: number } = {},
 ): FilmVersionShot[] {
     const minVersions = options.minVersions ?? 1;
-    return orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.Shot), connections).flatMap((node) => {
+    return orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.FilmShot), connections).flatMap((node) => {
         const payload = node.metadata?.filmShot;
         if (!payload) return [];
         const versions = kind === "image" ? payload.imageVersions : payload.videoVersions;
@@ -67,6 +67,7 @@ export function applyFilmVersionSelections(nodes: CanvasNodeData[], selections: 
             else video = version;
         }
         if (!image && !video) return node;
+        const pending = payload.pendingTask;
         const patch: Partial<FilmShotNodeData> = {};
         if (image) {
             patch.imageUrl = image.url;
@@ -80,10 +81,10 @@ export function applyFilmVersionSelections(nodes: CanvasNodeData[], selections: 
             ...node,
             metadata: {
                 ...node.metadata,
-                status: "success",
-                errorDetails: undefined,
-                filmShotTaskKind: undefined,
-                filmShot: { ...payload, ...patch, errorMessage: "" },
+                status: pending ? node.metadata?.status : "success",
+                errorDetails: pending ? node.metadata?.errorDetails : undefined,
+                filmShotTaskKind: pending ? node.metadata?.filmShotTaskKind : undefined,
+                filmShot: { ...payload, ...patch, errorMessage: pending ? payload.errorMessage : "" },
             },
         };
     });
@@ -92,11 +93,12 @@ export function applyFilmVersionSelections(nodes: CanvasNodeData[], selections: 
 export function filmVersionSummary(version: FilmMediaVersion) {
     const context = version.generationContext;
     return {
+        hasContext: Boolean(context),
         prompt: context?.prompt || "",
         compilerVersion: context?.compilerVersion || "",
-        characters: context?.characters.length ?? 0,
-        references: context?.references.length ?? 0,
-        warnings: context?.warnings.length ?? 0,
+        characters: (context?.characters || []).map((character) => ({ name: character.characterName, stateName: character.stateName })),
+        references: (context?.references || []).map((reference) => ({ role: reference.role, label: reference.label })),
+        warnings: context?.warnings || [],
         missing: context?.missingReferenceIds.length ?? 0,
     };
 }

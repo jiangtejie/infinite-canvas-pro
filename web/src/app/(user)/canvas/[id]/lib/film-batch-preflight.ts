@@ -40,14 +40,14 @@ export function planFilmShotBatch(
     kind: FilmShotBatchKind,
     options: { maxReferences: number },
 ): FilmBatchPlan {
-    const shots = nodes.filter((node) => node.type === CanvasNodeType.Shot);
+    const shots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
     const order = new Map(orderFilmShots(shots, connections).map((node, index) => [node.id, index]));
     const unique = [...new Set(shotIds)].sort((left, right) => (order.get(left) ?? Number.MAX_SAFE_INTEGER) - (order.get(right) ?? Number.MAX_SAFE_INTEGER));
     const ready: FilmBatchPlanItem[] = [];
     const skipped: FilmBatchSkip[] = [];
     const warningShots: FilmBatchWarningShot[] = [];
     for (const shotId of unique) {
-        const node = nodes.find((item) => item.id === shotId && item.type === CanvasNodeType.Shot);
+        const node = nodes.find((item) => item.id === shotId && item.type === CanvasNodeType.FilmShot);
         const payload = node?.metadata?.filmShot;
         const item = { shotId, shotNo: payload?.shotNo || node?.title || shotId, title: node?.title || shotId };
         const skip = (reason: FilmBatchSkipReason, message = SKIP_MESSAGES[reason]) => skipped.push({ ...item, reason, message });

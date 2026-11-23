@@ -1,3 +1,5 @@
+import type { CanvasNodeType } from "../types";
+
 /** 画布语义色：状态与节点类型统一在这里，避免组件内散落十六进制值。 */
 export const canvasStatusColors = {
     success: "#22c55e",
@@ -17,8 +19,12 @@ export const canvasNodeTypeColors = {
     group: "#a8a29e",
     director: "#fbbf24",
     comic: "#e11d48",
-    script: "#0ea5e9",
-    scene: "#22c55e",
-    shot: "#eab308",
-    filmAsset: "#f43f5e",
-} as const;
+    filmScript: "#0ea5e9",
+    filmScene: "#22c55e",
+    filmShot: "#eab308",
+    filmCharacter: "#f43f5e",
+    filmLocation: "#14b8a6",
+    filmProp: "#a855f7",
+    filmStyle: "#f97316",
+    filmBeat: "#ec4899",
+} as const satisfies Record<CanvasNodeType, string>;

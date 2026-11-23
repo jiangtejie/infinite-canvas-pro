@@ -28,9 +28,11 @@ import { CanvasNodePromptPanel, type CanvasVideoFrameOption } from "../../compon
 import type { CanvasVideoResourceOption } from "../../components/canvas-video-settings-popover";
 import { type AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import { ConnectionCreateMenu, NodeCreateMenu } from "./canvas-create-menus";
+import { FilmQuickConnectMenu } from "./film-quick-connect-menu";
+import { isFilmNodeType, type FilmCommandResult } from "../lib/film-node-registry";
 import { isCanvasReferenceNode } from "../../utils/canvas-resource-references";
 import { fitSourceNodeSize } from "../../utils/canvas-node-size";
-import type { FilmAssetKind } from "@/lib/film/types";
+import type { FilmVersionKind } from "../lib/film-version-room";
 import { CanvasNodeType, type CanvasConnection, type PendingConnectionCreate, type CanvasNodeData, type ConnectionHandle, type ContextMenuState, type Position } from "../../types";
 import type { ViewportTransform, SelectionBox } from "../../types";
 import type { CanvasAlignmentGuides } from "../../utils/canvas-alignment";
@@ -45,6 +47,8 @@ const EMPTY_MENTION_REFERENCES: CanvasResourceReference[] = [];
 
 export type CanvasStageModel = {
     theme: CanvasTheme;
+    /** 世界坐标背景层：渲染在连线与节点之前（如导演板场次列底色）。 */
+    backgroundLayer?: ReactNode;
     nodes: CanvasNodeData[];
     selectedNodeIds: Set<string>;
     selectedImageCount: number;
@@ -138,7 +142,21 @@ export type CanvasStageModel = {
     projectLoaded: boolean;
     exitNodeReferenceSelection: () => void;
     filmMode: boolean;
-    createFilmAssetNode: (kind: FilmAssetKind, position?: Position) => void;
+    filmSummaryOptions?: import("../lib/film-node-summary").FilmNodeSummaryOptions;
+    generateFilmShotImage?: (shotId: string) => void;
+    generateFilmShotVideo?: (shotId: string) => void;
+    openFilmShotVersions?: (shotId: string, kind: FilmVersionKind) => void;
+    viewFilmShotMedia?: (node: CanvasNodeData) => void;
+    openFilmShotFocus?: (shotId: string) => void;
+    openFilmScript?: () => void;
+    editFilmAsset?: (nodeId: string) => void;
+    createFilmShot?: (sceneId: string) => void;
+    updateFilmBeat?: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
+    decomposeFilmBeat?: (beatId: string) => void;
+    generateFilmBeatPreview?: (beatId: string) => void;
+    stopFilmBeatTask?: (beatId: string) => void;
+    locateFilmBeatShots?: (beatId: string) => void;
+    applyFilmQuickAction: (result: FilmCommandResult) => void;
 };
 
 /**
@@ -149,7 +167,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     const {
         theme,
         filmMode,
-        createFilmAssetNode,
+        filmSummaryOptions,
+        applyFilmQuickAction,
         nodes,
         selectedNodeIds,
         selectedImageCount,
@@ -257,6 +276,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
 
     // 节点 render 回调与事件处理器全部稳定引用，平移/选中变化时节点 memo 才能跳过重渲染。
     const renderPanel = useCallback((panelNode: CanvasNodeData, compact: boolean): ReactNode => (
+        isFilmNodeType(panelNode.type) ? null :
         panelNode.metadata?.remixRole === "plan" && panelNode.metadata.remixRun ? (
             <CanvasRemixPlanPanel node={panelNode} nodes={nodes} onGenerate={(id) => void generateRemixRun(id)} onReplan={handleRemixWithAgent} onClose={closeOverlay} />
         ) : panelNode.type === CanvasNodeType.Config ? (
@@ -398,10 +418,17 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     const openNodeContextMenu = useCallback((event: ReactMouseEvent, id: string) => {
         event.preventDefault();
         event.stopPropagation();
+        if (nodes.some((node) => node.id === id && isFilmNodeType(node.type))) {
+            setContextMenu(null);
+            return;
+        }
         setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
-    }, [setContextMenu]);
+    }, [nodes, setContextMenu]);
 
-    const openNodePanel = useCallback((node: CanvasNodeData) => openOverlay(node.type === CanvasNodeType.Comic ? { kind: "comic", nodeId: node.id } : { kind: "prompt", nodeId: node.id }), [openOverlay]);
+    const openNodePanel = useCallback((node: CanvasNodeData) => {
+        if (isFilmNodeType(node.type)) return;
+        openOverlay(node.type === CanvasNodeType.Comic ? { kind: "comic", nodeId: node.id } : { kind: "prompt", nodeId: node.id });
+    }, [openOverlay]);
 
     return (
         <>
@@ -430,6 +457,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                     onContextMenu={preventCanvasContextMenu}
                     onDrop={handleDrop}
                 >
+                    {model.backgroundLayer}
                     <svg className="absolute left-0 top-0 h-[10000px] w-[10000px] overflow-visible" style={{ pointerEvents: "none", transform: "translateZ(0)", zIndex: 6 }}>
                         {connections
                             .filter((connection) => {
@@ -495,6 +523,22 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             now={node.metadata?.status === NODE_STATUS_LOADING && !node.metadata.content && (node.type === CanvasNodeType.Video || isCanvasImageNodeType(node.type) || node.type === CanvasNodeType.Audio) ? canvasNow : undefined}
                             renderPanel={renderPanel}
                             renderNodeContent={renderNodeContent}
+                            filmNodes={model.filmMode ? nodes : undefined}
+                            filmConnections={model.filmMode ? connections : undefined}
+                            onGenerateFilmImage={model.generateFilmShotImage}
+                            onGenerateFilmVideo={model.generateFilmShotVideo}
+                            onOpenFilmVersions={model.openFilmShotVersions}
+                            onViewFilmMedia={model.viewFilmShotMedia}
+                            onFocusFilmShot={model.openFilmShotFocus}
+                            onOpenFilmScript={model.openFilmScript}
+                            onEditFilmAsset={model.editFilmAsset}
+                            onCreateFilmShot={model.createFilmShot}
+                            onUpdateFilmBeat={model.updateFilmBeat}
+                            onDecomposeFilmBeat={model.decomposeFilmBeat}
+                            onGenerateFilmBeatPreview={model.generateFilmBeatPreview}
+                            onStopFilmBeatTask={model.stopFilmBeatTask}
+                            onLocateFilmBeatShots={model.locateFilmBeatShots}
+                            filmSummaryOptions={filmSummaryOptions}
                             onDragStart={handleNodePointerDown}
                             onHoverStart={handleNodeHoverStart}
                             onHoverEnd={handleNodeHoverEnd}
@@ -527,31 +571,65 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             <rect width="100%" height="100%" fill={theme.canvas.selectionFill} stroke={theme.canvas.selectionStroke} strokeWidth={1.5 / viewport.k} strokeDasharray={`${10 / viewport.k} ${6 / viewport.k}`} />
                         </svg>
                     ) : null}
-                    {pendingConnectionCreate ? <ConnectionCreateMenu pending={pendingConnectionCreate} onCreate={(type) => createConnectedNode(type, pendingConnectionCreate)} onClose={cancelPendingConnectionCreate} /> : null}
+                    {pendingConnectionCreate ? (
+                        filmMode ? (
+                            <FilmQuickConnectMenu
+                                position={pendingConnectionCreate.position}
+                                sourceNode={nodeById.get(pendingConnectionCreate.connection.nodeId) ?? null}
+                                nodes={nodes}
+                                connections={connections}
+                                onApply={applyFilmQuickAction}
+                                onCreate={(type) => createConnectedNode(type, pendingConnectionCreate)}
+                                onUpload={() => handleUploadRequest(undefined, pendingConnectionCreate.position)}
+                                onOpenAssetLibrary={() => {
+                                    assetInsertPositionRef.current = pendingConnectionCreate.position;
+                                    setAssetPickerTab("library");
+                                    setAssetPickerOpen(true);
+                                }}
+                                onClose={cancelPendingConnectionCreate}
+                            />
+                        ) : (
+                            <ConnectionCreateMenu pending={pendingConnectionCreate} onCreate={(type) => createConnectedNode(type, pendingConnectionCreate)} onClose={cancelPendingConnectionCreate} />
+                        )
+                    ) : null}
                     {nodeCreatePosition ? (
-                        <NodeCreateMenu
-                            position={nodeCreatePosition}
-                            onCreate={(type) => {
-                                createNode(type, nodeCreatePosition);
-                                setNodeCreatePosition(null);
-                            }}
-                            onUpload={() => {
-                                handleUploadRequest(undefined, nodeCreatePosition);
-                                setNodeCreatePosition(null);
-                            }}
-                            onOpenAssetLibrary={() => {
-                                assetInsertPositionRef.current = nodeCreatePosition;
-                                setNodeCreatePosition(null);
-                                setAssetPickerTab("library");
-                                setAssetPickerOpen(true);
-                            }}
-                            onClose={() => setNodeCreatePosition(null)}
-                            filmMode={filmMode}
-                            onCreateFilmAsset={(kind) => {
-                                setNodeCreatePosition(null);
-                                createFilmAssetNode(kind, nodeCreatePosition);
-                            }}
-                        />
+                        filmMode ? (
+                            <FilmQuickConnectMenu
+                                position={nodeCreatePosition}
+                                sourceNode={null}
+                                allowGenericResources
+                                nodes={nodes}
+                                connections={connections}
+                                onApply={applyFilmQuickAction}
+                                onCreate={(type) => createNode(type, nodeCreatePosition)}
+                                onUpload={() => handleUploadRequest(undefined, nodeCreatePosition)}
+                                onOpenAssetLibrary={() => {
+                                    assetInsertPositionRef.current = nodeCreatePosition;
+                                    setAssetPickerTab("library");
+                                    setAssetPickerOpen(true);
+                                }}
+                                onClose={() => setNodeCreatePosition(null)}
+                            />
+                        ) : (
+                            <NodeCreateMenu
+                                position={nodeCreatePosition}
+                                onCreate={(type) => {
+                                    createNode(type, nodeCreatePosition);
+                                    setNodeCreatePosition(null);
+                                }}
+                                onUpload={() => {
+                                    handleUploadRequest(undefined, nodeCreatePosition);
+                                    setNodeCreatePosition(null);
+                                }}
+                                onOpenAssetLibrary={() => {
+                                    assetInsertPositionRef.current = nodeCreatePosition;
+                                    setNodeCreatePosition(null);
+                                    setAssetPickerTab("library");
+                                    setAssetPickerOpen(true);
+                                }}
+                                onClose={() => setNodeCreatePosition(null)}
+                            />
+                        )
                     ) : null}
                 </InfiniteCanvas>
 

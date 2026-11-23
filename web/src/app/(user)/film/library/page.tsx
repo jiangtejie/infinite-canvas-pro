@@ -175,7 +175,7 @@ export default function FilmLibraryPage() {
                             <section className="punk-panel flex flex-col overflow-hidden rounded-xl">
                                 <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
                                     <span className="eyebrow">{FILM_ASSET_KIND_LABELS[tab]}详情</span>
-                                    {selected ? <span className="font-mono text-[10px] text-muted-foreground/70">{selected.concept.images.length} 概念 · {selected.views?.images.length || 0} 视图</span> : null}
+                                    {selected ? <span className="font-mono text-[10px] text-muted-foreground/70">{selected.character ? `${selected.character.board.images.length} 参考板` : `${selected.concept.images.length} 概念`} · {selected.views?.images.length || 0} 视图</span> : null}
                                 </div>
                                 {selected ? (
                                     <div className="p-4">
@@ -238,7 +238,8 @@ export default function FilmLibraryPage() {
 }
 
 function LibraryPreview({ asset }: { asset: FilmAsset }) {
-    const image = asset.concept.images.find((item) => item.id === asset.concept.activeImageId) || asset.concept.images[asset.concept.images.length - 1];
+    const slot = asset.character?.board ?? asset.concept;
+    const image = slot.images.find((item) => item.id === slot.activeImageId) || slot.images[slot.images.length - 1];
     const src = useFilmImageUrl(image?.url, image?.storageKey);
     if (!src) return <FilmAssetThumbnail asset={asset} className="h-56 w-full rounded-lg border border-border/60" />;
     return (

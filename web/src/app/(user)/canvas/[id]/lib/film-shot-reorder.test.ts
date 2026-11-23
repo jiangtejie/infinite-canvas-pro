@@ -13,8 +13,8 @@ const filmNode = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["me
     height: 100,
     metadata,
 });
-const sceneNode = (id: string) => filmNode(id, CanvasNodeType.Scene, { filmScene: { episodeId: "ep1", episodeTitle: "第 1 集", name: id, location: "", time: "", mood: "" } });
-const shotNode = (id: string) => filmNode(id, CanvasNodeType.Shot, { filmShot: { shotNo: id, shotType: "", cameraMovement: "", duration: 4, description: "", dialogue: "", audio: "", prompt: "" } });
+const sceneNode = (id: string) => filmNode(id, CanvasNodeType.FilmScene, { filmScene: { episodeId: "ep1", episodeTitle: "第 1 集", name: id, location: "", time: "", mood: "" } });
+const shotNode = (id: string) => filmNode(id, CanvasNodeType.FilmShot, { filmShot: { shotNo: id, shotType: "", cameraMovement: "", duration: 4, description: "", dialogue: "", audio: "", prompt: "" } });
 const filmNodes = [sceneNode("scene-a"), sceneNode("scene-b"), shotNode("a1"), shotNode("a2"), shotNode("b1"), shotNode("b2")];
 const filmConnections: CanvasConnection[] = [
     { id: "a1-comp", fromNodeId: "scene-a", toNodeId: "a1", kind: "composition" },

@@ -1,5 +1,7 @@
 # 影视 Studio 独立入口与舞台壳层设计（批次 1C）
 
+> **已被取代（2026-11-22）**：Studio 壳层、左栏镜头设置、胶片条、时间轴与旧视图切换已由 [Film Director Board 设计](2026-11-22-film-director-board-design.md) 取代。当前入口是 Director Board + Shot Focus；本文仅保留“复用同一 CanvasProject、不新增 store/任务/引擎”的约束作为历史记录，不再作为 UI 实现依据。
+>
 > 状态：2026-11-21 已确认。本文是 [影视创作并入画布节点](2026-11-21-film-as-canvas-design.md) 的追加设计。
 > 主 spec 的数据模型、边语义、资产体系、同步与批次 0-3 目标不变；本文只调整**影视默认入口与壳层交互**：独立入口，引擎继续复用，Studio 成为影视默认视图。
 > 参考 [GPT-anime-denoise-web](D:\SoftwareData\自媒体画布工作台\GPT-anime-denoise-web) 的舞台式结构（全幅 stage、左侧设置面板、底部胶片条、浮动控件、键盘优先、极简 chrome），不借它的单图去噪引擎。

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildFilmShotGenerationContext, resolveFilmMediaContextState } from "./film-shot-generation";
+import { buildFilmShotGenerationContext, resolveFilmMediaContextState, type FilmGenerationProjectContext } from "./film-shot-generation";
 import { createEmptyCharacterProfile } from "./film-character";
-import type { FilmAsset, FilmContinuitySheet, FilmGenerationContext, FilmMediaVersion, FilmProject, FilmShot, FilmShotCharacterBinding } from "@/lib/film/types";
+import type { FilmAsset, FilmGenerationContext, FilmMediaVersion, FilmShot, FilmShotCharacterBinding } from "@/lib/film/types";
 
 const imageSlot = (id: string, storageKey?: string) => ({ images: [{ id: `${id}-img`, url: `${id}.png`, storageKey }], locked: false });
 
@@ -18,18 +18,12 @@ const shot = (id: string, overrides: Partial<FilmShot> = {}): FilmShot => ({
     characterBindings: [], propBindings: [], ...overrides,
 });
 
-const project = (overrides: Partial<FilmProject> = {}): FilmProject => ({
-    id: "p1", title: "测试", visualStyle: "", aspect: "16:9", stylePreset: "custom", stage: "storyboard", scriptText: "",
-    episodes: [], characters: [], locations: [], props: [], costumes: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", ...overrides,
+const project = (overrides: Partial<FilmGenerationProjectContext> = {}): FilmGenerationProjectContext => ({
+    characters: [], locations: [], props: [], costumes: [], ...overrides,
 });
 
 const binding = (characterId: string, name: string, extra: Partial<FilmShotCharacterBinding> = {}): FilmShotCharacterBinding => ({
     characterId, source: "manual", characterNameSnapshot: name, continuity: {}, ...extra,
-});
-
-const sheet = (overrides: Partial<FilmContinuitySheet> = {}): FilmContinuitySheet => ({
-    shotNo: "s1", version: "v1", prevFrameSummary: "", nextFrameRequirement: "", characterState: "", propState: "",
-    environment: "", cameraParams: "", audioState: "", emotionNarrative: "", risks: "", forbidden: "", referenceAssets: "", ...overrides,
 });
 
 const imageOpts = { medium: "image" as const, maxReferences: 6 };
@@ -49,6 +43,14 @@ test("角色身份、造型状态与镜头连续性编译进提示词", () => {
     assert.match(ctx.prompt, /外套被雨淋湿/);
     assert.equal(ctx.characters[0].stateName, "受伤");
     assert.equal(ctx.characters[0].characterSignature.length > 0, true);
+});
+
+test("角色身份只使用参考板，不把 concept 当作下游参考", () => {
+    const board = imageSlot("board", "image:board");
+    const c = character("c1", "沈星晴", { character: { ...createEmptyCharacterProfile(), board }, concept: imageSlot("concept", "image:concept") });
+    const ctx = buildFilmShotGenerationContext(project({ characters: [c] }), shot("s1", { characterBindings: [binding("c1", "沈星晴")] }), imageOpts);
+    assert.ok(ctx.references.some((reference) => reference.image.storageKey === "image:board"));
+    assert.ok(!ctx.references.some((reference) => reference.image.storageKey === "image:concept"));
 });
 
 test("图片与视频共用同一段角色身份文本", () => {
@@ -72,13 +74,11 @@ test("相同输入签名稳定，角色设定与参考图变化都会改变签�
     assert.notEqual(changedImage.inputSignature, base.inputSignature);
 });
 
-test("场记、上一镜与锚点变化都会改变签名", () => {
+test("上一镜与锚点变化都会改变签名", () => {
     const c = character("c1", "沈星晴");
     const s = shot("s1", { characterBindings: [binding("c1", "沈星晴")] });
     const p = project({ characters: [c] });
     const base = buildFilmShotGenerationContext(p, s, imageOpts);
-    const withSheet = buildFilmShotGenerationContext(p, { ...s, continuity: sheet({ prevFrameSummary: "上一镜末帧" }) }, imageOpts);
-    assert.notEqual(withSheet.inputSignature, base.inputSignature);
     const prev = shot("prev", { imageUrl: "prev.png", storageKey: "image:prev" });
     const withPrev = buildFilmShotGenerationContext(p, s, { ...imageOpts, previousShot: prev });
     assert.equal(withPrev.previousShotId, "prev");

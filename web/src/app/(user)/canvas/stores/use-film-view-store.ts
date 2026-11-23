@@ -9,7 +9,6 @@ export type FilmViewState = {
     boardColumns: 4 | 9;
     selectedShotIds: Set<string>;
     expandedShotIds: Set<string>;
-    playhead: number;
     panelWidth: number;
     stripOpen: boolean;
     openShotSections: Set<string>;
@@ -22,10 +21,9 @@ const EMPTY_FILM_VIEW_STATE: FilmViewState = {
     boardColumns: 4,
     selectedShotIds: new Set(),
     expandedShotIds: new Set(),
-    playhead: 0,
     panelWidth: 320,
     stripOpen: true,
-    openShotSections: new Set(["basic", "visual", "context"]),
+    openShotSections: new Set(["visual", "language", "context", "generation"]),
 };
 
 type FilmViewStore = {

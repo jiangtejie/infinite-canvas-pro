@@ -2,8 +2,8 @@ import type { FilmGenerationReferenceRole, FilmVideoMode } from "@/lib/film/type
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { orderFilmShots } from "./film-layout";
 import { buildFilmShotGenerationFromGraph } from "./film-shot-generation-context";
-import { selectFilmShotBindings, selectFilmStyleName } from "./film-selectors";
-import type { FilmShotBindingChip } from "./film-studio-types";
+import { selectFilmShotContexts, selectFilmStyleName } from "./film-selectors";
+import type { FilmShotContextChip } from "./film-studio-types";
 
 export type FilmContextIssue = {
     level: "warning" | "error";
@@ -15,7 +15,7 @@ export type FilmContextLens = {
     scene: { label: string; location: string; time: string; mood: string; notes?: string } | null;
     styleName: string | null;
     previousShot: { id: string; shotNo: string } | null;
-    bindings: FilmShotBindingChip[];
+    contexts: FilmShotContextChip[];
     references: { role: FilmGenerationReferenceRole; label: string }[];
     prompt: string;
     compilerVersion: string | null;
@@ -41,11 +41,11 @@ export function selectFilmShotContextLens(
     shotId: string,
     options: FilmContextLensOptions,
 ): FilmContextLens | null {
-    const shotNode = nodes.find((node) => node.id === shotId && node.type === CanvasNodeType.Shot);
+    const shotNode = nodes.find((node) => node.id === shotId && node.type === CanvasNodeType.FilmShot);
     const payload = shotNode?.metadata?.filmShot;
     if (!shotNode || !payload) return null;
     const composition = connections.find((edge) => edge.kind === "composition" && edge.toNodeId === shotId);
-    const sceneNode = composition ? nodes.find((node) => node.id === composition.fromNodeId && node.type === CanvasNodeType.Scene) : undefined;
+    const sceneNode = composition ? nodes.find((node) => node.id === composition.fromNodeId && node.type === CanvasNodeType.FilmScene) : undefined;
     const sceneMeta = sceneNode?.metadata?.filmScene;
     const scene = sceneMeta
         ? {
@@ -56,7 +56,7 @@ export function selectFilmShotContextLens(
             notes: sceneMeta.notes,
         }
         : null;
-    const ordered = orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.Shot), connections);
+    const ordered = orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.FilmShot), connections);
     const shotIndex = ordered.findIndex((node) => node.id === shotId);
     const previous = shotIndex > 0 ? ordered[shotIndex - 1] : undefined;
     const previousPayload = previous?.metadata?.filmShot;
@@ -95,7 +95,7 @@ export function selectFilmShotContextLens(
         scene,
         styleName,
         previousShot: previous && previousPayload ? { id: previous.id, shotNo: previousPayload.shotNo || previous.title || previous.id } : null,
-        bindings: selectFilmShotBindings(nodes, connections, shotId),
+        contexts: selectFilmShotContexts(nodes, connections, shotId),
         references,
         prompt,
         compilerVersion,

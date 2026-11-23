@@ -1,7 +1,37 @@
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import type { CanvasNormalizedConnection } from "./canvas-connections";
+import { CanvasNodeType, type CanvasConnection, type CanvasConnectionInput, type CanvasNodeData } from "../../types";
+import type { FilmContextRole } from "./film-graph-types";
 
 export type FilmConnectionCheck = { ok: true } | { ok: false; reason: string; nodeIds?: string[] };
+
+function isFilmNode(node: CanvasNodeData): node is CanvasNodeData & { type: CanvasNodeType } {
+    return [
+        CanvasNodeType.FilmScript,
+        CanvasNodeType.FilmScene,
+        CanvasNodeType.FilmShot,
+        CanvasNodeType.FilmCharacter,
+        CanvasNodeType.FilmLocation,
+        CanvasNodeType.FilmProp,
+        CanvasNodeType.FilmStyle,
+        CanvasNodeType.FilmBeat,
+    ].includes(node.type);
+}
+
+function contextRoleForNode(node: CanvasNodeData): FilmContextRole | null {
+    switch (node.type) {
+        case CanvasNodeType.FilmCharacter:
+            return node.metadata?.filmCharacter ? "character" : null;
+        case CanvasNodeType.FilmLocation:
+            return node.metadata?.filmLocation ? "location" : null;
+        case CanvasNodeType.FilmProp:
+            return node.metadata?.filmProp ? "prop" : null;
+        case CanvasNodeType.FilmStyle:
+            return node.metadata?.filmStyle ? "style" : null;
+        case CanvasNodeType.FilmBeat:
+            return node.metadata?.filmBeat ? "beat" : null;
+        default:
+            return null;
+    }
+}
 
 /** 全片单链校验：镜头顺序只能是一条线性链。 */
 export function filmSequenceCheck(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmConnectionCheck {
@@ -12,7 +42,7 @@ export function filmSequenceCheck(nodes: CanvasNodeData[], connections: CanvasCo
         if (edge.kind !== "sequence") continue;
         const from = byId.get(edge.fromNodeId);
         const to = byId.get(edge.toNodeId);
-        if (!from || !to || from.type !== CanvasNodeType.Shot || to.type !== CanvasNodeType.Shot) {
+        if (!from || !to || from.type !== CanvasNodeType.FilmShot || to.type !== CanvasNodeType.FilmShot) {
             return { ok: false, reason: "连续镜头只能连接镜头节点", nodeIds: [edge.fromNodeId, edge.toNodeId] };
         }
         if (outgoing.has(edge.fromNodeId)) return { ok: false, reason: "同一镜头只能有一个后继", nodeIds: [edge.fromNodeId] };
@@ -22,7 +52,7 @@ export function filmSequenceCheck(nodes: CanvasNodeData[], connections: CanvasCo
     }
     const visited = new Set<string>();
     for (const shot of nodes) {
-        if (shot.type !== CanvasNodeType.Shot) continue;
+        if (shot.type !== CanvasNodeType.FilmShot) continue;
         const path = new Set<string>();
         let current: string | undefined = shot.id;
         while (current && !visited.has(current)) {
@@ -35,55 +65,87 @@ export function filmSequenceCheck(nodes: CanvasNodeData[], connections: CanvasCo
     return { ok: true };
 }
 
+function checkComposition(connection: CanvasConnectionInput, nodesById: Map<string, CanvasNodeData>, connections: CanvasConnection[]): FilmConnectionCheck {
+    const source = nodesById.get(connection.fromNodeId);
+    const target = nodesById.get(connection.toNodeId);
+    if (source?.type !== CanvasNodeType.FilmScene || target?.type !== CanvasNodeType.FilmShot) {
+        return { ok: false, reason: "场次只能归属镜头节点", nodeIds: [connection.fromNodeId, connection.toNodeId] };
+    }
+    const hasScene = connections.some((edge) => edge.kind === "composition" && edge.toNodeId === connection.toNodeId && edge.fromNodeId !== connection.fromNodeId);
+    return hasScene ? { ok: false, reason: "镜头已归属其他场次，先删除旧连线" } : { ok: true };
+}
+
+function checkContext(connection: Extract<CanvasConnectionInput, { kind: "context" }>, nodesById: Map<string, CanvasNodeData>, connections: CanvasConnection[]): FilmConnectionCheck {
+    const source = nodesById.get(connection.fromNodeId);
+    const target = nodesById.get(connection.toNodeId);
+    const role = source ? contextRoleForNode(source) : null;
+    if (!role || target?.type !== CanvasNodeType.FilmShot) {
+        return { ok: false, reason: "上下文只能从影视上下文节点连接到镜头", nodeIds: [connection.fromNodeId, connection.toNodeId] };
+    }
+    if (connection.data.role !== role) return { ok: false, reason: "上下文角色与节点类型不匹配", nodeIds: [connection.fromNodeId] };
+    if (role === "location" && connections.some((edge) => edge.kind === "context" && edge.toNodeId === connection.toNodeId && edge.data.role === "location")) {
+        return { ok: false, reason: "每个镜头只能引用一个场景" };
+    }
+    return { ok: true };
+}
+
+function checkDerived(connection: Extract<CanvasConnectionInput, { kind: "derived" }>, nodesById: Map<string, CanvasNodeData>): FilmConnectionCheck {
+    const source = nodesById.get(connection.fromNodeId);
+    const target = nodesById.get(connection.toNodeId);
+    if (!source || !target || !isFilmNode(source) || !isFilmNode(target)) {
+        return { ok: false, reason: "来源关系只能连接影视节点", nodeIds: [connection.fromNodeId, connection.toNodeId] };
+    }
+    if (source.type !== CanvasNodeType.FilmScript) {
+        return { ok: false, reason: "来源关系必须从剧本节点发出", nodeIds: [connection.fromNodeId] };
+    }
+    return { ok: true };
+}
+
 export function canAddFilmConnection(
-    connection: CanvasNormalizedConnection,
+    connection: CanvasConnectionInput,
     nodes: CanvasNodeData[],
     connections: CanvasConnection[],
 ): FilmConnectionCheck {
-    if (connections.some((edge) => edge.fromNodeId === connection.fromNodeId && edge.toNodeId === connection.toNodeId)) {
+    const nodesById = new Map(nodes.map((node) => [node.id, node]));
+    const source = nodesById.get(connection.fromNodeId);
+    const target = nodesById.get(connection.toNodeId);
+    if (!source || !target || !isFilmNode(source) || !isFilmNode(target)) {
+        return { ok: false, reason: "影视连线必须连接影视节点", nodeIds: [connection.fromNodeId, connection.toNodeId] };
+    }
+    if (connections.some((edge) => edge.kind === connection.kind && edge.fromNodeId === connection.fromNodeId && edge.toNodeId === connection.toNodeId)) {
         return { ok: false, reason: "这两个节点已经连接" };
     }
-    if (connection.kind === "binding") {
-        const source = nodes.find((node) => node.id === connection.fromNodeId);
-        if (source?.metadata?.filmAsset?.kind === "location") {
-            const hasLocation = connections.some((edge) => {
-                if (edge.kind !== "binding" || edge.toNodeId !== connection.toNodeId) return false;
-                const edgeSource = nodes.find((node) => node.id === edge.fromNodeId);
-                return edgeSource?.metadata?.filmAsset?.kind === "location";
-            });
-            if (hasLocation) return { ok: false, reason: "每个镜头只能绑定一个场景" };
-        }
+    if (connection.kind === "sequence" && source.id === target.id) {
+        return { ok: false, reason: "连续镜头不能连接自身" };
     }
-    if (connection.kind === "composition") {
-        const hasScene = connections.some((edge) => edge.kind === "composition" && edge.toNodeId === connection.toNodeId && edge.fromNodeId !== connection.fromNodeId);
-        if (hasScene) return { ok: false, reason: "镜头已归属其他场次，先删除旧连线" };
+
+    if (connection.kind === "composition") return checkComposition(connection, nodesById, connections);
+    if (connection.kind === "context") return checkContext(connection, nodesById, connections);
+    if (connection.kind === "derived") return checkDerived(connection, nodesById);
+    if (connection.kind !== "sequence") return { ok: false, reason: "不支持的影视连线类型" };
+
+    if (source.type !== CanvasNodeType.FilmShot || target.type !== CanvasNodeType.FilmShot) {
+        return { ok: false, reason: "连续镜头只能连接镜头节点" };
     }
-    if (connection.kind === "sequence") {
-        const source = nodes.find((node) => node.id === connection.fromNodeId);
-        const target = nodes.find((node) => node.id === connection.toNodeId);
-        if (source?.type !== CanvasNodeType.Shot || target?.type !== CanvasNodeType.Shot) {
-            return { ok: false, reason: "连续镜头只能连接镜头节点" };
-        }
-        if (connections.some((edge) => edge.kind === "sequence" && edge.fromNodeId === connection.fromNodeId)) {
-            return { ok: false, reason: "该镜头已有后继，请先删除旧顺序" };
-        }
-        if (connections.some((edge) => edge.kind === "sequence" && edge.toNodeId === connection.toNodeId)) {
-            return { ok: false, reason: "该镜头已有前继，请先删除旧顺序" };
-        }
-        const outgoing = new Map<string, string[]>();
-        connections.forEach((edge) => {
-            if (edge.kind !== "sequence") return;
-            outgoing.set(edge.fromNodeId, [...(outgoing.get(edge.fromNodeId) || []), edge.toNodeId]);
-        });
-        const stack = [...(outgoing.get(connection.toNodeId) || [])];
-        const seen = new Set<string>();
-        while (stack.length) {
-            const id = stack.pop()!;
-            if (id === connection.fromNodeId) return { ok: false, reason: "连续镜头不能成环" };
-            if (seen.has(id)) continue;
-            seen.add(id);
-            stack.push(...(outgoing.get(id) || []));
-        }
+    if (connections.some((edge) => edge.kind === "sequence" && edge.fromNodeId === connection.fromNodeId)) {
+        return { ok: false, reason: "该镜头已有后继，请先删除旧顺序" };
+    }
+    if (connections.some((edge) => edge.kind === "sequence" && edge.toNodeId === connection.toNodeId)) {
+        return { ok: false, reason: "该镜头已有前继，请先删除旧顺序" };
+    }
+    const outgoing = new Map<string, string[]>();
+    connections.forEach((edge) => {
+        if (edge.kind !== "sequence") return;
+        outgoing.set(edge.fromNodeId, [...(outgoing.get(edge.fromNodeId) || []), edge.toNodeId]);
+    });
+    const stack = [...(outgoing.get(connection.toNodeId) || [])];
+    const seen = new Set<string>();
+    while (stack.length) {
+        const id = stack.pop()!;
+        if (id === connection.fromNodeId) return { ok: false, reason: "连续镜头不能成环" };
+        if (seen.has(id)) continue;
+        seen.add(id);
+        stack.push(...(outgoing.get(id) || []));
     }
     return { ok: true };
 }

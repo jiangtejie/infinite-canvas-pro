@@ -2,25 +2,29 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FilmAsset } from "@/lib/film/types";
-import { createFilmAsset } from "@/app/(user)/film/utils/film-edits";
+import { createFilmAsset } from "./film-asset-factory";
 import { appendSlotImage } from "@/app/(user)/film/utils/film-image-slot";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmSceneNodeData, type FilmShotNodeData } from "../../types";
 import { buildFilmShotGenerationFromGraph } from "./film-shot-generation-context";
 
 const image = (id: string) => ({ id, url: `https://example.com/${id}.png`, createdAt: "2026-11-21T00:00:00.000Z" });
 const withConcept = (asset: FilmAsset, id: string) => ({ ...asset, concept: appendSlotImage(asset.concept, image(id)) });
-const assetNode = (id: string, asset: FilmAsset, kind: "character" | "location" | "prop" | "style"): CanvasNodeData => ({
-    id,
-    type: CanvasNodeType.FilmAsset,
-    title: asset.name,
-    position: { x: 0, y: 0 },
-    width: 200,
-    height: 200,
-    metadata: { filmAsset: { kind, asset } },
-});
+const assetNode = (id: string, asset: FilmAsset, role: "character" | "location" | "prop" | "style"): CanvasNodeData => {
+    const type = {
+        character: CanvasNodeType.FilmCharacter,
+        location: CanvasNodeType.FilmLocation,
+        prop: CanvasNodeType.FilmProp,
+        style: CanvasNodeType.FilmStyle,
+    }[role];
+    const metadata = role === "character" ? { filmCharacter: { asset } }
+        : role === "location" ? { filmLocation: { asset } }
+            : role === "prop" ? { filmProp: { asset } }
+                : { filmStyle: { asset } };
+    return { id, type, title: asset.name, position: { x: 0, y: 0 }, width: 200, height: 200, metadata };
+};
 const shotNode = (id: string, payload: Partial<FilmShotNodeData> & { description: string; prompt: string; imageUrl?: string }): CanvasNodeData => ({
     id,
-    type: CanvasNodeType.Shot,
+    type: CanvasNodeType.FilmShot,
     title: id,
     position: { x: 0, y: 0 },
     width: 300,
@@ -39,7 +43,7 @@ const shotNode = (id: string, payload: Partial<FilmShotNodeData> & { description
 });
 const sceneNode = (id: string, patch: Partial<FilmSceneNodeData> = {}): CanvasNodeData => ({
     id,
-    type: CanvasNodeType.Scene,
+    type: CanvasNodeType.FilmScene,
     title: id,
     position: { x: 0, y: 0 },
     width: 300,
@@ -68,9 +72,9 @@ const nodes: CanvasNodeData[] = [
 ];
 const connections: CanvasConnection[] = [
     { id: "seq", fromNodeId: "shot-prev", toNodeId: "shot", kind: "sequence" },
-    { id: "bc", fromNodeId: "char", toNodeId: "shot", kind: "binding", data: { source: "manual", continuity: { emotion: "压抑" } } },
-    { id: "bl", fromNodeId: "loc", toNodeId: "shot", kind: "binding", data: { source: "manual" } },
-    { id: "bp", fromNodeId: "prop", toNodeId: "shot", kind: "binding", data: { source: "manual" } },
+    { id: "bc", fromNodeId: "char", toNodeId: "shot", kind: "context", data: { role: "character", source: "manual", continuity: { emotion: "压抑" } } },
+    { id: "bl", fromNodeId: "loc", toNodeId: "shot", kind: "context", data: { role: "location", source: "manual" } },
+    { id: "bp", fromNodeId: "prop", toNodeId: "shot", kind: "context", data: { role: "prop", source: "manual" } },
 ];
 
 test("compiles a shot from graph nodes and edges", () => {
@@ -84,6 +88,22 @@ test("compiles a shot from graph nodes and edges", () => {
     assert.ok(context!.prompt.includes("落魄调查记者"));
     assert.ok(context!.prompt.includes("雨夜天台"));
     assert.ok(context!.prompt.includes("冷调、低饱和"));
+});
+
+test("uses the single project style bible for every shot, independently of board relationship edges", () => {
+    const withoutEdge = buildFilmShotGenerationFromGraph(nodes, connections, "shot", { medium: "image", maxReferences: 10 });
+    const withStyleEdge: CanvasConnection[] = [...connections, {
+        id: "style-context",
+        fromNodeId: "style",
+        toNodeId: "shot",
+        kind: "context",
+        data: { role: "style", source: "manual" },
+    }];
+    const withEdge = buildFilmShotGenerationFromGraph(nodes, withStyleEdge, "shot", { medium: "image", maxReferences: 10 });
+    assert.ok(withoutEdge?.prompt.includes("冷调、低饱和"));
+    assert.ok(withoutEdge?.references.some((ref) => ref.role === "style"));
+    assert.equal(withEdge?.prompt, withoutEdge?.prompt);
+    assert.deepEqual(withEdge?.references, withoutEdge?.references);
 });
 
 test("uses the assigned scene context in image and video generation prompts and signatures", () => {
@@ -163,4 +183,27 @@ test("compiles only the first and last frames in frames mode", () => {
     });
     assert.ok(context);
     assert.deepEqual(context!.references.map((ref) => ref.role), ["first-frame", "last-frame"]);
+});
+
+test("composes beat title, total prompt and non-empty frames into the linked shot", () => {
+    const beatNode = (frames: string[]): CanvasNodeData => ({
+        id: "beat",
+        type: CanvasNodeType.FilmBeat,
+        title: "动作节拍",
+        position: { x: 0, y: 0 },
+        width: 480,
+        height: 420,
+        metadata: { filmBeat: { title: "猛地回头", mode: "grid9", prompt: "从静止到回头", frames, status: "idle", progress: 0 } },
+    });
+    const beatEdge: CanvasConnection = { id: "beat->shot", fromNodeId: "beat", toNodeId: "shot", kind: "context", data: { role: "beat", source: "manual" } };
+    const before = buildFilmShotGenerationFromGraph([...nodes, beatNode(["停顿", "", "转头"])], [...connections, beatEdge], "shot", { medium: "image", maxReferences: 10 });
+    assert.ok(before?.prompt.includes("动作节拍「猛地回头」"));
+    assert.ok(before?.prompt.includes("动作过程：从静止到回头"));
+    assert.ok(before?.prompt.includes("节拍 1：停顿"));
+    assert.ok(before?.prompt.includes("节拍 3：转头"));
+    assert.ok(!before?.prompt.includes("节拍 2："));
+
+    const changed = buildFilmShotGenerationFromGraph([...nodes, beatNode(["屏住呼吸", "", "转头"])], [...connections, beatEdge], "shot", { medium: "image", maxReferences: 10 });
+    assert.ok(changed?.prompt.includes("节拍 1：屏住呼吸"));
+    assert.notEqual(changed?.inputSignature, before?.inputSignature);
 });

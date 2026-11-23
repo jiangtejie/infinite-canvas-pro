@@ -1,33 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { FilmAsset } from "@/lib/film/types";
 import { CanvasNodeType } from "../../types";
 import { createCanvasNode } from "./canvas-node-factory";
+import { createFilmAsset } from "./film-asset-factory";
 
-test("creates film script, scene and shot nodes with payload defaults", () => {
-    const script = createCanvasNode(CanvasNodeType.Script, { x: 0, y: 0 });
-    assert.equal(script.title, "剧本");
-    assert.equal(script.metadata?.filmScript?.text, "");
-    assert.deepEqual(script.metadata?.filmScript?.parseSnapshots, []);
+test("creates specialized film context and beat nodes with payload defaults", () => {
+    const character = createCanvasNode(CanvasNodeType.FilmCharacter, { x: 0, y: 0 });
+    assert.equal(character.title, "角色");
+    assert.equal(character.metadata?.filmCharacter?.asset.name, "角色 1");
 
-    const scene = createCanvasNode(CanvasNodeType.Scene, { x: 0, y: 0 });
-    assert.equal(scene.title, "场次");
-    assert.equal(scene.metadata?.filmScene?.mood, "");
+    const style = createCanvasNode(CanvasNodeType.FilmStyle, { x: 0, y: 0 });
+    assert.equal(style.title, "风格圣经");
+    assert.equal(style.metadata?.filmStyle?.asset.name, "风格圣经 1");
 
-    const shot = createCanvasNode(CanvasNodeType.Shot, { x: 0, y: 0 });
-    assert.equal(shot.title, "镜头");
-    assert.equal(shot.metadata?.filmShot?.shotNo, "");
-    assert.equal(shot.metadata?.filmShot?.duration, 4);
+    const beat = createCanvasNode(CanvasNodeType.FilmBeat, { x: 0, y: 0 });
+    assert.equal(beat.title, "动作节拍");
+    assert.equal(beat.metadata?.filmBeat?.mode, "grid9");
+    assert.equal(beat.metadata?.filmBeat?.frames.length, 9);
 });
 
-test("accepts film asset metadata and keeps the type spec", () => {
-    const asset = createCanvasNode(CanvasNodeType.FilmAsset, { x: 0, y: 0 }, {
-        filmAsset: {
-            kind: "character",
-            asset: { id: "char-1", name: "沈迟" } as FilmAsset,
-        },
-    });
-    assert.equal(asset.title, "影视资产");
-    assert.equal(asset.metadata?.filmAsset?.kind, "character");
+test("accepts specialized film asset metadata and keeps the node type", () => {
+    const asset = { ...createFilmAsset("character", 1), name: "沈迟" };
+    const node = createCanvasNode(CanvasNodeType.FilmCharacter, { x: 0, y: 0 }, { filmCharacter: { asset } });
+    assert.equal(node.title, "角色");
+    assert.equal(node.metadata?.filmCharacter?.asset.id, asset.id);
 });

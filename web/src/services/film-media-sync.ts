@@ -1,4 +1,4 @@
-import type { FilmAsset, FilmImageSlot, FilmProject } from "@/lib/film/types";
+import type { FilmAsset, FilmImageSlot } from "@/lib/film/types";
 import { applyMediaPromotions, collectMediaPromotions, mediaNeedsPromotion, type MediaPromotionRef, type MediaPromotionReplacement } from "@/services/media-promotion";
 
 export type FilmMediaReplacement = MediaPromotionReplacement;
@@ -18,50 +18,20 @@ function collectAssetMedia(asset: FilmAsset, refs: MediaPromotionRef[]) {
     for (const variant of asset.location?.variants || []) collectSlot(variant.concept, refs);
 }
 
-function collectProjectMedia(project: FilmProject, refs: MediaPromotionRef[]) {
-    [...(project.characters || []), ...(project.locations || []), ...(project.props || []), ...(project.costumes || [])].forEach((asset) => collectAssetMedia(asset, refs));
-    if (project.style) collectAssetMedia(project.style, refs);
-    for (const episode of project.episodes || []) {
-        for (const scene of episode.scenes) {
-            for (const shot of scene.shots) {
-                if (shot.storageKey || shot.imageUrl) refs.push({ storageKey: shot.storageKey, url: shot.imageUrl, kind: "image" });
-                if (shot.videoStorageKey || shot.videoUrl) refs.push({ storageKey: shot.videoStorageKey, url: shot.videoUrl, kind: "media" });
-                for (const version of shot.imageVersions || []) refs.push({ storageKey: version.storageKey, url: version.url, kind: "image" });
-                for (const version of shot.videoVersions || []) refs.push({ storageKey: version.storageKey, url: version.url, kind: "media" });
-                for (const frame of [shot.firstFrame, shot.lastFrame]) {
-                    if (frame) refs.push({ storageKey: frame.storageKey, url: frame.url, kind: "image" });
-                }
-            }
-        }
-    }
-}
-
-function collectRefs(projects: FilmProject[], library: FilmAsset[]) {
+function collectRefs(library: FilmAsset[]) {
     const refs: MediaPromotionRef[] = [];
-    projects.forEach((project) => collectProjectMedia(project, refs));
     library.forEach((asset) => collectAssetMedia(asset, refs));
     return refs;
 }
 
 /** 是否还有未升级到云存储的本地媒体。 */
-export function filmMediaNeedsPromotion(projects: FilmProject[], library: FilmAsset[]) {
-    return mediaNeedsPromotion(collectRefs(projects, library));
+export function filmMediaNeedsPromotion(library: FilmAsset[]) {
+    return mediaNeedsPromotion(collectRefs(library));
 }
 
-/** 收集并上传项目中仍在本地的图片/视频，返回旧键到云存储键的替换表。 */
-export async function collectFilmMediaPromotions(projects: FilmProject[], library: FilmAsset[], token: string, concurrency?: number) {
-    return collectMediaPromotions(collectRefs(projects, library), token, concurrency);
-}
-
-export function applyFilmMediaPromotionsToProjects(projects: FilmProject[], replacements: Map<string, FilmMediaReplacement>) {
-    let changed = false;
-    const next = projects.map((project) => {
-        const applied = applyMediaPromotions(project, replacements);
-        if (!applied.changed) return project;
-        changed = true;
-        return { ...applied.value, updatedAt: new Date().toISOString() };
-    });
-    return { projects: changed ? next : projects, changed };
+/** 收集并上传母版库中仍在本地的图片/视频，返回旧键到云存储键的替换表。 */
+export async function collectFilmMediaPromotions(library: FilmAsset[], token: string, concurrency?: number) {
+    return collectMediaPromotions(collectRefs(library), token, concurrency);
 }
 
 export type FilmLibraryMediaSnapshot = {

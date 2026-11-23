@@ -21,6 +21,6 @@ export function FilmImageThumbnail({ url, storageKey, alt, className }: { url?: 
 }
 
 export function FilmAssetThumbnail({ asset, className }: { asset: FilmAsset; className?: string }) {
-    const image = activeSlotImage(asset.concept) || characterPackageImage(asset);
+    const image = asset.character ? characterPackageImage(asset) : activeSlotImage(asset.concept);
     return <FilmImageThumbnail url={image?.url} storageKey={image?.storageKey} alt={asset.name} className={className} />;
 }

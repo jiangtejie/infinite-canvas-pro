@@ -7,15 +7,11 @@ import { Film, Pause, Play, RotateCcw, SkipBack, SkipForward, Video, X } from "l
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import { CANVAS_Z } from "../lib/canvas-layer";
-import { buildFilmPreviewTimeline, filmPreviewClipAt, formatFilmPreviewTime } from "../lib/film-animatic-preview";
-import type { FilmStudioModel } from "../lib/film-studio-types";
+import { buildFilmPreviewTimeline, filmPreviewClipAt, formatFilmPreviewTime, selectFilmPreviewEntries } from "../lib/film-animatic-preview";
+import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
 
-export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasTheme; model: FilmStudioModel; onClose: () => void }) {
-    const previewShots = useMemo(() => {
-        if (!model.previewShotIds?.length) return model.shots;
-        const ids = new Set(model.previewShotIds);
-        return model.shots.filter((entry) => ids.has(entry.shot.id));
-    }, [model.previewShotIds, model.shots]);
+export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasTheme; model: FilmDirectorBoardModel; onClose: () => void }) {
+    const previewShots = useMemo(() => selectFilmPreviewEntries(model.shots, model.previewShotIds), [model.previewShotIds, model.shots]);
     const timeline = useMemo(() => buildFilmPreviewTimeline(previewShots), [previewShots]);
     const initialClip = timeline.clips.find((clip) => clip.shotId === model.activeShot?.shot.id) ?? timeline.clips[0] ?? null;
     const [currentIndex, setCurrentIndex] = useState(initialClip?.index ?? 0);
@@ -32,10 +28,12 @@ export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasThe
     }, [time]);
 
     const activeClip = timeline.clips[currentIndex] ?? null;
+    const activeScene = timeline.scenes.find((scene, index) => time >= scene.start && (time < scene.end || (index === timeline.scenes.length - 1 && time >= scene.end - 0.001)));
+    const activeSceneKey = activeScene ? `${activeScene.sceneId}:${activeScene.start}` : "";
     const activeEntry = activeClip ? model.shots.find((entry) => entry.shot.id === activeClip.shotId) : undefined;
     const payload = activeEntry?.shot.metadata?.filmShot;
-    const videoSrc = useResolvedMediaSrc(payload?.videoUrl, payload?.videoStorageKey, "media");
-    const imageSrc = useResolvedMediaSrc(payload?.imageUrl, payload?.storageKey, "image");
+    const videoSrc = useResolvedMediaSrc(activeClip?.videoUrl, activeClip?.videoStorageKey, "media");
+    const imageSrc = useResolvedMediaSrc(activeClip?.imageUrl, activeClip?.imageStorageKey, "image");
     const showVideo = activeClip?.media === "video" && Boolean(videoSrc) && !videoFailed;
     const showImage = !showVideo && Boolean(imageSrc);
 
@@ -137,8 +135,7 @@ export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasThe
 
     const openCurrentShot = () => {
         if (!activeClip) return;
-        model.onSelectShot(activeClip.shotId);
-        model.onViewChange("studio");
+        model.onOpenShotFocus(activeClip.shotId);
         onClose();
     };
 
@@ -147,11 +144,11 @@ export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasThe
             <div className="flex h-[min(88vh,900px)] flex-col text-white">
                 <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
                     <Play className="size-4" style={{ color: theme.canvas.selectionStroke }} />
-                    <span className="text-sm font-semibold">成片预览</span>
-                    {model.previewShotIds ? <span className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/60">镜头组 · {timeline.clips.length} 镜</span> : null}
+                    <span className="text-sm font-semibold">分镜预演</span>
+                    {model.previewShotIds ? <span className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/60">镜头选集 · {timeline.clips.length} 镜</span> : null}
                     {activeClip ? <span className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-white/60">{activeClip.sceneLabel}</span> : null}
                     <span className="ml-auto font-mono text-[11px] tabular-nums text-white/55">{formatFilmPreviewTime(time)} / {formatFilmPreviewTime(timeline.totalDuration)}</span>
-                    <button type="button" className="grid size-8 place-items-center rounded-lg text-white/55 transition hover:bg-white/10 hover:text-white" onClick={onClose} aria-label="关闭成片预览"><X className="size-4" /></button>
+                    <button type="button" className="grid size-8 place-items-center rounded-lg text-white/55 transition hover:bg-white/10 hover:text-white" onClick={onClose} aria-label="关闭分镜预演"><X className="size-4" /></button>
                 </div>
 
                 <div className="relative flex min-h-0 flex-1 items-center justify-center bg-black p-3">
@@ -181,7 +178,7 @@ export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasThe
                                 <div className="flex max-w-md flex-col items-center gap-2 px-6 text-center">
                                     <Film className="size-8 text-white/25" />
                                     <div className="text-sm text-white/55">这个镜头还没有分镜图或视频</div>
-                                    <div className="line-clamp-3 text-xs leading-5 text-white/35">{activeClip.description || "补全画面描述后可直接在 Studio 生成。"}</div>
+                                    <div className="line-clamp-3 text-xs leading-5 text-white/35">{activeClip.description || "补全画面描述后可在镜头聚焦生成。"}</div>
                                 </div>
                             )}
                             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent px-4 pb-3 pt-10">
@@ -197,29 +194,47 @@ export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasThe
                     ) : (
                         <div className="flex flex-col items-center gap-2 text-white/50">
                             <Film className="size-8" />
-                            <div className="text-sm">还没有镜头，先在 Studio 或画布创建。</div>
+                            <div className="text-sm">还没有镜头，先在导演板或镜头表创建。</div>
                         </div>
                     )}
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-white/10 px-5 py-3">
-                    <div className="relative flex h-8 w-full overflow-hidden rounded-md bg-white/5" role="slider" aria-label="成片预览进度" aria-valuemin={0} aria-valuemax={Math.round(timeline.totalDuration)} aria-valuenow={Math.round(time)} tabIndex={0} onKeyDown={(event) => {
-                        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-                        event.preventDefault();
-                        seekToTime(timeRef.current + (event.key === "ArrowLeft" ? -1 : 1));
-                    }} onClick={(event) => {
-                        const rect = event.currentTarget.getBoundingClientRect();
-                        seekToTime(((event.clientX - rect.left) / rect.width) * timeline.totalDuration);
-                    }}>
-                        <div className="flex h-full w-full">
-                            {timeline.clips.map((clip) => (
-                                <button key={clip.shotId} type="button" className="h-full min-w-[3px] border-r border-black/40 text-left transition-colors" style={{ width: `${(clip.duration / Math.max(1, timeline.totalDuration)) * 100}%`, background: clip.index === activeClip?.index ? "rgba(255,255,255,0.3)" : clip.media === "none" ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.15)" }} title={`${clip.shotNo} · ${clip.sceneLabel} · ${clip.duration}s`} onClick={(event) => {
-                                    event.stopPropagation();
-                                    seekToTime(clip.start);
-                                }} aria-label={`跳转到镜头 ${clip.shotNo}`} />
-                            ))}
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between px-0.5 font-mono text-[9px] tabular-nums text-white/35">
+                            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => <span key={ratio}>{formatFilmPreviewTime(timeline.totalDuration * ratio)}</span>)}
                         </div>
-                        <span className="pointer-events-none absolute inset-y-0 w-px bg-white" style={{ left: `${(time / Math.max(0.001, timeline.totalDuration)) * 100}%` }} />
+                        {timeline.scenes.length ? (
+                            <div className="flex h-6 w-full overflow-hidden rounded-md border border-white/10 bg-white/5">
+                                {timeline.scenes.map((scene, index) => {
+                                    const active = `${scene.sceneId}:${scene.start}` === activeSceneKey;
+                                    return (
+                                        <button key={`${scene.sceneId}:${scene.start}`} type="button" className="flex min-w-0 items-center gap-1 overflow-hidden border-r border-black/30 px-2 text-left text-[10px] transition-colors" style={{ width: `${((scene.end - scene.start) / Math.max(0.001, timeline.totalDuration)) * 100}%`, background: active ? "rgba(255,255,255,0.16)" : index % 2 ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.035)", color: active ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.45)" }} title={`${scene.label} · ${formatFilmPreviewTime(scene.start)}`} onClick={() => seekToTime(scene.start)} aria-label={`跳转到场次 ${scene.label}`}>
+                                            <span className="truncate">{scene.label}</span>
+                                            <span className="ml-auto shrink-0 font-mono tabular-nums text-[9px] opacity-70">{formatFilmPreviewTime(scene.end - scene.start)}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : null}
+                        <div className="relative flex h-8 w-full overflow-hidden rounded-md bg-white/5" role="slider" aria-label="分镜预演进度" aria-valuemin={0} aria-valuemax={Math.round(timeline.totalDuration)} aria-valuenow={Math.round(time)} tabIndex={0} onKeyDown={(event) => {
+                            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                            event.preventDefault();
+                            seekToTime(timeRef.current + (event.key === "ArrowLeft" ? -1 : 1));
+                        }} onClick={(event) => {
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            seekToTime(((event.clientX - rect.left) / rect.width) * timeline.totalDuration);
+                        }}>
+                            <div className="flex h-full w-full">
+                                {timeline.clips.map((clip) => (
+                                    <button key={clip.shotId} type="button" className="h-full min-w-[3px] border-r border-black/40 text-left transition-colors" style={{ width: `${(clip.duration / Math.max(1, timeline.totalDuration)) * 100}%`, background: clip.index === activeClip?.index ? "rgba(255,255,255,0.3)" : clip.media === "none" ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.15)" }} title={`${clip.shotNo} · ${clip.sceneLabel} · ${clip.duration}s`} onClick={(event) => {
+                                        event.stopPropagation();
+                                        seekToTime(clip.start);
+                                    }} aria-label={`跳转到镜头 ${clip.shotNo}`} />
+                                ))}
+                            </div>
+                            <span className="pointer-events-none absolute inset-y-0 w-px bg-white" style={{ left: `${(time / Math.max(0.001, timeline.totalDuration)) * 100}%` }} />
+                        </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <button type="button" className="grid size-8 place-items-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white disabled:opacity-30" onClick={() => goToClip(0)} disabled={!timeline.clips.length} aria-label="回到开头"><RotateCcw className="size-4" /></button>
@@ -235,10 +250,11 @@ export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasThe
                         <span className="ml-auto hidden items-center gap-3 text-[10px] text-white/35 md:flex">
                             <span>Space 播放</span>
                             <span>← → 跳镜</span>
+                            <span>Home 开头</span>
                             <span>Esc 关闭</span>
                             <span>静音预览</span>
                         </span>
-                        {activeClip ? <button type="button" className="rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-white/70 transition hover:bg-white/10 hover:text-white" onClick={openCurrentShot}>在 Studio 打开</button> : null}
+                        {activeClip ? <button type="button" className="rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-white/70 transition hover:bg-white/10 hover:text-white" onClick={openCurrentShot}>打开镜头聚焦</button> : null}
                     </div>
                 </div>
             </div>

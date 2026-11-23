@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button, Modal, Select } from "antd";
-import { Bot, Eraser, Focus, Home, Images, LayoutGrid, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
+import { Bot, Eraser, Focus, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, RotateCcw, Trash2, Undo2, Upload } from "lucide-react";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -37,11 +37,9 @@ export function CanvasTopBar({
     assistantCollapsed,
     onExpandAssistant,
     filmMode,
-    onArrangeFilm,
     filmScenes,
     activeSceneId,
     onSceneChange,
-    studioView,
 }: {
     title: string;
     sidePanelOpen: boolean;
@@ -65,11 +63,9 @@ export function CanvasTopBar({
     assistantCollapsed: boolean;
     onExpandAssistant: () => void;
     filmMode: boolean;
-    onArrangeFilm: () => void;
     filmScenes?: { id: string; label: string }[];
     activeSceneId?: string | null;
     onSceneChange?: (sceneId: string) => void;
-    studioView?: "studio" | "graph";
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -158,7 +154,7 @@ export function CanvasTopBar({
         <>
             <div className="pointer-events-none absolute left-0 right-0 top-0 flex h-16 items-center justify-between px-4 max-sm:h-auto max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2" style={{ "--canvas-topbar-hover": theme.toolbar.itemHover, zIndex: CANVAS_Z.topbar, visibility: zenMode ? "hidden" : "visible", opacity: zenMode ? 0 : 1, transition: "opacity 250ms ease" } as React.CSSProperties}>
                 <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-3 max-sm:w-full">
-                    {studioView !== "studio" ? (
+                    {!filmMode ? (
                         <button type="button" onClick={onToggleSidePanel} className="grid size-7 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10" style={{ color: theme.node.text }} aria-label={sidePanelOpen ? "收起左侧面板" : "展开左侧面板"}>
                             {sidePanelOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
                         </button>
@@ -273,18 +269,6 @@ export function CanvasTopBar({
                             setAccountOpen(false);
                         }}
                     />
-                    {filmMode && studioView !== "studio" ? (
-                        <button
-                            type="button"
-                            onClick={onArrangeFilm}
-                            className="grid size-9 place-items-center rounded-full transition hover:bg-[var(--canvas-topbar-hover)] [@media(pointer:coarse)]:size-10"
-                            style={{ color: theme.node.text }}
-                            aria-label="按场整理"
-                            title="按场整理：场次分列、镜头按序列排列"
-                        >
-                            <LayoutGrid className="size-4" />
-                        </button>
-                    ) : null}
                     <button
                         type="button"
                         onClick={enterCanvasZen}
@@ -295,7 +279,7 @@ export function CanvasTopBar({
                     >
                         <Focus className="size-4" />
                     </button>
-                    {assistantCollapsed && studioView !== "studio" ? (
+                    {assistantCollapsed && !filmMode ? (
                         <>
                             <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                             <Button
@@ -345,12 +329,12 @@ export function CanvasTopBar({
                     <Shortcut keys={["拖入图片/视频/音频"]} value="上传到画布" />
                     {filmMode ? (
                         <>
-                            <div className="mt-2 border-t pt-3 text-[11px] font-medium tracking-[0.12em] uppercase" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>影视 Studio</div>
-                            <Shortcut keys={["1–6"]} value="Studio / 镜头表 / 故事板 / 时间轴 / 画布 / 资产" />
+                            <div className="mt-2 border-t pt-3 text-[11px] font-medium tracking-[0.12em] uppercase" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>影视导演板</div>
+                            <Shortcut keys={["1–4"]} value="导演板 / 镜头表 / 故事板 / 上下文" />
                             <Shortcut keys={["S / C"]} value="剧本 / 就绪与一致性检查" />
-                            <Shortcut keys={["← / →"]} value="上一镜 / 下一镜" />
-                            <Shortcut keys={["G / V"]} value="生成分镜图 / 分镜视频" />
-                            <Shortcut keys={["Space"]} value="时间轴播放 / 暂停" />
+                            <Shortcut keys={["← / →"]} value="上一镜 / 下一镜（镜头聚焦）" />
+                            <Shortcut keys={["G / V"]} value="生成分镜图 / 分镜视频（镜头聚焦）" />
+                            <Shortcut keys={["Esc"]} value="关闭镜头聚焦" />
                         </>
                     ) : null}
                 </div>

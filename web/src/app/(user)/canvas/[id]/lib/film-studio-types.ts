@@ -1,14 +1,15 @@
 import type { FilmAspect, FilmAsset, FilmAssetKind } from "@/lib/film/types";
-import type { CanvasNodeData, FilmBindingEdgeData } from "../../types";
-import type { FilmAssetView } from "./film-asset-view";
-import type { FilmAssetProductionPlan, FilmAssetProductionState } from "./film-asset-production";
+import type { CanvasNodeData, FilmContextEdgeData, FilmContextRole } from "../../types";
+import type { FilmContextCenterView } from "./film-context-center";
+import type { FilmAssetProductionState } from "./film-asset-production";
 import type { FilmContextLens } from "./film-context-lens";
-import type { FilmProposalMode, FilmStructureProposal } from "./film-structure-proposal";
-import type { FilmScriptAssetProposal } from "./film-script-assets";
+import type { FilmProductionPlan } from "./film-production-plan";
 import type { FilmShotGroupSummary } from "./film-shot-groups";
 import type { FilmVersionKind, FilmVersionShot } from "./film-version-room";
 
-export type FilmStudioView = "studio" | "graph" | "table" | "board" | "timeline" | "assets";
+export type FilmStudioView = "board" | "table" | "storyboard" | "assets";
+export type FilmProductionKind = "asset" | FilmShotBatchKind;
+export type FilmProductionOpenOptions = { assetIds?: string[]; shotIds?: string[]; kind?: FilmProductionKind };
 
 export type FilmShotEntry = {
     shot: CanvasNodeData;
@@ -27,23 +28,34 @@ export type FilmSceneEntry = {
     shots: FilmShotEntry[];
 };
 
-export type FilmShotBindingChip = {
+export type FilmShotContextChip = {
     id: string;
     edgeId: string;
-    kind: FilmAssetKind;
+    role: FilmContextRole;
     name: string;
     stateId?: string;
     stateName?: string;
     variantId?: string;
     variantName?: string;
-    continuity?: FilmBindingEdgeData["continuity"];
+    continuity?: FilmContextEdgeData["continuity"];
     states: { id: string; name: string }[];
     variants: { id: string; name: string }[];
 };
 
-export type FilmBindingAssetOption = {
+export const FILM_SHOT_CONTEXT_CREATABLE_KINDS = ["character", "location", "prop"] as const satisfies readonly FilmAssetKind[];
+export type FilmShotContextCreatableKind = (typeof FILM_SHOT_CONTEXT_CREATABLE_KINDS)[number];
+
+export const FILM_CONTEXT_ROLE_LABELS: Record<FilmContextRole, string> = {
+    character: "角色",
+    location: "场景",
+    prop: "道具",
+    style: "风格",
+    beat: "动作节拍",
+};
+
+export type FilmContextNodeOption = {
     nodeId: string;
-    kind: FilmAssetKind;
+    role: FilmContextRole;
     name: string;
 };
 
@@ -60,10 +72,14 @@ export type FilmShotBatchState = {
     currentShotId: string;
 };
 
-export type FilmStudioModel = {
+export type FilmDirectorBoardModel = {
     projectId: string;
     view: FilmStudioView;
     onViewChange: (view: FilmStudioView) => void;
+    onArrangeBoard: () => void;
+    shotFocusOpen: boolean;
+    onOpenShotFocus: (shotId: string) => void;
+    onCloseShotFocus: () => void;
     previewOpen: boolean;
     previewShotIds: string[] | null;
     onOpenPreview: () => void;
@@ -80,40 +96,14 @@ export type FilmStudioModel = {
         onPreview: (shotIds: string[]) => void;
     };
     onSaveShotGroup: (shotIds: string[]) => void;
-    shotProductionOpen: boolean;
-    onOpenShotProduction: () => void;
-    onCloseShotProduction: () => void;
     aspect: FilmAspect;
     scenes: FilmSceneEntry[];
     shots: FilmShotEntry[];
     activeSceneId: string | null;
     activeShot: FilmShotEntry | null;
-    activeBindings: FilmShotBindingChip[];
-    bindingsByShot: Record<string, FilmShotBindingChip[]>;
+    activeContexts: FilmShotContextChip[];
+    contextsByShot: Record<string, FilmShotContextChip[]>;
     contextLenses: { image: FilmContextLens | null; video: FilmContextLens | null };
-    structureProposal: {
-        proposal: FilmStructureProposal;
-        mode: FilmProposalMode;
-        selectedSceneKeys: Set<string>;
-        applying: boolean;
-        onModeChange: (mode: FilmProposalMode) => void;
-        onToggleScene: (key: string) => void;
-        onSelectAll: () => void;
-        onClear: () => void;
-        onApply: () => void;
-        onCancel: () => void;
-    } | null;
-    assetProposal: {
-        proposal: FilmScriptAssetProposal;
-        selectedKeys: Set<string>;
-        bindToShots: boolean;
-        onToggle: (key: string) => void;
-        onSelectAll: () => void;
-        onClear: () => void;
-        onBindChange: (value: boolean) => void;
-        onApply: () => void;
-        onCancel: () => void;
-    } | null;
     versionRoom: {
         mode: "compare" | "batch";
         kind: FilmVersionKind;
@@ -128,23 +118,31 @@ export type FilmStudioModel = {
         onClose: () => void;
     } | null;
     versionRoomCount: number;
-    onOpenVersionCompare: (kind: FilmVersionKind) => void;
+    onOpenVersionCompare: (shotId: string, kind: FilmVersionKind) => void;
     onOpenVersionBatch: () => void;
-    assetView: FilmAssetView;
-    assetProduction: {
+    contextCenter: FilmContextCenterView;
+    productionCenter: {
         open: boolean;
-        plan: FilmAssetProductionPlan;
-        state: FilmAssetProductionState;
-        onStart: (nodeIds: string[]) => void;
-        onStop: () => void;
+        plan: FilmProductionPlan;
+        initialAssetIds?: string[];
+        initialShotIds?: string[];
+        initialKind?: FilmProductionKind;
+        assetState: FilmAssetProductionState;
+        shotBatch: FilmShotBatchState;
+        onKindChange: (kind: FilmShotBatchKind) => void;
+        onStartAssets: (nodeIds: string[]) => void;
+        onStopAssets: () => void;
+        onStartShots: (shotIds: string[], kind: FilmShotBatchKind) => void;
+        onStopShots: () => void;
+        onLocate: (target: "asset" | "shot", id: string) => void;
         onClose: () => void;
     } | null;
-    onOpenAssetProduction: () => void;
+    onOpenProduction: (options?: FilmProductionOpenOptions) => void;
     onCreateAsset: (kind: FilmAssetKind) => void;
     onImportAssetFromLibrary: (kind: FilmAssetKind, entry: FilmAsset) => void;
+    onReplaceAssetFromLibrary: (nodeId: string, entry: FilmAsset) => void;
     onLocateAsset: (nodeId: string) => void;
     shotBatch: FilmShotBatchState;
-    onBatchGenerateShots: (shotIds: string[], kind: FilmShotBatchKind) => void;
     onStopShotBatch: () => void;
     consistencyReviewing: boolean;
     onRunConsistencyReview: () => void;
@@ -155,23 +153,28 @@ export type FilmStudioModel = {
     onUpdateShot: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
     onMoveShot: (shotId: string, targetSceneId: string, targetShotId: string | null, after: boolean) => void;
     onCreateShot: (sceneId?: string) => void;
-    onLocateInGraph: (shotId: string) => void;
+    onLocateShot: (shotId: string) => void;
     imageGenerating: boolean;
     imageError: string | null;
     taskProgress: number;
     canGenerateImage: boolean;
-    onGenerateImage: () => void;
-    onStopImage: () => void;
+    onGenerateImage: (shotId: string) => void;
+    onStopImage: (shotId: string) => void;
     videoGenerating: boolean;
     videoError: string | null;
     canGenerateVideo: boolean;
-    onGenerateVideo: () => void;
-    onStopVideo: () => void;
-    availableAssets: FilmBindingAssetOption[];
-    onAddBinding: (assetNodeId: string) => void;
-    onRemoveBinding: (edgeId: string) => void;
-    onUpdateBinding: (edgeId: string, patch: Partial<FilmBindingEdgeData>) => void;
+    onGenerateVideo: (shotId: string) => void;
+    onStopVideo: (shotId: string) => void;
+    availableContexts: FilmContextNodeOption[];
+    onAddContext: (shotId: string, assetNodeId: string) => void;
+    onRemoveContext: (edgeId: string) => void;
+    onUpdateContext: (edgeId: string, patch: Partial<Omit<FilmContextEdgeData, "role">>) => void;
     onEditAsset: (nodeId: string) => void;
     onOpenScript: () => void;
-    onCreateShotAsset: (kind: FilmAssetKind) => void;
+    onCreateShotAsset: (shotId: string, kind: FilmShotContextCreatableKind) => void;
+    onUpdateBeat: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
+    onDecomposeBeat: (beatId: string) => void;
+    onGenerateBeatPreview: (beatId: string) => void;
+    onStopBeatTask: (beatId: string) => void;
+    onLocateBeatShots: (beatId: string) => void;
 };

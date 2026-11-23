@@ -1,11 +1,13 @@
-import type { FilmAssetKind } from "@/lib/film/types";
+import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 import { filmReferenceBoardTemplate } from "@/app/(user)/film/utils/film-reference-board-templates";
 import type { CanvasConnection, CanvasNodeData } from "../../types";
 import { selectFilmAssetView } from "./film-asset-view";
+import type { FilmContextCenterRole } from "./film-context-center";
 
 export type FilmAssetProductionItem = {
     nodeId: string;
-    kind: FilmAssetKind;
+    kind: FilmContextCenterRole;
+    asset: FilmAsset;
     name: string;
     ready: boolean;
     pending: boolean;
@@ -60,21 +62,28 @@ export const EMPTY_FILM_ASSET_PRODUCTION_PLAN: FilmAssetProductionPlan = {
     totals: { assets: 0, missing: 0, ready: 0, pending: 0 },
 };
 
-const KIND_ORDER: Record<FilmAssetKind, number> = { character: 0, location: 1, prop: 2, costume: 3, style: 4 };
+const KIND_ORDER: Record<FilmContextCenterRole, number> = { character: 0, location: 1, prop: 2, style: 3 };
 
 export function defaultFilmAssetProductionSelection(plan: FilmAssetProductionPlan) {
     return new Set(plan.items.filter((item) => !item.ready && !item.pending).map((item) => item.nodeId));
 }
 
+export function initialFilmAssetProductionSelection(plan: FilmAssetProductionPlan, preferred?: string[]) {
+    return preferred
+        ? new Set(plan.items.filter((item) => preferred.includes(item.nodeId) && !item.pending).map((item) => item.nodeId))
+        : defaultFilmAssetProductionSelection(plan);
+}
+
 export function planFilmAssetProduction(nodes: CanvasNodeData[], connections: CanvasConnection[]): FilmAssetProductionPlan {
     const view = selectFilmAssetView(nodes, connections);
-    const items = (Object.keys(view.groups) as FilmAssetKind[]).flatMap((kind) => view.groups[kind].map((item) => {
+    const items = (Object.keys(view.groups) as FilmContextCenterRole[]).flatMap((kind) => view.groups[kind].map((item) => {
         const template = kind === "character" ? filmReferenceBoardTemplate(item.asset.referenceTemplateId) : null;
         return {
             nodeId: item.nodeId,
             kind,
+            asset: item.asset,
             name: item.name,
-            ready: item.ready,
+            ready: item.productionReady,
             pending: item.pending,
             usedShots: item.usedShots,
             usedScenes: item.usedScenes,

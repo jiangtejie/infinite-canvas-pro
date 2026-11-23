@@ -13,8 +13,11 @@ import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
-import { FilmAssetNodeCard, FilmSceneNodeCard, FilmScriptNodeCard, FilmShotNodeCard } from "./film-node-card";
-import { CanvasNodeType, type CanvasNodeData, type Position } from "../types";
+import { FilmNodeCardDispatcher } from "./film-node-card";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../types";
+import { isFilmNodeType } from "../[id]/lib/film-node-registry";
+import type { FilmNodeSummaryOptions } from "../[id]/lib/film-node-summary";
+import type { FilmVersionKind } from "../[id]/lib/film-version-room";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
@@ -51,6 +54,22 @@ type CanvasNodeProps = {
     now?: number;
     renderPanel?: (node: CanvasNodeData, compact: boolean) => ReactNode;
     renderNodeContent?: (node: CanvasNodeData) => ReactNode;
+    filmNodes?: CanvasNodeData[];
+    filmConnections?: CanvasConnection[];
+    onGenerateFilmImage?: (shotId: string) => void;
+    onGenerateFilmVideo?: (shotId: string) => void;
+    onOpenFilmVersions?: (shotId: string, kind: FilmVersionKind) => void;
+    onViewFilmMedia?: (node: CanvasNodeData) => void;
+    onFocusFilmShot?: (shotId: string) => void;
+    onOpenFilmScript?: () => void;
+    onEditFilmAsset?: (nodeId: string) => void;
+    onCreateFilmShot?: (sceneId: string) => void;
+    onUpdateFilmBeat?: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
+    onDecomposeFilmBeat?: (beatId: string) => void;
+    onGenerateFilmBeatPreview?: (beatId: string) => void;
+    onStopFilmBeatTask?: (beatId: string) => void;
+    onLocateFilmBeatShots?: (beatId: string) => void;
+    filmSummaryOptions?: FilmNodeSummaryOptions;
     batchCount?: number;
     groupChildCount?: number;
     isGroupDropTarget?: boolean;
@@ -91,6 +110,23 @@ type NodeContentRendererProps = {
     batchRecovering: boolean;
     now?: number;
     renderNodeContent?: (node: CanvasNodeData) => ReactNode;
+    filmNodes?: CanvasNodeData[];
+    filmConnections?: CanvasConnection[];
+    onTitleChange?: CanvasNodeProps["onTitleChange"];
+    onGenerateFilmImage?: CanvasNodeProps["onGenerateFilmImage"];
+    onGenerateFilmVideo?: CanvasNodeProps["onGenerateFilmVideo"];
+    onOpenFilmVersions?: CanvasNodeProps["onOpenFilmVersions"];
+    onViewFilmMedia?: CanvasNodeProps["onViewFilmMedia"];
+    onFocusFilmShot?: CanvasNodeProps["onFocusFilmShot"];
+    onOpenFilmScript?: CanvasNodeProps["onOpenFilmScript"];
+    onEditFilmAsset?: CanvasNodeProps["onEditFilmAsset"];
+    onCreateFilmShot?: CanvasNodeProps["onCreateFilmShot"];
+    onUpdateFilmBeat?: CanvasNodeProps["onUpdateFilmBeat"];
+    onDecomposeFilmBeat?: CanvasNodeProps["onDecomposeFilmBeat"];
+    onGenerateFilmBeatPreview?: CanvasNodeProps["onGenerateFilmBeatPreview"];
+    onStopFilmBeatTask?: CanvasNodeProps["onStopFilmBeatTask"];
+    onLocateFilmBeatShots?: CanvasNodeProps["onLocateFilmBeatShots"];
+    filmSummaryOptions?: CanvasNodeProps["filmSummaryOptions"];
     onResize: CanvasNodeProps["onResize"];
     onContentChange: (nodeId: string, content: string) => void;
     onStopEditing: () => void;
@@ -118,6 +154,22 @@ export const CanvasNode = React.memo(function CanvasNode({
     now,
     renderPanel,
     renderNodeContent,
+    filmNodes,
+    filmConnections,
+    onGenerateFilmImage,
+    onGenerateFilmVideo,
+    onOpenFilmVersions,
+    onViewFilmMedia,
+    onFocusFilmShot,
+    onOpenFilmScript,
+    onEditFilmAsset,
+    onCreateFilmShot,
+    onUpdateFilmBeat,
+    onDecomposeFilmBeat,
+    onGenerateFilmBeatPreview,
+    onStopFilmBeatTask,
+    onLocateFilmBeatShots,
+    filmSummaryOptions,
     batchCount = 0,
     groupChildCount = 0,
     isGroupDropTarget = false,
@@ -358,7 +410,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                 else onContextMenu(event, data.id);
             }}
         >
-            {!referenceSelectionState ? <div
+            {!referenceSelectionState && !isFilmNodeType(data.type) ? <div
                 className="absolute left-3 top-[-28px] z-[65] max-w-[calc(100%-24px)]"
                 onMouseDown={(event) => event.stopPropagation()}
                 onPointerDown={(event) => event.stopPropagation()}
@@ -468,6 +520,23 @@ export const CanvasNode = React.memo(function CanvasNode({
                             batchOpening={batchOpening}
                             batchRecovering={batchRecovering}
                             renderNodeContent={renderNodeContent}
+                            filmNodes={filmNodes}
+                            filmConnections={filmConnections}
+                            onTitleChange={onTitleChange}
+                            onGenerateFilmImage={onGenerateFilmImage}
+                            onGenerateFilmVideo={onGenerateFilmVideo}
+                            onOpenFilmVersions={onOpenFilmVersions}
+                            onViewFilmMedia={onViewFilmMedia}
+                            onFocusFilmShot={onFocusFilmShot}
+                            onOpenFilmScript={onOpenFilmScript}
+                            onEditFilmAsset={onEditFilmAsset}
+                            onCreateFilmShot={onCreateFilmShot}
+                            onUpdateFilmBeat={onUpdateFilmBeat}
+                            onDecomposeFilmBeat={onDecomposeFilmBeat}
+                            onGenerateFilmBeatPreview={onGenerateFilmBeatPreview}
+                            onStopFilmBeatTask={onStopFilmBeatTask}
+                            onLocateFilmBeatShots={onLocateFilmBeatShots}
+                            filmSummaryOptions={filmSummaryOptions}
                             mentionReferences={mentionReferences}
                             onResize={onResize}
                             onContentChange={onContentChange}
@@ -533,6 +602,9 @@ export const CanvasNode = React.memo(function CanvasNode({
 
 function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Group) return null;
+    if (isFilmNodeType(props.node.type)) {
+        return <FilmNodeCardDispatcher node={props.node} nodes={props.filmNodes || [props.node]} connections={props.filmConnections || []} theme={props.theme} onTitleChange={props.onTitleChange} onResize={(nodeId, width, height, position) => props.onResize(nodeId, width, height, position)} onGenerateImage={props.onGenerateFilmImage} onGenerateVideo={props.onGenerateFilmVideo} onOpenVersions={props.onOpenFilmVersions} onFocusShot={props.onFocusFilmShot} onOpenScript={props.onOpenFilmScript} onEditAsset={props.onEditFilmAsset} onCreateShot={props.onCreateFilmShot} onViewMedia={props.onViewFilmMedia} onUpdateBeat={props.onUpdateFilmBeat} onDecomposeBeat={props.onDecomposeFilmBeat} onGenerateBeatPreview={props.onGenerateFilmBeatPreview} onStopBeatTask={props.onStopFilmBeatTask} onLocateBeatShots={props.onLocateFilmBeatShots} summaryOptions={props.filmSummaryOptions} />;
+    }
     const isPlanNode = props.node.metadata?.remixRole === "plan";
     const isMaterialText = props.node.metadata?.sourceMaterialRole === "text" || props.node.id.endsWith("-material-text");
     if ((isPlanNode || isMaterialText || props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director || props.node.type === CanvasNodeType.Source || props.node.type === CanvasNodeType.Publish || props.node.type === CanvasNodeType.Comic) && props.renderNodeContent) return props.renderNodeContent(props.node);
@@ -561,10 +633,6 @@ const nodeContentRenderers: Partial<Record<CanvasNodeType, (props: NodeContentRe
     [CanvasNodeType.Source]: EmptyImageContent,
     [CanvasNodeType.Publish]: EmptyImageContent,
     [CanvasNodeType.Comic]: EmptyImageContent,
-    [CanvasNodeType.Script]: (props) => <FilmScriptNodeCard node={props.node} theme={props.theme} />,
-    [CanvasNodeType.Scene]: (props) => <FilmSceneNodeCard node={props.node} theme={props.theme} />,
-    [CanvasNodeType.Shot]: (props) => <FilmShotNodeCard node={props.node} theme={props.theme} />,
-    [CanvasNodeType.FilmAsset]: (props) => <FilmAssetNodeCard node={props.node} theme={props.theme} />,
 };
 
 function LoadingContent({ node, theme, now }: Pick<NodeContentRendererProps, "node" | "theme" | "now">) {

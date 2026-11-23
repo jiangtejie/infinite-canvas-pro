@@ -25,11 +25,11 @@ export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: 
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const editing = editingId === project.id;
     const selected = selectedIds.includes(project.id);
-    const previews = project.nodes.filter((node) => (node.type === CanvasNodeType.Image && node.metadata?.content) || (node.type === CanvasNodeType.Shot && (node.metadata?.filmShot?.imageUrl || node.metadata?.filmShot?.storageKey))).slice(0, 3);
+    const previews = project.nodes.filter((node) => (node.type === CanvasNodeType.Image && node.metadata?.content) || (node.type === CanvasNodeType.FilmShot && (node.metadata?.filmShot?.imageUrl || node.metadata?.filmShot?.storageKey))).slice(0, 3);
     const filmStats = isFilmCanvasProject(project) ? {
-        scenes: project.nodes.filter((node) => node.type === CanvasNodeType.Scene).length,
-        shots: project.nodes.filter((node) => node.type === CanvasNodeType.Shot).length,
-        videos: project.nodes.filter((node) => node.type === CanvasNodeType.Shot && (node.metadata?.filmShot?.videoUrl || node.metadata?.filmShot?.videoStorageKey)).length,
+        scenes: project.nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length,
+        shots: project.nodes.filter((node) => node.type === CanvasNodeType.FilmShot).length,
+        videos: project.nodes.filter((node) => node.type === CanvasNodeType.FilmShot && (node.metadata?.filmShot?.videoUrl || node.metadata?.filmShot?.videoStorageKey)).length,
     } : null;
     const open = () => router.push(`${basePath}/${project.id}`);
     const saveTitle = () => {

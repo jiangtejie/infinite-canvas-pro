@@ -9,7 +9,7 @@ import { createFilmShotGroup, removeFilmShotGroup, renameFilmShotGroup, selectFi
 const entry = (id: string, duration: number, media: Partial<FilmShotNodeData> = {}): FilmShotEntry => ({
     shot: {
         id,
-        type: CanvasNodeType.Shot,
+        type: CanvasNodeType.FilmShot,
         title: id,
         position: { x: 0, y: 0 },
         width: 420,

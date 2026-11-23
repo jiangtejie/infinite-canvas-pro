@@ -26,17 +26,17 @@ const episode: FilmEpisode = {
     title: "第 1 集",
     scenes: [{ id: "scene-1", name: "天台", location: "楼顶", time: "夜", mood: "压抑", shots: [filmShot("s1", "01"), filmShot("s2", "02")] }],
 };
-const script = node("script", CanvasNodeType.Script, { filmScript: { text: "剧本", parseSnapshots: [] } });
-const oldScene = node("old-scene", CanvasNodeType.Scene, { filmScene: { episodeId: "old", episodeTitle: "", name: "旧场", location: "", time: "", mood: "" } });
-const oldShot = node("old-shot", CanvasNodeType.Shot, { filmShot: { ...filmShot("old", "09"), prompt: "旧镜头" } });
+const script = node("script", CanvasNodeType.FilmScript, { filmScript: { text: "剧本", parseSnapshots: [] } });
+const oldScene = node("old-scene", CanvasNodeType.FilmScene, { filmScene: { episodeId: "old", episodeTitle: "", name: "旧场", location: "", time: "", mood: "" } });
+const oldShot = node("old-shot", CanvasNodeType.FilmShot, { filmShot: { ...filmShot("old", "09"), prompt: "旧镜头" } });
 const oldEdge: CanvasConnection = { id: "old->old-shot", fromNodeId: "old-scene", toNodeId: "old-shot", kind: "composition" };
 
-test("builds scene and shot nodes with composition/sequence edges and a snapshot", () => {
+test("builds dedicated scene and shot nodes with composition/sequence edges and a snapshot", () => {
     const result = buildFilmParseGraph([episode], script, [script, oldScene, oldShot], [oldEdge], "overwrite");
     assert.equal(result.sceneCount, 1);
     assert.equal(result.shotCount, 2);
     assert.equal(result.removedNodeIds.length, 2);
-    assert.deepEqual(result.nodes.map((item) => item.type).sort(), [CanvasNodeType.Scene, CanvasNodeType.Script, CanvasNodeType.Shot, CanvasNodeType.Shot].sort());
+    assert.deepEqual(result.nodes.map((item) => item.type).sort(), [CanvasNodeType.FilmScene, CanvasNodeType.FilmScript, CanvasNodeType.FilmShot, CanvasNodeType.FilmShot].sort());
     assert.deepEqual(result.connections.map((edge) => edge.kind).sort(), ["composition", "composition", "sequence"]);
     const snapshots = result.scriptPatch.parseSnapshots ?? [];
     assert.equal(snapshots.length, 1);
@@ -59,7 +59,7 @@ test("links the last shot of a scene to the first shot of the next scene", () =>
 
 test("links appended scenes after the existing chain tail", () => {
     const result = buildFilmParseGraph([episode], script, [script, oldScene, oldShot], [oldEdge], "append");
-    const createdShot = result.nodes.find((item) => item.type === CanvasNodeType.Shot && item.metadata?.filmShot?.prompt === "01 prompt");
+    const createdShot = result.nodes.find((item) => item.type === CanvasNodeType.FilmShot && item.metadata?.filmShot?.prompt === "01 prompt");
     assert.ok(createdShot);
     assert.ok(result.connections.some((edge) => edge.kind === "sequence" && edge.fromNodeId === oldShot.id && edge.toNodeId === createdShot!.id));
 });

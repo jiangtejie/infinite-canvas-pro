@@ -5,7 +5,34 @@ import { defaultConfig } from "@/stores/use-config-store";
 import { getNodeSpec } from "../../constants";
 import { useCanvasUiStore } from "../../stores/use-canvas-ui-store";
 import { CanvasNodeType, type CanvasNodeData, type CanvasNodeMetadata, type Position } from "../../types";
+import { createFilmAsset, createFilmStyleAsset } from "./film-asset-factory";
 import { applyNodeConfigPatch } from "./canvas-node-builders";
+
+function defaultFilmMetadata(type: CanvasNodeType): CanvasNodeMetadata {
+    switch (type) {
+        case CanvasNodeType.FilmCharacter:
+            return { filmCharacter: { asset: createFilmAsset("character", 1) } };
+        case CanvasNodeType.FilmLocation:
+            return { filmLocation: { asset: createFilmAsset("location", 1) } };
+        case CanvasNodeType.FilmProp:
+            return { filmProp: { asset: createFilmAsset("prop", 1) } };
+        case CanvasNodeType.FilmStyle:
+            return { filmStyle: { asset: createFilmStyleAsset() } };
+        case CanvasNodeType.FilmBeat:
+            return {
+                filmBeat: {
+                    title: "动作节拍",
+                    mode: "grid9",
+                    prompt: "",
+                    frames: Array.from({ length: 9 }, () => ""),
+                    status: "idle",
+                    progress: 0,
+                },
+            };
+        default:
+            return {};
+    }
+}
 
 export function createCanvasNode(type: CanvasNodeType, position: Position, metadata?: CanvasNodeMetadata, nodeId?: string): CanvasNodeData {
     const spec = getNodeSpec(type);
@@ -23,7 +50,7 @@ export function createCanvasNode(type: CanvasNodeType, position: Position, metad
         },
         width: spec.width,
         height: spec.height,
-        metadata: { ...spec.metadata, ...defaults, ...metadata },
+        metadata: { ...spec.metadata, ...defaults, ...defaultFilmMetadata(type), ...metadata },
     };
     return initialSize && metadata?.size === undefined ? applyNodeConfigPatch(node, { size: initialSize }) : node;
 }

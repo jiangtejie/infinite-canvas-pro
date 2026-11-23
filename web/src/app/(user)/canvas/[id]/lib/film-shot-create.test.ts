@@ -14,10 +14,10 @@ const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metada
     metadata,
 });
 
-const shot = (id: string) => node(id, CanvasNodeType.Shot, { filmShot: { shotNo: "01", shotType: "", cameraMovement: "", duration: 4, description: "", dialogue: "", audio: "", prompt: "" } });
+const shot = (id: string) => node(id, CanvasNodeType.FilmShot, { filmShot: { shotNo: "01", shotType: "", cameraMovement: "", duration: 4, description: "", dialogue: "", audio: "", prompt: "" } });
 
 test("appends a shot to a scene with composition and sequence edges", () => {
-    const scene = node("scene", CanvasNodeType.Scene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: "场景 1", location: "", time: "", mood: "" } });
+    const scene = node("scene", CanvasNodeType.FilmScene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: "场景 1", location: "", time: "", mood: "" } });
     const existing = shot("shot-a");
     const connections: CanvasConnection[] = [{ id: "c", fromNodeId: "scene", toNodeId: "shot-a", kind: "composition" }];
     const result = appendFilmShot([scene, existing], connections, "scene", { nodeId: "shot-b" });
@@ -34,7 +34,7 @@ test("appends a shot to a scene with composition and sequence edges", () => {
 });
 
 test("inserts a new shot after the scene's last shot in the global chain", () => {
-    const scene = (id: string) => node(id, CanvasNodeType.Scene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: id, location: "", time: "", mood: "" } });
+    const scene = (id: string) => node(id, CanvasNodeType.FilmScene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: id, location: "", time: "", mood: "" } });
     const a1 = shot("a1");
     const b1 = shot("b1");
     const connections: CanvasConnection[] = [
@@ -51,7 +51,7 @@ test("inserts a new shot after the scene's last shot in the global chain", () =>
 });
 
 test("creates the first shot without a sequence edge and rejects a missing scene", () => {
-    const scene = node("scene", CanvasNodeType.Scene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: "场景 1", location: "", time: "", mood: "" } });
+    const scene = node("scene", CanvasNodeType.FilmScene, { filmScene: { episodeId: "e", episodeTitle: "第 1 集", name: "场景 1", location: "", time: "", mood: "" } });
     const result = appendFilmShot([scene], [], "scene", { nodeId: "shot-a" });
     assert.ok(result);
     assert.equal(result.nodes.find((item) => item.id === "shot-a")?.metadata?.filmShot?.shotNo, "01");

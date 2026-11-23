@@ -3,11 +3,11 @@ import test from "node:test";
 
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
 import type { FilmShotEntry } from "./film-studio-types";
-import { filterFilmShotEntries, filmShotMediaSummary, filmShotViewStats, filmTimelineBlocks, groupFilmShots } from "./film-shot-views";
+import { filterFilmShotEntries, filmShotMediaSummary, filmShotViewStats, groupFilmShots } from "./film-shot-views";
 
 const shot = (duration: number, patch: Partial<NonNullable<CanvasNodeData["metadata"]>["filmShot"]> = {}, metadata: Partial<NonNullable<CanvasNodeData["metadata"]>> = {}): CanvasNodeData => ({
     id: `shot-${duration}-${Object.keys(patch).join("-")}`,
-    type: CanvasNodeType.Shot,
+    type: CanvasNodeType.FilmShot,
     title: "镜头",
     position: { x: 0, y: 0 },
     width: 300,
@@ -36,19 +36,22 @@ test("summarizes shot media states", () => {
     assert.deepEqual(filmShotMediaSummary(shot(4, { lastFailedTaskKind: "image" }, { status: "error" })), { hasImage: false, hasVideo: false, generating: null, failed: true });
 });
 
-test("computes view statistics and timeline layout", () => {
+test("treats storage keys and version pools as generated media", () => {
+    assert.deepEqual(filmShotMediaSummary(shot(4, { storageKey: "image:a" })), { hasImage: true, hasVideo: false, generating: null, failed: false });
+    assert.deepEqual(filmShotMediaSummary(shot(4, { videoStorageKey: "video:a" })), { hasImage: false, hasVideo: true, generating: null, failed: false });
+    assert.deepEqual(filmShotMediaSummary(shot(4, {
+        imageVersions: [{ id: "image-v1", url: "https://example.com/a.png", createdAt: "2026-11-22T00:00:00.000Z" }],
+        videoVersions: [{ id: "video-v1", url: "https://example.com/a.mp4", createdAt: "2026-11-22T00:00:00.000Z" }],
+    })), { hasImage: true, hasVideo: true, generating: null, failed: false });
+});
+
+test("computes view statistics", () => {
     const entries = [
         entry("a", "scene-1", shot(4, { imageUrl: "https://example.com/a.png" })),
         entry("b", "scene-1", shot(2)),
         entry("c", "scene-2", shot(6, { videoUrl: "https://example.com/c.mp4" })),
     ];
     assert.deepEqual(filmShotViewStats(entries), { shots: 3, scenes: 2, duration: 12, images: 1, videos: 1 });
-    const blocks = filmTimelineBlocks(entries, 56);
-    assert.deepEqual(blocks.map((block) => ({ id: block.entry.shot.id, start: block.start, end: block.end, width: block.width })), [
-        { id: "a", start: 0, end: 4, width: 224 },
-        { id: "b", start: 4, end: 6, width: 112 },
-        { id: "c", start: 6, end: 12, width: 336 },
-    ]);
 });
 
 test("filters shots by scene, media state and keyword", () => {

@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FilmAsset } from "@/lib/film/types";
-import { createFilmAsset } from "@/app/(user)/film/utils/film-edits";
 import { appendSlotImage } from "@/app/(user)/film/utils/film-image-slot";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmSceneNodeData, type FilmShotNodeData } from "../../types";
+import { createFilmAsset } from "./film-asset-factory";
 import { selectFilmShotContextLens } from "./film-context-lens";
 
 const image = (id: string) => ({ id, url: `https://example.com/${id}.png`, createdAt: "2026-11-22T00:00:00.000Z" });
 const sceneNode = (id: string, patch: Partial<FilmSceneNodeData> = {}): CanvasNodeData => ({
     id,
-    type: CanvasNodeType.Scene,
+    type: CanvasNodeType.FilmScene,
     title: id,
     position: { x: 0, y: 0 },
     width: 300,
@@ -19,22 +19,25 @@ const sceneNode = (id: string, patch: Partial<FilmSceneNodeData> = {}): CanvasNo
 });
 const shotNode = (id: string, patch: Partial<FilmShotNodeData> = {}): CanvasNodeData => ({
     id,
-    type: CanvasNodeType.Shot,
+    type: CanvasNodeType.FilmShot,
     title: id,
     position: { x: 0, y: 0 },
     width: 300,
     height: 180,
     metadata: { filmShot: { shotNo: id, shotType: "中景", cameraMovement: "推近", duration: 4, description: `${id} 描述`, dialogue: "", audio: "", prompt: `${id} 提示词`, ...patch } },
 });
-const assetNode = (id: string, kind: "character" | "location" | "prop" | "style", asset: FilmAsset): CanvasNodeData => ({
-    id,
-    type: CanvasNodeType.FilmAsset,
-    title: asset.name,
-    position: { x: 0, y: 0 },
-    width: 200,
-    height: 200,
-    metadata: { filmAsset: { kind, asset } },
-});
+const assetNode = (id: string, kind: "character" | "location" | "prop" | "style", asset: FilmAsset): CanvasNodeData => {
+    const payload = { asset };
+    const metadata = kind === "character" ? { filmCharacter: payload }
+        : kind === "location" ? { filmLocation: payload }
+            : kind === "prop" ? { filmProp: payload }
+                : { filmStyle: payload };
+    const type = kind === "character" ? CanvasNodeType.FilmCharacter
+        : kind === "location" ? CanvasNodeType.FilmLocation
+            : kind === "prop" ? CanvasNodeType.FilmProp
+                : CanvasNodeType.FilmStyle;
+    return { id, type, title: asset.name, position: { x: 0, y: 0 }, width: 200, height: 200, metadata };
+};
 
 const character = { ...createFilmAsset("character", 1), name: "沈迟", description: "调查记者", visualPrompt: "深色风衣" };
 character.character = { ...character.character!, board: appendSlotImage(character.character!.board, image("board")) };
@@ -60,9 +63,9 @@ const connections: CanvasConnection[] = [
     { id: "prev-comp", fromNodeId: "scene-a", toNodeId: prev.id, kind: "composition" },
     { id: "target-comp", fromNodeId: "scene-b", toNodeId: target.id, kind: "composition" },
     { id: "seq", fromNodeId: prev.id, toNodeId: target.id, kind: "sequence" },
-    { id: "char-bind", fromNodeId: "char", toNodeId: target.id, kind: "binding", data: { source: "manual" } },
-    { id: "loc-bind", fromNodeId: "loc", toNodeId: target.id, kind: "binding", data: { source: "manual" } },
-    { id: "prop-bind", fromNodeId: "prop", toNodeId: target.id, kind: "binding", data: { source: "manual" } },
+    { id: "char-context", fromNodeId: "char", toNodeId: target.id, kind: "context", data: { role: "character", source: "manual" } },
+    { id: "loc-context", fromNodeId: "loc", toNodeId: target.id, kind: "context", data: { role: "location", source: "manual" } },
+    { id: "prop-context", fromNodeId: "prop", toNodeId: target.id, kind: "context", data: { role: "prop", source: "manual" } },
 ];
 
 test("explains scene, bindings, style and the global previous shot", () => {
@@ -76,7 +79,7 @@ test("explains scene, bindings, style and the global previous shot", () => {
     assert.equal(lens!.styleName, "冷峻电影感");
     assert.equal(lens!.previousShot?.id, prev.id);
     assert.equal(lens!.previousShot?.shotNo, "01");
-    assert.deepEqual(lens!.bindings.map((item) => `${item.kind}:${item.name}`), ["character:沈迟", "location:雨夜天台", "prop:录音笔"]);
+    assert.deepEqual(lens!.contexts.map((item) => `${item.role}:${item.name}`), ["character:沈迟", "location:雨夜天台", "prop:录音笔"]);
     assert.ok(lens!.references.some((ref) => ref.role === "character-package"));
     assert.ok(lens!.references.some((ref) => ref.role === "previous-shot"));
     assert.equal(lens!.ready, true);

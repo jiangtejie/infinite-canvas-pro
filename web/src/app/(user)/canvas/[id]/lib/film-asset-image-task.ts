@@ -27,7 +27,7 @@ export function isFilmAssetTaskActive(id: string) {
 
 export function filmAssetReferenceImages(asset: FilmAsset, kind: FilmAssetKind, style?: FilmAsset): FilmImageRef[] {
     const candidates = kind === "character"
-        ? [activeSlotImage(ensureCharacterProfile(asset).board), activeSlotImage(asset.concept)]
+        ? [activeSlotImage(ensureCharacterProfile(asset).board)]
         : kind === "style"
             ? []
             : [activeSlotImage(style?.concept), activeSlotImage(asset.views), activeSlotImage(asset.concept)]

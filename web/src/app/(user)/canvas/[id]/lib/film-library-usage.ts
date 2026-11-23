@@ -3,14 +3,22 @@ import { EMPTY_FILM_LIBRARY_USAGE, type FilmLibraryUsage } from "@/app/(user)/fi
 import type { CanvasProject } from "../../stores/use-canvas-store";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { orderFilmShots } from "./film-layout";
+import { filmContextAsset, filmContextAssetKey, type FilmContextAssetKey } from "./film-node-patch";
 
-/** 当前资产节点被哪些镜头引用（按全片链顺序返回镜号）。 */
+const ASSET_KEY_BY_KIND: Record<Exclude<FilmAssetKind, "costume">, FilmContextAssetKey> = {
+    character: "filmCharacter",
+    location: "filmLocation",
+    prop: "filmProp",
+    style: "filmStyle",
+};
+
+/** 当前上下文节点被哪些镜头引用（只认 context 边，按全片链顺序返回镜号）。 */
 export function filmAssetBoundShotNumbers(nodes: CanvasNodeData[], connections: CanvasConnection[], assetNodeId: string): string[] {
     const shotIds = new Set(connections
-        .filter((edge) => edge.kind === "binding" && edge.fromNodeId === assetNodeId)
+        .filter((edge) => edge.kind === "context" && edge.fromNodeId === assetNodeId)
         .map((edge) => edge.toNodeId));
     if (!shotIds.size) return [];
-    return orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.Shot), connections)
+    return orderFilmShots(nodes.filter((node) => node.type === CanvasNodeType.FilmShot), connections)
         .filter((node) => shotIds.has(node.id))
         .map((node) => node.metadata?.filmShot?.shotNo || node.title || node.id);
 }
@@ -25,40 +33,43 @@ export function filmCanvasLibraryUsageIndex(projects: CanvasProject[], kind: Fil
         return created;
     };
     for (const project of projects) {
-        const assetById = new Map(project.nodes.flatMap((node) => {
-            const payload = node.type === CanvasNodeType.FilmAsset ? node.metadata?.filmAsset : undefined;
-            return payload?.kind === kind ? [[node.id, payload.asset] as const] : [];
-        }));
-        if (!assetById.size) continue;
+        if (kind === "costume") {
+            // 服装只在母版库；项目引用来自角色造型状态。
+            const referenced = new Set<string>();
+            for (const node of project.nodes) {
+                const asset = filmContextAsset(node);
+                if (!asset || filmContextAssetKey(node) !== "filmCharacter") continue;
+                for (const state of asset.character?.states || []) {
+                    if (!state.costumeId) continue;
+                    ensure(state.costumeId).bindings += 1;
+                    referenced.add(state.costumeId);
+                }
+            }
+            referenced.forEach((libraryId) => {
+                ensure(libraryId).projects += 1;
+                ensure(libraryId).projectTitles.push(project.title);
+            });
+            continue;
+        }
         const copyToLibrary = new Map<string, string>();
-        for (const [nodeId, asset] of assetById) {
-            if (!asset.sourceLibraryAssetId) continue;
+        for (const node of project.nodes) {
+            const asset = filmContextAsset(node);
+            if (!asset?.sourceLibraryAssetId || filmContextAssetKey(node) !== ASSET_KEY_BY_KIND[kind]) continue;
             const usage = ensure(asset.sourceLibraryAssetId);
             usage.copies += 1;
             if (!usage.projectTitles.includes(project.title)) {
                 usage.projects += 1;
                 usage.projectTitles.push(project.title);
             }
-            copyToLibrary.set(nodeId, asset.sourceLibraryAssetId);
+            copyToLibrary.set(node.id, asset.sourceLibraryAssetId);
         }
         if (!copyToLibrary.size || kind === "style") continue;
-        const add = (libraryId?: string) => {
-            if (!libraryId) return;
-            const usage = index.get(libraryId);
-            if (usage) usage.bindings += 1;
-        };
-        if (kind === "costume") {
-            for (const asset of assetById.values()) {
-                for (const state of asset.character?.states || []) {
-                    add(state.costumeId ? copyToLibrary.get(state.costumeId) : undefined);
-                }
-            }
-            continue;
-        }
-        const shotIds = new Set(project.nodes.filter((node) => node.type === CanvasNodeType.Shot).map((node) => node.id));
+        const shotIds = new Set(project.nodes.filter((node) => node.type === CanvasNodeType.FilmShot).map((node) => node.id));
         for (const edge of project.connections) {
-            if (edge.kind !== "binding" || !shotIds.has(edge.toNodeId)) continue;
-            add(copyToLibrary.get(edge.fromNodeId));
+            if (edge.kind !== "context" || !shotIds.has(edge.toNodeId) || edge.data.role !== kind) continue;
+            const libraryId = copyToLibrary.get(edge.fromNodeId);
+            const usage = libraryId ? index.get(libraryId) : undefined;
+            if (usage) usage.bindings += 1;
         }
     }
     return index;

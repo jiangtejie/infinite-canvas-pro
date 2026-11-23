@@ -12,6 +12,10 @@ export type FilmPreviewClip = {
     description: string;
     dialogue: string;
     media: FilmPreviewMedia;
+    imageUrl?: string;
+    imageStorageKey?: string;
+    videoUrl?: string;
+    videoStorageKey?: string;
     duration: number;
     start: number;
     end: number;
@@ -42,6 +46,12 @@ export const EMPTY_FILM_PREVIEW_TIMELINE: FilmPreviewTimeline = {
     missingCount: 0,
 };
 
+export function selectFilmPreviewEntries(shots: FilmShotEntry[], shotIds?: string[] | null): FilmShotEntry[] {
+    if (!shotIds?.length) return shots;
+    const selected = new Set(shotIds);
+    return shots.filter((entry) => selected.has(entry.shot.id));
+}
+
 export function buildFilmPreviewTimeline(shots: FilmShotEntry[]): FilmPreviewTimeline {
     const clips: FilmPreviewClip[] = [];
     const scenes: FilmPreviewScene[] = [];
@@ -49,9 +59,13 @@ export function buildFilmPreviewTimeline(shots: FilmShotEntry[]): FilmPreviewTim
     for (const entry of shots) {
         const payload = entry.shot.metadata?.filmShot;
         const duration = Math.max(0.5, Number(payload?.duration) || 4);
-        const media: FilmPreviewMedia = payload?.videoUrl || payload?.videoStorageKey
+        const imageUrl = payload?.imageUrl || payload?.imageVersions?.at(-1)?.url;
+        const imageStorageKey = payload?.storageKey || payload?.imageVersions?.at(-1)?.storageKey;
+        const videoUrl = payload?.videoUrl || payload?.videoVersions?.at(-1)?.url;
+        const videoStorageKey = payload?.videoStorageKey || payload?.videoVersions?.at(-1)?.storageKey;
+        const media: FilmPreviewMedia = videoUrl || videoStorageKey
             ? "video"
-            : payload?.imageUrl || payload?.storageKey
+            : imageUrl || imageStorageKey
                 ? "image"
                 : "none";
         const clip: FilmPreviewClip = {
@@ -64,6 +78,10 @@ export function buildFilmPreviewTimeline(shots: FilmShotEntry[]): FilmPreviewTim
             description: payload?.description || "",
             dialogue: payload?.dialogue || "",
             media,
+            imageUrl,
+            imageStorageKey,
+            videoUrl,
+            videoStorageKey,
             duration,
             start: cursor,
             end: cursor + duration,

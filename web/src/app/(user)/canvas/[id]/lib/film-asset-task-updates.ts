@@ -2,13 +2,12 @@ import type { CanvasImageTask } from "@/services/api/image";
 import type { FilmAsset, FilmAssetTask, FilmImageRef } from "@/lib/film/types";
 import { ensureCharacterProfile } from "@/app/(user)/film/utils/film-character";
 import { appendSlotImage, createFilmImageSlot } from "@/app/(user)/film/utils/film-image-slot";
-import { CanvasNodeType, type CanvasNodeData } from "../../types";
+import type { CanvasNodeData } from "../../types";
 import { canvasImageTaskURLs, canvasTaskCompleted, canvasTaskFailed } from "./canvas-task-helpers";
+import { filmContextAsset, updateFilmContextAssetNode } from "./film-node-patch";
 
 export function selectFilmAssetImageTaskTargets(nodes: CanvasNodeData[]) {
-    return nodes.filter((node) =>
-        node.type === CanvasNodeType.FilmAsset
-        && node.metadata?.filmAsset?.asset.pendingTask?.kind === "image");
+    return nodes.filter((node) => filmContextAsset(node)?.pendingTask?.kind === "image");
 }
 
 export function applyFilmAssetImageTaskUpdate(nodes: CanvasNodeData[], nodeId: string, task: CanvasImageTask): CanvasNodeData[] {
@@ -18,19 +17,14 @@ export function applyFilmAssetImageTaskUpdate(nodes: CanvasNodeData[], nodeId: s
     if (!completed && !failed) return nodes;
     return nodes.map((node) => {
         if (node.id !== nodeId) return node;
-        const payload = node.metadata?.filmAsset;
-        const pending = payload?.asset.pendingTask;
-        if (!payload || !pending || pending.kind !== "image") return node;
-        if (failed) return withAsset(node, payload, failedAsset(payload.asset, task.error?.message || "资产参考图生成失败"));
+        const asset = filmContextAsset(node);
+        const pending = asset?.pendingTask;
+        if (!asset || !pending || pending.kind !== "image") return node;
+        if (failed) return updateFilmContextAssetNode(node, (current) => failedAsset(current, task.error?.message || "资产参考图生成失败"));
         const image = generatedImage(task, url, pending);
-        const asset = applyPendingTarget(payload.asset, pending, image);
-        return withAsset(node, payload, asset ? { ...asset, pendingTask: undefined, status: "ready", errorMessage: undefined } : failedAsset(payload.asset, "资产回写槽位已不存在"));
+        const next = applyPendingTarget(asset, pending, image);
+        return updateFilmContextAssetNode(node, () => next ? { ...next, pendingTask: undefined, status: "ready", errorMessage: undefined } : failedAsset(asset, "资产回写槽位已不存在"));
     });
-}
-
-function withAsset(node: CanvasNodeData, payload: NonNullable<CanvasNodeData["metadata"]>["filmAsset"], asset: FilmAsset): CanvasNodeData {
-    if (!payload) return node;
-    return { ...node, metadata: { ...node.metadata, filmAsset: { ...payload, asset } } };
 }
 
 function failedAsset(asset: FilmAsset, errorMessage: string): FilmAsset {

@@ -20,6 +20,7 @@ import { canvasVideoTaskFromMetadata, canvasVideoTaskId } from "../lib/canvas-ta
 import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate } from "../lib/canvas-task-updates";
 import { applyFilmShotImageTaskUpdate, selectFilmShotImageTaskTargets } from "../lib/film-shot-task-updates";
 import { applyFilmAssetImageTaskUpdate, selectFilmAssetImageTaskTargets } from "../lib/film-asset-task-updates";
+import { filmContextAsset } from "../lib/film-node-patch";
 import { isFilmAssetTaskActive } from "../lib/film-asset-image-task";
 import { applyFilmShotVideoTaskUpdate, selectFilmShotVideoTaskTargets } from "../lib/film-shot-video-task-updates";
 import { workflowAudioTask, workflowImageTask, workflowVideoTask } from "../lib/canvas-workflow-tasks";
@@ -110,7 +111,7 @@ export function useCanvasTaskPolling({ projectLoaded, nodesRef, effectiveConfig,
             });
             const filmAssetTargets = selectFilmAssetImageTaskTargets(nodesRef.current);
             filmAssetTargets.forEach((node) => {
-                const pending = node.metadata?.filmAsset?.asset.pendingTask;
+                const pending = filmContextAsset(node)?.pendingTask;
                 if (!pending || pending.kind !== "image" || isFilmAssetTaskActive(pending.id) || pollingImageNodeIdsRef.current.has(node.id)) return;
                 const controller = new AbortController();
                 pollingImageNodeIdsRef.current.set(node.id, controller);

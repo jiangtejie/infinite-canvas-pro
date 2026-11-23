@@ -26,7 +26,7 @@ const node = (id: string, type: CanvasNodeType): CanvasNodeData => ({
     position: { x: 0, y: 0 },
     width: 200,
     height: 100,
-    metadata: type === CanvasNodeType.Shot ? { filmShot: { shotNo: id, shotType: "", cameraMovement: "", duration: 4, description: "", dialogue: "", audio: "", prompt: "" } } : {},
+    metadata: type === CanvasNodeType.FilmShot ? { filmShot: { shotNo: id, shotType: "", cameraMovement: "", duration: 4, description: "", dialogue: "", audio: "", prompt: "" } } : {},
 });
 
 const proposalEpisodes: FilmEpisode[] = [
@@ -36,7 +36,7 @@ const proposalEpisodes: FilmEpisode[] = [
     ]),
     episode("ep2", "第 2 集", [{ id: "s3", name: "2-1 天台", shots: [shot("d", "01", 4)] }]),
 ];
-const currentNodes = [node("scene", CanvasNodeType.Scene), node("shot1", CanvasNodeType.Shot), node("shot2", CanvasNodeType.Shot)];
+const currentNodes = [node("scene", CanvasNodeType.FilmScene), node("shot1", CanvasNodeType.FilmShot), node("shot2", CanvasNodeType.FilmShot)];
 const currentConnections: CanvasConnection[] = [];
 
 test("summarizes structure totals, current graph and target duration deviation", () => {

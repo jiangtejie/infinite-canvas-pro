@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createFilmAsset } from "./film-edits";
+import { createFilmAsset } from "@/app/(user)/canvas/[id]/lib/film-asset-factory";
 import { buildFilmAssetConceptPrompt } from "./film-asset-concept";
 
 const asset = (kind: "location" | "prop" | "costume" | "style", patch: Record<string, unknown> = {}) => ({

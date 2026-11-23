@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createEmptyCharacterProfile } from "./film-character";
-import { createFilmAsset } from "./film-edits";
+import { createFilmAsset } from "@/app/(user)/canvas/[id]/lib/film-asset-factory";
 import { buildFilmReferenceBoardPrompt, DEFAULT_FILM_REFERENCE_BOARD_TEMPLATE_ID, FILM_REFERENCE_BOARD_TEMPLATES } from "./film-reference-board-templates";
 import type { FilmAsset } from "@/lib/film/types";
 

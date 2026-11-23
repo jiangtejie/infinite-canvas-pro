@@ -1,15 +1,36 @@
 import type { InsertAssetPayload } from "@/lib/asset-picker";
 import type {
     FilmAspect,
-    FilmAsset,
-    FilmAssetKind,
     FilmConsistencyReview,
-    FilmInteractiveVariable,
     FilmShot,
     FilmShotGroup,
     FilmStructurePlan,
     FilmStylePresetId,
 } from "@/lib/film/types";
+import type {
+    FilmBeatNodeData,
+    FilmCharacterNodeData,
+    FilmConnectionKind,
+    FilmContextEdgeData,
+    FilmDerivedEdgeData,
+    FilmLocationNodeData,
+    FilmPropNodeData,
+    FilmStyleNodeData,
+} from "./[id]/lib/film-graph-types";
+
+export type {
+    FilmBeatNodeData,
+    FilmCharacterNodeData,
+    FilmConnectionKind,
+    FilmContextEdgeData,
+    FilmContextRole,
+    FilmDerivedEdgeData,
+    FilmEdgeData,
+    FilmNodeType,
+    FilmLocationNodeData,
+    FilmPropNodeData,
+    FilmStyleNodeData,
+} from "./[id]/lib/film-graph-types";
 
 export type Position = {
     x: number;
@@ -34,10 +55,14 @@ export enum CanvasNodeType {
     Source = "source",
     Publish = "publish",
     Comic = "comic",
-    Script = "script",
-    Scene = "scene",
-    Shot = "shot",
-    FilmAsset = "filmAsset",
+    FilmScript = "filmScript",
+    FilmScene = "filmScene",
+    FilmShot = "filmShot",
+    FilmCharacter = "filmCharacter",
+    FilmLocation = "filmLocation",
+    FilmProp = "filmProp",
+    FilmStyle = "filmStyle",
+    FilmBeat = "filmBeat",
 }
 
 export type ComicLetterKind = "speech" | "thought" | "caption" | "sfx";
@@ -130,26 +155,10 @@ export type CanvasFilmMeta = {
     targetDuration?: number;
     scriptProjectId?: string;
     scriptHash?: string;
-    interactiveVariables?: FilmInteractiveVariable[];
     consistencyReview?: FilmConsistencyReview;
+    shotGroups?: FilmShotGroup[];
     assetQueue?: CanvasFilmAssetQueue;
     shotQueue?: CanvasFilmShotQueue;
-    shotGroups?: FilmShotGroup[];
-};
-
-export type CanvasConnectionKind = "binding" | "sequence" | "composition";
-
-export type FilmBindingEdgeData = {
-    stateId?: string;
-    continuity?: {
-        outfit?: string;
-        physicalCondition?: string;
-        heldProps?: string[];
-        emotion?: string;
-        intentionalChange?: string;
-    };
-    variantId?: string;
-    source: "manual" | "ai";
 };
 
 export type FilmParseSnapshot = {
@@ -177,6 +186,8 @@ export type FilmSceneNodeData = {
     location: string;
     time: string;
     mood: string;
+    purpose?: string;
+    beatSummary?: string;
     notes?: string;
 };
 
@@ -185,11 +196,6 @@ export type FilmShotNodeData = Omit<
     "id" | "characterBindings" | "propBindings" | "locationId" | "locationVariantId"
 > & {
     lastFailedTaskKind?: "image" | "video";
-};
-
-export type FilmAssetNodeData = {
-    kind: FilmAssetKind;
-    asset: FilmAsset;
 };
 
 export type CanvasNodeMetadata = {
@@ -312,7 +318,11 @@ export type CanvasNodeMetadata = {
     filmScene?: FilmSceneNodeData;
     filmShot?: FilmShotNodeData;
     filmShotTaskKind?: "image" | "video";
-    filmAsset?: FilmAssetNodeData;
+    filmCharacter?: FilmCharacterNodeData;
+    filmLocation?: FilmLocationNodeData;
+    filmProp?: FilmPropNodeData;
+    filmStyle?: FilmStyleNodeData;
+    filmBeat?: FilmBeatNodeData;
 };
 
 export type CanvasDirectorPanorama = {
@@ -346,13 +356,23 @@ export type CanvasNodeData = {
     metadata?: CanvasNodeMetadata;
 };
 
-export type CanvasConnection = {
+type CanvasConnectionEndpoints = {
     id: string;
     fromNodeId: string;
     toNodeId: string;
-    kind?: CanvasConnectionKind;
-    data?: FilmBindingEdgeData;
 };
+
+type CanvasConnectionByKind = {
+    [Kind in FilmConnectionKind]: CanvasConnectionEndpoints & (
+        Kind extends "context" ? { kind: Kind; data: FilmContextEdgeData }
+            : Kind extends "derived" ? { kind: Kind; data: FilmDerivedEdgeData }
+                : { kind: Kind; data?: never }
+    );
+}[FilmConnectionKind];
+
+export type CanvasConnection = CanvasConnectionByKind | (CanvasConnectionEndpoints & { kind?: undefined; data?: never });
+type WithoutConnectionId<T> = T extends { id: string } ? Omit<T, "id"> : never;
+export type CanvasConnectionInput = WithoutConnectionId<CanvasConnection>;
 
 export type PendingConnectionCreate = {
     connection: ConnectionHandle;

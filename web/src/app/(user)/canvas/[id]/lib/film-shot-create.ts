@@ -15,9 +15,9 @@ export function appendFilmShot(
     sceneId: string,
     options: { nodeId?: string } = {},
 ): FilmShotCreateResult | null {
-    const scene = nodes.find((node) => node.id === sceneId && node.type === CanvasNodeType.Scene);
+    const scene = nodes.find((node) => node.id === sceneId && node.type === CanvasNodeType.FilmScene);
     if (!scene) return null;
-    const shots = nodes.filter((node) => node.type === CanvasNodeType.Shot);
+    const shots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
     const sceneShotIds = new Set(
         connections
             .filter((edge) => edge.kind === "composition" && edge.fromNodeId === sceneId)
@@ -26,7 +26,7 @@ export function appendFilmShot(
     const sceneShots = orderFilmShots(shots.filter((shot) => sceneShotIds.has(shot.id)), connections);
     const last = sceneShots[sceneShots.length - 1];
     const shotNo = String(shots.length + 1).padStart(2, "0");
-    const shot = createCanvasNode(CanvasNodeType.Shot, {
+    const shot = createCanvasNode(CanvasNodeType.FilmShot, {
         x: scene.position.x,
         y: last ? last.position.y + 380 : scene.position.y + scene.height + 60,
     }, {
