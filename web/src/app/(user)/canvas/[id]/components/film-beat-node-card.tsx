@@ -27,9 +27,9 @@ export function FilmBeatNodeCard(props: FilmNodeCardProps) {
     const previewSrc = useResolvedMediaSrc(preview?.url, preview?.storageKey);
     const busy = filmBeatIsBusy(props.node);
     const actions: FilmNodeShellAction[] = [];
-    if (props.onDecomposeBeat) actions.push({ label: "AI 拆解动作", disabled: busy || !filmBeatHasContent(beat), onClick: () => props.onDecomposeBeat?.(props.node.id) });
+    if (props.onDecomposeBeat) actions.push({ label: "AI 拆解动作", primary: !busy, disabled: busy || !filmBeatHasContent(beat), onClick: () => props.onDecomposeBeat?.(props.node.id) });
     if (busy) {
-        if (props.onStopBeatTask) actions.push({ label: "停止生成", onClick: () => props.onStopBeatTask?.(props.node.id) });
+        if (props.onStopBeatTask) actions.push({ label: "停止生成", primary: true, onClick: () => props.onStopBeatTask?.(props.node.id) });
     } else if (props.onGenerateBeatPreview) {
         actions.push({ label: "生成九宫格预览", disabled: !filmBeatFramesComplete(beat), onClick: () => props.onGenerateBeatPreview?.(props.node.id) });
     }
@@ -43,15 +43,22 @@ export function FilmBeatNodeCard(props: FilmNodeCardProps) {
     if (props.onEditAsset) actions.push({ label: "编辑节点", onClick: () => props.onEditAsset?.(props.node.id) });
 
     return (
-        <FilmNodeShell node={props.node} theme={props.theme} summary={summary} onTitleChange={props.onTitleChange} onResize={props.onResize} actions={actions}>
+        <FilmNodeShell node={props.node} theme={props.theme} summary={summary} onTitleChange={props.onTitleChange} actions={actions}>
             <div className="flex flex-col gap-2 p-3">
                 <div className="flex items-center justify-between gap-2 text-[10px]" style={{ color: props.theme.node.muted }}>
                     <span>{beat?.mode === "grid4" ? "四宫格动作" : beat?.mode === "timeline" ? "时间轴节拍" : "九宫格动作"}</span>
                     <span>节拍 {filled}/{frameCount} · 关联 {linked.shots.length} 镜</span>
                 </div>
-                <p className="max-h-20 overflow-hidden whitespace-pre-wrap break-words text-xs leading-5" style={{ color: props.theme.node.text }}>
-                    {beat?.prompt || "总提示词尚未填写"}
-                </p>
+                <div className="flex items-start gap-2">
+                    <p className="line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap break-words text-xs leading-5" style={{ color: props.theme.node.text }}>
+                        {beat?.prompt || "总提示词尚未填写"}
+                    </p>
+                    {previewSrc ? (
+                        <div className="grid size-24 shrink-0 place-items-center overflow-hidden rounded border" style={{ borderColor: props.theme.node.stroke, background: props.theme.node.fill }} onPointerDown={(event) => event.stopPropagation()}>
+                            <img src={previewSrc} alt={beat?.title || "九宫格预览"} className="max-h-full max-w-full object-contain" draggable={false} />
+                        </div>
+                    ) : null}
+                </div>
                 <div className="grid grid-cols-3 gap-1.5">
                     {frames.map((frame, index) => (
                         <label key={index} className="flex min-w-0 flex-col gap-0.5">
@@ -78,11 +85,6 @@ export function FilmBeatNodeCard(props: FilmNodeCardProps) {
                         </label>
                     ))}
                 </div>
-                {previewSrc ? (
-                    <div className="overflow-hidden rounded border" style={{ borderColor: props.theme.node.stroke }} onPointerDown={(event) => event.stopPropagation()}>
-                        <img src={previewSrc} alt={beat?.title || "九宫格预览"} className="block aspect-square w-full object-contain" draggable={false} />
-                    </div>
-                ) : null}
                 {summary.status === "loading" ? <BeatProgress theme={props.theme} progress={summary.progress || 0} /> : null}
                 {beat?.errorMessage || summary.status === "error" ? (
                     <div className="line-clamp-2 break-words text-[10px]" style={{ color: canvasStatusColors.error }}>{beat?.errorMessage || "生成失败"}</div>

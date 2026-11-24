@@ -23,13 +23,13 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Comic]: { width: 360, height: 320, title: "漫画册" },
     [CanvasNodeType.ComicPage]: { width: 300, height: 420, title: "漫画页" },
     [CanvasNodeType.FilmScript]: { width: 520, height: 380, title: "剧本" },
-    [CanvasNodeType.FilmScene]: { width: 360, height: 240, title: "场次" },
-    [CanvasNodeType.FilmShot]: { width: 420, height: 320, title: "镜头" },
+    [CanvasNodeType.FilmScene]: { width: 360, height: 360, title: "场次" },
+    [CanvasNodeType.FilmShot]: { width: 420, height: 420, title: "镜头" },
     [CanvasNodeType.FilmCharacter]: { width: 360, height: 420, title: "角色" },
     [CanvasNodeType.FilmLocation]: { width: 360, height: 420, title: "场景" },
     [CanvasNodeType.FilmProp]: { width: 360, height: 420, title: "道具" },
     [CanvasNodeType.FilmStyle]: { width: 360, height: 420, title: "风格圣经" },
-    [CanvasNodeType.FilmBeat]: { width: 480, height: 420, title: "动作节拍" },
+    [CanvasNodeType.FilmBeat]: { width: 480, height: 520, title: "动作节拍" },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
