@@ -8,12 +8,12 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
 import type { ComicProject } from "../types";
-import { requestComicConcept } from "../utils/comic-ai";
+import { comicConceptInputSignature, requestComicConcept } from "../utils/comic-ai";
 
 const FORMAT_OPTIONS = [{ value: "page", label: "页漫（翻页）" }, { value: "strip", label: "条漫（竖向滚动）" }];
 const DIRECTION_OPTIONS = [{ value: "rtl", label: "右 → 左（日漫）" }, { value: "ltr", label: "左 → 右" }];
 
-export function ComicConceptStage({ project, onPatch }: { project: ComicProject; onPatch: (patch: Partial<ComicProject>) => void }) {
+export function ComicConceptStage({ project, onPatch }: { project: ComicProject; onPatch: (patch: Partial<ComicProject> | ((current: ComicProject) => Partial<ComicProject>)) => void }) {
     const { message } = App.useApp();
     const confirm = useConfirm();
     const resolveModelConfig = useModelConfig();
@@ -30,8 +30,21 @@ export function ComicConceptStage({ project, onPatch }: { project: ComicProject;
         });
         if (!accepted) return;
         setGenerating(true);
+        const inputSignature = comicConceptInputSignature(project);
         try {
-            onPatch(await requestComicConcept(config, project));
+            const suggestion = await requestComicConcept(config, project);
+            let stale = false;
+            onPatch((current) => {
+                if (comicConceptInputSignature(current) !== inputSignature) {
+                    stale = true;
+                    return {};
+                }
+                return suggestion;
+            });
+            if (stale) {
+                message.warning("生成期间企划内容已修改，请重新生成");
+                return;
+            }
             message.success("企划已补全，可继续手动修改");
         } catch (error) {
             message.error(errorMessage(error, "AI 生成企划失败"));

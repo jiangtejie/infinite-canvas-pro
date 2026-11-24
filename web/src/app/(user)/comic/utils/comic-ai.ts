@@ -30,8 +30,8 @@ const BREAKDOWN_PROMPT = `你是一名专业漫画分镜师。把用户给出的
 - 不确定出场角色时可以省略 characters；
 - 不要写页格编号之外的解释。`;
 
-export async function requestComicConcept(config: AiConfig, project: ComicProject, instruction = "", signal?: AbortSignal): Promise<ComicConceptSuggestion> {
-    const content = [
+function comicConceptContent(project: ComicProject, instruction = "") {
+    return [
         `作品名：${project.title}`,
         project.genre ? `已有题材：${project.genre}` : "",
         project.audience ? `已有目标读者：${project.audience}` : "",
@@ -40,14 +40,21 @@ export async function requestComicConcept(config: AiConfig, project: ComicProjec
         project.styleGuide ? `已有画风指南：${project.styleGuide}` : "",
         instruction ? `补充要求：${instruction}` : "",
     ].filter(Boolean).join("\n");
-    const turn = await requestCanvasAgentTurn({ config, systemPrompt: CONCEPT_PROMPT, messages: [{ role: "user", content }], tools: [], toolMode: "prompt-json", signal });
+}
+
+export function comicConceptInputSignature(project: ComicProject) {
+    return JSON.stringify([comicConceptContent(project), project.targetPages ?? null]);
+}
+
+export async function requestComicConcept(config: AiConfig, project: ComicProject, instruction = "", signal?: AbortSignal): Promise<ComicConceptSuggestion> {
+    const turn = await requestCanvasAgentTurn({ config, systemPrompt: CONCEPT_PROMPT, messages: [{ role: "user", content: comicConceptContent(project, instruction) }], tools: [], toolMode: "prompt-json", signal });
     return parseComicConcept(turn.content);
 }
 
-export async function requestComicBreakdown(config: AiConfig, project: ComicProject, chapterTitle: string, chapterSummary: string, signal?: AbortSignal): Promise<ComicPage[]> {
-    const cast = (project.characters || []).map((character) => `${character.name}｜${character.role || "未定角色"}｜外观：${character.visualIdentity.description || "未填"}｜性格：${character.behavior.personality || "未填"}｜服装：${character.defaultLook.outfit || "未填"}`).join("\n");
+function comicBreakdownContent(project: ComicProject, chapterTitle: string, chapterSummary: string) {
+    const cast = (project.characters || []).map((character) => `${character.name}｜${character.role || "未定角色"}｜外观：${character.visualIdentity.description || "未填"}｜性格：${character.behavior.personality || "未填"}｜服装：${character.defaultLook.outfit || "未填"}｜别名：${character.aliases.join("、") || "无"}｜变体：${character.variants.map((variant) => variant.name).join("、") || "无"}`).join("\n");
     const scenes = (project.locations || []).map((location) => `${location.name}｜${location.description || "未填空间结构"}｜气氛：${location.atmosphere || "未填"}`).join("\n");
-    const content = [
+    return [
         `作品名：${project.title}`,
         `题材：${project.genre || "未指定"}；目标读者：${project.audience || "未指定"}`,
         project.logline ? `logline：${project.logline}` : "",
@@ -59,7 +66,26 @@ export async function requestComicBreakdown(config: AiConfig, project: ComicProj
         chapterSummary ? `章节摘要：${chapterSummary}` : "章节摘要为空，请按作品梗概合理拆分。",
         `成品形态：${project.format === "strip" ? "条漫" : "页漫"}；阅读方向：${project.direction === "rtl" ? "右→左" : "左→右"}`,
     ].filter(Boolean).join("\n");
-    const turn = await requestCanvasAgentTurn({ config, systemPrompt: BREAKDOWN_PROMPT, messages: [{ role: "user", content }], tools: [], toolMode: "prompt-json", signal });
+}
+
+export function comicBreakdownInputSignature(project: ComicProject, chapterId: string) {
+    const chapter = project.chapters.find((item) => item.id === chapterId);
+    return chapter ? comicBreakdownContent(project, chapter.title, chapter.summary) : "";
+}
+
+export function createComicBreakdownInputSnapshot(project: ComicProject, chapterId: string) {
+    const chapter = project.chapters.find((item) => item.id === chapterId);
+    return { inputSignature: comicBreakdownInputSignature(project, chapterId), pagesSignature: JSON.stringify(chapter?.pages || []) };
+}
+
+export function isComicBreakdownInputCurrent(snapshot: ReturnType<typeof createComicBreakdownInputSnapshot>, project: ComicProject, chapterId: string) {
+    const chapter = project.chapters.find((item) => item.id === chapterId);
+    if (!chapter) return false;
+    return snapshot.inputSignature === comicBreakdownInputSignature(project, chapterId) && snapshot.pagesSignature === JSON.stringify(chapter.pages);
+}
+
+export async function requestComicBreakdown(config: AiConfig, project: ComicProject, chapterTitle: string, chapterSummary: string, signal?: AbortSignal): Promise<ComicPage[]> {
+    const turn = await requestCanvasAgentTurn({ config, systemPrompt: BREAKDOWN_PROMPT, messages: [{ role: "user", content: comicBreakdownContent(project, chapterTitle, chapterSummary) }], tools: [], toolMode: "prompt-json", signal });
     return parseComicBreakdown(turn.content, project.characters || []);
 }
 

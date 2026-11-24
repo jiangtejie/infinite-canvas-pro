@@ -15,7 +15,7 @@ export function buildComicCanvasProject(title: string, context: ComicCanvasProje
     const bookId = `${context.id}-comic-book`;
     const book = createCanvasNode(CanvasNodeType.Comic, { x: 0, y: 0 }, {}, bookId);
     book.title = `${title.trim() || "未命名漫画"} 漫画册`;
-    book.metadata = { ...book.metadata, comicBook: { pageNodeIds: [], format: "page", direction: "rtl" } };
+    book.metadata = { ...book.metadata, comicBook: { pageNodeIds: [] } };
     const comic: CanvasComicMeta = {
         bookNodeId: bookId,
         stage: "concept",

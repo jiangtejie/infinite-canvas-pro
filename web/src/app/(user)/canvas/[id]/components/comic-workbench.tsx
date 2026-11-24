@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { Segmented } from "antd";
 
 import { ComicCastStage } from "@/app/(user)/comic/components/comic-cast-stage";
@@ -8,26 +8,43 @@ import { ComicConceptStage } from "@/app/(user)/comic/components/comic-concept-s
 import { ComicLayoutStage } from "@/app/(user)/comic/components/comic-layout-stage";
 import { ComicReviewStage } from "@/app/(user)/comic/components/comic-review-stage";
 import { ComicScriptStage } from "@/app/(user)/comic/components/comic-script-stage";
-import { COMIC_STAGE_LABELS } from "@/app/(user)/comic/utils/comic-project";
-import type { ComicProject } from "@/app/(user)/comic/types";
+import { COMIC_STAGE_LABELS, invalidateComicPageCompositions } from "@/app/(user)/comic/utils/comic-project";
+import type { ComicProject, ComicProjectUpdater } from "@/app/(user)/comic/types";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasProject } from "../../stores/use-canvas-store";
-import { applyComicProject, selectComicProject } from "../lib/comic-canvas-projection";
+import { applyComicProject, applyComicProjectUpdate, selectComicProject } from "../lib/comic-canvas-projection";
 
-export function ComicWorkbench({ project, onChangeProject }: { project: CanvasProject; onChangeProject: (project: CanvasProject) => void }) {
+type ComicProjectPatch = Partial<ComicProject> | ((current: ComicProject) => Partial<ComicProject>);
+
+export function ComicWorkbench({ project, selectedPageId, onChangeProject }: { project: CanvasProject; selectedPageId?: string; onChangeProject: (project: CanvasProject) => void }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const view = useMemo(() => selectComicProject(project), [project]);
+    const projectRef = useRef(project);
+    useLayoutEffect(() => {
+        projectRef.current = project;
+    }, [project]);
     if (!view) {
         return <div className="grid h-full place-items-center text-sm" style={{ color: theme.node.muted }}>漫画册节点缺失，无法打开漫画工作台。</div>;
     }
-    const commit = (next: ComicProject) => onChangeProject(applyComicProject(project, next));
-    const patchConcept = (patch: Partial<ComicProject>) => {
-        const formatChanged = Boolean(patch.format && patch.format !== view.format);
-        const invalidatesComposition = formatChanged || patch.styleGuide !== undefined;
-        commit(invalidatesComposition
-            ? { ...view, ...patch, chapters: view.chapters.map((chapter) => ({ ...chapter, pages: chapter.pages.map((page) => ({ ...page, pageImage: undefined, compositionContext: undefined })) })) }
-            : { ...view, ...patch });
+    const commit = (next: ComicProjectUpdater): ComicProject => {
+        const current = projectRef.current;
+        const updated = typeof next === "function"
+            ? applyComicProjectUpdate(current, next)
+            : applyComicProject(current, next);
+        projectRef.current = updated;
+        onChangeProject(updated);
+        return selectComicProject(updated) || view;
+    };
+    const patchConcept = (patch: ComicProjectPatch) => {
+        commit((current) => {
+            const resolved = typeof patch === "function" ? patch(current) : patch;
+            const formatChanged = Boolean(resolved.format && resolved.format !== current.format);
+            const invalidatesComposition = formatChanged || resolved.styleGuide !== undefined;
+            return invalidatesComposition
+                ? invalidateComicPageCompositions({ ...current, ...resolved })
+                : { ...current, ...resolved };
+        });
     };
     const totalPages = view.chapters.reduce((total, chapter) => total + chapter.pages.length, 0);
     const totalPanels = view.chapters.reduce((total, chapter) => total + chapter.pages.reduce((sum, page) => sum + page.panels.length, 0), 0);
@@ -46,14 +63,13 @@ export function ComicWorkbench({ project, onChangeProject }: { project: CanvasPr
                 {view.stage === "script" ? (
                     <ComicScriptStage project={view} onChange={commit} />
                 ) : view.stage === "layout" ? (
-                    <ComicLayoutStage project={view} onChange={commit} />
+                    <ComicLayoutStage project={view} selectedPageId={selectedPageId} onChange={commit} />
                 ) : view.stage === "review" ? (
                     <ComicReviewStage project={view} onChange={commit} />
                 ) : view.stage === "cast" ? (
                     <ComicCastStage project={view} onChange={commit} />
                 ) : (
-                    <ComicConceptStage project={view} onPatch={patchConcept} />
-                )}
+                    <ComicConceptStage project={view} onPatch={patchConcept} />                )}
             </div>
         </div>
     );

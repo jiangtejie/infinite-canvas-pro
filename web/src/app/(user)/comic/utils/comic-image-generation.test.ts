@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createComicCharacter, createComicPage, createComicProject } from "./comic-project";
-import { assertComicPageCompositionConfirmed, buildComicPanelGenerationContext, comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, currentComicPanelInputSignature, resolveComicPanelImageState } from "./comic-image-generation";
+import { assertComicPageCompositionConfirmed, buildComicPanelGenerationContext, comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, createComicPanelGenerationSnapshot, currentComicPanelInputSignature, isComicPanelGenerationSnapshotCurrent, resolveComicPanelImageState } from "./comic-image-generation";
 import { activeComicSlotImage } from "./comic-image-slot";
+import { comicPageCompositionInputSignature } from "./comic-page-composition";
 import type { ComicCharacter, ComicCharacterReference } from "../types";
 
 function reference(id: string, revision = 0): ComicCharacterReference {
@@ -150,6 +151,19 @@ test("page composition warnings separate stale, unrecorded and incomplete panels
     assert.deepEqual(comicPageCompositionWarnings(project, page).unrecordedPanelIds, [panel.id]);
 });
 
+test("page composition signature detects visual edits but ignores review notes", () => {
+    const project = createComicProject({ title: "合成快照" });
+    const page = project.chapters[0]!.pages[0]!;
+    page.panels[0]!.image = { url: "blob:panel", storageKey: "image:panel" };
+    const options = { model: "image-model", size: "1k" };
+    const signature = comicPageCompositionInputSignature(project, page, options);
+    assert.equal(comicPageCompositionInputSignature(project, { ...page, reviewNotes: "仅修改备注" }, options), signature);
+    assert.equal(comicPageCompositionInputSignature({ ...project, synopsis: "仅修改梗概" }, page, options), signature);
+    assert.notEqual(comicPageCompositionInputSignature(project, { ...page, panels: [{ ...page.panels[0]!, layout: { x: 0.1, y: 0.1, w: 0.8, h: 0.8 } }] }, options), signature);
+    assert.notEqual(comicPageCompositionInputSignature(project, { ...page, panels: [{ ...page.panels[0]!, image: { url: "blob:replacement" } }] }, options), signature);
+    assert.notEqual(comicPageCompositionInputSignature({ ...project, format: "strip" }, page, options), signature);
+});
+
 test("current signature tracks the actual panel anchor image", () => {
     const project = createComicProject({ title: "锚点" });
     const page = createComicPage(1);
@@ -162,6 +176,23 @@ test("current signature tracks the actual panel anchor image", () => {
     second.image = createComicGeneratedPanelImage({ url: "blob:second", storageKey: "image:second" }, createComicGenerationContext(secondCompiled, { references: [], missingReferenceIds: [], loadedDescriptors: secondCompiled.referenceDescriptors }));
     assert.equal(currentComicPanelInputSignature(project, page, second), second.image.generationContext?.inputSignature);
     first.image = createComicGeneratedPanelImage({ url: "blob:first-new", storageKey: "image:first-new" }, { ...first.image.generationContext!, inputSignature: "new-anchor" });
+    assert.notEqual(currentComicPanelInputSignature(project, page, second), second.image.generationContext?.inputSignature);
+});
+
+test("dependent panels become stale when an anchor image changes without a new input signature", () => {
+    const project = createComicProject({ title: "同签名换锚点" });
+    const page = createComicPage(1);
+    const first = page.panels[0]!;
+    page.panels.push(createComicPage(2).panels[0]!);
+    const second = page.panels[1]!;
+    const firstCompiled = buildComicPanelGenerationContext(project, page, first);
+    const firstContext = createComicGenerationContext(firstCompiled, { references: [], missingReferenceIds: [], loadedDescriptors: [] });
+    first.image = createComicGeneratedPanelImage({ url: "blob:first", storageKey: "image:first", width: 10, height: 20 }, firstContext);
+    const anchor = { panelId: first.id, inputSignature: firstContext.inputSignature, image: first.image };
+    const secondCompiled = buildComicPanelGenerationContext(project, page, second, { anchor });
+    second.image = createComicGeneratedPanelImage({ url: "blob:second" }, createComicGenerationContext(secondCompiled, { references: [], missingReferenceIds: [], loadedDescriptors: secondCompiled.referenceDescriptors }));
+    assert.equal(currentComicPanelInputSignature(project, page, second), second.image.generationContext?.inputSignature);
+    first.image = createComicGeneratedPanelImage({ url: "blob:first-new", storageKey: "image:first-new", width: 10, height: 20 }, firstContext);
     assert.notEqual(currentComicPanelInputSignature(project, page, second), second.image.generationContext?.inputSignature);
 });
 
@@ -183,4 +214,38 @@ test("panel image state has deterministic unrecorded/stale/incomplete/current pr
     assert.equal(resolveComicPanelImageState(panel, "current"), "incomplete");
     panel.image = { url: "blob:image", generationContext: context };
     assert.equal(resolveComicPanelImageState(panel, "current"), "current");
+});
+
+test("panel generation snapshot rejects edits to its target inputs and existing image", () => {
+    const project = createComicProject({ title: "生成快照" });
+    const page = project.chapters[0]!.pages[0]!;
+    const panel = page.panels[0]!;
+    const options = { model: "image-model", size: "1k" };
+    const snapshot = createComicPanelGenerationSnapshot(project, page, panel, options);
+    assert.equal(isComicPanelGenerationSnapshotCurrent(project, page, panel, snapshot, options), true);
+    assert.equal(isComicPanelGenerationSnapshotCurrent({ ...project, synopsis: "无关梗概" }, page, panel, snapshot, options), true);
+    assert.equal(isComicPanelGenerationSnapshotCurrent(project, page, { ...panel, description: "等待期间改画面" }, snapshot, options), false);
+    assert.equal(isComicPanelGenerationSnapshotCurrent(project, page, { ...panel, layout: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } }, snapshot, options), false);
+    assert.equal(isComicPanelGenerationSnapshotCurrent({ ...project, styleGuide: "彩色" }, page, panel, snapshot, options), false);
+    assert.equal(isComicPanelGenerationSnapshotCurrent(project, page, { ...panel, image: { url: "blob:replacement" } }, snapshot, options), false);
+});
+
+test("panel generation snapshot tracks the actual anchor image and inputs", () => {
+    const project = createComicProject({ title: "锚点快照" });
+    const page = project.chapters[0]!.pages[0]!;
+    const first = page.panels[0]!;
+    page.panels.push(createComicPage(2).panels[0]!);
+    const second = page.panels[1]!;
+    const options = { model: "image-model", size: "1k" };
+    const firstSnapshot = createComicPanelGenerationSnapshot(project, page, first, options);
+    first.image = createComicGeneratedPanelImage({ url: "blob:first", storageKey: "image:first" }, createComicGenerationContext(firstSnapshot.context, { references: [], missingReferenceIds: [], loadedDescriptors: [] }, options));
+    const anchor = { panelId: first.id, inputSignature: first.image.generationContext!.inputSignature, image: first.image };
+    const snapshot = createComicPanelGenerationSnapshot(project, page, second, { ...options, anchor });
+    assert.equal(isComicPanelGenerationSnapshotCurrent(project, page, second, snapshot, { ...options, anchor }), true);
+    const replaced = { ...project, chapters: project.chapters.map((chapter) => ({ ...chapter, pages: chapter.pages.map((item) => item.id === page.id ? { ...item, panels: item.panels.map((panel) => panel.id === first.id ? { ...panel, image: { url: "blob:new", storageKey: "image:new" } } : panel) } : item) })) };
+    const replacedPage = replaced.chapters[0]!.pages[0]!;
+    assert.equal(isComicPanelGenerationSnapshotCurrent(replaced, replacedPage, replacedPage.panels[1]!, snapshot, { ...options, anchor }), false);
+    const edited = { ...project, chapters: project.chapters.map((chapter) => ({ ...chapter, pages: chapter.pages.map((item) => item.id === page.id ? { ...item, panels: item.panels.map((panel) => panel.id === first.id ? { ...panel, description: "锚点画面已改" } : panel) } : item) })) };
+    const editedPage = edited.chapters[0]!.pages[0]!;
+    assert.equal(isComicPanelGenerationSnapshotCurrent(edited, editedPage, editedPage.panels[1]!, snapshot, { ...options, anchor }), false);
 });

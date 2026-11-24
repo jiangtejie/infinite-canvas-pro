@@ -1,13 +1,18 @@
 import type { ComicChapter, ComicPage, ComicProject } from "@/app/(user)/comic/types";
 import type { CanvasProject } from "../../stores/use-canvas-store";
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
+import { fitNodeSize } from "../../utils/canvas-node-size";
+import { comicPageReplacementPayload } from "../../utils/comic-book-state";
 import { createCanvasNode } from "./canvas-node-factory";
 import type { CanvasComicMeta, ComicPageNodeData } from "./comic-graph-types";
 
 type ComicPageEntry = { chapterId: string; page: ComicPage };
 
 function orderedPageEntries(project: ComicProject): ComicPageEntry[] {
-    return project.chapters.flatMap((chapter) => chapter.pages.map((page) => ({ chapterId: chapter.id, page })));
+    const entries = project.chapters.flatMap((chapter) => chapter.pages.map((page) => ({ chapterId: chapter.id, page })));
+    const entryById = new Map(entries.map((entry) => [entry.page.id, entry]));
+    const orderedIds = Array.from(new Set([...project.pageOrder, ...entries.map((entry) => entry.page.id)]));
+    return orderedIds.flatMap((id) => entryById.has(id) ? [entryById.get(id)!] : []);
 }
 
 function pageNodePayload(entry: ComicPageEntry): ComicPageNodeData {
@@ -23,7 +28,7 @@ function comicPageFromNode(node: CanvasProject["nodes"][number]): ComicPage | nu
 }
 
 function pagePosition(index: number) {
-    return { x: 120 + (index % 4) * 360, y: 120 + Math.floor(index / 4) * 480 };
+    return { x: 520 + (index % 4) * 360, y: 120 + Math.floor(index / 4) * 480 };
 }
 
 export function selectComicProject(project: CanvasProject): ComicProject | null {
@@ -31,7 +36,8 @@ export function selectComicProject(project: CanvasProject): ComicProject | null 
     const book = project.nodes.find((node) => node.type === CanvasNodeType.Comic && node.id === comic?.bookNodeId);
     if (!comic || !book) return null;
     const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
-    const pages = (book.metadata?.comicBook?.pageNodeIds || []).flatMap((id) => {
+    const pageNodeIds = book.metadata?.comicBook?.pageNodeIds || [];
+    const pages = pageNodeIds.flatMap((id) => {
         const node = nodeById.get(id);
         const page = node ? comicPageFromNode(node) : null;
         const chapterId = node?.metadata?.comicPage?.chapterId || "";
@@ -39,7 +45,6 @@ export function selectComicProject(project: CanvasProject): ComicProject | null 
     });
     const chapters: ComicChapter[] = comic.chapterOrder.map((chapter) => ({
         ...chapter,
-        summary: "",
         pages: pages.filter((entry) => entry.chapterId === chapter.id).map((entry) => entry.page),
     }));
     const unassigned = pages.filter((entry) => !comic.chapterOrder.some((chapter) => chapter.id === entry.chapterId)).map((entry) => entry.page);
@@ -58,11 +63,17 @@ export function selectComicProject(project: CanvasProject): ComicProject | null 
         synopsis: comic.synopsis,
         styleGuide: comic.styleGuide,
         chapters,
+        pageOrder: pageNodeIds,
         characters: comic.cast.characters,
         locations: comic.cast.locations,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt,
     };
+}
+
+export function applyComicProjectUpdate(project: CanvasProject, update: (current: ComicProject) => ComicProject): CanvasProject {
+    const current = selectComicProject(project);
+    return current ? applyComicProject(project, update(current)) : project;
 }
 
 export function applyComicProject(project: CanvasProject, next: ComicProject): CanvasProject {
@@ -83,28 +94,34 @@ export function applyComicProject(project: CanvasProject, next: ComicProject): C
         node.position = pagePosition(index);
         return node;
     });
-    const removedIds = new Set([...existingPages.keys()].filter((id) => !pageIds.has(id)));
+    const currentPageNodeIds = book.metadata?.comicBook?.pageNodeIds || [];
+    const removedIds = new Set(currentPageNodeIds.filter((id) => existingPages.has(id) && !pageIds.has(id)));
     const existingNodeIds = new Set(project.nodes.map((node) => node.id));
     const nextPageById = new Map(nextPages.map((node) => [node.id, node]));
-    const pageNodeIds = entries.map((entry) => entry.page.id);
-    const coverNodeId = book.metadata?.comicBook?.coverNodeId && pageIds.has(book.metadata.comicBook.coverNodeId)
+    const requestedPageOrder = next.pageOrder.length ? next.pageOrder : entries.map((entry) => entry.page.id);
+    const pageNodeIds = Array.from(new Set(requestedPageOrder.filter((id) =>
+        pageIds.has(id) || (!existingPages.has(id) && currentPageNodeIds.includes(id))
+    )));
+    entries.forEach((entry) => {
+        if (!pageNodeIds.includes(entry.page.id)) pageNodeIds.push(entry.page.id);
+    });
+    const finalPageNodeIds = new Set(pageNodeIds);
+    const coverNodeId = book.metadata?.comicBook?.coverNodeId && finalPageNodeIds.has(book.metadata.comicBook.coverNodeId)
         ? book.metadata.comicBook.coverNodeId
         : pageNodeIds[0];
     const lettering = book.metadata?.comicBook?.lettering
-        ? Object.fromEntries(Object.entries(book.metadata.comicBook.lettering).filter(([pageId]) => pageIds.has(pageId)))
+        ? Object.fromEntries(Object.entries(book.metadata.comicBook.lettering).filter(([pageId]) => finalPageNodeIds.has(pageId)))
         : undefined;
-    const bookMeta = book.metadata?.comicBook;
+    const { format: _format, direction: _direction, ...bookContent } = book.metadata?.comicBook || { pageNodeIds: [] };
     const nextBook: CanvasNodeData = {
         ...book,
         title: `${next.title.trim() || "未命名漫画"} 漫画册`,
         metadata: {
             ...book.metadata,
             comicBook: {
-                ...bookMeta,
+                ...bookContent,
                 pageNodeIds,
                 coverNodeId,
-                format: bookMeta?.format ?? comic.format,
-                direction: bookMeta?.direction ?? comic.direction,
                 lettering: lettering && Object.keys(lettering).length ? lettering : undefined,
             },
         },
@@ -121,7 +138,7 @@ export function applyComicProject(project: CanvasProject, next: ComicProject): C
         synopsis: next.synopsis,
         styleGuide: next.styleGuide,
         status: next.status,
-        chapterOrder: next.chapters.map((chapter) => ({ id: chapter.id, title: chapter.title })),
+        chapterOrder: next.chapters.map((chapter) => ({ id: chapter.id, title: chapter.title, summary: chapter.summary })),
         cast: { characters: next.characters, locations: next.locations },
     };
     return {
@@ -136,5 +153,31 @@ export function applyComicProject(project: CanvasProject, next: ComicProject): C
         ],
         connections: project.connections.filter((connection) => !removedIds.has(connection.fromNodeId) && !removedIds.has(connection.toNodeId)),
         comic: nextComic,
+    };
+}
+
+export function applyComicPageReplacement(project: CanvasProject, missingPageNodeId: string, imageNodeId: string): CanvasProject {
+    const image = project.nodes.find((node) => node.id === imageNodeId);
+    if (!image?.metadata?.content) return project;
+    const existing = project.nodes.find((node) => node.id === missingPageNodeId);
+    const payload = comicPageReplacementPayload(project.nodes, missingPageNodeId, image);
+    const size = fitNodeSize(payload.pageImage?.width || image.metadata.naturalWidth || image.width, payload.pageImage?.height || image.metadata.naturalHeight || image.height, 300, 420);
+    const created = createCanvasNode(CanvasNodeType.ComicPage, { x: image.position.x + image.width / 2, y: image.position.y + image.height / 2 }, { comicPage: payload }, missingPageNodeId);
+    const page: CanvasNodeData = {
+        ...(existing || created),
+        type: CanvasNodeType.ComicPage,
+        title: payload.title,
+        position: existing?.position || created.position,
+        width: size.width,
+        height: size.height,
+        metadata: { ...(existing?.metadata || created.metadata), comicPage: payload },
+    };
+    return {
+        ...project,
+        updatedAt: new Date().toISOString(),
+        nodes: existing ? project.nodes.map((node) => node.id === missingPageNodeId ? page : node) : [...project.nodes, page],
+        connections: existing && existing.type !== CanvasNodeType.ComicPage
+            ? project.connections.filter((connection) => connection.fromNodeId !== missingPageNodeId && connection.toNodeId !== missingPageNodeId)
+            : project.connections,
     };
 }

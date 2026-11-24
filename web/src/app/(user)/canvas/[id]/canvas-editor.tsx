@@ -109,6 +109,8 @@ import { useFilmViewStore } from "../stores/use-film-view-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { enterCanvasZen, exitCanvasZen } from "../utils/canvas-zen";
 import { isCanvasReferenceNode } from "../utils/canvas-resource-references";
+import { invalidateComicPageCompositions } from "@/app/(user)/comic/utils/comic-project";
+import { applyComicPageReplacement, applyComicProjectUpdate } from "./lib/comic-canvas-projection";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasFilmAssetQueue, type CanvasFilmShotQueue, type FilmContextEdgeData, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
@@ -160,6 +162,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const comicMode = currentProject?.domain === "comic";
     const comic = currentProject?.comic;
     const [comicView, setComicView] = useState<"book" | "workbench">("workbench");
+    const [comicPageId, setComicPageId] = useState<string | null>(null);
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
     const [nodes, setNodes] = useState<CanvasNodeData[]>([]);
@@ -647,6 +650,19 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             setFilmInspectorNodeId(clickedNode.id);
             return;
         }
+        if (comicMode && clickedNode.type === CanvasNodeType.Comic) {
+            closeOverlay();
+            openOverlay({ kind: "comic", nodeId: clickedNode.id, mode: "lettering" });
+            return;
+        }
+        if (comicMode && clickedNode.type === CanvasNodeType.ComicPage) {
+            closeOverlay();
+            setComicPageId(clickedNode.id);
+            setComicView("workbench");
+            const latest = useCanvasStore.getState().projects.find((project) => project.id === projectId);
+            if (latest?.comic && latest.comic.stage !== "layout") updateProject(projectId, { comic: { ...latest.comic, stage: "layout" } });
+            return;
+        }
         if (clickedNode.type === CanvasNodeType.Group) {
             closeOverlay();
         } else if (clickedNode.type === CanvasNodeType.Text) {
@@ -654,7 +670,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         } else {
             openOverlay({ kind: "prompt", nodeId });
         }
-    }, [closeOverlay, message, openFilmShotFocus, openOverlay, setActiveOverlay, setFilmInspectorNodeId]);
+    }, [closeOverlay, comicMode, message, openFilmShotFocus, openOverlay, projectId, setActiveOverlay, setFilmInspectorNodeId, updateProject]);
 
     const closeNodeCreateMenu = useCallback(() => setNodeCreatePosition(null), [setNodeCreatePosition]);
 
@@ -955,8 +971,40 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
     const commitComicProject = useCallback((next: CanvasProject) => {
         if (next.title !== currentProject?.title) renameProject(projectId, next.title);
+        nodesRef.current = next.nodes;
+        connectionsRef.current = next.connections;
+        setNodes(next.nodes);
+        setConnections(next.connections);
         updateProject(projectId, { nodes: next.nodes, connections: next.connections, comic: next.comic });
-    }, [currentProject?.title, projectId, renameProject, updateProject]);
+    }, [currentProject?.title, projectId, renameProject, setConnections, setNodes, updateProject]);
+
+    const replaceComicPage = useCallback((missingPageNodeId: string, imageNodeId: string) => {
+        if (!currentProject) return;
+        const next = applyComicPageReplacement({
+            ...currentProject,
+            nodes: nodesRef.current,
+            connections: connectionsRef.current,
+        }, missingPageNodeId, imageNodeId);
+        nodesRef.current = next.nodes;
+        connectionsRef.current = next.connections;
+        setNodes(next.nodes);
+        setConnections(next.connections);
+        updateProject(projectId, { nodes: next.nodes, connections: next.connections });
+        selectOnly(missingPageNodeId);
+        setSelectedConnectionId(null);
+    }, [currentProject, projectId, selectOnly, setConnections, setNodes, setSelectedConnectionId, updateProject]);
+
+    const patchComicSettings = useCallback((patch: Partial<NonNullable<CanvasProject["comic"]>>) => {
+        const latest = useCanvasStore.getState().projects.find((project) => project.id === projectId);
+        if (!latest?.comic) return;
+        const next = applyComicProjectUpdate(latest, (current) => {
+            const updated = { ...current, ...patch };
+            return patch.format && patch.format !== current.format ? invalidateComicPageCompositions(updated) : updated;
+        });
+        nodesRef.current = next.nodes;
+        setNodes(next.nodes);
+        updateProject(projectId, { nodes: next.nodes, comic: next.comic });
+    }, [projectId, setNodes, updateProject]);
 
     const createComicFromSelection = useCallback(() => {
         const selected = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id) && isCanvasImageNodeType(node.type) && node.metadata?.content);
@@ -2801,6 +2849,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         project: currentProject,
         view: comicView,
         onViewChange: setComicView,
+        selectedPageId: comicPageId || undefined,
         onChangeProject: commitComicProject,
     } : undefined;
 
@@ -3102,7 +3151,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     return <>
         <CanvasWorkspace model={workspace} />
         {setupDialog}
-        {comicNode ? <CanvasComicBookOverlay key={`${comicNode.id}:${activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"}`} node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} comic={currentProject?.comic} initialMode={activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onClose={closeOverlay} /> : null}
+        {comicNode ? <CanvasComicBookOverlay key={`${comicNode.id}:${activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"}`} node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} comic={currentProject?.comic} initialMode={activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onChangeComic={patchComicSettings} onReplaceComicPage={replaceComicPage} onClose={closeOverlay} /> : null}
         <CanvasFilmInspector
             open={Boolean(filmInspectorNode)}
             node={filmInspectorNode}

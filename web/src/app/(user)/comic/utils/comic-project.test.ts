@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { comicComposedPageCount, comicPageCompositionSize, comicPageIssues, comicPanelRect, comicReviewProgress, comicStats, createComicCharacter, createComicLocation, createComicPanel, createComicPage, createComicProject, equalGridLayouts, equalVerticalLayouts, invalidateComicPageCompositions, invalidateComicPagesForCharacter, moveComicPanel, normalizeComicCharacter, normalizeComicProject, parseComicProjectBackup, resetComicReviewStatus, serializeComicProject, updateComicChapter, updateComicPage, updateComicPanel } from "./comic-project";
+import { comicComposedPageCount, comicPageCompositionSize, comicPageIssues, comicPagesInBookOrder, comicPanelRect, comicReviewProgress, comicStats, createComicCharacter, createComicCharacterVariant, createComicLocation, createComicPanel, createComicPage, createComicProject, equalGridLayouts, equalVerticalLayouts, invalidateComicPageCompositions, invalidateComicPagesForCharacter, moveComicPanel, normalizeComicCharacter, normalizeComicProject, parseComicProjectBackup, recordComicPanelGenerationResult, removeComicCharacterFromProject, invalidateComicPagesForVariantChanges, removeComicPage, resetComicReviewStatus, serializeComicProject, updateComicChapter, updateComicPage, updateComicPanel } from "./comic-project";
 
 test("legacy character and panel data normalize deterministically", () => {
     const legacy = {
@@ -47,6 +47,118 @@ test("a new comic project starts with one chapter, one page and one panel", () =
     assert.equal(project.stage, "concept");
     assert.deepEqual(comicStats(project), { chapters: 1, pages: 1, panels: 1 });
     assert.equal(project.chapters[0]?.pages[0]?.panels.length, 1);
+    assert.deepEqual(project.pageOrder, project.chapters[0]?.pages.map((page) => page.id));
+});
+
+test("failed panel generations remain recoverable until every target succeeds", () => {
+    let project = createComicProject({ title: "续跑" });
+    const chapter = project.chapters[0]!;
+    const page = chapter.pages[0]!;
+    const second = createComicPanel();
+    project = updateComicPage(project, chapter.id, page.id, { panels: [...page.panels, second] });
+    project = recordComicPanelGenerationResult(project, chapter.id, page.id, page.panels[0]!.id, { image: { url: "generated:a" } }, [second.id], 123);
+    let updated = project.chapters[0]!.pages[0]!;
+    assert.equal(updated.panels[0]!.image?.url, "generated:a");
+    assert.deepEqual(updated.pendingPanelTask, { panelIds: [second.id], startedAt: 123 });
+    project = recordComicPanelGenerationResult(project, chapter.id, page.id, second.id, { imageError: "生成失败" }, [second.id], 123);
+    updated = project.chapters[0]!.pages[0]!;
+    assert.equal(updated.panels[1]!.imageError, "生成失败");
+    assert.deepEqual(updated.pendingPanelTask, { panelIds: [second.id], startedAt: 123 });
+    project = recordComicPanelGenerationResult(project, chapter.id, page.id, second.id, { image: { url: "generated:b" }, imageError: undefined }, [], 123);
+    assert.equal(project.chapters[0]!.pages[0]!.pendingPanelTask, undefined);
+});
+
+test("successful panel generation invalidates the composed page and drops deleted pending ids", () => {
+    let project = createComicProject({ title: "生成收尾" });
+    const chapter = project.chapters[0]!;
+    const page = chapter.pages[0]!;
+    const removed = createComicPanel();
+    project = updateComicPage(project, chapter.id, page.id, {
+        panels: [...page.panels, removed],
+        pageImage: { url: "blob:old-page" },
+        compositionContext: { stalePanelIds: [], unrecordedPanelIds: [], incompletePanelIds: [], confirmedAt: "2026-01-01T00:00:00.000Z" },
+        reviewStatus: "approved",
+    });
+    project = updateComicPage(project, chapter.id, page.id, { panels: [page.panels[0]!] });
+    project = recordComicPanelGenerationResult(project, chapter.id, page.id, page.panels[0]!.id, { image: { url: "blob:new-panel" } }, [removed.id], 123);
+    const updated = project.chapters[0]!.pages[0]!;
+    assert.equal(updated.panels[0]!.image?.url, "blob:new-panel");
+    assert.equal(updated.pageImage, undefined);
+    assert.equal(updated.compositionContext, undefined);
+    assert.equal(updated.reviewStatus, "draft");
+    assert.equal(updated.pendingPanelTask, undefined);
+});
+
+test("page edits trim pending generation ids to existing panels", () => {
+    let project = createComicProject({ title: "续跑裁剪" });
+    const chapter = project.chapters[0]!;
+    const page = chapter.pages[0]!;
+    project = updateComicPage(project, chapter.id, page.id, { pendingPanelTask: { panelIds: [page.panels[0]!.id, "removed"], startedAt: 123 } });
+    project = updateComicPage(project, chapter.id, page.id, { panels: page.panels });
+    assert.deepEqual(project.chapters[0]!.pages[0]!.pendingPanelTask?.panelIds, [page.panels[0]!.id]);
+});
+
+test("chapter page replacement keeps the global page order in sync", () => {
+    let project = createComicProject({ title: "页序" });
+    const chapter = project.chapters[0]!;
+    const second = { ...createComicPage(2), id: "page-2" };
+    const third = { ...createComicPage(3), id: "page-3" };
+    project = updateComicChapter(project, chapter.id, { pages: [second, third] });
+    assert.deepEqual(project.pageOrder, ["page-2", "page-3"]);
+    project = updateComicChapter(project, chapter.id, { pages: [third] });
+    assert.deepEqual(project.pageOrder, ["page-3"]);
+});
+
+test("chapter page changes preserve interleaved positions and unrelated missing slots", () => {
+    const first = { ...createComicPage(1), id: "p1" };
+    const third = { ...createComicPage(3), id: "p3" };
+    const other = { ...createComicPage(1), id: "p2" };
+    const project = {
+        ...createComicProject({ title: "跨章增删" }),
+        chapters: [
+            { id: "ch1", title: "第一章", summary: "", pages: [first, third] },
+            { id: "ch2", title: "第二章", summary: "", pages: [other] },
+        ],
+        pageOrder: ["p1", "missing", "p2", "p3"],
+    };
+    const removed = updateComicChapter(project, "ch1", { pages: [third] });
+    assert.deepEqual(removed.pageOrder, ["missing", "p2", "p3"]);
+
+    const added = { ...createComicPage(2), id: "added" };
+    const inserted = updateComicChapter(project, "ch1", { pages: [first, added, third] });
+    assert.deepEqual(inserted.pageOrder, ["p1", "added", "missing", "p2", "p3"]);
+
+    const replacement = { ...createComicPage(4), id: "replacement" };
+    const replaced = updateComicChapter(project, "ch1", { pages: [replacement] });
+    assert.deepEqual(replaced.pageOrder, ["replacement", "missing", "p2"]);
+});
+
+test("page deletion uses current chapter pages and keeps pages added while confirmation was open", () => {
+    const project = createComicProject({ title: "删除确认" });
+    const chapter = project.chapters[0]!;
+    const removed = chapter.pages[0]!;
+    const added = { ...createComicPage(3), id: "added-during-confirm" };
+    const current = updateComicChapter(project, chapter.id, { pages: [...chapter.pages, added] });
+    const next = removeComicPage(current, chapter.id, removed.id);
+    assert.deepEqual(next.chapters[0]?.pages.map((page) => page.id), [added.id]);
+    assert.deepEqual(next.pageOrder, [added.id]);
+});
+
+test("page lists follow interleaved book order across chapters and ignore missing slots", () => {
+    const project = createComicProject({ title: "跨章页序" });
+    const first = { ...createComicPage(1), id: "p1" };
+    const second = { ...createComicPage(2), id: "p2" };
+    const third = { ...createComicPage(3), id: "p3" };
+    const unordered = { ...createComicPage(4), id: "p4" };
+    const ordered = {
+        ...project,
+        chapters: [
+            { id: "ch1", title: "第一章", summary: "", pages: [first, third] },
+            { id: "ch2", title: "第二章", summary: "", pages: [second, unordered] },
+        ],
+        pageOrder: ["p2", "missing", "p1", "p3"],
+    };
+    assert.deepEqual(comicPagesInBookOrder(ordered).map((entry) => [entry.chapter.id, entry.page.id]), [["ch2", "p2"], ["ch1", "p1"], ["ch1", "p3"], ["ch2", "p4"]]);
 });
 
 test("chapter, page and panel updates stay nested and ordered", () => {
@@ -105,6 +217,108 @@ test("panel layout auto-distributes and keeps explicit rectangles", () => {
     assert.ok(grid[0]!.y < grid[2]!.y);
     const vertical = equalVerticalLayouts(3);
     assert.ok(vertical[0]!.y < vertical[1]!.y && vertical[1]!.y < vertical[2]!.y);
+});
+
+test("global and character invalidation reset review even without a composed image", () => {
+    const project = createComicProject({ title: "审稿失效" });
+    const character = createComicCharacter(1);
+    character.id = "c1";
+    project.characters = [character];
+    const page = project.chapters[0]!.pages[0]!;
+    page.reviewStatus = "approved";
+    page.panels[0]!.characterBindings = [{ characterId: "c1", source: "manual", characterNameSnapshot: character.name }];
+    assert.equal(invalidateComicPageCompositions(project).chapters[0]?.pages[0]?.reviewStatus, "draft");
+    assert.equal(invalidateComicPagesForCharacter(project, "c1").chapters[0]?.pages[0]?.reviewStatus, "draft");
+    assert.equal(invalidateComicPagesForCharacter(project, "other").chapters[0]?.pages[0]?.reviewStatus, "approved");
+});
+
+test("character updates remove bindings to deleted variants and invalidate affected pages", () => {
+    const project = createComicProject({ title: "变体失效" });
+    const character = createComicCharacter(1);
+    character.id = "c1";
+    character.name = "林夏";
+    character.variants = [
+        { ...createComicCharacterVariant(1), id: "removed-variant" },
+        { ...createComicCharacterVariant(2), id: "kept-variant" },
+    ];
+    const other = createComicCharacter(2);
+    other.id = "c2";
+    project.characters = [character, other];
+    const page = project.chapters[0]!.pages[0]!;
+    page.reviewStatus = "approved";
+    page.pageImage = { url: "blob:page" };
+    page.panels[0]!.characterBindings = [
+        { characterId: "c1", variantId: "removed-variant", source: "manual", characterNameSnapshot: "林夏" },
+        { characterId: "c1", variantId: "kept-variant", source: "manual", characterNameSnapshot: "林夏" },
+        { characterId: "c1", source: "manual", characterNameSnapshot: "林夏" },
+        { characterId: "c2", variantId: "other-variant", source: "manual", characterNameSnapshot: other.name },
+    ];
+    project.characters[0]!.variants = [character.variants[1]!];
+
+    const next = invalidateComicPagesForCharacter(project, character.id);
+    assert.deepEqual(next.chapters[0]!.pages[0]!.panels[0]!.characterBindings.map((binding) => [binding.characterId, binding.variantId]), [
+        ["c1", "kept-variant"],
+        ["c1", undefined],
+        ["c2", "other-variant"],
+    ]);
+    assert.equal(next.chapters[0]!.pages[0]!.pageImage, undefined);
+    assert.equal(next.chapters[0]!.pages[0]!.reviewStatus, "draft");
+});
+
+test("variant updates keep pages that only use the base look or retained variants", () => {
+    const project = createComicProject({ title: "变体精确失效" });
+    const character = createComicCharacter(1);
+    character.id = "c1";
+    character.variants = [{ ...createComicCharacterVariant(1), id: "kept-variant" }];
+    const previous = { ...character, variants: [...character.variants, { ...createComicCharacterVariant(2), id: "removed-variant" }] };
+    project.characters = [character];
+    const base = { ...createComicPage(1), id: "base", reviewStatus: "approved" as const, pageImage: { url: "blob:base" } };
+    base.panels[0]!.characterBindings = [{ characterId: "c1", source: "manual", characterNameSnapshot: character.name }];
+    const kept = { ...createComicPage(2), id: "kept", reviewStatus: "approved" as const, pageImage: { url: "blob:kept" } };
+    kept.panels[0]!.characterBindings = [{ characterId: "c1", variantId: "kept-variant", source: "manual", characterNameSnapshot: character.name }];
+    const removed = { ...createComicPage(3), id: "removed", reviewStatus: "approved" as const, pageImage: { url: "blob:removed" } };
+    removed.panels[0]!.characterBindings = [{ characterId: "c1", variantId: "removed-variant", source: "manual", characterNameSnapshot: character.name }];
+    project.chapters[0]!.pages = [base, kept, removed];
+    project.pageOrder = [base.id, kept.id, removed.id];
+    const next = invalidateComicPagesForVariantChanges(project, "c1", previous);
+    assert.deepEqual(next.chapters[0]!.pages.slice(0, 2), [base, kept]);
+    assert.equal(next.chapters[0]!.pages[2]!.pageImage, undefined);
+    assert.equal(next.chapters[0]!.pages[2]!.reviewStatus, "draft");
+    assert.deepEqual(next.chapters[0]!.pages[2]!.panels[0]!.characterBindings, []);
+});
+
+test("removing a character clears only its bindings and invalidates affected pages", () => {
+    const project = createComicProject({ title: "删除角色" });
+    const removed = createComicCharacter(1);
+    removed.id = "removed";
+    removed.name = "林夏";
+    removed.aliases = ["小夏"];
+    const kept = createComicCharacter(2);
+    kept.id = "kept";
+    kept.name = "阿明";
+    project.characters = [removed, kept];
+    const first = project.chapters[0]!.pages[0]!;
+    first.reviewStatus = "approved";
+    first.pageImage = { url: "blob:first" };
+    first.panels[0]!.characterBindings = [
+        { characterId: "removed", source: "manual", characterNameSnapshot: "林夏" },
+        { characterId: "kept", source: "manual", characterNameSnapshot: "阿明" },
+    ];
+    const second = { ...createComicPage(2), id: "second", reviewStatus: "changes" as const };
+    second.panels[0]!.characterBindings = [{ characterId: "kept", source: "manual", characterNameSnapshot: "阿明" }];
+    const third = { ...createComicPage(3), id: "third", reviewStatus: "approved" as const };
+    third.panels[0]!.characterSuggestions = [{ characterName: "小夏", reason: "unknown-character" }];
+    project.chapters[0]!.pages.push(second, third);
+
+    const next = removeComicCharacterFromProject(project, removed);
+    assert.deepEqual(next.characters.map((item) => item.id), ["kept"]);
+    assert.deepEqual(next.chapters[0]!.pages[0]!.panels[0]!.characterBindings.map((item) => item.characterId), ["kept"]);
+    assert.equal(next.chapters[0]!.pages[0]!.pageImage, undefined);
+    assert.equal(next.chapters[0]!.pages[0]!.reviewStatus, "draft");
+    assert.equal(next.chapters[0]!.pages[1]!.reviewStatus, "changes");
+    assert.deepEqual(next.chapters[0]!.pages[1]!.panels[0]!.characterBindings.map((item) => item.characterId), ["kept"]);
+    assert.deepEqual(next.chapters[0]!.pages[2]!.panels[0]!.characterSuggestions, []);
+    assert.equal(next.chapters[0]!.pages[2]!.reviewStatus, "approved");
 });
 
 test("character and location sheets survive backup round trip", () => {

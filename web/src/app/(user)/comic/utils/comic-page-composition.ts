@@ -1,7 +1,9 @@
 import { imageToDataUrl, uploadImage } from "@/services/image-storage";
 import type { ComicImageRef, ComicPage, ComicProject } from "../types";
-import { assertComicPageCompositionConfirmed } from "./comic-image-generation";
+import { assertComicPageCompositionConfirmed, comicPageCompositionWarnings } from "./comic-image-generation";
 import { comicPageCompositionSize, comicPanelRect } from "./comic-project";
+
+type ComicPageCompositionOptions = { confirmedPanelIds?: string[]; model?: string; size?: string };
 
 type ComicPageCompositionResult = {
     image: ComicImageRef;
@@ -9,7 +11,26 @@ type ComicPageCompositionResult = {
     compositionContext?: ComicPage["compositionContext"];
 };
 
-export async function composeComicPage(project: ComicProject, page: ComicPage, options: { confirmedPanelIds?: string[]; model?: string; size?: string } = {}): Promise<ComicPageCompositionResult> {
+export function comicPageCompositionInputSignature(project: ComicProject, page: ComicPage, options: Pick<ComicPageCompositionOptions, "model" | "size"> = {}) {
+    return JSON.stringify({
+        format: project.format,
+        model: options.model || "",
+        size: options.size || "",
+        warnings: comicPageCompositionWarnings(project, page, options),
+        panels: page.panels.map((panel, index) => ({
+            id: panel.id,
+            image: panel.image ? {
+                url: panel.image.url,
+                storageKey: panel.image.storageKey,
+                width: panel.image.width,
+                height: panel.image.height,
+            } : null,
+            layout: comicPanelRect(page, panel, index),
+        })),
+    });
+}
+
+export async function composeComicPage(project: ComicProject, page: ComicPage, options: ComicPageCompositionOptions = {}): Promise<ComicPageCompositionResult> {
     const compositionWarnings = assertComicPageCompositionConfirmed(project, page, options.confirmedPanelIds || [], { model: options.model, size: options.size });
     const { width, height } = comicPageCompositionSize(project.format);
     const canvas = document.createElement("canvas");

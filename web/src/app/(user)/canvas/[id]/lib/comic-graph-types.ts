@@ -12,7 +12,7 @@ export type CanvasComicMeta = {
     synopsis: string;
     styleGuide: string;
     status: "draft" | "completed";
-    chapterOrder: { id: string; title: string }[];
+    chapterOrder: { id: string; title: string; summary: string }[];
     cast: { characters: ComicCharacter[]; locations: ComicLocation[] };
 };
 

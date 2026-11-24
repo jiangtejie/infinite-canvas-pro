@@ -9,15 +9,15 @@ import { useComicImageSrc } from "../hooks/use-comic-image-src";
 import { useComicCastStore } from "../stores/use-comic-cast-store";
 import { ComicCharacterEditor } from "./comic-character-editor";
 import { ComicImageSlotEditor } from "./comic-image-slot-editor";
-import type { ComicCharacter, ComicImageRef, ComicImageSlot, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation, ComicProject } from "../types";
+import type { ComicCharacter, ComicImageRef, ComicImageSlot, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation, ComicProject, ComicProjectUpdater } from "../types";
 import { copyComicCharacterForProject } from "../utils/comic-character-binding";
-import { createComicCharacter, createComicLocation, invalidateComicPageCompositions, invalidateComicPagesForCharacter } from "../utils/comic-project";
+import { createComicCharacter, createComicLocation, invalidateComicPageCompositions, invalidateComicPagesForCharacter, removeComicCharacterFromProject, invalidateComicPagesForVariantChanges } from "../utils/comic-project";
 import { activeComicSlotImage } from "../utils/comic-image-slot";
 import { applyComicCharacterLibraryEntry, applyComicLocationLibraryEntry, comicLibraryEntryIsNewer } from "../utils/comic-library-entry";
 
 const EMPTY_SLOT: ComicImageSlot = { images: [] };
 
-export function ComicCastStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
+export function ComicCastStage({ project, onChange }: { project: ComicProject; onChange: (update: ComicProjectUpdater) => void }) {
     const { message } = App.useApp();
     const confirm = useConfirm();
     const [importKind, setImportKind] = useState<"character" | "location" | null>(null);
@@ -28,12 +28,22 @@ export function ComicCastStage({ project, onChange }: { project: ComicProject; o
     const characters = project.characters || [];
     const locations = project.locations || [];
 
-    const patchCharacter = (id: string, patch: Partial<ComicCharacter>) => onChange(invalidateComicPagesForCharacter({ ...project, characters: characters.map((item) => item.id === id ? { ...item, ...patch } : item) }, id));
+    const patchCharacter = (id: string, patch: Partial<ComicCharacter>) => onChange((current) => {
+        const previous = current.characters.find((item) => item.id === id);
+        if (!previous) return current;
+        const next = { ...previous, ...patch };
+        const nextProject = { ...current, characters: current.characters.map((item) => item.id === id ? next : item) };
+        const { variants: previousVariants, ...previousBase } = previous;
+        const { variants: nextVariants, ...nextBase } = next;
+        return JSON.stringify(previousBase) === JSON.stringify(nextBase) && previousVariants !== nextVariants
+            ? invalidateComicPagesForVariantChanges(nextProject, id, previous)
+            : invalidateComicPagesForCharacter(nextProject, id);
+    });
     const patchLocation = (id: string, patch: Partial<ComicLocation>) => onChange(invalidateComicPageCompositions({ ...project, locations: locations.map((item) => item.id === id ? { ...item, ...patch } : item) }));
 
     const removeCharacter = async (character: ComicCharacter) => {
-        const accepted = await confirm({ title: `删除角色「${character.name}」？`, description: "角色设定和参考图会一起删除。", confirmText: "删除角色", tone: "danger" });
-        if (accepted) onChange(invalidateComicPagesForCharacter({ ...project, characters: characters.filter((item) => item.id !== character.id) }, character.id));
+        const accepted = await confirm({ title: `删除角色「${character.name}」？`, description: "角色设定、参考图和页格中的角色绑定会一起删除。", confirmText: "删除角色", tone: "danger" });
+        if (accepted) onChange((current) => removeComicCharacterFromProject(current, character));
     };
 
     const removeLocation = async (location: ComicLocation) => {

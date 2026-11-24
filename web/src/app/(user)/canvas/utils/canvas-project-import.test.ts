@@ -25,6 +25,31 @@ test("keeps film domain fields when importing a project", () => {
     assert.equal(project.updatedAt, context.now);
 });
 
+test("keeps comic domain fields when importing a project", () => {
+    const project = buildImportedCanvasProject({
+        title: "漫画项目",
+        domain: "comic",
+        comic: {
+            bookNodeId: "book-1",
+            stage: "layout",
+            format: "strip",
+            direction: "ltr",
+            genre: "悬疑",
+            audience: "青年",
+            logline: "雨夜来信",
+            synopsis: "追寻失踪者",
+            styleGuide: "冷色雨夜",
+            status: "draft",
+            chapterOrder: [{ id: "chapter-1", title: "第一章", summary: "收到来信" }],
+            cast: { characters: [], locations: [] },
+        },
+    }, context);
+
+    assert.equal(project.domain, "comic");
+    assert.equal(project.comic?.bookNodeId, "book-1");
+    assert.equal(project.comic?.chapterOrder[0]?.summary, "收到来信");
+});
+
 test("keeps general canvas imports domainless", () => {
     const project = buildImportedCanvasProject({ title: "普通画布" }, context);
 

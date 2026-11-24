@@ -180,6 +180,7 @@ export function normalizeComicProject(project: LegacyComicProject, projectId: st
                 reviewNotes: page.reviewNotes || "",
                 pageImage: page.pageImage,
                 compositionContext: page.compositionContext,
+                pendingPanelTask: page.pendingPanelTask,
             };
         });
         return { id: chapterId, title: chapter.title || `第 ${chapterIndex + 1} 章`, summary: chapter.summary || "", pages };
@@ -212,6 +213,7 @@ export function normalizeComicProject(project: LegacyComicProject, projectId: st
         synopsis: project.synopsis || "",
         styleGuide: project.styleGuide || "",
         chapters,
+        pageOrder: Array.from(new Set([...(project.pageOrder || []), ...chapters.flatMap((chapter) => chapter.pages.map((page) => page.id))])),
         characters,
         locations,
         createdAt: project.createdAt || "",
@@ -268,6 +270,7 @@ export function createComicLocation(index = 1): ComicLocation {
 
 export function createComicProject(input: CreateComicProjectInput): ComicProject {
     const now = new Date().toISOString();
+    const chapters = [createComicChapter(1)];
     return {
         id: nanoid(),
         title: input.title.trim() || "未命名漫画",
@@ -280,7 +283,8 @@ export function createComicProject(input: CreateComicProjectInput): ComicProject
         logline: input.logline?.trim() || "",
         synopsis: "",
         styleGuide: "",
-        chapters: [createComicChapter(1)],
+        chapters,
+        pageOrder: chapters.flatMap((chapter) => chapter.pages.map((page) => page.id)),
         characters: [],
         locations: [],
         createdAt: now,
@@ -295,6 +299,13 @@ export function comicStats(project: ComicProject) {
         pages: pages.length,
         panels: pages.reduce((total, page) => total + page.panels.length, 0),
     };
+}
+
+export function comicPagesInBookOrder(project: ComicProject) {
+    const entries = project.chapters.flatMap((chapter) => chapter.pages.map((page) => ({ chapter, page })));
+    const entryById = new Map(entries.map((entry) => [entry.page.id, entry]));
+    const orderedIds = Array.from(new Set([...project.pageOrder, ...entries.map((entry) => entry.page.id)]));
+    return orderedIds.flatMap((id) => entryById.has(id) ? [entryById.get(id)!] : []);
 }
 
 export const COMIC_STAGE_LABELS: Record<ComicProject["stage"], string> = { concept: "企划", cast: "设定", script: "剧本", layout: "页布局", review: "审稿" };
@@ -368,14 +379,44 @@ export function comicReviewProgress(project: ComicProject) {
 }
 
 export function updateComicChapter(project: ComicProject, chapterId: string, patch: Partial<ComicChapter>): ComicProject {
-    return { ...project, chapters: project.chapters.map((chapter) => chapter.id === chapterId ? { ...chapter, ...patch } : chapter) };
+    if (!patch.pages) return { ...project, chapters: project.chapters.map((chapter) => chapter.id === chapterId ? { ...chapter, ...patch } : chapter) };
+    const currentPages = project.chapters.flatMap((chapter) => chapter.pages);
+    const replacedPages = project.chapters.find((chapter) => chapter.id === chapterId)?.pages || [];
+    const replacedPageIds = new Set(replacedPages.map((page) => page.id));
+    const nextPageIds = new Set(patch.pages.map((page) => page.id));
+    const insertionIndex = project.pageOrder.findIndex((id) => replacedPageIds.has(id));
+    const remainingOrder = project.pageOrder.filter((id) => !replacedPageIds.has(id) || nextPageIds.has(id));
+    const insertedPageIds = patch.pages.map((page) => page.id).filter((id) => !remainingOrder.includes(id));
+    const anchorId = insertionIndex < 0 ? "" : project.pageOrder[insertionIndex]!;
+    const anchorIndex = remainingOrder.indexOf(anchorId);
+    const insertAt = insertionIndex < 0 ? remainingOrder.length : anchorIndex < 0 ? project.pageOrder.slice(0, insertionIndex).filter((id) => remainingOrder.includes(id)).length : anchorIndex + 1;
+    const pageOrder = [...remainingOrder.slice(0, insertAt), ...insertedPageIds, ...remainingOrder.slice(insertAt)];
+    currentPages.forEach((page) => {
+        if (!pageOrder.includes(page.id) && !replacedPageIds.has(page.id)) pageOrder.push(page.id);
+    });
+    return {
+        ...project,
+        pageOrder,
+        chapters: project.chapters.map((chapter) => chapter.id === chapterId ? { ...chapter, ...patch } : chapter),
+    };
+}
+
+export function removeComicPage(project: ComicProject, chapterId: string, pageId: string): ComicProject {
+    const pages = project.chapters.find((chapter) => chapter.id === chapterId)?.pages;
+    return pages ? updateComicChapter(project, chapterId, { pages: pages.filter((page) => page.id !== pageId) }) : project;
 }
 
 export function updateComicPage(project: ComicProject, chapterId: string, pageId: string, patch: Partial<ComicPage>): ComicProject {
     return {
         ...project,
         chapters: project.chapters.map((chapter) => chapter.id === chapterId
-            ? { ...chapter, pages: chapter.pages.map((page) => page.id === pageId ? { ...page, ...patch } : page) }
+            ? { ...chapter, pages: chapter.pages.map((page) => {
+                if (page.id !== pageId) return page;
+                const next = { ...page, ...patch };
+                const panelIds = new Set(next.panels.map((panel) => panel.id));
+                const pendingPanelIds = next.pendingPanelTask?.panelIds.filter((id) => panelIds.has(id));
+                return { ...next, pendingPanelTask: pendingPanelIds?.length ? { ...next.pendingPanelTask!, panelIds: pendingPanelIds } : undefined };
+            }) }
             : chapter),
     };
 }
@@ -389,22 +430,105 @@ export function updateComicPanel(project: ComicProject, chapterId: string, pageI
     };
 }
 
+export function recordComicPanelGenerationResult(
+    project: ComicProject,
+    chapterId: string,
+    pageId: string,
+    panelId: string,
+    result: Partial<Pick<ComicPanel, "image" | "imageError">>,
+    remainingPanelIds: string[],
+    startedAt: number,
+): ComicProject {
+    const currentPage = project.chapters.find((chapter) => chapter.id === chapterId)?.pages.find((page) => page.id === pageId);
+    const panelIds = new Set(currentPage?.panels.map((panel) => panel.id) || []);
+    const remaining = remainingPanelIds.filter((id) => panelIds.has(id));
+    const next = updateComicPanel(project, chapterId, pageId, panelId, result);
+    const invalidation = result.image && currentPage ? { pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(currentPage.reviewStatus) } : {};
+    return updateComicPage(next, chapterId, pageId, {
+        pendingPanelTask: remaining.length ? { panelIds: remaining, startedAt } : undefined,
+        ...invalidation,
+    });
+}
+
+function invalidateComicPage(page: ComicPage): ComicPage {
+    return { ...page, pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus) };
+}
+
 export function invalidateComicPageCompositions(project: ComicProject): ComicProject {
     return {
         ...project,
         chapters: project.chapters.map((chapter) => ({
             ...chapter,
-            pages: chapter.pages.map((page) => page.pageImage || page.compositionContext ? { ...page, pageImage: undefined, compositionContext: undefined } : page),
+            pages: chapter.pages.map(invalidateComicPage),
+        })),
+    };
+}
+
+function cleanComicCharacterBindings(project: ComicProject, characterId: string): ComicProject {
+    const variantIds = new Set(project.characters.find((character) => character.id === characterId)?.variants.map((variant) => variant.id) || []);
+    return {
+        ...project,
+        chapters: project.chapters.map((chapter) => ({
+            ...chapter,
+            pages: chapter.pages.map((page) => ({
+                ...page,
+                panels: page.panels.map((panel) => {
+                    const characterBindings = panel.characterBindings.filter((binding) => binding.characterId !== characterId || !binding.variantId || variantIds.has(binding.variantId));
+                    return characterBindings.length === panel.characterBindings.length ? panel : { ...panel, characterBindings };
+                }),
+            })),
         })),
     };
 }
 
 export function invalidateComicPagesForCharacter(project: ComicProject, characterId: string): ComicProject {
+    const next = cleanComicCharacterBindings(project, characterId);
+    return {
+        ...next,
+        chapters: next.chapters.map((chapter) => ({
+            ...chapter,
+            pages: chapter.pages.map((page) => page.panels.some((panel) => panel.characterBindings.some((binding) => binding.characterId === characterId)) ? invalidateComicPage(page) : page),
+        })),
+    };
+}
+
+export function invalidateComicPagesForVariantChanges(project: ComicProject, characterId: string, previous: ComicCharacter): ComicProject {
+    const nextCharacter = project.characters.find((character) => character.id === characterId);
+    if (!nextCharacter) return project;
+    const previousVariants = new Map(previous.variants.map((variant) => [variant.id, variant]));
+    const changedVariantIds = new Set(previous.variants.filter((variant) => !nextCharacter.variants.some((item) => item.id === variant.id)).map((variant) => variant.id));
+    nextCharacter.variants.forEach((variant) => {
+        if (JSON.stringify(previousVariants.get(variant.id)) !== JSON.stringify(variant)) changedVariantIds.add(variant.id);
+    });
+    const affectedPageIds = new Set(project.chapters.flatMap((chapter) => chapter.pages).filter((page) => page.panels.some((panel) => panel.characterBindings.some((binding) =>
+        binding.characterId === characterId && binding.variantId && changedVariantIds.has(binding.variantId)
+    ))).map((page) => page.id));
+    const next = cleanComicCharacterBindings(project, characterId);
+    return {
+        ...next,
+        chapters: next.chapters.map((chapter) => ({
+            ...chapter,
+            pages: chapter.pages.map((page) => affectedPageIds.has(page.id) ? invalidateComicPage(page) : page),
+        })),
+    };
+}
+
+export function removeComicCharacterFromProject(project: ComicProject, character: ComicCharacter): ComicProject {
+    const names = new Set([character.name, ...character.aliases].map((name) => name.trim()).filter(Boolean));
     return {
         ...project,
+        characters: project.characters.filter((item) => item.id !== character.id),
         chapters: project.chapters.map((chapter) => ({
             ...chapter,
-            pages: chapter.pages.map((page) => page.panels.some((panel) => panel.characterBindings.some((binding) => binding.characterId === characterId)) ? { ...page, pageImage: undefined, compositionContext: undefined } : page),
+            pages: chapter.pages.map((page) => {
+                const affected = page.panels.some((panel) => panel.characterBindings.some((binding) => binding.characterId === character.id));
+                const panels = page.panels.map((panel) => ({
+                    ...panel,
+                    characterBindings: panel.characterBindings.filter((binding) => binding.characterId !== character.id),
+                    characterSuggestions: (panel.characterSuggestions || []).filter((suggestion) => !names.has(suggestion.characterName.trim())),
+                }));
+                return affected ? invalidateComicPage({ ...page, panels }) : { ...page, panels };
+            }),
         })),
     };
 }

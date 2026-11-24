@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { App, Button, Modal } from "antd";
 import { Eye, FileText, Grid2x2, Layers, LayoutPanelTop, LoaderCircle, Plus, Rows3, Sparkles, Trash2 } from "lucide-react";
 
@@ -9,10 +9,10 @@ import { useModelConfig } from "@/hooks/use-model-config";
 import { requestImages } from "@/services/api/image/request";
 import type { SeedableImageConfig } from "@/services/api/image";
 import { errorMessage } from "@/lib/utils";
-import type { ComicImageRef, ComicPanel, ComicPanelLayout, ComicPage, ComicProject } from "../types";
-import { buildComicPanelGenerationContext, comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, currentComicPanelInputSignature, loadComicPanelReferences, resolveComicPanelImageState, type ComicPanelAnchor } from "../utils/comic-image-generation";
-import { composeComicPage } from "../utils/comic-page-composition";
-import { comicPanelRect, createComicPanel, equalGridLayouts, equalVerticalLayouts, resetComicReviewStatus, updateComicPage, updateComicPanel } from "../utils/comic-project";
+import type { ComicImageRef, ComicPanel, ComicPanelLayout, ComicPage, ComicProject, ComicProjectUpdater } from "../types";
+import { comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, createComicPanelGenerationSnapshot, currentComicPanelInputSignature, isComicPanelGenerationSnapshotCurrent, loadComicPanelReferences, resolveComicPanelImageState, type ComicPanelAnchor } from "../utils/comic-image-generation";
+import { comicPageCompositionInputSignature, composeComicPage } from "../utils/comic-page-composition";
+import { comicPanelRect, comicPagesInBookOrder, createComicPanel, equalGridLayouts, equalVerticalLayouts, recordComicPanelGenerationResult, resetComicReviewStatus, updateComicPage } from "../utils/comic-project";
 import { ComicImage } from "./comic-image";
 
 type DragState = {
@@ -27,7 +27,7 @@ type DragState = {
     rect: ComicPanelLayout;
 };
 
-export function ComicLayoutStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
+export function ComicLayoutStage({ project, selectedPageId, onChange }: { project: ComicProject; selectedPageId?: string; onChange: (update: ComicProjectUpdater) => ComicProject }) {
     const { message, modal } = App.useApp();
     const confirm = useConfirm();
     const resolveModelConfig = useModelConfig();
@@ -35,8 +35,15 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
     const [composing, setComposing] = useState(false);
     const [pagePreview, setPagePreview] = useState<ComicImageRef | null>(null);
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-    const pages = useMemo(() => project.chapters.flatMap((chapter) => chapter.pages.map((page) => ({ chapter, page }))), [project.chapters]);
-    const [selectedKey, setSelectedKey] = useState(pages[0] ? `${pages[0].chapter.id}:${pages[0].page.id}` : "");
+    const pages = useMemo(() => comicPagesInBookOrder(project), [project]);
+    const [selectedKey, setSelectedKey] = useState(() => pages.find((item) => item.page.id === selectedPageId) ? `${pages.find((item) => item.page.id === selectedPageId)!.chapter.id}:${selectedPageId}` : pages[0] ? `${pages[0].chapter.id}:${pages[0].page.id}` : "");
+    const externalSelectedKey = useMemo(() => {
+        const selectedPage = pages.find((item) => item.page.id === selectedPageId);
+        return selectedPage ? `${selectedPage.chapter.id}:${selectedPage.page.id}` : "";
+    }, [pages, selectedPageId]);
+    useEffect(() => {
+        if (externalSelectedKey) setSelectedKey(externalSelectedKey);
+    }, [externalSelectedKey]);
     const [selectedPanelId, setSelectedPanelId] = useState("");
     const [preview, setPreview] = useState<{ panelId: string; rect: ComicPanelLayout } | null>(null);
     const dragRef = useRef<DragState | null>(null);
@@ -62,7 +69,10 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
         if (!page || !selectedPanel) return;
         const accepted = await confirm({ title: "删除选中页格？", description: "页格内容会一起删除；布局修改会把页面退回草稿。", confirmText: "删除页格", tone: "danger" });
         if (!accepted) return;
-        commitPanels(page.panels.filter((item) => item.id !== selectedPanel.id));
+        onChange((current) => {
+            const currentPage = current.chapters.find((item) => item.id === chapter.id)?.pages.find((item) => item.id === page.id);
+            return currentPage ? updateComicPage(current, chapter.id, page.id, { panels: currentPage.panels.filter((item) => item.id !== selectedPanel.id), pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(currentPage.reviewStatus) }) : current;
+        });
         setSelectedPanelId("");
     };
 
@@ -85,17 +95,36 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
         if (!accepted) return;
         setGenerating(true);
         const startedAt = Date.now();
-        let remaining = new Set(targets.map((panel) => panel.id));
-        let nextProject = updateComicPage(project, chapter.id, page.id, { pendingPanelTask: { panelIds: [...remaining], startedAt } });
+        let targetIds = targets.map((panel) => panel.id);
+        let remaining = new Set(targetIds);
+        let nextProject = onChange((current) => {
+            const currentPage = current.chapters.find((item) => item.id === chapter.id)?.pages.find((item) => item.id === page.id);
+            const panelIds = new Set(currentPage?.panels.map((panel) => panel.id) || []);
+            targetIds = targetIds.filter((id) => panelIds.has(id));
+            remaining = new Set(targetIds);
+            return currentPage ? updateComicPage(current, chapter.id, page.id, { pendingPanelTask: { panelIds: [...remaining], startedAt } }) : current;
+        });
+        if (!targetIds.length) {
+            setGenerating(false);
+            message.warning("页面或页格已删除，未继续生成");
+            return;
+        }
         let anchor: ComicPanelAnchor | null = null;
+        let stale = false;
         const warnings = new Set<string>();
         const imageConfig = { ...config, count: "1" } as SeedableImageConfig;
-        onChange(nextProject);
-        for (const [index, panel] of targets.entries()) {
-            setProgress({ done: index, total: targets.length });
+        for (const [index, panelId] of targetIds.entries()) {
+            setProgress({ done: index, total: targetIds.length });
+            const currentPage = nextProject.chapters.find((item) => item.id === chapter.id)?.pages.find((item) => item.id === page.id);
+            const currentPanel = currentPage?.panels.find((item) => item.id === panelId);
+            if (!currentPage || !currentPanel) {
+                stale = true;
+                break;
+            }
+            const snapshot = createComicPanelGenerationSnapshot(nextProject, currentPage, currentPanel, { anchor: anchor || undefined, model: imageConfig.model, size: imageConfig.size });
+            const compiled = snapshot.context;
+            compiled.warnings.forEach((warning) => warnings.add(warning));
             try {
-                const compiled = buildComicPanelGenerationContext(nextProject, page, panel, { anchor: anchor || undefined, model: imageConfig.model, size: imageConfig.size });
-                compiled.warnings.forEach((warning) => warnings.add(warning));
                 const loaded = await loadComicPanelReferences(compiled.referenceDescriptors);
                 loaded.missingReferenceIds.forEach((id) => warnings.add(`参考图读取失败：${id}`));
                 const images = await requestImages(imageConfig, compiled.prompt, loaded.references);
@@ -103,20 +132,36 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
                 if (!generated) throw new Error("AI 没有返回图片");
                 const image: ComicImageRef = { url: generated.dataUrl, storageKey: generated.storageKey, width: generated.width, height: generated.height };
                 const context = createComicGenerationContext(compiled, loaded, { model: imageConfig.model, size: imageConfig.size });
-                nextProject = updateComicPanel(nextProject, chapter.id, page.id, panel.id, { image: createComicGeneratedPanelImage(image, context), imageError: undefined });
-                remaining.delete(panel.id);
-                if (!anchor) anchor = { panelId: panel.id, inputSignature: compiled.inputSignature, image };
+                nextProject = onChange((current) => {
+                    const latestPage = current.chapters.find((item) => item.id === chapter.id)?.pages.find((item) => item.id === page.id);
+                    const latestPanel = latestPage?.panels.find((item) => item.id === panelId);
+                    if (!latestPage || !latestPanel || !isComicPanelGenerationSnapshotCurrent(current, latestPage, latestPanel, snapshot, { model: imageConfig.model, size: imageConfig.size })) {
+                        stale = true;
+                        return current;
+                    }
+                    remaining.delete(panelId);
+                    return recordComicPanelGenerationResult(current, chapter.id, page.id, panelId, { image: createComicGeneratedPanelImage(image, context), imageError: undefined }, [...remaining], startedAt);
+                });
+                if (stale) break;
+                if (!anchor) anchor = { panelId, inputSignature: compiled.inputSignature, image };
             } catch (error) {
-                nextProject = updateComicPanel(nextProject, chapter.id, page.id, panel.id, { imageError: errorMessage(error, "页格生成失败") });
+                nextProject = onChange((current) => {
+                    const latestPage = current.chapters.find((item) => item.id === chapter.id)?.pages.find((item) => item.id === page.id);
+                    const latestPanel = latestPage?.panels.find((item) => item.id === panelId);
+                    if (!latestPage || !latestPanel || !isComicPanelGenerationSnapshotCurrent(current, latestPage, latestPanel, snapshot, { model: imageConfig.model, size: imageConfig.size })) {
+                        stale = true;
+                        return current;
+                    }
+                    return recordComicPanelGenerationResult(current, chapter.id, page.id, panelId, { imageError: errorMessage(error, "页格生成失败") }, [...remaining], startedAt);
+                });
+                if (stale) break;
             }
-            nextProject = updateComicPage(nextProject, chapter.id, page.id, { pendingPanelTask: remaining.size ? { panelIds: [...remaining], startedAt } : undefined });
-            onChange(nextProject);
         }
-        onChange(updateComicPage(nextProject, chapter.id, page.id, { pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus), pendingPanelTask: undefined }));
         setGenerating(false);
         setProgress(null);
         if (warnings.size) modal.info({ title: "本次生成的参考图提示", content: <ul className="m-0 list-disc pl-5 text-xs leading-6">{Array.from(warnings).map((warning) => <li key={warning}>{warning}</li>)}</ul> });
-        if (remaining.size) message.warning(`还有 ${remaining.size} 个页格未生成，可刷新或稍后继续`);
+        if (stale) message.warning("生成期间页格或所用设定已修改，已停止后续生成，请重新生成");
+        else if (remaining.size) message.warning(`还有 ${remaining.size} 个页格未生成，可刷新或稍后继续`);
         else message.success("页格图生成完成，可逐格检查");
     };
 
@@ -148,8 +193,22 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
                 });
                 if (!acceptedStale) return;
             }
-            const result = await composeComicPage(project, page, { confirmedPanelIds: riskyPanelIds, model: config?.model, size: config?.size });
-            onChange(updateComicPage(project, chapter.id, page.id, { pageImage: result.image, compositionContext: result.compositionContext, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
+            const compositionOptions = { confirmedPanelIds: riskyPanelIds, model: config?.model, size: config?.size };
+            const inputSignature = comicPageCompositionInputSignature(project, page, compositionOptions);
+            const result = await composeComicPage(project, page, compositionOptions);
+            let stale = false;
+            onChange((current) => {
+                const currentPage = current.chapters.find((item) => item.id === chapter.id)?.pages.find((item) => item.id === page.id);
+                if (!currentPage || comicPageCompositionInputSignature(current, currentPage, compositionOptions) !== inputSignature) {
+                    stale = true;
+                    return current;
+                }
+                return updateComicPage(current, chapter.id, page.id, { pageImage: result.image, compositionContext: result.compositionContext, reviewStatus: resetComicReviewStatus(currentPage.reviewStatus) });
+            });
+            if (stale) {
+                message.warning("合成期间页面或设定已修改，请重新合成");
+                return;
+            }
             setPagePreview(result.image);
             if (warnings.incompletePanelIds.length) message.warning(`整页已合成，${warnings.incompletePanelIds.length} 个页格生成时参考图不完整`);
             else if (result.missing) message.warning(`整页已合成，${result.missing} 个页格没有可用图片`);

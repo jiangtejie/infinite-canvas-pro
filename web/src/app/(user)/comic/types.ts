@@ -1,3 +1,5 @@
+export type ComicProjectUpdater = ComicProject | ((current: ComicProject) => ComicProject);
+
 export type ComicFormat = "page" | "strip";
 export type ComicDirection = "rtl" | "ltr";
 export type ComicStage = "concept" | "cast" | "script" | "layout" | "review";
@@ -121,6 +123,7 @@ export type ComicGenerationReference = {
     id: string;
     revision: string;
     role: "character-primary" | "character-face" | "character-full-body" | "character-variant" | "location" | "panel-anchor";
+    imageKey?: string;
 };
 
 export type ComicGenerationContext = {
@@ -192,6 +195,7 @@ export type ComicProject = {
     synopsis: string;
     styleGuide: string;
     chapters: ComicChapter[];
+    pageOrder: string[];
     characters: ComicCharacter[];
     locations: ComicLocation[];
     createdAt: string;

@@ -7,12 +7,12 @@ import { App, Button, Input, Select } from "antd";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
-import type { ComicPanel, ComicPanelCharacterBinding, ComicProject } from "../types";
-import { requestComicBreakdown } from "../utils/comic-ai";
+import type { ComicPanel, ComicPanelCharacterBinding, ComicProject, ComicProjectUpdater } from "../types";
+import { createComicBreakdownInputSnapshot, isComicBreakdownInputCurrent, requestComicBreakdown } from "../utils/comic-ai";
 import { removeComicPanelCharacterBinding, setComicPanelCharacterBindings, suggestLegacyPanelBindings } from "../utils/comic-character-binding";
-import { createComicChapter, createComicPage, createComicPanel, moveComicPanel, resetComicReviewStatus, updateComicChapter, updateComicPage, updateComicPanel } from "../utils/comic-project";
+import { createComicChapter, createComicPage, createComicPanel, moveComicPanel, removeComicPage, resetComicReviewStatus, updateComicChapter, updateComicPage, updateComicPanel } from "../utils/comic-project";
 
-export function ComicScriptStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
+export function ComicScriptStage({ project, onChange }: { project: ComicProject; onChange: (update: ComicProjectUpdater) => ComicProject }) {
     const { message } = App.useApp();
     const confirm = useConfirm();
     const resolveModelConfig = useModelConfig();
@@ -37,7 +37,7 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
 
     const addChapter = () => {
         const next = createComicChapter(project.chapters.length + 1);
-        onChange({ ...project, chapters: [...project.chapters, next] });
+        onChange({ ...project, chapters: [...project.chapters, next], pageOrder: [...project.pageOrder, ...next.pages.map((page) => page.id)] });
         setChapterId(next.id);
         setPageId(next.pages[0]?.id || "");
     };
@@ -56,19 +56,25 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
         if (!chapter) return;
         const accepted = await confirm({ title: `删除「${chapter.title}」？`, description: `章节下的 ${chapter.pages.length} 页和页格会一起删除。`, confirmText: "删除章节", tone: "danger" });
         if (!accepted) return;
-        const chapters = project.chapters.filter((item) => item.id !== chapter.id);
-        onChange({ ...project, chapters });
-        setChapterId(chapters[0]?.id || "");
-        setPageId(chapters[0]?.pages[0]?.id || "");
+        onChange((current) => {
+            const removedPageIds = new Set(current.chapters.find((item) => item.id === chapter.id)?.pages.map((item) => item.id) || []);
+            const chapters = current.chapters.filter((item) => item.id !== chapter.id);
+            return {
+                ...current,
+                chapters,
+                pageOrder: current.pageOrder.filter((id) => !removedPageIds.has(id)),
+            };
+        });
+        setChapterId(project.chapters.filter((item) => item.id !== chapter.id)[0]?.id || "");
+        setPageId(project.chapters.filter((item) => item.id !== chapter.id)[0]?.pages[0]?.id || "");
     };
 
     const removePage = async () => {
         if (!chapter || !page) return;
         const accepted = await confirm({ title: `删除「${page.title}」？`, description: "这一页的页格会一起删除。", confirmText: "删除页面", tone: "danger" });
         if (!accepted) return;
-        const pages = chapter.pages.filter((item) => item.id !== page.id);
-        onChange(updateComicChapter(project, chapter.id, { pages }));
-        setPageId(pages[0]?.id || "");
+        onChange((current) => removeComicPage(current, chapter.id, page.id));
+        setPageId("");
     };
 
     const patchPage = (patch: Partial<typeof page>) => {
@@ -132,9 +138,22 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
         });
         if (!accepted) return;
         setBreaking(true);
+        const inputProject = project;
+        const snapshot = createComicBreakdownInputSnapshot(inputProject, chapter.id);
         try {
-            const pages = await requestComicBreakdown(config, project, chapter.title, chapter.summary);
-            onChange(updateComicChapter(project, chapter.id, { pages }));
+            const pages = await requestComicBreakdown(config, inputProject, chapter.title, chapter.summary);
+            let stale = false;
+            onChange((current) => {
+                if (!isComicBreakdownInputCurrent(snapshot, current, chapter.id)) {
+                    stale = true;
+                    return current;
+                }
+                return updateComicChapter(current, chapter.id, { pages });
+            });
+            if (stale) {
+                message.warning("生成期间本章内容或所用设定已修改，请重新拆分");
+                return;
+            }
             setPageId(pages[0]?.id || "");
             message.success(`已拆出 ${pages.length} 页 / ${pages.reduce((total, item) => total + item.panels.length, 0)} 格`);
         } catch (error) {
@@ -181,6 +200,12 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
             </aside>
 
             <section className="space-y-4 rounded-xl border border-border/70 bg-card/40 p-5">
+                {chapter ? (
+                    <div className="grid gap-3 border-b border-border/60 pb-4 md:grid-cols-[220px_minmax(0,1fr)]">
+                        <label className="block space-y-1.5 text-xs"><span className="text-muted-foreground">章节标题</span><Input value={chapter.title} maxLength={100} onChange={(event) => onChange(updateComicChapter(project, chapter.id, { title: event.target.value }))} /></label>
+                        <label className="block space-y-1.5 text-xs"><span className="text-muted-foreground">章节摘要</span><Input.TextArea rows={2} value={chapter.summary} maxLength={4000} placeholder="本章的故事走向，供 AI 拆分页格时理解上下文" onChange={(event) => onChange(updateComicChapter(project, chapter.id, { summary: event.target.value }))} /></label>
+                    </div>
+                ) : null}
                 {!chapter || !page ? (
                     <div className="flex flex-col items-center justify-center gap-2 py-16 text-center text-sm text-muted-foreground"><FileText className="size-8 opacity-40" /><span>还没有页面</span><Button size="small" icon={<Plus className="size-3.5" />} onClick={addPage}>添加第一页</Button></div>
                 ) : (

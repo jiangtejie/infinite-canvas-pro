@@ -24,6 +24,7 @@ export function buildImportedCanvasProject(
         activeChatId: source.activeChatId || null,
         agentConfig: source.agentConfig || null,
         autoTitlePending: false,
+        pendingAgentRequest: source.pendingAgentRequest,
         backgroundMode: source.backgroundMode || "lines",
         showImageInfo: source.showImageInfo || false,
         viewport: source.viewport || context.viewport,
@@ -31,5 +32,6 @@ export function buildImportedCanvasProject(
         agentPanel: source.agentPanel || context.agentPanel,
         domain: source.domain,
         film: source.film,
+        comic: source.comic,
     };
 }

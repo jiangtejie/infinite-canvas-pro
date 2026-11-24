@@ -99,8 +99,8 @@ export type ComicExportPreset = {
 export type CanvasComicBook = {
     pageNodeIds: string[];
     coverNodeId?: string;
-    format: "page" | "strip";
-    direction: "rtl" | "ltr";
+    format?: "page" | "strip";
+    direction?: "rtl" | "ltr";
     lettering?: Record<string, ComicLetterElement[]>;
     exportPreset?: ComicExportPreset;
 };

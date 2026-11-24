@@ -64,6 +64,7 @@ export type ComicStudioModel = {
     project: CanvasProject;
     view: "book" | "workbench";
     onViewChange: (view: "book" | "workbench") => void;
+    selectedPageId?: string;
     onChangeProject: (project: CanvasProject) => void;
 };
 
@@ -214,7 +215,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                             <CanvasStageOverlays model={model.overlays} />
                         </>
                     ) : (
-                        <ComicWorkbench project={comicStudio.project} onChangeProject={comicStudio.onChangeProject} />
+                        <ComicWorkbench project={comicStudio.project} selectedPageId={comicStudio.selectedPageId} onChangeProject={comicStudio.onChangeProject} />
                     )
                 ) : filmStudio ? (
                     filmStudio.view === "board" ? (

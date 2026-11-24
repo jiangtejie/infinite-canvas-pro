@@ -3,7 +3,7 @@ import { imageToDataUrl } from "@/services/image-storage";
 import type { ComicCharacter, ComicCharacterReference, ComicGeneratedPanelImage, ComicGenerationContext, ComicGenerationReference, ComicImageRef, ComicLocation, ComicPage, ComicPanel, ComicProject } from "../types";
 import { activeComicSlotImage } from "./comic-image-slot";
 
-export const COMIC_COMPILER_VERSION = "1";
+export const COMIC_COMPILER_VERSION = "3";
 const MAX_REFERENCES = 5;
 
 export type ComicReferenceDescriptor = {
@@ -11,6 +11,7 @@ export type ComicReferenceDescriptor = {
     revision: string;
     role: ComicGenerationReference["role"];
     image: ComicImageRef;
+    imageKey: string;
     label: string;
 };
 
@@ -87,7 +88,7 @@ function characterBehavior(character: ComicCharacter) {
 function descriptor(reference: ComicCharacterReference | undefined, role: ComicGenerationReference["role"], label: string): ComicReferenceDescriptor | null {
     const image = activeComicSlotImage(reference?.slot);
     if (!reference || !image) return null;
-    return { id: reference.id, revision: String(reference.revision), role, image, label };
+    return { id: reference.id, revision: String(reference.revision), role, image, imageKey: comicImageKey(image), label };
 }
 
 export function buildComicPanelGenerationContext(project: ComicProject, page: ComicPage, panel: ComicPanel, options: ComicPanelGenerationOptions = {}): ComicPanelGenerationContext {
@@ -155,7 +156,7 @@ export function buildComicPanelGenerationContext(project: ComicProject, page: Co
     for (const location of matchedLocations) {
         const image = activeComicSlotImage(location.image);
         if (!image) continue;
-        addReference({ id: `location:${location.id}`, revision: image.storageKey || image.id, role: "location", image, label: `${location.name}场景参考` });
+        addReference({ id: `location:${location.id}`, revision: image.storageKey || image.id, role: "location", image, imageKey: comicImageKey(image), label: `${location.name}场景参考` });
     }
     if (options.anchor) {
         addReference({
@@ -163,6 +164,7 @@ export function buildComicPanelGenerationContext(project: ComicProject, page: Co
             revision: options.anchor.inputSignature || "unrecorded",
             role: "panel-anchor",
             image: options.anchor.image,
+            imageKey: comicImageKey(options.anchor.image),
             label: "页内构图锚点",
         });
     }
@@ -181,7 +183,7 @@ export function buildComicPanelGenerationContext(project: ComicProject, page: Co
         compilerVersion: COMIC_COMPILER_VERSION,
         prompt,
         page: { id: page.id, summary: page.summary },
-        panel: { id: panel.id, description: panel.description, dialogue: panel.dialogue, caption: panel.caption },
+        panel: { id: panel.id, description: panel.description, dialogue: panel.dialogue, caption: panel.caption, layout: panel.layout || null },
         bindings: panel.characterBindings.map((binding) => {
             const character = project.characters.find((item) => item.id === binding.characterId);
             const variant = character?.variants.find((item) => item.id === binding.variantId);
@@ -217,8 +219,8 @@ export function buildComicPanelGenerationContext(project: ComicProject, page: Co
             const image = activeComicSlotImage(location.image);
             return { id: location.id, name: location.name, description: location.description, atmosphere: location.atmosphere, imageKey: image?.storageKey || image?.id || "unversioned" };
         }),
-        references: referenceDescriptors.map((item) => ({ id: item.id, revision: item.revision, role: item.role })),
-        anchor: options.anchor ? { panelId: options.anchor.panelId, inputSignature: options.anchor.inputSignature } : null,
+        references: referenceDescriptors.map((item) => ({ id: item.id, revision: item.revision, role: item.role, ...(item.role === "panel-anchor" ? { imageKey: item.imageKey } : {}) })),
+        anchor: options.anchor ? { panelId: options.anchor.panelId, inputSignature: options.anchor.inputSignature, imageKey: comicImageKey(options.anchor.image) } : null,
         model: options.model || "",
         size: options.size || "",
     };
@@ -230,6 +232,33 @@ export function buildComicPanelGenerationContext(project: ComicProject, page: Co
         inputSignature: JSON.stringify(canonical),
         compilerVersion: COMIC_COMPILER_VERSION,
     };
+}
+
+export type ComicPanelGenerationSnapshot = {
+    context: ComicPanelGenerationContext;
+    image?: ComicGeneratedPanelImage;
+    anchor?: ComicPanelAnchor;
+};
+
+function comicImageKey(image?: ComicImageRef) {
+    return image ? `${image.storageKey || image.url}:${image.width || ""}:${image.height || ""}` : "";
+}
+
+export function createComicPanelGenerationSnapshot(project: ComicProject, page: ComicPage, panel: ComicPanel, options: ComicPanelGenerationOptions = {}): ComicPanelGenerationSnapshot {
+    return { context: buildComicPanelGenerationContext(project, page, panel, options), image: panel.image, anchor: options.anchor };
+}
+
+export function isComicPanelGenerationSnapshotCurrent(project: ComicProject, page: ComicPage, panel: ComicPanel, snapshot: ComicPanelGenerationSnapshot, options: ComicPanelGenerationOptions = {}) {
+    if (comicImageKey(panel.image) !== comicImageKey(snapshot.image)) return false;
+    let anchor: ComicPanelAnchor | undefined;
+    if (snapshot.anchor) {
+        const anchorPanel = page.panels.find((item) => item.id === snapshot.anchor!.panelId);
+        if (!anchorPanel?.image) return false;
+        const inputSignature = currentComicPanelInputSignature(project, page, anchorPanel, options);
+        if (inputSignature !== snapshot.anchor.inputSignature || comicImageKey(anchorPanel.image) !== comicImageKey(snapshot.anchor.image)) return false;
+        anchor = { panelId: anchorPanel.id, inputSignature, image: anchorPanel.image };
+    }
+    return buildComicPanelGenerationContext(project, page, panel, { ...options, anchor }).inputSignature === snapshot.context.inputSignature;
 }
 
 export async function loadComicPanelReferences(descriptors: ComicReferenceDescriptor[]): Promise<ComicReferenceLoadResult> {
@@ -258,7 +287,7 @@ export function createComicGenerationContext(
         inputSignature: compiled.inputSignature,
         compilerVersion: compiled.compilerVersion,
         prompt: compiled.prompt,
-        references: loaded.loadedDescriptors.map((item) => ({ id: item.id, revision: item.revision, role: item.role })),
+        references: loaded.loadedDescriptors.map((item) => ({ id: item.id, revision: item.revision, role: item.role, ...(item.role === "panel-anchor" ? { imageKey: item.imageKey } : {}) })),
         missingReferenceIds: loaded.missingReferenceIds,
         model: options.model,
         size: options.size,
@@ -282,7 +311,7 @@ export function currentComicPanelInputSignature(project: ComicProject, page: Com
     const savedAnchor = panel.image?.generationContext?.references.find((item) => item.role === "panel-anchor");
     const anchorPanel = savedAnchor ? page.panels.find((item) => `panel:${item.id}` === savedAnchor.id) : undefined;
     const anchorSignature = anchorPanel?.image?.generationContext?.inputSignature || savedAnchor?.revision;
-    const anchor = savedAnchor && anchorPanel?.image && anchorSignature ? { panelId: anchorPanel.id, inputSignature: anchorSignature, image: anchorPanel.image } : undefined;
+    const anchor = savedAnchor && savedAnchor.imageKey && anchorPanel?.image && anchorSignature && savedAnchor.imageKey === comicImageKey(anchorPanel.image) ? { panelId: anchorPanel.id, inputSignature: anchorSignature, image: anchorPanel.image } : undefined;
     return buildComicPanelGenerationContext(project, page, panel, { ...options, anchor }).inputSignature;
 }
 

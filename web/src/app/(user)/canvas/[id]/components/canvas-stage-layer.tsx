@@ -442,11 +442,11 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     const openNodePanel = useCallback((node: CanvasNodeData) => {
         if (isFilmNodeType(node.type) || isLegacyFilmNodeType(node.type) || node.type === CanvasNodeType.ComicPage) return;
         if (comic && node.type === CanvasNodeType.Comic) {
-            onOpenComicWorkbench?.();
+            openOverlay({ kind: "comic", nodeId: node.id, mode: "lettering" });
             return;
         }
         openOverlay(node.type === CanvasNodeType.Comic ? { kind: "comic", nodeId: node.id } : { kind: "prompt", nodeId: node.id });
-    }, [comic, onOpenComicWorkbench, openOverlay]);
+    }, [comic, openOverlay]);
 
     return (
         <>

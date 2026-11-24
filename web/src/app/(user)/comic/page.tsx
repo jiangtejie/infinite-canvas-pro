@@ -12,8 +12,7 @@ import { CanvasDeleteProjectsDialog } from "../canvas/components/canvas-delete-p
 import { CanvasProjectCard } from "../canvas/components/canvas-project-card";
 import { useCanvasStore, type CanvasProject } from "../canvas/stores/use-canvas-store";
 import { comicCanvasProjects } from "../canvas/utils/canvas-project-domain";
-import { applyComicProject, selectComicProject } from "../canvas/[id]/lib/comic-canvas-projection";
-import { parseComicProjectBackup, serializeComicProject } from "./utils/comic-project";
+import { parseComicCanvasProjectBackup, serializeComicCanvasProject } from "../canvas/[id]/lib/comic-canvas-backup";
 
 export default function ComicListPage() {
     const router = useRouter();
@@ -21,8 +20,7 @@ export default function ComicListPage() {
     const hydrated = useCanvasStore((state) => state.hydrated);
     const projects = useCanvasStore((state) => state.projects);
     const createComicProject = useCanvasStore((state) => state.createComicProject);
-    const updateProject = useCanvasStore((state) => state.updateProject);
-    const renameProject = useCanvasStore((state) => state.renameProject);
+    const importProject = useCanvasStore((state) => state.importProject);
     const importInputRef = useRef<HTMLInputElement>(null);
     const ordered = useMemo(() => [...comicCanvasProjects(projects)].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)), [projects]);
     const create = () => {
@@ -30,20 +28,13 @@ export default function ComicListPage() {
         router.push(`/comic/studio/${id}`);
     };
     const exportComic = (project: CanvasProject) => {
-        const view = selectComicProject(project);
-        if (!view) return void message.warning("漫画册节点缺失，无法导出");
-        saveAs(new Blob([serializeComicProject(view)], { type: "application/json" }), `${view.title || "漫画项目"}.json`);
+        saveAs(new Blob([serializeComicCanvasProject(project)], { type: "application/json" }), `${project.title || "漫画项目"}.json`);
         message.success("漫画项目备份已导出");
     };
     const importComic = async (file: File) => {
         try {
-            const backup = parseComicProjectBackup(await file.text());
-            const id = createComicProject(backup.title);
-            const project = useCanvasStore.getState().projects.find((item) => item.id === id);
-            if (!project) throw new Error("漫画项目创建失败");
-            const next = applyComicProject(project, { ...backup, id });
-            updateProject(id, { nodes: next.nodes, connections: next.connections, comic: next.comic });
-            if (next.title !== project.title) renameProject(id, next.title);
+            const backup = parseComicCanvasProjectBackup(await file.text());
+            const id = importProject(backup);
             message.success(`已导入「${backup.title}」`);
             router.push(`/comic/studio/${id}`);
         } catch (error) {

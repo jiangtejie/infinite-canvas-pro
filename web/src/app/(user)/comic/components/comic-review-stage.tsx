@@ -5,7 +5,7 @@ import { CheckCircle2, CircleAlert, FileText, MessageSquareWarning } from "lucid
 import { Button, Input, Segmented } from "antd";
 
 import type { ComicPage, ComicProject, ComicReviewStatus } from "../types";
-import { comicPageIssues, comicPageReviewStatus, comicReviewProgress, updateComicPage } from "../utils/comic-project";
+import { comicPageIssues, comicPageReviewStatus, comicPagesInBookOrder, comicReviewProgress, updateComicPage } from "../utils/comic-project";
 import { ComicImage } from "./comic-image";
 
 const STATUS_OPTIONS: { value: "all" | ComicReviewStatus; label: string }[] = [
@@ -24,7 +24,7 @@ const STATUS_STYLE: Record<ComicReviewStatus, { label: string; color: string }> 
 };
 
 export function ComicReviewStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
-    const pages = useMemo(() => project.chapters.flatMap((chapter) => chapter.pages.map((page) => ({ chapter, page }))), [project.chapters]);
+    const pages = useMemo(() => comicPagesInBookOrder(project), [project]);
     const progress = comicReviewProgress(project);
     const [filter, setFilter] = useState<(typeof STATUS_OPTIONS)[number]["value"]>("all");
     const [selectedKey, setSelectedKey] = useState(pages[0] ? `${pages[0].chapter.id}:${pages[0].page.id}` : "");
