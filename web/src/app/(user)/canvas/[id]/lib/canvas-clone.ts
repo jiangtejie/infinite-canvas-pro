@@ -40,9 +40,6 @@ export function cloneCanvasNodes(nodes: CanvasNodeData[], { offset, rename = cop
         const lettering = book.lettering
             ? Object.fromEntries(Object.entries(book.lettering).map(([pageId, elements]) => [idMap.get(pageId) || pageId, elements]))
             : undefined;
-        const pageProjectIds = book.pageProjectIds
-            ? Object.fromEntries(Object.entries(book.pageProjectIds).map(([pageId, projectPageId]) => [idMap.get(pageId) || pageId, projectPageId]))
-            : undefined;
         return {
             ...node,
             metadata: {
@@ -52,7 +49,6 @@ export function cloneCanvasNodes(nodes: CanvasNodeData[], { offset, rename = cop
                     pageNodeIds: book.pageNodeIds.map((pageId) => idMap.get(pageId) || pageId),
                     coverNodeId: book.coverNodeId ? idMap.get(book.coverNodeId) || book.coverNodeId : undefined,
                     lettering,
-                    pageProjectIds,
                 },
             },
         };

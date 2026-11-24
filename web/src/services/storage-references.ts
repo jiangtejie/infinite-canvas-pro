@@ -1,6 +1,6 @@
 import { readOtherAccountStates } from "@/lib/account-storage";
 import { waitForStoreHydration } from "@/lib/store-hydration";
-import { ASSET_STORE_KEY, CANVAS_STORE_KEY, COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY } from "@/lib/storage-keys";
+import { ASSET_STORE_KEY, CANVAS_STORE_KEY, COMIC_CAST_STORE_KEY, FILM_CAST_STORE_KEY } from "@/lib/storage-keys";
 
 type GenerationLog = {
     images?: Array<{ storageKey?: string } | null>;
@@ -12,7 +12,6 @@ export type StorageReferenceSources = {
     assets?: unknown;
     projects?: unknown;
     filmCast?: unknown;
-    comicProjects?: unknown;
     comicCast?: unknown;
     skills?: unknown;
     extra?: unknown;
@@ -30,7 +29,6 @@ export function buildStorageReferenceSources(input: StorageReferenceSourceInput)
         assets: input.assets,
         projects: input.projects,
         filmCast: input.filmCast,
-        comicProjects: input.comicProjects,
         comicCast: input.comicCast,
         skills: input.skills,
         extra: input.extra,
@@ -43,12 +41,10 @@ export function buildStorageReferenceSources(input: StorageReferenceSourceInput)
 export async function collectStorageReferences({ assets, skills, extra }: { assets?: unknown; skills?: unknown; extra?: unknown } = {}): Promise<StorageReferenceSources> {
     const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
     const { useFilmCastStore } = await import("@/stores/use-film-cast-store");
-    const { useComicStore } = await import("@/app/(user)/comic/stores/use-comic-store");
     const { useComicCastStore } = await import("@/app/(user)/comic/stores/use-comic-cast-store");
     await Promise.all([
         waitForStoreHydration(useCanvasStore),
         waitForStoreHydration(useFilmCastStore),
-        waitForStoreHydration(useComicStore),
         waitForStoreHydration(useComicCastStore),
     ]);
     const cast = useFilmCastStore.getState();
@@ -57,7 +53,6 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
         assets,
         projects: useCanvasStore.getState().projects,
         filmCast: { characters: cast.characters, locations: cast.locations, props: cast.props, costumes: cast.costumes, styles: cast.styles },
-        comicProjects: useComicStore.getState().projects,
         comicCast: { characters: comicCast.characters, locations: comicCast.locations },
         skills,
         extra,
@@ -66,7 +61,6 @@ export async function collectStorageReferences({ assets, skills, extra }: { asse
             ...(await readOtherAccountStates(CANVAS_STORE_KEY)),
             ...(await readOtherAccountStates(ASSET_STORE_KEY)),
             ...(await readOtherAccountStates(FILM_CAST_STORE_KEY)),
-            ...(await readOtherAccountStates(COMIC_STORE_KEY)),
             ...(await readOtherAccountStates(COMIC_CAST_STORE_KEY)),
         ],
     });

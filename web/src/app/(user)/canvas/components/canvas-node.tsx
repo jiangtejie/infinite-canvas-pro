@@ -13,6 +13,7 @@ import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
+import { ComicPageNodeCard } from "./comic-page-node-card";
 import { FilmNodeCardDispatcher } from "./film-node-card";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../types";
 import { isFilmNodeType } from "../[id]/lib/film-node-registry";
@@ -602,6 +603,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 
 function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Group) return null;
+    if (props.node.type === CanvasNodeType.ComicPage) return <ComicPageNodeCard node={props.node} theme={props.theme} />;
     if (isFilmNodeType(props.node.type)) {
         return <FilmNodeCardDispatcher node={props.node} nodes={props.filmNodes || [props.node]} connections={props.filmConnections || []} theme={props.theme} onTitleChange={props.onTitleChange} onResize={(nodeId, width, height, position) => props.onResize(nodeId, width, height, position)} onGenerateImage={props.onGenerateFilmImage} onGenerateVideo={props.onGenerateFilmVideo} onOpenVersions={props.onOpenFilmVersions} onFocusShot={props.onFocusFilmShot} onOpenScript={props.onOpenFilmScript} onEditAsset={props.onEditFilmAsset} onCreateShot={props.onCreateFilmShot} onViewMedia={props.onViewFilmMedia} onUpdateBeat={props.onUpdateFilmBeat} onDecomposeBeat={props.onDecomposeFilmBeat} onGenerateBeatPreview={props.onGenerateFilmBeatPreview} onStopBeatTask={props.onStopFilmBeatTask} onLocateBeatShots={props.onLocateFilmBeatShots} summaryOptions={props.filmSummaryOptions} />;
     }

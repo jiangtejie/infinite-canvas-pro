@@ -17,11 +17,15 @@ test("film character and generation references are collected", () => {
 test("comic project and cast references are collected and cross-account safe", () => {
     const key = "image:cast";
     const sources = buildStorageReferenceSources({
-        comicProjects: [{
-            characters: [{
-                references: { primary: { storageKey: key } },
-                variants: [{ referenceImage: { storageKey: key } }],
-            }],
+        projects: [{
+            comic: {
+                cast: {
+                    characters: [{
+                        references: { primary: { storageKey: key } },
+                        variants: [{ referenceImage: { storageKey: key } }],
+                    }],
+                },
+            },
         }],
         comicCast: {
             characters: [{ references: { face: { storageKey: key } } }],
@@ -30,12 +34,12 @@ test("comic project and cast references are collected and cross-account safe", (
         logKeys: [],
         otherAccounts: [],
     });
-    assert.ok(sources.comicProjects);
+    assert.ok(sources.projects);
     assert.ok(sources.comicCast);
     assert.equal(collectStorageReferenceKeys(sources).has(key), true);
 
     const withOtherAccount = buildStorageReferenceSources({
-        comicProjects: [],
+        projects: [],
         comicCast: { characters: [], locations: [] },
         logKeys: [],
         otherAccounts: [{ state: { projects: [{ characters: [{ references: { fullBody: { storageKey: key } } }] }] } }],

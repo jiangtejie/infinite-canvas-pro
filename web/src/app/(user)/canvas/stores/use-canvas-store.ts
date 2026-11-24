@@ -3,6 +3,7 @@ import { persist, type PersistStorage, type StorageValue } from "zustand/middlew
 
 import { nanoid } from "nanoid";
 import { buildFilmCanvasProject } from "../utils/film-canvas-project";
+import { buildComicCanvasProject } from "../utils/comic-canvas-project";
 import { buildImportedCanvasProject } from "../utils/canvas-project-import";
 import { accountStorageKey, readAccountStorage } from "@/lib/account-storage";
 import { localForageStorage } from "@/lib/localforage-storage";
@@ -12,7 +13,7 @@ import { listCanvasProjects, saveCanvasProject, syncCanvasProjects } from "@/ser
 import { fetchUserConfig } from "@/services/api/user-config";
 import { useUserStore } from "@/stores/use-user-store";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
-import type { CanvasAgentConfig, CanvasAssistantSession, CanvasConnection, CanvasFilmMeta, CanvasNodeData, CanvasPendingAgentRequest, CanvasProjectDomain, ViewportTransform } from "../types";
+import type { CanvasAgentConfig, CanvasAssistantSession, CanvasComicMeta, CanvasConnection, CanvasFilmMeta, CanvasNodeData, CanvasPendingAgentRequest, CanvasProjectDomain, ViewportTransform } from "../types";
 
 export type CanvasSidePanelState = {
     open: boolean;
@@ -43,6 +44,7 @@ export type CanvasProject = {
     agentPanel: CanvasSidePanelState;
     domain?: CanvasProjectDomain;
     film?: CanvasFilmMeta;
+    comic?: CanvasComicMeta;
 };
 
 type CanvasStore = {
@@ -51,11 +53,12 @@ type CanvasStore = {
     projects: CanvasProject[];
     createProject: (title?: string, options?: { agentConfig?: CanvasAgentConfig; pendingAgentRequest?: CanvasPendingAgentRequest }) => string;
     createFilmProject: (title?: string) => string;
+    createComicProject: (title?: string) => string;
     importProject: (project: Partial<CanvasProject>) => string;
     openProject: (id: string) => CanvasProject | null;
     renameProject: (id: string, title: string) => void;
     deleteProjects: (ids: string[]) => void;
-    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest" | "domain" | "film">>) => void;
+    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest" | "domain" | "film" | "comic">>) => void;
     syncWithRemote: (token: string, syncEnabled: boolean) => Promise<void>;
     setSyncEnabled: (enabled: boolean) => void;
     retrySave: () => void;
@@ -314,6 +317,18 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             createFilmProject: (title = "未命名影视画布") => {
                 const project = buildFilmCanvasProject(title, {
+                    id: nanoid(),
+                    now: new Date().toISOString(),
+                    viewport: initialViewport,
+                    sidePanel: DEFAULT_CANVAS_SIDE_PANEL,
+                    agentPanel: DEFAULT_CANVAS_AGENT_PANEL,
+                });
+                set((state) => ({ projects: [project, ...state.projects] }));
+                queueProjectSave(project);
+                return project.id;
+            },
+            createComicProject: (title = "未命名漫画") => {
+                const project = buildComicCanvasProject(title, {
                     id: nanoid(),
                     now: new Date().toISOString(),
                     viewport: initialViewport,

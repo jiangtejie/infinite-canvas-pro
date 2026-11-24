@@ -165,6 +165,10 @@ export type ComicPage = {
         incompletePanelIds: string[];
         confirmedAt?: string;
     };
+    pendingPanelTask?: {
+        panelIds: string[];
+        startedAt: number;
+    };
 };
 
 export type ComicChapter = {

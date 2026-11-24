@@ -8,6 +8,20 @@ import { CanvasNodeType, type CanvasNodeData, type CanvasNodeMetadata, type Posi
 import { createFilmAsset, createFilmStyleAsset } from "./film-asset-factory";
 import { applyNodeConfigPatch } from "./canvas-node-builders";
 
+function defaultComicMetadata(type: CanvasNodeType): CanvasNodeMetadata {
+    if (type !== CanvasNodeType.ComicPage) return {};
+    return {
+        comicPage: {
+            title: "新页面",
+            summary: "",
+            chapterId: "unassigned",
+            panels: [],
+            reviewStatus: "draft",
+            reviewNotes: "",
+        },
+    };
+}
+
 function defaultFilmMetadata(type: CanvasNodeType): CanvasNodeMetadata {
     switch (type) {
         case CanvasNodeType.FilmCharacter:
@@ -50,7 +64,7 @@ export function createCanvasNode(type: CanvasNodeType, position: Position, metad
         },
         width: spec.width,
         height: spec.height,
-        metadata: { ...spec.metadata, ...defaults, ...defaultFilmMetadata(type), ...metadata },
+        metadata: { ...spec.metadata, ...defaults, ...defaultComicMetadata(type), ...defaultFilmMetadata(type), ...metadata },
     };
     return initialSize && metadata?.size === undefined ? applyNodeConfigPatch(node, { size: initialSize }) : node;
 }

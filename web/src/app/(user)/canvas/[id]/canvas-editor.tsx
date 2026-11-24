@@ -104,7 +104,7 @@ import { type CanvasAlignKind } from "../components/canvas-toolbar";
 import { CanvasRefreshShell } from "./components/canvas-refresh-shell";
 import { CanvasComicBookOverlay } from "../components/canvas-comic-book-overlay";
 import { CANVAS_ASSET_DRAG_TYPE } from "../components/canvas-side-panel";
-import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, nextCanvasProjectTitle, useCanvasStore } from "../stores/use-canvas-store";
+import { DEFAULT_CANVAS_AGENT_PANEL, DEFAULT_CANVAS_SIDE_PANEL, nextCanvasProjectTitle, useCanvasStore, type CanvasProject } from "../stores/use-canvas-store";
 import { useFilmViewStore } from "../stores/use-film-view-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { enterCanvasZen, exitCanvasZen } from "../utils/canvas-zen";
@@ -150,12 +150,16 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const hydrated = useCanvasStore((state) => state.hydrated);
     const createProject = useCanvasStore((state) => state.createProject);
     const createFilmProject = useCanvasStore((state) => state.createFilmProject);
+    const createComicProject = useCanvasStore((state) => state.createComicProject);
     const openProject = useCanvasStore((state) => state.openProject);
     const updateProject = useCanvasStore((state) => state.updateProject);
     const renameProject = useCanvasStore((state) => state.renameProject);
     const deleteProjects = useCanvasStore((state) => state.deleteProjects);
     const currentProject = useCanvasStore((state) => state.projects.find((project) => project.id === projectId));
     const filmMode = currentProject?.domain === "film";
+    const comicMode = currentProject?.domain === "comic";
+    const comic = currentProject?.comic;
+    const [comicView, setComicView] = useState<"book" | "workbench">("workbench");
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
     const [nodes, setNodes] = useState<CanvasNodeData[]>([]);
@@ -342,7 +346,9 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         if (!projectLoaded || !currentProject) return;
         if (currentProject.domain === "film" && !studio) {
             router.replace(`/film/studio/${projectId}`);
-        } else if (currentProject.domain !== "film" && studio) {
+        } else if (currentProject.domain === "comic" && !studio) {
+            router.replace(`/comic/studio/${projectId}`);
+        } else if (!currentProject.domain && studio) {
             router.replace(`/canvas/${projectId}`);
         }
     }, [currentProject, projectId, projectLoaded, router, studio]);
@@ -943,6 +949,11 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         setShotGroupsOpen(false);
     }, [filmShots, message]);
 
+    const commitComicProject = useCallback((next: CanvasProject) => {
+        if (next.title !== currentProject?.title) renameProject(projectId, next.title);
+        updateProject(projectId, { nodes: next.nodes, connections: next.connections, comic: next.comic });
+    }, [currentProject?.title, projectId, renameProject, updateProject]);
+
     const createComicFromSelection = useCallback(() => {
         const selected = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id) && isCanvasImageNodeType(node.type) && node.metadata?.content);
         if (selected.length < 2) return;
@@ -1183,16 +1194,21 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             router.push(`/film/studio/${id}`);
             return;
         }
+        if (comicMode) {
+            const id = createComicProject(nextCanvasProjectTitle());
+            router.push(`/comic/studio/${id}`);
+            return;
+        }
         const id = createProject(nextCanvasProjectTitle());
         router.push(`/canvas/${id}`);
-    }, [createFilmProject, createProject, filmMode, router]);
+    }, [comicMode, createComicProject, createFilmProject, createProject, filmMode, router]);
 
     const deleteCurrentProject = useCallback(() => {
         void deleteCanvasProjects([projectId]).catch(() => undefined);
         deleteProjects([projectId]);
         cleanupAssetImages();
-        router.push(filmMode ? "/film" : "/canvas");
-    }, [cleanupAssetImages, deleteProjects, filmMode, projectId, router]);
+        router.push(comicMode ? "/comic" : filmMode ? "/film" : "/canvas");
+    }, [cleanupAssetImages, comicMode, deleteProjects, filmMode, projectId, router]);
 
     const {
         imageInputRef,
@@ -2777,6 +2793,13 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         : null;
     const filmVideoFrameError = filmVideoMode(activeFilmShotPayload) === "frames" ? filmVideoFrameBlockReason("frames", activeFilmShotPayload?.firstFrame) : "";
     const canGenerateFilmVideo = Boolean(activeFilmShotNode && (activeFilmShotPayload?.prompt || activeFilmShotPayload?.description || "").trim() && !filmVideoFrameError && !filmShotBusy);
+    const comicStudio = comicMode && currentProject ? {
+        project: currentProject,
+        view: comicView,
+        onViewChange: setComicView,
+        onChangeProject: commitComicProject,
+    } : undefined;
+
     const filmStudio: FilmDirectorBoardModel | undefined = filmMode ? {
         projectId,
         view: studioView,
@@ -2942,7 +2965,6 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const workspace: CanvasWorkspaceModel = {
         stage: {
             theme, nodes, selectedNodeIds, selectedImageCount, focusNode,
-            openComicProject: (comicProjectId: string) => router.push(`/comic/${comicProjectId}`),
             addSelectedComicPages, handleUploadRequest, selectOnly,
             containerRef, viewport, canvasTool, backgroundMode,
             alignmentGuides, focusAnimationRef, viewportRef, setViewport,
@@ -2973,7 +2995,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             handleRemixWithAgent,
             generateRemixRun,
             projectLoaded, exitNodeReferenceSelection,
-            filmMode, filmSummaryOptions, applyFilmQuickAction,
+            filmMode, comic, onOpenComicWorkbench: () => setComicView("workbench"), filmSummaryOptions, applyFilmQuickAction,
             generateFilmShotImage: handleFilmShotImage,
             generateFilmShotVideo: handleFilmShotVideo,
             openFilmShotVersions,
@@ -3070,12 +3092,13 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             filmMode,
         },
         filmStudio,
+        comicStudio,
     };
 
     return <>
         <CanvasWorkspace model={workspace} />
         {setupDialog}
-        {comicNode ? <CanvasComicBookOverlay key={`${comicNode.id}:${activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"}`} node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} initialMode={activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onClose={closeOverlay} /> : null}
+        {comicNode ? <CanvasComicBookOverlay key={`${comicNode.id}:${activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"}`} node={comicNode} nodes={nodes} selectedImageNodes={selectedImageNodes} comic={currentProject?.comic} initialMode={activeOverlay?.kind === "comic" ? activeOverlay.mode || "preview" : "preview"} onChange={(patch) => handleConfigNodeChange(comicNode.id, patch)} onClose={closeOverlay} /> : null}
         <CanvasFilmInspector
             open={Boolean(filmInspectorNode)}
             node={filmInspectorNode}

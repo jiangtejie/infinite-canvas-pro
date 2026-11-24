@@ -9,10 +9,10 @@ import { useModelConfig } from "@/hooks/use-model-config";
 import { requestImages } from "@/services/api/image/request";
 import type { SeedableImageConfig } from "@/services/api/image";
 import { errorMessage } from "@/lib/utils";
-import type { ComicImageRef, ComicPanel, ComicPanelLayout, ComicPage, ComicProject } from "../../types";
-import { buildComicPanelGenerationContext, comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, currentComicPanelInputSignature, loadComicPanelReferences, resolveComicPanelImageState, type ComicPanelAnchor } from "../../utils/comic-image-generation";
-import { composeComicPage } from "../../utils/comic-page-composition";
-import { comicPanelRect, createComicPanel, equalGridLayouts, equalVerticalLayouts, resetComicReviewStatus, updateComicPage, updateComicPanel } from "../../utils/comic-project";
+import type { ComicImageRef, ComicPanel, ComicPanelLayout, ComicPage, ComicProject } from "../types";
+import { buildComicPanelGenerationContext, comicPageCompositionWarnings, createComicGeneratedPanelImage, createComicGenerationContext, currentComicPanelInputSignature, loadComicPanelReferences, resolveComicPanelImageState, type ComicPanelAnchor } from "../utils/comic-image-generation";
+import { composeComicPage } from "../utils/comic-page-composition";
+import { comicPanelRect, createComicPanel, equalGridLayouts, equalVerticalLayouts, resetComicReviewStatus, updateComicPage, updateComicPanel } from "../utils/comic-project";
 import { ComicImage } from "./comic-image";
 
 type DragState = {
@@ -71,24 +71,28 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
         commitPanels(page.panels.map((item, index) => ({ ...item, layout: layouts[index] })));
     };
 
-    const generatePanelImages = async () => {
+    const generatePanelImages = async (panelIds?: string[]) => {
         if (!page || !chapter || generating) return;
-        if (!page.panels.length) return void message.warning("这一页还没有页格");
+        const targets = panelIds?.length ? page.panels.filter((panel) => panelIds.includes(panel.id)) : page.panels;
+        if (!targets.length) return void message.warning("这一页还没有可生成的页格");
         const config = resolveModelConfig("image");
         if (!config) return;
         const accepted = await confirm({
-            title: `生成「${page.title}」的页格图？`,
-            description: `将依次生成 ${page.panels.length} 个页格，结合角色/场景参考图保持一致性；会消耗算力点，生成中不能停止，建议先导出备份。`,
-            confirmText: "开始生成",
+            title: panelIds?.length ? `继续生成「${page.title}」剩余页格？` : `生成「${page.title}」的页格图？`,
+            description: `将依次生成 ${targets.length} 个页格，结合角色/场景参考图保持一致性；会消耗算力点，生成中不能停止，建议先导出备份。`,
+            confirmText: panelIds?.length ? "继续生成" : "开始生成",
         });
         if (!accepted) return;
         setGenerating(true);
-        let nextProject = project;
+        const startedAt = Date.now();
+        let remaining = new Set(targets.map((panel) => panel.id));
+        let nextProject = updateComicPage(project, chapter.id, page.id, { pendingPanelTask: { panelIds: [...remaining], startedAt } });
         let anchor: ComicPanelAnchor | null = null;
         const warnings = new Set<string>();
         const imageConfig = { ...config, count: "1" } as SeedableImageConfig;
-        for (const [index, panel] of page.panels.entries()) {
-            setProgress({ done: index, total: page.panels.length });
+        onChange(nextProject);
+        for (const [index, panel] of targets.entries()) {
+            setProgress({ done: index, total: targets.length });
             try {
                 const compiled = buildComicPanelGenerationContext(nextProject, page, panel, { anchor: anchor || undefined, model: imageConfig.model, size: imageConfig.size });
                 compiled.warnings.forEach((warning) => warnings.add(warning));
@@ -100,17 +104,20 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
                 const image: ComicImageRef = { url: generated.dataUrl, storageKey: generated.storageKey, width: generated.width, height: generated.height };
                 const context = createComicGenerationContext(compiled, loaded, { model: imageConfig.model, size: imageConfig.size });
                 nextProject = updateComicPanel(nextProject, chapter.id, page.id, panel.id, { image: createComicGeneratedPanelImage(image, context), imageError: undefined });
+                remaining.delete(panel.id);
                 if (!anchor) anchor = { panelId: panel.id, inputSignature: compiled.inputSignature, image };
             } catch (error) {
                 nextProject = updateComicPanel(nextProject, chapter.id, page.id, panel.id, { imageError: errorMessage(error, "页格生成失败") });
             }
+            nextProject = updateComicPage(nextProject, chapter.id, page.id, { pendingPanelTask: remaining.size ? { panelIds: [...remaining], startedAt } : undefined });
             onChange(nextProject);
         }
-        onChange(updateComicPage(nextProject, chapter.id, page.id, { pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus) }));
+        onChange(updateComicPage(nextProject, chapter.id, page.id, { pageImage: undefined, compositionContext: undefined, reviewStatus: resetComicReviewStatus(page.reviewStatus), pendingPanelTask: undefined }));
         setGenerating(false);
         setProgress(null);
         if (warnings.size) modal.info({ title: "本次生成的参考图提示", content: <ul className="m-0 list-disc pl-5 text-xs leading-6">{Array.from(warnings).map((warning) => <li key={warning}>{warning}</li>)}</ul> });
-        message.success("页格图生成完成，可逐格检查");
+        if (remaining.size) message.warning(`还有 ${remaining.size} 个页格未生成，可刷新或稍后继续`);
+        else message.success("页格图生成完成，可逐格检查");
     };
 
     const panelImageState = (panel: ComicPanel) => {
@@ -225,6 +232,13 @@ export function ComicLayoutStage({ project, onChange }: { project: ComicProject;
                             </div>
                         </div>
                         <p className="text-[11px] text-muted-foreground/60">拖动页格移动，右下角缩放；任何布局修改都会把页面退回草稿。</p>
+                        {page.pendingPanelTask?.panelIds.length ? (
+                            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700">
+                                <span>上次生成中断，剩余 {page.pendingPanelTask.panelIds.length} 格</span>
+                                <Button size="small" type="primary" loading={generating} disabled={generating} onClick={() => void generatePanelImages(page.pendingPanelTask?.panelIds)}>继续生成</Button>
+                                <Button size="small" type="text" disabled={generating} onClick={() => onChange(updateComicPage(project, chapter.id, page.id, { pendingPanelTask: undefined }))}>忽略</Button>
+                            </div>
+                        ) : null}
                         <div className="flex justify-center py-2">
                             <div data-comic-layout-page className="relative w-full max-w-[520px] overflow-hidden border-2 border-foreground/80 bg-white shadow-[0_18px_50px_rgba(0,0,0,.18)]" style={{ aspectRatio: project.format === "strip" ? 9 / 16 : 3 / 4 }}>
                                 {page.panels.map((panel, index) => {

@@ -4,6 +4,7 @@ import { createZip } from "@/lib/zip";
 import { getImageBlob, getProxyUrl, resolveImageUrl } from "@/services/image-storage";
 import type { CanvasNodeData, ComicLetterElement } from "../../types";
 import { comicLetterTailX, comicLetterTemplate } from "../../utils/comic-lettering";
+import { comicPageImage } from "../../utils/comic-book-state";
 
 type ComicExportPage = { blob: Blob; width: number; height: number };
 type ComicExportTargetSettings = {
@@ -72,12 +73,13 @@ export async function exportComicStrip(nodes: CanvasNodeData[], options: ComicEx
 }
 
 async function loadComicImageBlob(node: CanvasNodeData) {
-    const storageKey = node.metadata?.storageKey || "";
+    const image = comicPageImage(node);
+    const storageKey = image?.storageKey || "";
     if (storageKey.startsWith("image:")) {
         const blob = await getImageBlob(storageKey).catch(() => null);
         if (blob) return blob;
     }
-    const url = await resolveImageUrl(storageKey, node.metadata?.content || "");
+    const url = await resolveImageUrl(storageKey, image?.url || "");
     if (!url) throw new Error(`第 ${node.title || node.id} 页图片为空`);
     const response = await fetch(getProxyUrl(url)).catch(() => null);
     if (!response?.ok) throw new Error(`第 ${node.title || node.id} 页图片读取失败`);

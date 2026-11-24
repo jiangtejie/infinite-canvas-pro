@@ -18,6 +18,8 @@ import { FilmDirectorBoard } from "./film-director-board";
 import { FilmShotFocus } from "./film-shot-focus";
 import { FilmViewBody } from "./film-view-body";
 import { FilmViewSwitch } from "./film-view-switch";
+import { ComicViewSwitch } from "./comic-view-switch";
+import { ComicWorkbench } from "./comic-workbench";
 import { FilmShotBatchProgress } from "./film-shot-batch-progress";
 import { FilmReviewDrawer } from "./film-review-drawer";
 import { FilmPreviewOverlay } from "./film-preview-overlay";
@@ -58,6 +60,13 @@ type CanvasShellModel = {
 };
 
 
+export type ComicStudioModel = {
+    project: CanvasProject;
+    view: "book" | "workbench";
+    onViewChange: (view: "book" | "workbench") => void;
+    onChangeProject: (project: CanvasProject) => void;
+};
+
 export type CanvasWorkspaceModel = {
     shell: CanvasShellModel;
     stage: CanvasStageModel;
@@ -65,6 +74,7 @@ export type CanvasWorkspaceModel = {
     dialogs: CanvasDialogModel;
     assistant: CanvasAssistantModel;
     filmStudio?: FilmDirectorBoardModel;
+    comicStudio?: ComicStudioModel;
 };
 
 export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
@@ -98,7 +108,9 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
         filmMode,
     } = model.shell;
     const filmStudio = model.filmStudio;
+    const comicStudio = model.comicStudio;
     const filmBoardActive = Boolean(filmStudio);
+    const domainActive = filmBoardActive || Boolean(comicStudio);
     const filmCostumes = useFilmCastStore((state) => state.costumes);
     const [filmReviewOpen, setFilmReviewOpen] = useState(false);
     const filmReviewReport = useMemo(() => (filmMode ? selectFilmReview(nodes, model.stage.connections, currentProject?.film, currentProject?.title, filmCostumes) : null), [currentProject, filmCostumes, filmMode, model.stage.connections, nodes]);
@@ -134,7 +146,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 if (selection?.toString() && panel?.contains(selection.anchorNode) && !panel.contains(event.target as Node)) selection.removeAllRanges();
             }}
         >
-            {!filmBoardActive ? (
+            {!domainActive ? (
             <CanvasSidePanel
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
@@ -175,7 +187,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     canUndo={historyState.canUndo}
                     canRedo={historyState.canRedo}
                     onHome={() => router.push("/")}
-                    onProjects={() => router.push(filmStudio ? "/film" : "/canvas")}
+                    onProjects={() => router.push(comicStudio ? "/comic" : filmStudio ? "/film" : "/canvas")}
                     onCreateProject={createAndOpenProject}
                     onDeleteProject={() => setDeleteProjectConfirmOpen(true)}
                     onClear={() => setClearConfirmOpen(true)}
@@ -195,7 +207,16 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                     activeSceneId={filmStudio?.activeSceneId ?? undefined}
                     onSceneChange={filmStudio?.onSceneChange}
                 />
-                {filmStudio ? (
+                {comicStudio ? (
+                    comicStudio.view === "book" ? (
+                        <>
+                            <CanvasStageLayer model={model.stage} />
+                            <CanvasStageOverlays model={model.overlays} />
+                        </>
+                    ) : (
+                        <ComicWorkbench project={comicStudio.project} onChangeProject={comicStudio.onChangeProject} />
+                    )
+                ) : filmStudio ? (
                     filmStudio.view === "board" ? (
                         <FilmDirectorBoard stage={model.stage} overlays={model.overlays} film={filmStudio} />
                     ) : (
@@ -209,6 +230,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 )}
                 {filmStudio?.shotFocusOpen ? <FilmShotFocus model={filmStudio} theme={theme} /> : null}
                 <CanvasDialogs model={model.dialogs} />
+                {comicStudio ? <ComicViewSwitch view={comicStudio.view} onChange={comicStudio.onViewChange} /> : null}
                 {filmStudio && !filmStudio.shotFocusOpen ? <FilmViewSwitch view={filmStudio.view} onChange={filmStudio.onViewChange} onOpenScript={filmStudio.onOpenScript} onOpenVersions={filmStudio.onOpenVersionBatch} onPreview={filmStudio.onOpenPreview} onOpenProduction={filmStudio.onOpenProduction} onOpenGroups={filmStudio.shotGroups.onOpen} groupCount={filmStudio.shotGroups.groups.length} previewDisabled={!filmStudio.shots.length} onReview={() => setFilmReviewOpen(true)} reviewBadge={filmReviewBadge} versionBadge={filmStudio.versionRoomCount} /> : null}
                 {filmStudio?.shotBatch.running ? <FilmShotBatchProgress theme={theme} state={filmStudio.shotBatch} onStop={filmStudio.onStopShotBatch} bottomOffset={filmBatchBottom} currentProgress={batchCurrentProgress} /> : null}
                 {filmStudio ? (
@@ -230,7 +252,7 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
                 {filmStudio?.shotGroups.open ? <FilmShotGroupsDialog theme={theme} projectId={filmStudio.projectId} groups={filmStudio.shotGroups.groups} onCreate={filmStudio.shotGroups.onCreate} onRename={filmStudio.shotGroups.onRename} onDelete={filmStudio.shotGroups.onDelete} onSelect={filmStudio.shotGroups.onSelect} onPreview={filmStudio.shotGroups.onPreview} onProduce={filmStudio.shotGroups.onProduce} onClose={filmStudio.shotGroups.onClose} /> : null}
                 {filmStudio?.versionRoom ? <FilmVersionRoomDialog theme={theme} {...filmStudio.versionRoom} /> : null}
             </section>
-            {!filmBoardActive ? (
+            {!domainActive ? (
             <div className="flex h-full shrink-0 transition-opacity duration-300" style={{ width: zenMode ? 0 : undefined, opacity: zenMode ? 0 : 1, visibility: zenMode ? "hidden" : "visible" }}>
                 <CanvasAssistantPane model={model.assistant} />
             </div>

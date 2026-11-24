@@ -10,9 +10,11 @@ import { CanvasNodeType, type CanvasNodeData } from "../types";
 import { useCanvasStore, type CanvasProject } from "../stores/use-canvas-store";
 import { useCanvasUiStore } from "../stores/use-canvas-ui-store";
 import { exportCanvasProjects } from "../utils/canvas-export";
-import { isFilmCanvasProject } from "../utils/canvas-project-domain";
+import { isComicCanvasProject, isFilmCanvasProject } from "../utils/canvas-project-domain";
 
-export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: { project: CanvasProject; index?: number; basePath?: string }) {
+const COMIC_STAGE_LABELS: Record<string, string> = { concept: "企划", cast: "设定", script: "剧本", layout: "页布局", review: "审稿" };
+
+export function CanvasProjectCard({ project, index = 0, basePath = "/canvas", onExport }: { project: CanvasProject; index?: number; basePath?: string; onExport?: () => void }) {
     const router = useRouter();
     const renameProject = useCanvasStore((state) => state.renameProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
@@ -25,11 +27,16 @@ export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: 
     const setDeleteIds = useCanvasUiStore((state) => state.setDeleteProjectIds);
     const editing = editingId === project.id;
     const selected = selectedIds.includes(project.id);
-    const previews = project.nodes.filter((node) => (node.type === CanvasNodeType.Image && node.metadata?.content) || (node.type === CanvasNodeType.FilmShot && (node.metadata?.filmShot?.imageUrl || node.metadata?.filmShot?.storageKey))).slice(0, 3);
+    const previews = project.nodes.filter((node) => (node.type === CanvasNodeType.Image && node.metadata?.content) || (node.type === CanvasNodeType.FilmShot && (node.metadata?.filmShot?.imageUrl || node.metadata?.filmShot?.storageKey)) || (node.type === CanvasNodeType.ComicPage && Boolean(node.metadata?.comicPage?.pageImage))).slice(0, 3);
     const filmStats = isFilmCanvasProject(project) ? {
         scenes: project.nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length,
         shots: project.nodes.filter((node) => node.type === CanvasNodeType.FilmShot).length,
         videos: project.nodes.filter((node) => node.type === CanvasNodeType.FilmShot && (node.metadata?.filmShot?.videoUrl || node.metadata?.filmShot?.videoStorageKey)).length,
+    } : null;
+    const comicStats = isComicCanvasProject(project) ? {
+        pages: project.nodes.filter((node) => node.type === CanvasNodeType.ComicPage).length,
+        composed: project.nodes.filter((node) => node.type === CanvasNodeType.ComicPage && node.metadata?.comicPage?.pageImage).length,
+        stage: project.comic?.stage || "concept",
     } : null;
     const open = () => router.push(`${basePath}/${project.id}`);
     const saveTitle = () => {
@@ -81,7 +88,13 @@ export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: 
                         >
                             <h2 className="truncate text-lg font-semibold tracking-tight">{project.title}</h2>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                {filmStats ? (
+                                {comicStats ? (
+                                    <>
+                                        <span className="chip">{comicStats.pages} 页</span>
+                                        <span className="chip">已合成 {comicStats.composed}</span>
+                                        <span className="chip">{COMIC_STAGE_LABELS[comicStats.stage] || "企划"}</span>
+                                    </>
+                                ) : filmStats ? (
                                     <>
                                         <span className="chip">{filmStats.shots} 镜</span>
                                         <span className="chip">{filmStats.scenes} 场</span>
@@ -110,7 +123,7 @@ export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: 
                             </>
                         ) : (
                             <>
-                                <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Download className="size-4" />} onClick={() => void exportCanvasProjects([project], project.title || "矩灵画布")} aria-label="导出" />
+                                <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Download className="size-4" />} onClick={() => onExport ? onExport() : void exportCanvasProjects([project], project.title || "矩灵画布")} aria-label="导出" />
                                 <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Pencil className="size-4" />} onClick={() => startEditing(project.id, project.title)} aria-label="重命名" />
                                 <Button type="text" size="small" shape="circle" className="!size-8 !min-w-8" icon={<Trash2 className="size-4" />} onClick={() => setDeleteIds([project.id])} aria-label="删除" />
                             </>
@@ -124,8 +137,9 @@ export function CanvasProjectCard({ project, index = 0, basePath = "/canvas" }: 
 
 function ProjectNodeThumb({ projectId, node }: { projectId: string; node: CanvasNodeData }) {
     const filmShot = node.metadata?.filmShot;
-    const content = node.metadata?.content || filmShot?.imageUrl || "";
-    const storageKey = node.metadata?.storageKey || filmShot?.storageKey;
+    const comicPage = node.metadata?.comicPage;
+    const content = node.metadata?.content || filmShot?.imageUrl || comicPage?.pageImage?.url || "";
+    const storageKey = node.metadata?.storageKey || filmShot?.storageKey || comicPage?.pageImage?.storageKey;
     const previewKey = `canvas-node:${projectId}:${node.id}`;
     const source = `${node.metadata?.primaryImageId || ""}:${node.metadata?.imageTaskResultId || ""}:${storageKey || content}`;
     const [src, setSrc] = useState(() => previewUrlFor(previewKey, source) || (content && !content.startsWith("blob:") ? content : ""));

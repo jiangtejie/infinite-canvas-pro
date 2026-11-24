@@ -21,6 +21,7 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Source]: { width: 520, height: 380, title: "素材源" },
     [CanvasNodeType.Publish]: { width: 520, height: 380, title: "发布" },
     [CanvasNodeType.Comic]: { width: 360, height: 320, title: "漫画册" },
+    [CanvasNodeType.ComicPage]: { width: 300, height: 420, title: "漫画页" },
     [CanvasNodeType.FilmScript]: { width: 520, height: 380, title: "剧本" },
     [CanvasNodeType.FilmScene]: { width: 360, height: 240, title: "场次" },
     [CanvasNodeType.FilmShot]: { width: 420, height: 320, title: "镜头" },
@@ -75,6 +76,10 @@ export const NODE_SPECS = {
     [CanvasNodeType.Comic]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Comic],
         metadata: { status: "idle", comicBook: { pageNodeIds: [], format: "page", direction: "rtl" } },
+    },
+    [CanvasNodeType.ComicPage]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.ComicPage],
+        metadata: { status: "idle" },
     },
     [CanvasNodeType.FilmScript]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.FilmScript],

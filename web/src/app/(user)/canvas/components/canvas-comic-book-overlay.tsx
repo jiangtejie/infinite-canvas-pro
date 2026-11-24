@@ -1,20 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { AlertCircle, BookOpen, Captions, ChevronLeft, ChevronRight, Download, FileArchive, FileText, GripVertical, ImagePlus, Link2, LoaderCircle, MessageCircle, Settings2, Star, StickyNote, X, Zap } from "lucide-react";
+import { AlertCircle, BookOpen, Captions, ChevronLeft, ChevronRight, Download, FileArchive, FileText, GripVertical, ImagePlus, LoaderCircle, MessageCircle, Settings2, Star, StickyNote, X, Zap } from "lucide-react";
 import { App, Button, Dropdown, Input, InputNumber, Modal, Segmented, Select, Switch, Tag, Tooltip } from "antd";
 import { motion } from "motion/react";
 import { nanoid } from "nanoid";
 
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { useComicStore } from "@/app/(user)/comic/stores/use-comic-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { exportComicCbz, exportComicPdf, exportComicStrip } from "../[id]/lib/comic-export";
-import type { CanvasComicBook, CanvasNodeData, ComicExportPreset, ComicLetterElement, ComicLetterKind } from "../types";
+import type { CanvasComicBook, CanvasComicMeta, CanvasNodeData, ComicExportPreset, ComicLetterElement, ComicLetterKind } from "../types";
 import { COMIC_LETTER_TEMPLATE_OPTIONS, comicLetterTailX, comicLetterTemplate, defaultComicLetterTemplate, fitComicLetterWidth } from "../utils/comic-lettering";
-import { resolveComicPageSlots } from "../utils/comic-book-state";
-import { associateComicProject, buildComicLetteringSync, replaceMissingComicBookPage } from "../utils/comic-book-project-link";
+import { comicPageImage, resolveComicPageSlots } from "../utils/comic-book-state";
 
 const LETTER_KIND_OPTIONS: { value: ComicLetterKind; label: string }[] = [
     { value: "speech", label: "对白框" },
@@ -28,16 +27,16 @@ type Props = {
     node: CanvasNodeData;
     nodes: CanvasNodeData[];
     selectedImageNodes: CanvasNodeData[];
-    initialMode: "preview" | "lettering" | "manage" | "associate";
+    comic?: CanvasComicMeta;
+    initialMode: "preview" | "lettering" | "manage";
     onChange: (patch: Partial<CanvasNodeData["metadata"]>) => void;
     onClose: () => void;
 };
 
-export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initialMode, onChange, onClose }: Props) {
+export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, comic, initialMode, onChange, onClose }: Props) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { message } = App.useApp();
     const confirm = useConfirm();
-    const comicProjects = useComicStore((state) => state.projects);
     const book: CanvasComicBook = node.metadata?.comicBook || { pageNodeIds: [], format: "page", direction: "rtl" };
     const { pageSlots } = useMemo(() => resolveComicPageSlots({ pageNodeIds: book.pageNodeIds, nodes }), [book.pageNodeIds, nodes]);
     const pageNodes = pageSlots.flatMap((slot) => slot.kind === "available" ? [slot.page] : []);
@@ -46,8 +45,6 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
     const [spread, setSpread] = useState<"single" | "double">(initialMode === "lettering" ? "single" : "double");
     const [exporting, setExporting] = useState("");
     const [exportSettingsOpen, setExportSettingsOpen] = useState(false);
-    const [projectLinkOpen, setProjectLinkOpen] = useState(initialMode === "associate");
-    const [linkedProjectId, setLinkedProjectId] = useState(book.comicProjectId || "");
     const [draggingId, setDraggingId] = useState("");
     const [dragOverId, setDragOverId] = useState("");
     const [replacementPageId, setReplacementPageId] = useState("");
@@ -61,7 +58,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
     const visibleSlots = spread === "double" ? pageSlots.slice(safeIndex, safeIndex + 2) : pageSlots.slice(safeIndex, safeIndex + 1);
     const canPrev = safeIndex > 0;
     const canNext = safeIndex + step < pageSlots.length;
-    const addableImages = selectedImageNodes.filter((item) => item.metadata?.content && !book.pageNodeIds.includes(item.id));
+    const addableImages = comic ? [] : selectedImageNodes.filter((item) => item.metadata?.content && !book.pageNodeIds.includes(item.id));
     const title = node.title || "漫画册";
     const lettering = book.lettering || {};
     const exportPreset: ComicExportPreset = book.exportPreset || { pageSize: "fit", dpi: 150, pageNumbers: false, titlePage: false };
@@ -148,9 +145,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
         const next = book.pageNodeIds.filter((id) => id !== pageId);
         const nextLettering = { ...lettering };
         delete nextLettering[pageId];
-        const nextPageProjectIds = { ...book.pageProjectIds };
-        delete nextPageProjectIds[pageId];
-        updateBook({ pageNodeIds: next, coverNodeId: book.coverNodeId === pageId ? next[0] : book.coverNodeId, lettering: nextLettering, pageProjectIds: nextPageProjectIds });
+        updateBook({ pageNodeIds: next, coverNodeId: book.coverNodeId === pageId ? next[0] : book.coverNodeId, lettering: nextLettering });
         setPageIndex((current) => Math.min(current, Math.max(0, next.length - 1)));
     };
 
@@ -166,50 +161,26 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
 
     const replaceMissingPage = async (missingPageNodeId: string, replacementPageNodeId: string) => {
         const replacementImageNode = selectedImageNodes.find((item) => item.id === replacementPageNodeId);
-        if (!replacementImageNode) return;
+        if (!replacementImageNode || !replacementImageNode.metadata?.content || !book.pageNodeIds.includes(missingPageNodeId) || book.pageNodeIds.includes(replacementImageNode.id)) {
+            return void message.warning("这张图片不可用于替换缺页");
+        }
         const accepted = await confirm({
             title: "替换缺页？",
-            description: "将保留当前页序和封面归属，并把该页已有的项目映射与贴字迁移到新图片。",
+            description: "将保留当前页序和封面归属，并把该页已有的贴字迁移到新图片。",
             confirmText: "替换缺页",
         });
         if (!accepted) return;
-        const result = replaceMissingComicBookPage({ book, missingPageNodeId, replacementImageNode });
-        if (!result.replaced) return void message.warning("这张图片不可用于替换缺页");
-        updateBook(result.book);
-        message.success("缺页已替换");
-    };
-
-    const associateSelectedProject = async () => {
-        const project = comicProjects.find((item) => item.id === linkedProjectId);
-        if (!project) return void message.warning("先选择一个漫画项目");
-        if (book.comicProjectId && book.comicProjectId !== project.id) {
-            const accepted = await confirm({
-                title: "替换漫画项目关联？",
-                description: "重新关联只会更新漫画册与项目页的映射，不会覆盖当前贴字、页序、封面或导出设置。",
-                confirmText: "替换关联",
-            });
-            if (!accepted) return;
+        const nextLettering = { ...lettering };
+        if (nextLettering[missingPageNodeId]) {
+            nextLettering[replacementImageNode.id] = nextLettering[missingPageNodeId];
+            delete nextLettering[missingPageNodeId];
         }
-        const nextBook = associateComicProject(book, project.id, project.chapters.flatMap((chapter) => chapter.pages));
-        updateBook({ comicProjectId: nextBook.comicProjectId, pageProjectIds: nextBook.pageProjectIds });
-        setProjectLinkOpen(false);
-        message.success("漫画项目已关联");
-    };
-
-    const syncProjectLettering = async () => {
-        const project = comicProjects.find((item) => item.id === linkedProjectId);
-        if (!project) return void message.warning("先选择一个漫画项目");
-        if (book.comicProjectId !== project.id || !book.pageProjectIds || !Object.keys(book.pageProjectIds).length) return void message.warning("请先仅关联项目，再同步贴字");
-        const result = buildComicLetteringSync({ book, pageSlots, project });
-        const accepted = await confirm({
-            title: "同步项目贴字？",
-            description: `将更新 ${result.updatedPages} 页，覆盖已有贴字 ${result.overwrittenPages} 页，未映射 ${result.unmappedPages} 页；${result.emptyContentPages} 页没有对白、旁白或拟声，将保留现有贴字。`,
-            confirmText: "开始同步",
+        updateBook({
+            pageNodeIds: book.pageNodeIds.map((id) => id === missingPageNodeId ? replacementImageNode.id : id),
+            coverNodeId: book.coverNodeId === missingPageNodeId ? replacementImageNode.id : book.coverNodeId,
+            lettering: nextLettering,
         });
-        if (!accepted) return;
-        updateBook({ lettering: result.lettering, pageProjectIds: result.pageProjectIds });
-        setProjectLinkOpen(false);
-        message.success(`已更新 ${result.updatedPages} 页贴字`);
+        message.success("缺页已替换");
     };
 
     const runExport = async (kind: "cbz" | "pdf" | "strip") => {
@@ -241,8 +212,6 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
                         </>
                     ) : null}
                     <Button size="small" type={letteringMode ? "primary" : "default"} icon={<Captions className="size-3.5" />} disabled={book.format === "strip"} onClick={() => { if (!letteringMode) setSpread("single"); setLetteringMode(!letteringMode); }}>贴字</Button>
-                    <Button size="small" icon={<Link2 className="size-3.5" />} onClick={() => { setLinkedProjectId(book.comicProjectId || ""); setProjectLinkOpen(true); }}>{book.comicProjectId ? "项目操作" : "关联项目"}</Button>
-                    {book.comicProjectId ? <Button size="small" icon={<Captions className="size-3.5" />} onClick={() => { setLinkedProjectId(book.comicProjectId || ""); setProjectLinkOpen(true); }}>同步项目贴字</Button> : null}
                     <Tooltip title={addableImages.length ? "把画布中选中的图片加入漫画册" : "先选中画布中的图片节点"}>
                         <Button size="small" icon={<ImagePlus className="size-3.5" />} disabled={!addableImages.length} onClick={addSelected}>加入选中图片{addableImages.length ? ` (${addableImages.length})` : ""}</Button>
                     </Tooltip>
@@ -286,7 +255,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
                                     style={{ borderColor: dragOverId === slot.pageNodeId && draggingId !== slot.pageNodeId ? theme.node.activeStroke : index === safeIndex ? theme.node.activeStroke : theme.toolbar.border, opacity: draggingId === slot.pageNodeId ? 0.5 : 1 }}
                                 >
                                     <div className="relative aspect-[3/4] w-full" style={{ background: theme.toolbar.activeBg }}>
-                                        <img src={slot.page.metadata?.content || ""} alt={slot.page.title} draggable={false} className="size-full object-cover" />
+                                        <ComicBookPageImage page={slot.page} className="size-full object-cover" />
                                         <span className="absolute left-1 top-1 grid size-4 place-items-center rounded-full text-[10px] font-semibold" style={{ background: theme.toolbar.panel, color: theme.node.text }}>{index + 1}</span>
                                         {book.coverNodeId === slot.page.id ? <span className="absolute bottom-1 left-1 rounded px-1 py-0.5 text-[9px]" style={{ background: theme.toolbar.panel, color: theme.node.text }}>封面</span> : null}
                                         <span className="absolute right-1 top-1 flex gap-0.5 opacity-0 transition group-hover:opacity-100">
@@ -353,7 +322,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
                                 <div className="mx-auto flex w-full max-w-[720px] flex-col gap-1 bg-white">
                                     {pageSlots.map((slot, index) => slot.kind === "available" ? (
                                         <div key={slot.pageNodeId} className="relative w-full bg-white" style={{ containerType: "inline-size" }}>
-                                            <img src={slot.page.metadata?.content || ""} alt={slot.page.title} className="w-full" draggable={false} />
+                                            <ComicBookPageImage page={slot.page} className="w-full" />
                                             <LetteringLayer theme={theme} page={slot.page} elements={lettering[slot.page.id] || []} selectedId={selectedLetterId} drag={null} editable={false} onSelect={setSelectedLetterId} onDragStart={startLetterDrag} onDragMove={moveLetterDrag} onDragEnd={endLetterDrag} />
                                         </div>
                                     ) : (
@@ -381,7 +350,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
                                 <motion.div key={`${safeIndex}-${spread}`} initial={{ rotateY: book.direction === "rtl" ? 25 : -25, opacity: 0 }} animate={{ rotateY: 0, opacity: 1 }} transition={{ duration: 0.28, ease: "easeOut" }} className={`flex h-full min-h-0 max-w-full items-center justify-center ${book.direction === "rtl" ? "flex-row-reverse" : "flex-row"}`} style={{ transformStyle: "preserve-3d" }}>
                                     {visibleSlots.map((slot, index) => slot.kind === "available" ? (
                                         <div key={slot.pageNodeId} data-comic-page className="relative flex h-full min-h-0 items-center justify-center overflow-hidden bg-white shadow-[0_18px_50px_rgba(0,0,0,.22)]" style={{ aspectRatio: pageFrameRatio(slot.page), height: "100%", maxWidth: visibleSlots.length === 2 ? "50%" : "70%", borderLeft: index === 1 ? `1px solid ${theme.node.stroke}` : undefined, containerType: "inline-size" }}>
-                                            <img src={slot.page.metadata?.content || ""} alt={slot.page.title} draggable={false} className="size-full object-contain" />
+                                            <ComicBookPageImage page={slot.page} className="size-full object-contain" />
                                             <LetteringLayer theme={theme} page={slot.page} elements={lettering[slot.page.id] || []} selectedId={selectedLetterId} drag={letterDrag} editable={letteringMode && visibleSlots.length === 1} onSelect={setSelectedLetterId} onDragStart={startLetterDrag} onDragMove={moveLetterDrag} onDragEnd={endLetterDrag} />
                                         </div>
                                     ) : (
@@ -394,16 +363,6 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
                         )}
                         {!pageSlots.length ? <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center" style={{ color: theme.node.muted }}><BookOpen className="size-10 opacity-50" /><span className="text-sm">漫画册还没有页面</span></div> : null}
                     </div>
-                </div>
-            </div>
-        </Modal>
-        <Modal title="漫画项目操作" open={projectLinkOpen} width={480} mask={{ closable: false }} onCancel={() => setProjectLinkOpen(false)} footer={null} destroyOnHidden>
-            <div className="space-y-4 py-1">
-                <label className="block space-y-1.5 text-sm"><span>漫画项目</span><Select className="w-full" showSearch optionFilterProp="label" value={linkedProjectId || undefined} placeholder={comicProjects.length ? "选择漫画项目" : "还没有漫画项目"} disabled={!comicProjects.length} options={comicProjects.map((project) => ({ value: project.id, label: `${project.title} · ${project.chapters.flatMap((chapter) => chapter.pages).length} 页` }))} onChange={setLinkedProjectId} /></label>
-                <p className="m-0 text-[11px] leading-5 text-muted-foreground">关联项目只建立漫画册页面与项目页面的映射，不会改变当前贴字、页序、封面或导出设置。贴字同步是独立动作，会按已有映射写入有对白、旁白或拟声的页面。</p>
-                <div className="flex gap-2">
-                    <Button type="primary" className="flex-1" disabled={!linkedProjectId} onClick={() => void associateSelectedProject()}>仅关联项目</Button>
-                    <Button className="flex-1" disabled={!linkedProjectId || book.comicProjectId !== linkedProjectId} onClick={() => void syncProjectLettering()}>同步项目贴字</Button>
                 </div>
             </div>
         </Modal>
@@ -422,9 +381,16 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, initia
 }
 
 function pageFrameRatio(page: CanvasNodeData) {
-    const width = page.metadata?.naturalWidth || page.width;
-    const height = page.metadata?.naturalHeight || page.height;
+    const image = comicPageImage(page);
+    const width = image?.width || page.metadata?.naturalWidth || page.width;
+    const height = image?.height || page.metadata?.naturalHeight || page.height;
     return width > 0 && height > 0 ? width / height : 3 / 4;
+}
+
+function ComicBookPageImage({ page, className }: { page: CanvasNodeData; className: string }) {
+    const image = comicPageImage(page);
+    const src = useResolvedMediaSrc(image?.url, image?.storageKey, "image");
+    return src ? <img src={src} alt={page.title} draggable={false} className={className} /> : <div className={`${className} bg-muted`} />;
 }
 
 function LetteringLayer({ theme, page, elements, selectedId, drag, editable, onSelect, onDragStart, onDragMove, onDragEnd }: {

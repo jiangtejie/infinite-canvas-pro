@@ -7,8 +7,8 @@ import { Sparkles } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
-import type { ComicProject } from "../../types";
-import { requestComicConcept } from "../../utils/comic-ai";
+import type { ComicProject } from "../types";
+import { requestComicConcept } from "../utils/comic-ai";
 
 const FORMAT_OPTIONS = [{ value: "page", label: "页漫（翻页）" }, { value: "strip", label: "条漫（竖向滚动）" }];
 const DIRECTION_OPTIONS = [{ value: "rtl", label: "右 → 左（日漫）" }, { value: "ltr", label: "左 → 右" }];

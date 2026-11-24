@@ -10,8 +10,10 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ComicCharacterEditor } from "../components/comic-character-editor";
 import { useComicImageSrc } from "../hooks/use-comic-image-src";
 import { useComicCastStore } from "../stores/use-comic-cast-store";
-import { useComicStore } from "../stores/use-comic-store";
-import type { ComicImageRef, ComicLibraryCharacter } from "../types";
+import { useCanvasStore } from "../../canvas/stores/use-canvas-store";
+import { comicCanvasProjects } from "../../canvas/utils/canvas-project-domain";
+import { selectComicProject } from "../../canvas/[id]/lib/comic-canvas-projection";
+import type { ComicImageRef, ComicLibraryCharacter, ComicProject } from "../types";
 import { activeComicSlotImage } from "../utils/comic-image-slot";
 import { comicCharacterLibraryUsageIndex, comicLocationLibraryUsageIndex } from "../utils/comic-library-usage";
 
@@ -23,7 +25,8 @@ export default function ComicLibraryPage() {
     const updateCharacter = useComicCastStore((state) => state.updateCharacter);
     const removeCharacter = useComicCastStore((state) => state.removeCharacter);
     const removeLocation = useComicCastStore((state) => state.removeLocation);
-    const projects = useComicStore((state) => state.projects);
+    const canvasProjects = useCanvasStore((state) => state.projects);
+    const projects = useMemo(() => comicCanvasProjects(canvasProjects).map(selectComicProject).filter((project): project is ComicProject => Boolean(project)), [canvasProjects]);
     const [query, setQuery] = useState("");
     const [editing, setEditing] = useState<ComicLibraryCharacter | null>(null);
     const characterUsage = useMemo(() => comicCharacterLibraryUsageIndex(projects), [projects]);
@@ -62,10 +65,10 @@ export default function ComicLibraryPage() {
                     title="角色与场景库"
                     description="漫画项目里点「存入库」的角色和场景会汇总到这里，可在任意项目设定里导入；导入和存入都是独立副本，删除库条目不影响项目。"
                     meta={<><span className="chip chip-acid">{characters.length} 个角色</span><span className="chip">{locations.length} 个场景</span></>}
-                    actions={<div className="flex flex-wrap items-center gap-2"><Input allowClear className="!w-[220px]" prefix={<Search className="size-3.5 opacity-50" />} placeholder="搜索姓名、身份或外观" value={query} onChange={(event) => setQuery(event.target.value)} /><Button href="/comic" icon={<ArrowLeft className="size-4" />}>返回漫画工作台</Button></div>}
+                    actions={<div className="flex flex-wrap items-center gap-2"><Input allowClear className="!w-[220px]" prefix={<Search className="size-3.5 opacity-50" />} placeholder="搜索姓名、身份或外观" value={query} onChange={(event) => setQuery(event.target.value)} /><Button href="/comic" icon={<ArrowLeft className="size-4" />}>返回漫画</Button></div>}
                 />
                 {!hydrated ? <LoadingState label="正在加载角色与场景库" /> : null}
-                {hydrated && !characters.length && !locations.length ? <EmptyState title="库还是空的" description="打开漫画项目的「设定」，编辑角色或场景后点卡片上的库图标存入。" icon={<Library className="size-6" />} action={<Button type="primary" href="/comic">去漫画工作台</Button>} /> : null}
+                {hydrated && !characters.length && !locations.length ? <EmptyState title="库还是空的" description="打开漫画项目的「设定」，编辑角色或场景后点卡片上的库图标存入。" icon={<Library className="size-6" />} action={<Button type="primary" href="/comic">去漫画</Button>} /> : null}
 
                 {hydrated && characters.length ? (
                     <section className="space-y-3">

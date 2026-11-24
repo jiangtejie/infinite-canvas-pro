@@ -7,10 +7,10 @@ import { App, Button, Input, Select } from "antd";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useModelConfig } from "@/hooks/use-model-config";
 import { errorMessage } from "@/lib/utils";
-import type { ComicPanel, ComicPanelCharacterBinding, ComicProject } from "../../types";
-import { requestComicBreakdown } from "../../utils/comic-ai";
-import { removeComicPanelCharacterBinding, setComicPanelCharacterBindings, suggestLegacyPanelBindings } from "../../utils/comic-character-binding";
-import { createComicChapter, createComicPage, createComicPanel, moveComicPanel, resetComicReviewStatus, updateComicChapter, updateComicPage, updateComicPanel } from "../../utils/comic-project";
+import type { ComicPanel, ComicPanelCharacterBinding, ComicProject } from "../types";
+import { requestComicBreakdown } from "../utils/comic-ai";
+import { removeComicPanelCharacterBinding, setComicPanelCharacterBindings, suggestLegacyPanelBindings } from "../utils/comic-character-binding";
+import { createComicChapter, createComicPage, createComicPanel, moveComicPanel, resetComicReviewStatus, updateComicChapter, updateComicPage, updateComicPanel } from "../utils/comic-project";
 
 export function ComicScriptStage({ project, onChange }: { project: ComicProject; onChange: (project: ComicProject) => void }) {
     const { message } = App.useApp();

@@ -17,6 +17,7 @@ import type {
     FilmPropNodeData,
     FilmStyleNodeData,
 } from "./[id]/lib/film-graph-types";
+import type { ComicPageNodeData } from "./[id]/lib/comic-graph-types";
 
 export type {
     FilmBeatNodeData,
@@ -31,6 +32,7 @@ export type {
     FilmPropNodeData,
     FilmStyleNodeData,
 } from "./[id]/lib/film-graph-types";
+export type { CanvasComicMeta } from "./[id]/lib/comic-graph-types";
 
 export type Position = {
     x: number;
@@ -55,6 +57,7 @@ export enum CanvasNodeType {
     Source = "source",
     Publish = "publish",
     Comic = "comic",
+    ComicPage = "comicPage",
     FilmScript = "filmScript",
     FilmScene = "filmScene",
     FilmShot = "filmShot",
@@ -100,9 +103,6 @@ export type CanvasComicBook = {
     direction: "rtl" | "ltr";
     lettering?: Record<string, ComicLetterElement[]>;
     exportPreset?: ComicExportPreset;
-    comicProjectId?: string;
-    /** 画布页面节点 id → 工作台页面 id，用于页序与贴字回写。 */
-    pageProjectIds?: Record<string, string>;
 };
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "stopping" | "stopped" | "error";
@@ -133,7 +133,7 @@ export type CanvasPublishRecord = {
     publishedUrl?: string;
 };
 
-export type CanvasProjectDomain = "film";
+export type CanvasProjectDomain = "film" | "comic";
 
 export type CanvasFilmAssetQueue = {
     id: string;
@@ -302,6 +302,7 @@ export type CanvasNodeMetadata = {
     sourceExpandedNodeSignatures?: Record<string, string>;
     sourceMaterialRole?: "text";
     comicBook?: CanvasComicBook;
+    comicPage?: ComicPageNodeData;
     remixRole?: import("./remix-types").RemixNodeRole;
     remixRunId?: string;
     remixRun?: import("./remix-types").RemixRun;
@@ -405,7 +406,7 @@ export type CanvasOverlay =
     | { kind: "denoise"; nodeId: string }
     | { kind: "angle"; nodeId: string }
     | { kind: "preview"; nodeId: string }
-    | { kind: "comic"; nodeId: string; mode?: "preview" | "lettering" | "manage" | "associate" }
+    | { kind: "comic"; nodeId: string; mode?: "preview" | "lettering" | "manage" }
     | { kind: "referencePicker"; nodeId: string };
 
 export type PendingAgentAsset = {

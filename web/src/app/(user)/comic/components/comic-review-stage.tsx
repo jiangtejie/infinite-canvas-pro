@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CircleAlert, FileText, MessageSquareWarning } from "lucide-react";
 import { Button, Input, Segmented } from "antd";
 
-import type { ComicPage, ComicProject, ComicReviewStatus } from "../../types";
-import { comicPageIssues, comicPageReviewStatus, comicReviewProgress, updateComicPage } from "../../utils/comic-project";
+import type { ComicPage, ComicProject, ComicReviewStatus } from "../types";
+import { comicPageIssues, comicPageReviewStatus, comicReviewProgress, updateComicPage } from "../utils/comic-project";
 import { ComicImage } from "./comic-image";
 
 const STATUS_OPTIONS: { value: "all" | ComicReviewStatus; label: string }[] = [

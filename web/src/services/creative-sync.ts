@@ -1,6 +1,5 @@
-import type { ComicLibraryCharacter, ComicLibraryLocation, ComicProject } from "@/app/(user)/comic/types";
+import type { ComicLibraryCharacter, ComicLibraryLocation } from "@/app/(user)/comic/types";
 import { useComicCastStore } from "@/app/(user)/comic/stores/use-comic-cast-store";
-import { useComicStore } from "@/app/(user)/comic/stores/use-comic-store";
 import { useScriptStore, SCRIPT_STORE_KEY } from "@/app/(user)/script/stores/use-script-store";
 import type { ScriptProject } from "@/app/(user)/script/types";
 import type { FilmLibrarySnapshot } from "@/lib/film/film-account-merge";
@@ -10,9 +9,9 @@ import { localForageStorage } from "@/lib/localforage-storage";
 import { useSaveStatusStore } from "@/lib/persisted-store";
 import { waitForStoreHydration } from "@/lib/store-hydration";
 import { readTombstones, recordRemovedRecords, writeTombstones } from "@/lib/sync-tombstones";
-import { COMIC_CAST_STORE_KEY, COMIC_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
+import { COMIC_CAST_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
-import { fetchUserComicCast, fetchUserComicProjects, fetchUserFilmLibrary, fetchUserScriptProjects, syncUserComicCast, syncUserComicProjects, syncUserFilmLibrary, syncUserScriptProjects } from "@/services/api/user-config";
+import { fetchUserComicCast, fetchUserFilmLibrary, fetchUserScriptProjects, syncUserComicCast, syncUserFilmLibrary, syncUserScriptProjects } from "@/services/api/user-config";
 import { applyFilmMediaPromotionsToLibrary, collectFilmMediaPromotions, filmMediaNeedsPromotion } from "@/services/film-media-sync";
 import { applyMediaPromotions, collectMediaPromotions, collectMediaRefsFromValue, mediaNeedsPromotion, type MediaPromotionReplacement } from "@/services/media-promotion";
 
@@ -75,18 +74,6 @@ function comicCast(value: Partial<ComicCastSnapshot> | null | undefined): ComicC
     };
 }
 
-function applyComicProjectMedia(value: DomainValue, replacements: Map<string, MediaPromotionReplacement>) {
-    const projects = (value.projects || []) as ComicProject[];
-    let changed = false;
-    const next = projects.map((project) => {
-        const applied = applyMediaPromotions(project, replacements);
-        if (!applied.changed) return project;
-        changed = true;
-        return { ...applied.value, updatedAt: new Date().toISOString() };
-    });
-    return { value: changed ? { projects: next } : value, changed };
-}
-
 function applyComicCastMedia(value: DomainValue, replacements: Map<string, MediaPromotionReplacement>) {
     const cast = comicCast(value as Partial<ComicCastSnapshot>);
     let changed = false;
@@ -146,31 +133,6 @@ const domains: SyncDomain[] = [
                 const applied = applyFilmMediaPromotionsToLibrary(filmLibrary(value as Partial<FilmLibrarySnapshot>), replacements);
                 return { value: applied.changed ? { ...applied.library } : value, changed: applied.changed };
             },
-        },
-    },
-    {
-        key: "comic-projects",
-        listKeys: ["projects"],
-        load: async (token) => {
-            const payload = await fetchUserComicProjects<{ projects?: ComicProject[]; deleted?: unknown }>(token);
-            return { value: { projects: payload.projects || [] }, deleted: parseTombstones(payload.deleted) };
-        },
-        save: (token, value, deleted) => syncUserComicProjects(token, { projects: value.projects, deleted }),
-        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["projects"], remote.deleted, local.deleted),
-        read: () => ({ projects: useComicStore.getState().projects }),
-        write: (value) => useComicStore.setState({ projects: value.projects as ComicProject[] }),
-        ready: () => waitForStoreHydration(useComicStore),
-        subscribe: (notify) => useComicStore.subscribe((state, previous) => {
-            if (state.projects !== previous.projects) notify(previous as unknown as DomainValue, state as unknown as DomainValue);
-        }),
-        guest: {
-            key: `${COMIC_STORE_KEY}:guest`,
-            extract: (state) => Array.isArray(state.projects) ? { projects: state.projects } : null,
-        },
-        media: {
-            needs: comicMedia.needs,
-            collect: comicMedia.collect,
-            apply: applyComicProjectMedia,
         },
     },
     {

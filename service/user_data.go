@@ -303,29 +303,6 @@ func SaveCurrentUserFilmLibraryData(ctx context.Context, raw json.RawMessage) (j
 	return json.RawMessage(config.FilmLibraryData), nil
 }
 
-func CurrentUserComicProjectData(ctx context.Context) (json.RawMessage, error) {
-	config, err := currentUserConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(config.ComicProjectData) == "" {
-		return json.RawMessage(`{"projects":[]}`), nil
-	}
-	return json.RawMessage(config.ComicProjectData), nil
-}
-
-func SaveCurrentUserComicProjectData(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok || user.ID == "" {
-		return nil, errors.New("请先登录")
-	}
-	config, err := repository.SaveUserComicProjectData(user.ID, string(raw))
-	if err != nil {
-		return nil, err
-	}
-	return json.RawMessage(config.ComicProjectData), nil
-}
-
 func CurrentUserComicCastData(ctx context.Context) (json.RawMessage, error) {
 	config, err := currentUserConfig(ctx)
 	if err != nil {

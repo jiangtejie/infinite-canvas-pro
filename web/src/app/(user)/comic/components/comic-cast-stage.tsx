@@ -5,15 +5,15 @@ import { App, Button, Input, Modal } from "antd";
 import { ImagePlus, Library, Plus, Trash2, UserRound, MapPin } from "lucide-react";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { useComicImageSrc } from "../../hooks/use-comic-image-src";
-import { useComicCastStore } from "../../stores/use-comic-cast-store";
-import { ComicCharacterEditor } from "../../components/comic-character-editor";
-import { ComicImageSlotEditor } from "../../components/comic-image-slot-editor";
-import type { ComicCharacter, ComicImageRef, ComicImageSlot, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation, ComicProject } from "../../types";
-import { copyComicCharacterForProject } from "../../utils/comic-character-binding";
-import { createComicCharacter, createComicLocation, invalidateComicPageCompositions, invalidateComicPagesForCharacter } from "../../utils/comic-project";
-import { activeComicSlotImage } from "../../utils/comic-image-slot";
-import { applyComicCharacterLibraryEntry, applyComicLocationLibraryEntry, comicLibraryEntryIsNewer } from "../../utils/comic-library-entry";
+import { useComicImageSrc } from "../hooks/use-comic-image-src";
+import { useComicCastStore } from "../stores/use-comic-cast-store";
+import { ComicCharacterEditor } from "./comic-character-editor";
+import { ComicImageSlotEditor } from "./comic-image-slot-editor";
+import type { ComicCharacter, ComicImageRef, ComicImageSlot, ComicLibraryCharacter, ComicLibraryLocation, ComicLocation, ComicProject } from "../types";
+import { copyComicCharacterForProject } from "../utils/comic-character-binding";
+import { createComicCharacter, createComicLocation, invalidateComicPageCompositions, invalidateComicPagesForCharacter } from "../utils/comic-project";
+import { activeComicSlotImage } from "../utils/comic-image-slot";
+import { applyComicCharacterLibraryEntry, applyComicLocationLibraryEntry, comicLibraryEntryIsNewer } from "../utils/comic-library-entry";
 
 const EMPTY_SLOT: ComicImageSlot = { images: [] };
 

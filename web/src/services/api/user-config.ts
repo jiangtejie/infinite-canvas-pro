@@ -69,14 +69,6 @@ export async function syncUserFilmLibrary<T>(token: string, data: T) {
     return apiPost<T>("/api/v1/user-data/film-library", { data }, token);
 }
 
-export async function fetchUserComicProjects<T>(token: string) {
-    return apiGet<T>("/api/v1/user-data/comic-projects", undefined, token);
-}
-
-export async function syncUserComicProjects<T>(token: string, data: T) {
-    return apiPost<T>("/api/v1/user-data/comic-projects", { data }, token);
-}
-
 export async function fetchUserComicCast<T>(token: string) {
     return apiGet<T>("/api/v1/user-data/comic-cast", undefined, token);
 }

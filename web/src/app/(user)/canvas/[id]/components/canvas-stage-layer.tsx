@@ -16,6 +16,7 @@ import { CanvasDirectorNodePanel } from "../../components/canvas-director-node-p
 import { CanvasPublishNodeCard } from "../../components/canvas-publish-node-card";
 import { CanvasPublishNodePanel } from "../../components/canvas-publish-node-panel";
 import { CanvasComicBookNodeCard } from "../../components/canvas-comic-book-node-card";
+import { ComicProjectBookNodeCard } from "../../components/comic-project-book-node-card";
 import { CanvasMaterialTextCard } from "../../components/canvas-material-text-card";
 import { CanvasRemixPlanNodeCard } from "../../components/canvas-remix-plan-node-card";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
@@ -33,6 +34,7 @@ import { isFilmNodeType, type FilmCommandResult } from "../lib/film-node-registr
 import { isCanvasReferenceNode } from "../../utils/canvas-resource-references";
 import { fitSourceNodeSize } from "../../utils/canvas-node-size";
 import type { FilmVersionKind } from "../lib/film-version-room";
+import type { CanvasComicMeta } from "../lib/comic-graph-types";
 import { CanvasNodeType, type CanvasConnection, type PendingConnectionCreate, type CanvasNodeData, type ConnectionHandle, type ContextMenuState, type Position } from "../../types";
 import type { ViewportTransform, SelectionBox } from "../../types";
 import type { CanvasAlignmentGuides } from "../../utils/canvas-alignment";
@@ -53,7 +55,6 @@ export type CanvasStageModel = {
     selectedNodeIds: Set<string>;
     selectedImageCount: number;
     focusNode: (nodeId: string) => void;
-    openComicProject: (projectId: string) => void;
     selectOnly: (nodeId: string) => void;
     handleUploadRequest: (nodeId?: string, position?: Position) => void;
     containerRef: RefObject<HTMLDivElement | null>;
@@ -142,6 +143,8 @@ export type CanvasStageModel = {
     projectLoaded: boolean;
     exitNodeReferenceSelection: () => void;
     filmMode: boolean;
+    comic?: CanvasComicMeta;
+    onOpenComicWorkbench?: () => void;
     filmSummaryOptions?: import("../lib/film-node-summary").FilmNodeSummaryOptions;
     generateFilmShotImage?: (shotId: string) => void;
     generateFilmShotVideo?: (shotId: string) => void;
@@ -167,13 +170,14 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     const {
         theme,
         filmMode,
+        comic,
+        onOpenComicWorkbench,
         filmSummaryOptions,
         applyFilmQuickAction,
         nodes,
         selectedNodeIds,
         selectedImageCount,
         focusNode,
-        openComicProject,
         selectOnly,
         handleUploadRequest,
         containerRef,
@@ -335,19 +339,29 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         contentNode.metadata?.sourceMaterialRole === "text" || contentNode.id.endsWith("-material-text") ? (
             <CanvasMaterialTextCard node={contentNode} />
         ) : contentNode.type === CanvasNodeType.Comic ? (
-            <CanvasComicBookNodeCard
-                node={contentNode}
-                nodes={nodes}
-                selectedImageCount={selectedImageCount}
+            comic ? (
+                <ComicProjectBookNodeCard
+                    node={contentNode}
+                    nodes={nodes}
+                    comic={comic}
+                    onOpenWorkbench={() => onOpenComicWorkbench?.()}
+                    onOpenBook={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "preview" })}
+                    onEnterLettering={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "lettering" })}
+                    onHandleMissingPages={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "manage" })}
+                />
+            ) : (
+                <CanvasComicBookNodeCard
+                    node={contentNode}
+                    nodes={nodes}
+                    selectedImageCount={selectedImageCount}
 
-                onOpenBook={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "preview" })}
-                onEnterLettering={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "lettering" })}
-                onFocusPage={focusNode}
-                onAddSelectedPages={() => addSelectedComicPages(contentNode.id)}
-                onOpenProject={openComicProject}
-                onHandleMissingPages={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "manage" })}
-                onAssociateProject={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "associate" })}
-            />
+                    onOpenBook={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "preview" })}
+                    onEnterLettering={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "lettering" })}
+                    onFocusPage={focusNode}
+                    onAddSelectedPages={() => addSelectedComicPages(contentNode.id)}
+                    onHandleMissingPages={() => openOverlay({ kind: "comic", nodeId: contentNode.id, mode: "manage" })}
+                />
+            )
         ) : contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
             <CanvasRemixPlanNodeCard
                 node={contentNode}
@@ -393,7 +407,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 }}
             />
         )
-    ), [nodes, selectedImageCount, openOverlay, focusNode, addSelectedComicPages, openComicProject, generateRemixRun, handleRemixWithAgent, handleNodeResize, publishInputsById, runningNodeId, configInputsById, handleConfigNodeChange, togglePromptOverlay, nodesRef, handleGenerateNode, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId]);
+    ), [nodes, comic, onOpenComicWorkbench, selectedImageCount, openOverlay, focusNode, addSelectedComicPages, generateRemixRun, handleRemixWithAgent, handleNodeResize, publishInputsById, runningNodeId, configInputsById, handleConfigNodeChange, togglePromptOverlay, nodesRef, handleGenerateNode, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId]);
 
     const handleNodeHoverStart = useCallback((nodeId: string) => {
         if (nodeDraggingRef.current) return;
@@ -418,17 +432,21 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     const openNodeContextMenu = useCallback((event: ReactMouseEvent, id: string) => {
         event.preventDefault();
         event.stopPropagation();
-        if (nodes.some((node) => node.id === id && isFilmNodeType(node.type))) {
+        if (nodes.some((node) => node.id === id && (isFilmNodeType(node.type) || node.type === CanvasNodeType.ComicPage || (Boolean(comic) && node.type === CanvasNodeType.Comic)))) {
             setContextMenu(null);
             return;
         }
         setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
-    }, [nodes, setContextMenu]);
+    }, [comic, nodes, setContextMenu]);
 
     const openNodePanel = useCallback((node: CanvasNodeData) => {
-        if (isFilmNodeType(node.type)) return;
+        if (isFilmNodeType(node.type) || node.type === CanvasNodeType.ComicPage) return;
+        if (comic && node.type === CanvasNodeType.Comic) {
+            onOpenComicWorkbench?.();
+            return;
+        }
         openOverlay(node.type === CanvasNodeType.Comic ? { kind: "comic", nodeId: node.id } : { kind: "prompt", nodeId: node.id });
-    }, [openOverlay]);
+    }, [comic, onOpenComicWorkbench, openOverlay]);
 
     return (
         <>

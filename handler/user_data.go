@@ -115,19 +115,6 @@ func SaveUserFilmLibraryData(w http.ResponseWriter, r *http.Request) {
 	saveUserDataField(w, r, service.SaveCurrentUserFilmLibraryData)
 }
 
-func UserComicProjectData(w http.ResponseWriter, r *http.Request) {
-	data, err := service.CurrentUserComicProjectData(r.Context())
-	if err != nil {
-		FailError(w, err)
-		return
-	}
-	OK(w, json.RawMessage(data))
-}
-
-func SaveUserComicProjectData(w http.ResponseWriter, r *http.Request) {
-	saveUserDataField(w, r, service.SaveCurrentUserComicProjectData)
-}
-
 func UserComicCastData(w http.ResponseWriter, r *http.Request) {
 	data, err := service.CurrentUserComicCastData(r.Context())
 	if err != nil {

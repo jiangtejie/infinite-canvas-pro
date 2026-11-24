@@ -107,10 +107,6 @@ func SaveUserFilmLibraryData(userID, raw string) (model.UserConfig, error) {
 	return updateUserConfigField(userID, map[string]any{"film_library_data": raw})
 }
 
-func SaveUserComicProjectData(userID, raw string) (model.UserConfig, error) {
-	return updateUserConfigField(userID, map[string]any{"comic_project_data": raw})
-}
-
 func SaveUserComicCastData(userID, raw string) (model.UserConfig, error) {
 	return updateUserConfigField(userID, map[string]any{"comic_cast_data": raw})
 }

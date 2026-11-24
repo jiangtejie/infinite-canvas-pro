@@ -28,7 +28,7 @@ export const navigationSections: NavigationSection[] = [
                 items: [
                     { slug: "image", label: "生图工作台", icon: ImagePlus },
                     { slug: "video", label: "视频工作台", icon: Video },
-                    { slug: "comic", label: "漫画工作台", icon: BookOpen },
+                    { slug: "comic", label: "漫画", icon: BookOpen },
                     { slug: "workflows", label: "工作流", icon: GitBranch },
                 ],
             },
