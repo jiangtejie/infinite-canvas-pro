@@ -16,7 +16,7 @@ import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textare
 import { ComicPageNodeCard } from "./comic-page-node-card";
 import { FilmNodeCardDispatcher } from "./film-node-card";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../types";
-import { isFilmNodeType } from "../[id]/lib/film-node-registry";
+import { isFilmNodeType, isLegacyFilmNodeType } from "../[id]/lib/film-node-registry";
 import type { FilmNodeSummaryOptions } from "../[id]/lib/film-node-summary";
 import type { FilmVersionKind } from "../[id]/lib/film-version-room";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
@@ -603,6 +603,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 
 function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Group) return null;
+    if (isLegacyFilmNodeType(props.node.type)) return <LegacyFilmNodeContent node={props.node} theme={props.theme} />;
     if (props.node.type === CanvasNodeType.ComicPage) return <ComicPageNodeCard node={props.node} theme={props.theme} />;
     if (isFilmNodeType(props.node.type)) {
         return <FilmNodeCardDispatcher node={props.node} nodes={props.filmNodes || [props.node]} connections={props.filmConnections || []} theme={props.theme} onTitleChange={props.onTitleChange} onResize={(nodeId, width, height, position) => props.onResize(nodeId, width, height, position)} onGenerateImage={props.onGenerateFilmImage} onGenerateVideo={props.onGenerateFilmVideo} onOpenVersions={props.onOpenFilmVersions} onFocusShot={props.onFocusFilmShot} onOpenScript={props.onOpenFilmScript} onEditAsset={props.onEditFilmAsset} onCreateShot={props.onCreateFilmShot} onViewMedia={props.onViewFilmMedia} onUpdateBeat={props.onUpdateFilmBeat} onDecomposeBeat={props.onDecomposeFilmBeat} onGenerateBeatPreview={props.onGenerateFilmBeatPreview} onStopBeatTask={props.onStopFilmBeatTask} onLocateBeatShots={props.onLocateFilmBeatShots} summaryOptions={props.filmSummaryOptions} />;
@@ -747,6 +748,20 @@ function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "
                     </div>
                 </Modal>
             </div>
+        </div>
+    );
+}
+
+const LEGACY_FILM_LABELS: Record<string, string> = { script: "剧本", scene: "场次", shot: "镜头", filmAsset: "影视资产" };
+
+function LegacyFilmNodeContent({ node, theme }: Pick<NodeContentRendererProps, "node" | "theme">) {
+    return (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center" style={{ color: theme.node.muted }}>
+            <span className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+                旧版{LEGACY_FILM_LABELS[node.type] || "影视"}节点
+            </span>
+            <p className="m-0 max-w-[240px] text-xs leading-5">该节点来自旧版影视项目，已不再支持。请新建导演板项目，或删除此节点。</p>
+            <span className="max-w-full truncate text-[10px]" style={{ color: theme.node.placeholder }}>{node.title}</span>
         </div>
     );
 }

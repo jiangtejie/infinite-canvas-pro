@@ -4,6 +4,7 @@ import type { ChangeEvent as ReactChangeEvent, Dispatch, RefObject, SetStateActi
 import { useEffect, useRef, useState } from "react";
 import { type CanvasBackgroundMode, type CanvasTheme } from "@/lib/canvas-theme";
 import { type VideoFramePosition } from "../../utils/canvas-video-frame";
+import { isLegacyFilmNodeType } from "../lib/film-node-registry";
 import { isFilmCanvasNodeType } from "../../utils/film-mode";
 import { buildGenerationConfig } from "../lib/canvas-generation-config";
 import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
@@ -208,7 +209,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
     const remixRunning = remixImages.some((node) => node.metadata?.status === "loading" || node.metadata?.status === "stopping");
     const remixCanGenerate = Boolean(remixRun?.plan) && remixRun?.binding === "active" && !remixRunning;
     const remixCanReplan = Boolean(remixRun) && !remixRunning && toolbarNode?.metadata?.status !== "loading";
-    const hoverToolbarNode = toolbarNode && !isFilmCanvasNodeType(toolbarNode.type) ? toolbarNode : null;
+    const hoverToolbarNode = toolbarNode && !isFilmCanvasNodeType(toolbarNode.type) && !isLegacyFilmNodeType(toolbarNode.type) ? toolbarNode : null;
 
     return (
         <>

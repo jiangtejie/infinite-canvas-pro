@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { FilmAsset } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { getFilmQuickConnectActions } from "./film-node-registry";
+import { getFilmQuickConnectActions, isLegacyFilmNodeType } from "./film-node-registry";
 
 const asset = (id: string, name: string): FilmAsset => ({
     id,
@@ -15,6 +15,22 @@ const asset = (id: string, name: string): FilmAsset => ({
     concept: { images: [], locked: false },
     createdAt: "2026-11-22T00:00:00.000Z",
     updatedAt: "2026-11-22T00:00:00.000Z",
+});
+
+test("recognizes legacy film nodes and keeps new film nodes supported", () => {
+    assert.equal(isLegacyFilmNodeType("scene"), true);
+    assert.equal(isLegacyFilmNodeType("shot"), true);
+    assert.equal(isLegacyFilmNodeType("script"), true);
+    assert.equal(isLegacyFilmNodeType("filmAsset"), true);
+    assert.equal(isLegacyFilmNodeType(CanvasNodeType.FilmScene), false);
+    assert.equal(isLegacyFilmNodeType(CanvasNodeType.FilmShot), false);
+    assert.equal(isLegacyFilmNodeType(CanvasNodeType.Image), false);
+});
+
+test("uses noun labels and purpose descriptions in the empty-canvas film menu", () => {
+    const actions = getFilmQuickConnectActions(null, [], []);
+    assert.deepEqual(actions.map((action) => action.label), ["剧本", "场次", "角色", "场景", "道具", "动作节拍"]);
+    assert.equal(actions.some((action) => /新建|新增/.test(action.label)), false);
 });
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({

@@ -6,7 +6,7 @@ import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Contex
 import { cloneCanvasConnections, cloneCanvasNodes } from "../lib/canvas-clone";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { NODE_STATUS_SUCCESS } from "../lib/canvas-node-constants";
-import { isFilmNodeType } from "../lib/film-node-registry";
+import { isFilmNodeType, isLegacyFilmNodeType } from "../lib/film-node-registry";
 
 type CanvasClipboard = {
     nodes: CanvasNodeData[];
@@ -40,7 +40,7 @@ export function selectClipboardNodes(nodes: CanvasNodeData[], selectedIds: Itera
         });
     });
     return nodes
-        .filter((node) => copiedIds.has(node.id) && !isFilmNodeType(node.type))
+        .filter((node) => copiedIds.has(node.id) && !isFilmNodeType(node.type) && !isLegacyFilmNodeType(node.type))
         .map((node) => ({
             ...node,
             position: { ...node.position },

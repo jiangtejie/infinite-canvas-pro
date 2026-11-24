@@ -11,6 +11,7 @@
 + [重构] 漫画项目并入画布：漫画项目改为 CanvasProject(domain=comic)，新增漫画页节点与漫画册/工作台双视图；删除独立 useComicStore、comic-projects 同步域与后端字段、旧 `/comic/[id]` 页、导入/回写/同步弹窗，保留 `/comic/library` 母版库
 + [新增] 漫画画布收尾：漫画册贴字/导出兼容 ComicPage，漫画 JSON 备份导入导出恢复，页格生成中断后在页布局提供手动继续生成入口
 + [修复] 漫画画布点击链路：漫画列表补回删除确认弹窗，无章节时“添加第一页”自动创建首章，项目改名同步漫画册书节点标题
++ [修复] 影视旧版节点兜底与创建菜单：旧 script/scene/shot/filmAsset 节点显示旧版提示并屏蔽通用生图/编辑/复制入口；新建菜单移除重复“新建/新增”文案，改为名词动作与用途描述
 + [文档] 影视文档契约更新：旧 film-as-canvas/Studio 壳层与 AI 影视计划标记为历史设计，features、AI 影视计划、画布数据结构、todo/pending-test 统一指向 Director Board 目标态并移除阶段页/独立时间轴/互动分支/场记交接的当前描述
 + [重构] 影视清理旧 helper 与重复入口：删除 film-edits 旧剧集编辑器、旧项目库统计、无调用的视频任务 helper 与两个旧生产弹窗；资产创建统一到专用工厂，角色身份只认参考板，服装仅保留母版库与造型引用
 + [重构] 删除影视旧互动分支、互动变量、场记交接单、旧 animatic/场记检查、独立 Stage 模型与旧 Script/Scene/Shot/FilmAsset 枚举消费者；角色连续性统一由 context 边承载，全部 typecheck 与测试恢复通过

@@ -98,6 +98,13 @@ export const FILM_NODE_TYPE_BY_CANVAS_TYPE: Partial<Record<CanvasNodeType, FilmN
 
 export const isFilmNodeType = isFilmCanvasNodeType;
 
+const LEGACY_FILM_NODE_TYPES = new Set<string>(["script", "scene", "shot", "filmAsset"]);
+
+/** 硬切前的 filmAsset/script/scene/shot 节点不再有渲染与编辑入口。 */
+export function isLegacyFilmNodeType(type: string) {
+    return LEGACY_FILM_NODE_TYPES.has(type);
+}
+
 export type FilmQuickConnectActionId =
     | "create-shot"
     | "create-beat"
@@ -303,18 +310,18 @@ function actionLabel(id: FilmQuickConnectActionId, sourceType: FilmNodeType, exi
     switch (id) {
         case "create-shot":
             return {
-                label: sourceType === "filmShot" ? "创建后续镜头" : "新增镜头",
-                description: sourceType === "filmShot" ? "在当前镜头后插入镜头，并保持全片顺序" : "创建镜头并接入场次与全片顺序",
+                label: sourceType === "filmShot" ? "后续镜头" : "新镜头",
+                description: sourceType === "filmShot" ? "接在当前镜头后，保持全片顺序" : "接入当前场次与全片顺序",
                 targetType: "filmShot",
             };
         case "create-beat":
             return {
-                label: "新增动作节拍",
-                description: sourceType === "filmShot" ? "创建动作节拍并连入当前镜头" : "创建动作节拍节点",
+                label: "动作节拍",
+                description: sourceType === "filmShot" ? "关联到当前镜头" : "按动作过程组织镜头",
                 targetType: "filmBeat",
             };
         case "create-character-state":
-            return { label: "创建造型状态", description: "在角色节点内新增造型状态", targetType: "filmCharacter" };
+            return { label: "造型状态", description: "在角色节点内增加造型", targetType: "filmCharacter" };
         case "add-character-context":
         case "add-location-context":
         case "add-prop-context":
@@ -343,15 +350,15 @@ function actionLabel(id: FilmQuickConnectActionId, sourceType: FilmNodeType, exi
             };
         }
         case "create-script":
-            return { label: "新建剧本", description: "新增剧本节点", targetType: "filmScript" };
+            return { label: "剧本", description: "项目剧本与导演分析来源", targetType: "filmScript" };
         case "create-scene":
-            return { label: "新建场次", description: "新增场次节点", targetType: "filmScene" };
+            return { label: "场次", description: "按集和场次组织镜头", targetType: "filmScene" };
         case "create-character":
-            return { label: "新建角色", description: "新增角色上下文节点", targetType: "filmCharacter" };
+            return { label: "角色", description: "角色身份、造型与参考", targetType: "filmCharacter" };
         case "create-location":
-            return { label: "新建场景", description: "新增场景上下文节点", targetType: "filmLocation" };
+            return { label: "场景", description: "地点、空间与变体", targetType: "filmLocation" };
         case "create-prop":
-            return { label: "新建道具", description: "新增道具上下文节点", targetType: "filmProp" };
+            return { label: "道具", description: "镜头中的关键道具", targetType: "filmProp" };
     }
 }
 

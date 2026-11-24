@@ -112,7 +112,6 @@ export function FilmQuickConnectMenu({
             <div className="grid gap-1">
                 {actions.length ? (
                     <div role="group" aria-label="影视动作" className="grid gap-1">
-                        <MenuSection theme={theme}>影视</MenuSection>
                         {actions.map((item) => (
                             <ConnectionCreateOption key={item.id} theme={theme} icon={FILM_ACTION_ICONS[item.targetType]} title={item.label} description={item.description} onClick={() => runAction(item)} />
                         ))}

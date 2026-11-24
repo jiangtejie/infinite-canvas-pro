@@ -60,7 +60,7 @@ import { EMPTY_FILM_ASSET_VIEW, selectFilmAssetView } from "./lib/film-asset-vie
 import { EMPTY_FILM_PRODUCTION_PLAN, selectFilmProductionPlan } from "./lib/film-production-plan";
 import { createFilmShotGroup, removeFilmShotGroup, renameFilmShotGroup, selectFilmShotGroups } from "./lib/film-shot-groups";
 import { filmContextAsset, updateFilmContextAssetNode } from "./lib/film-node-patch";
-import { getFilmQuickConnectActions, type FilmCommandResult } from "./lib/film-node-registry";
+import { getFilmQuickConnectActions, isLegacyFilmNodeType, type FilmCommandResult } from "./lib/film-node-registry";
 import { applyFilmVersionSelections, selectFilmVersionShots, type FilmVersionKind } from "./lib/film-version-room";
 import type { FilmContextNodeOption, FilmDirectorBoardModel, FilmProductionKind, FilmProductionOpenOptions, FilmShotBatchKind, FilmShotContextCreatableKind, FilmViewMode } from "./lib/film-studio-types";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
@@ -635,6 +635,10 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const handleNodeClicked = useCallback((nodeId: string) => {
         const clickedNode = nodesRef.current.find((node) => node.id === nodeId);
         if (!clickedNode) return;
+        if (isLegacyFilmNodeType(clickedNode.type)) {
+            message.warning("旧版影视节点已不再支持，请新建导演板项目或删除此节点");
+            return;
+        }
         if (clickedNode.type === CanvasNodeType.FilmShot) {
             openFilmShotFocus(clickedNode.id);
             return;
@@ -650,7 +654,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         } else {
             openOverlay({ kind: "prompt", nodeId });
         }
-    }, [closeOverlay, openFilmShotFocus, openOverlay, setActiveOverlay, setFilmInspectorNodeId]);
+    }, [closeOverlay, message, openFilmShotFocus, openOverlay, setActiveOverlay, setFilmInspectorNodeId]);
 
     const closeNodeCreateMenu = useCallback(() => setNodeCreatePosition(null), [setNodeCreatePosition]);
 
@@ -1086,7 +1090,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
     const duplicateNode = useCallback((nodeId: string) => {
         const source = nodesRef.current.find((node) => node.id === nodeId);
-        if (!source || isFilmCanvasNodeType(source.type)) return;
+        if (!source || isFilmCanvasNodeType(source.type) || isLegacyFilmNodeType(source.type)) return;
 
         const { nodes: cloned } = cloneCanvasNodes([source], { offset: { x: 36, y: 36 }, rename: (title) => `${title} Copy` });
         const next = cloned[0];

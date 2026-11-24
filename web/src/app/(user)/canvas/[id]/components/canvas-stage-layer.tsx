@@ -30,7 +30,7 @@ import type { CanvasVideoResourceOption } from "../../components/canvas-video-se
 import { type AssetPickerTab } from "@/components/assets/asset-picker-modal";
 import { ConnectionCreateMenu, NodeCreateMenu } from "./canvas-create-menus";
 import { FilmQuickConnectMenu } from "./film-quick-connect-menu";
-import { isFilmNodeType, type FilmCommandResult } from "../lib/film-node-registry";
+import { isFilmNodeType, isLegacyFilmNodeType, type FilmCommandResult } from "../lib/film-node-registry";
 import { isCanvasReferenceNode } from "../../utils/canvas-resource-references";
 import { fitSourceNodeSize } from "../../utils/canvas-node-size";
 import type { FilmVersionKind } from "../lib/film-version-room";
@@ -432,7 +432,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     const openNodeContextMenu = useCallback((event: ReactMouseEvent, id: string) => {
         event.preventDefault();
         event.stopPropagation();
-        if (nodes.some((node) => node.id === id && (isFilmNodeType(node.type) || node.type === CanvasNodeType.ComicPage || (Boolean(comic) && node.type === CanvasNodeType.Comic)))) {
+        if (nodes.some((node) => node.id === id && (isFilmNodeType(node.type) || isLegacyFilmNodeType(node.type) || node.type === CanvasNodeType.ComicPage || (Boolean(comic) && node.type === CanvasNodeType.Comic)))) {
             setContextMenu(null);
             return;
         }
@@ -440,7 +440,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     }, [comic, nodes, setContextMenu]);
 
     const openNodePanel = useCallback((node: CanvasNodeData) => {
-        if (isFilmNodeType(node.type) || node.type === CanvasNodeType.ComicPage) return;
+        if (isFilmNodeType(node.type) || isLegacyFilmNodeType(node.type) || node.type === CanvasNodeType.ComicPage) return;
         if (comic && node.type === CanvasNodeType.Comic) {
             onOpenComicWorkbench?.();
             return;
