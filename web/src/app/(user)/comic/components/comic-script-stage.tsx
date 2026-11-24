@@ -43,7 +43,10 @@ export function ComicScriptStage({ project, onChange }: { project: ComicProject;
     };
 
     const addPage = () => {
-        if (!chapter) return;
+        if (!chapter) {
+            addChapter();
+            return;
+        }
         const next = createComicPage(chapter.pages.length + 1);
         onChange(updateComicChapter(project, chapter.id, { pages: [...chapter.pages, next] }));
         setPageId(next.id);

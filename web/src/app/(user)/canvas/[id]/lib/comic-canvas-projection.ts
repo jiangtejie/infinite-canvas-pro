@@ -96,6 +96,7 @@ export function applyComicProject(project: CanvasProject, next: ComicProject): C
     const bookMeta = book.metadata?.comicBook;
     const nextBook: CanvasNodeData = {
         ...book,
+        title: `${next.title.trim() || "未命名漫画"} 漫画册`,
         metadata: {
             ...book.metadata,
             comicBook: {

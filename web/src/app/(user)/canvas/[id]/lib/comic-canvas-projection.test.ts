@@ -49,11 +49,12 @@ const comicProject = (patch: Partial<ComicProject> = {}): ComicProject => ({
 });
 
 test("projects book pages, chapters and cast from the canvas document", () => {
-    const committed = applyComicProject(buildComicCanvasProject("雨夜", context), comicProject({
+    const committed = applyComicProject(buildComicCanvasProject("旧标题", context), comicProject({
         chapters: [{ id: "ch1", title: "第一幕", summary: "", pages: [page("p1", "ch1"), page("p2", "ch1")] }],
         characters: [character("char-1", "沈迟")],
     }));
     const book = committed.nodes.find((node) => node.type === CanvasNodeType.Comic);
+    assert.equal(book?.title, "雨夜 漫画册");
     assert.deepEqual(book?.metadata?.comicBook?.pageNodeIds, ["p1", "p2"]);
     assert.equal(committed.nodes.filter((node) => node.type === CanvasNodeType.ComicPage).length, 2);
     assert.equal(committed.nodes.find((node) => node.id === "p1")?.metadata?.comicPage?.chapterId, "ch1");

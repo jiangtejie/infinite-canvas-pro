@@ -8,6 +8,7 @@ import { saveAs } from "file-saver";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
+import { CanvasDeleteProjectsDialog } from "../canvas/components/canvas-delete-projects-dialog";
 import { CanvasProjectCard } from "../canvas/components/canvas-project-card";
 import { useCanvasStore, type CanvasProject } from "../canvas/stores/use-canvas-store";
 import { comicCanvasProjects } from "../canvas/utils/canvas-project-domain";
@@ -82,6 +83,7 @@ export default function ComicListPage() {
                     </section>
                 ) : null}
             </div>
+            <CanvasDeleteProjectsDialog />
         </main>
     );
 }
