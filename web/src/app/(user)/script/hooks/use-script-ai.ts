@@ -4,7 +4,7 @@ import { useState } from "react";
 import { App } from "antd";
 
 import { useModelConfig } from "@/hooks/use-model-config";
-import type { ScriptProject, ScriptScene } from "../types";
+import type { ScriptProjectDocument, ScriptScene } from "../types";
 import { requestScriptRewrite, requestScriptSceneDiagnosis, type ScriptRewriteMode, type ScriptSceneDiagnosis } from "../utils/script-ai";
 import { errorMessage } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ export function useScriptAi() {
     const [diagnosing, setDiagnosing] = useState(false);
     const [rewriting, setRewriting] = useState(false);
 
-    const diagnoseScene = async (project: ScriptProject, scene: ScriptScene): Promise<ScriptSceneDiagnosis | null> => {
+    const diagnoseScene = async (project: ScriptProjectDocument, scene: ScriptScene): Promise<ScriptSceneDiagnosis | null> => {
         if (diagnosing) return null;
         const config = resolveModelConfig("text");
         if (!config) return null;
@@ -29,7 +29,7 @@ export function useScriptAi() {
         }
     };
 
-    const rewriteScene = async (project: ScriptProject, scene: ScriptScene, mode: ScriptRewriteMode, instruction: string, selectedText: string): Promise<string | null> => {
+    const rewriteScene = async (project: ScriptProjectDocument, scene: ScriptScene, mode: ScriptRewriteMode, instruction: string, selectedText: string): Promise<string | null> => {
         if (rewriting) return null;
         const config = resolveModelConfig("text");
         if (!config) return null;

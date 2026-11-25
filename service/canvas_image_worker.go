@@ -12,7 +12,7 @@ import (
 
 const (
 	canvasImageWorkerConcurrency = 4
-	canvasImageTaskLease         = 60 * time.Second
+	CanvasImageTaskLease         = 60 * time.Second
 	canvasImageWorkerInterval    = 2 * time.Second
 )
 
@@ -65,7 +65,7 @@ func runCanvasImageTaskWorker() {
 				goto drained
 			}
 			now := time.Now().UTC()
-			task, found, err := repository.ClaimNextCanvasImageTask(canvasImageWorker.owner+"-"+uuid.NewString(), now, now.Add(canvasImageTaskLease))
+			task, found, err := repository.ClaimNextCanvasImageTask(canvasImageWorker.owner+"-"+uuid.NewString(), now, now.Add(CanvasImageTaskLease))
 			if err != nil {
 				log.Printf("claim canvas image task failed: %v", err)
 				<-semaphore

@@ -21,11 +21,20 @@ func LogOutboundProxy() {
 
 // OutboundProxyLabel 返回当前出网代理的简短描述，不包含账号密码。
 func OutboundProxyLabel() string {
-	if value := envProxyValue(); value != "" {
-		return "env " + sanitizeProxyValue(value)
+	systemProxy, _ := systemProxyURL(&url.URL{Scheme: "https", Host: "example.com"})
+	return outboundProxyLabel(envProxyValue(), systemProxy)
+}
+
+func outboundProxyLabel(envProxy string, systemProxy *url.URL) string {
+	if envProxy != "" {
+		label := "env " + sanitizeProxyValue(envProxy)
+		if systemProxy != nil && sanitizeProxyValue(systemProxy.String()) != sanitizeProxyValue(envProxy) {
+			label += "; Windows system proxy ignored: " + sanitizeProxyValue(systemProxy.String())
+		}
+		return label
 	}
-	if proxyURL, _ := systemProxyURL(&url.URL{Scheme: "https", Host: "example.com"}); proxyURL != nil {
-		return "system " + sanitizeProxyValue(proxyURL.String())
+	if systemProxy != nil {
+		return "system " + sanitizeProxyValue(systemProxy.String())
 	}
 	return "none"
 }

@@ -2,7 +2,7 @@ import { cleanAiJsonText, extractAiJsonBlock } from "@/lib/ai-json";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import type { AiConfig } from "@/stores/use-config-store";
 
-import type { ScriptProject, ScriptScene } from "../types";
+import type { ScriptProjectDocument, ScriptScene } from "../types";
 import { scriptSceneHeading } from "./script-project";
 
 export type ScriptAiIssue = {
@@ -38,7 +38,7 @@ const DIAGNOSIS_PROMPT = `你是一名资深编剧和剧本医生。请只针对
 {"score":0-100,"summary":"一句话判断这场戏是否成立","issues":[{"severity":"high|medium|low","title":"问题标题","detail":"具体指出哪句/哪个动作有问题","suggestion":"可执行的修改方向"}]}
 issues 控制在 3-6 条，按严重程度排序。`;
 
-export function buildScriptSceneContext(project: ScriptProject, scene: ScriptScene) {
+export function buildScriptSceneContext(project: ScriptProjectDocument, scene: ScriptScene) {
     return {
         project: {
             title: project.title,
@@ -70,7 +70,7 @@ export function buildScriptSceneContext(project: ScriptProject, scene: ScriptSce
     };
 }
 
-export async function requestScriptSceneDiagnosis(config: AiConfig, project: ScriptProject, scene: ScriptScene): Promise<ScriptSceneDiagnosis> {
+export async function requestScriptSceneDiagnosis(config: AiConfig, project: ScriptProjectDocument, scene: ScriptScene): Promise<ScriptSceneDiagnosis> {
     const turn = await requestCanvasAgentTurn({
         config,
         systemPrompt: DIAGNOSIS_PROMPT,
@@ -116,7 +116,7 @@ const REWRITE_PROMPT = `你是一名资深编剧搭档。根据用户提供的�
 3. 对白要有潜台词，动作用可拍摄的画面，不写心理活动；
 4. 不要引入项目里没有的新人物或新设定。`;
 
-export async function requestScriptRewrite(config: AiConfig, project: ScriptProject, scene: ScriptScene, options: { mode: ScriptRewriteMode; instruction?: string; selectedText?: string }): Promise<string> {
+export async function requestScriptRewrite(config: AiConfig, project: ScriptProjectDocument, scene: ScriptScene, options: { mode: ScriptRewriteMode; instruction?: string; selectedText?: string }): Promise<string> {
     const turn = await requestCanvasAgentTurn({
         config,
         systemPrompt: REWRITE_PROMPT,

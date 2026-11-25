@@ -111,10 +111,6 @@ func SaveUserComicCastData(userID, raw string) (model.UserConfig, error) {
 	return updateUserConfigField(userID, map[string]any{"comic_cast_data": raw})
 }
 
-func SaveUserScriptProjectData(userID, raw string) (model.UserConfig, error) {
-	return updateUserConfigField(userID, map[string]any{"script_project_data": raw})
-}
-
 func SaveUserConfig(config model.UserConfig) (model.UserConfig, error) {
 	fields := map[string]any{"model_config": config.ModelConfig, "storage_provider": config.StorageProvider, "image_history": config.ImageHistory}
 	if config.AssetData != "" {

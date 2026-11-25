@@ -115,6 +115,7 @@ import { invalidateComicPageCompositions } from "@/app/(user)/comic/utils/comic-
 import { applyComicPageReplacement, applyComicProjectUpdate } from "./lib/comic-canvas-projection";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasFilmAssetQueue, type CanvasFilmShotQueue, type FilmContextEdgeData, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
+import { applyScriptPublicationRefresh } from "@/services/script-film-publication";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
 
 const FILM_CONTEXT_CREATE_ACTION = { character: "create-character", location: "create-location", prop: "create-prop" } as const;
@@ -2434,7 +2435,20 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         if (!result) return;
         setNodes(result.nodes);
         setConnections(result.connections);
-        message.success("已撤销上次导演分析");
+        nodesRef.current = result.nodes;
+        connectionsRef.current = result.connections;
+        message.success(scriptNode.metadata?.filmScript?.parseSnapshots?.at(-1)?.mode === "refresh" ? "已撤销上次来源刷新" : "已撤销上次导演分析");
+    }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
+
+    const refreshFilmPublication = useCallback(async (scriptProjectId: string, publicationId: string, expectedHash: string) => {
+        const publication = await applyScriptPublicationRefresh(scriptProjectId, publicationId, expectedHash);
+        const film = useCanvasStore.getState().projects.find((project) => project.id === publication.filmProjectId);
+        if (!film) throw new Error("影视项目不存在");
+        setNodes(film.nodes);
+        setConnections(film.connections);
+        nodesRef.current = film.nodes;
+        connectionsRef.current = film.connections;
+        message.success("影视画布已刷新");
     }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
 
     const runFilmConsistencyReview = useCallback(async () => {
@@ -3196,6 +3210,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
                 void runFilmDirectorAnalysis(nodeId);
             }}
             onUndoParse={undoFilmScriptParse}
+            onApplyPublicationRefresh={refreshFilmPublication}
             boundShotNumbers={filmInspectorBoundShots}
             onImportLibraryAsset={importFilmLibraryAsset}
             onStopAssetTask={(nodeId) => {

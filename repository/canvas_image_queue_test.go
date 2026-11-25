@@ -265,3 +265,67 @@ func TestCanvasImageQueueRecoveryDoesNotResendDispatchedWork(t *testing.T) {
 		t.Fatalf("pending recovery: %#v err=%v", pending, err)
 	}
 }
+
+func TestCanvasImageQueueRecoveryFailsAndRefundsExhaustedTasks(t *testing.T) {
+	setupCanvasImageQueueDB(t)
+	db, _ := DB()
+	if err := db.Where("1 = 1").Delete(&model.CanvasImageTask{}).Error; err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	user := model.User{ID: "exhausted-user", Username: "exhausted-user", AffCode: "exhausted-user", Status: model.UserStatusActive, Credits: 10}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	task := model.CanvasImageTask{ID: "exhausted-task", ClientTaskID: "exhausted-client", UserID: user.ID, RequestHash: "exhausted-hash", Model: "image-model", Credits: 2, Status: "queued", CreatedAt: now.Format(time.RFC3339Nano), UpdatedAt: now.Format(time.RFC3339Nano)}
+	if _, created, err := CreateCanvasImageTaskWithCredits(task, model.CreditLog{ID: uuid.NewString(), UserID: user.ID, Type: model.CreditLogTypeAIConsume, Amount: -2, Remark: "consume", CreatedAt: now.Format(time.RFC3339Nano)}, ""); err != nil || !created {
+		t.Fatalf("create charged task: created=%v err=%v", created, err)
+	}
+	for attempt := 1; attempt <= canvasImageTaskMaxAttempts; attempt++ {
+		claimAt := now.Add(time.Duration(attempt) * time.Hour)
+		if _, ok, err := ClaimNextCanvasImageTask("crashing-worker", claimAt, claimAt.Add(time.Minute)); err != nil || !ok {
+			t.Fatalf("claim attempt %d: ok=%v err=%v", attempt, ok, err)
+		}
+		if _, err := RecoverExpiredCanvasImageTasks(claimAt.Add(2 * time.Minute)); err != nil {
+			t.Fatalf("recover attempt %d: %v", attempt, err)
+		}
+	}
+	var saved model.CanvasImageTask
+	if err := db.First(&saved, "id = ?", task.ID).Error; err != nil || saved.Status != "failed" || saved.BillingState != "refunded" || saved.Attempt != canvasImageTaskMaxAttempts {
+		t.Fatalf("exhausted task: %#v err=%v", saved, err)
+	}
+	var balance model.User
+	if err := db.First(&balance, "id = ?", user.ID).Error; err != nil || balance.Credits != 10 {
+		t.Fatalf("balance=%v want=10 err=%v", balance.Credits, err)
+	}
+}
+
+func TestCanvasImageQueueLimitsProcessingTasksPerUser(t *testing.T) {
+	setupCanvasImageQueueDB(t)
+	db, _ := DB()
+	if err := db.Where("1 = 1").Delete(&model.CanvasImageTask{}).Error; err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for index := 0; index < canvasImageTaskUserConcurrency+1; index++ {
+		task := model.CanvasImageTask{ID: "busy-task-" + string(rune('a'+index)), ClientTaskID: "busy-client-" + string(rune('a'+index)), UserID: "busy-user", Status: "queued", CreatedAt: now.Add(time.Duration(index) * time.Second).Format(time.RFC3339Nano)}
+		if err := db.Create(&task).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	other := model.CanvasImageTask{ID: "other-task", ClientTaskID: "other-client", UserID: "other-user", Status: "queued", CreatedAt: now.Add(time.Minute).Format(time.RFC3339Nano)}
+	if err := db.Create(&other).Error; err != nil {
+		t.Fatal(err)
+	}
+	for index := 0; index < canvasImageTaskUserConcurrency; index++ {
+		if claimed, ok, err := ClaimNextCanvasImageTask("worker", now, now.Add(time.Minute)); err != nil || !ok || claimed.UserID != "busy-user" {
+			t.Fatalf("claim %d: %#v ok=%v err=%v", index, claimed, ok, err)
+		}
+	}
+	if claimed, ok, err := ClaimNextCanvasImageTask("worker", now, now.Add(time.Minute)); err != nil || !ok || claimed.ID != other.ID {
+		t.Fatalf("fair claim: %#v ok=%v err=%v", claimed, ok, err)
+	}
+	if _, ok, err := ClaimNextCanvasImageTask("worker", now, now.Add(time.Minute)); err != nil || ok {
+		t.Fatalf("busy user should wait: ok=%v err=%v", ok, err)
+	}
+}

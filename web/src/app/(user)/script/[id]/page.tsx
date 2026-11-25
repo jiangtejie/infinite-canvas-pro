@@ -1,29 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { App, Button, Input, Modal } from "antd";
-import { ArrowLeft, Clapperboard, Download, History, Lock, PencilLine } from "lucide-react";
+import type { ScriptProjectDocument } from "../types";
 
-import { cn } from "@/lib/utils";
-import { FilmAmbient } from "@/components/film/film-ambient";
-import { LocalSaveIndicator } from "@/components/film/local-save-indicator";
+import { cn, errorMessage } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { useDownloadFile } from "@/hooks/use-download-file";
-import type { ScriptProject } from "../types";
+import { publishScriptToFilm } from "@/services/script-film-publication";
+import { snapshotScriptContent, exportScriptText } from "../utils/script-document";
 import { useScriptStore } from "../stores/use-script-store";
-import { createScriptDraft, exportScriptText, scriptPageCount, scriptWordCount } from "../utils/script-project";
-import { buildFilmPlanFromDraft } from "../utils/script-handoff";
-import { useCanvasStore } from "@/app/(user)/canvas/stores/use-canvas-store";
-import { CanvasNodeType } from "@/app/(user)/canvas/types";
-import { buildFilmParseGraph } from "@/app/(user)/canvas/[id]/lib/film-script-parse";
+import { useScriptDocument } from "./use-script-document";
 import { ScriptStoryPanel } from "../components/script-story-panel";
 import { ScriptCharactersPanel } from "../components/script-characters-panel";
 import { ScriptStructurePanel } from "../components/script-structure-panel";
 import { ScriptScenesPanel } from "../components/script-scenes-panel";
 import { ScriptEditorPanel } from "../components/script-editor-panel";
 import { ScriptVersionsModal } from "../components/script-versions-modal";
+import { ScriptEpisodeSwitcher } from "../components/script-episode-switcher";
+import { ScriptConflictModal } from "../components/script-conflict-modal";
+import { ScriptWorkspaceHeader } from "../components/script-workspace-header";
 
 const TABS = [
     { key: "story", label: "故事" },
@@ -32,217 +31,90 @@ const TABS = [
     { key: "scenes", label: "分场" },
     { key: "editor", label: "剧本" },
 ] as const;
-
 type WorkspaceTab = (typeof TABS)[number]["key"];
 
 export default function ScriptProjectPage() {
     const params = useParams<{ id: string }>();
-    const router = useRouter();
+    const id = Array.isArray(params?.id) ? params.id[0] : params?.id || "";
     const { message } = App.useApp();
+    const router = useRouter();
+    const confirm = useConfirm();
     const downloadFile = useDownloadFile();
-    const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
-    const hydrated = useScriptStore((state) => state.hydrated);
-    const projects = useScriptStore((state) => state.projects);
-    const updateProject = useScriptStore((state) => state.updateProject);
-    const createFilmProject = useCanvasStore((state) => state.createFilmProject);
-    const updateCanvasProject = useCanvasStore((state) => state.updateProject);
-    const project = projects.find((item) => item.id === id);
+    const { project, conflicts, loadState, syncState, episode, episodeId, sceneId, setSceneId, selectEpisode } = useScriptDocument(id);
     const [tab, setTab] = useState<WorkspaceTab>("story");
-    const [selectedSceneId, setSelectedSceneId] = useState("");
     const [renameOpen, setRenameOpen] = useState(false);
-    const [versionsOpen, setVersionsOpen] = useState(false);
     const [titleDraft, setTitleDraft] = useState("");
+    const [versionsOpen, setVersionsOpen] = useState(false);
+    const [conflictOpen, setConflictOpen] = useState(false);
 
-    useEffect(() => {
-        if (!project) return;
-        if (selectedSceneId && project.scenes.some((scene) => scene.id === selectedSceneId)) return;
-        setSelectedSceneId(project.scenes[0]?.id || "");
-    }, [project, selectedSceneId]);
-
-    const words = useMemo(() => (project ? scriptWordCount(project) : 0), [project]);
-    const pages = useMemo(() => (project ? scriptPageCount(project) : 0), [project]);
-    const locked = (project?.status || "draft") === "locked";
-    const lockedDraft = project?.lockedDraftId ? (project.drafts || []).find((draft) => draft.id === project.lockedDraftId) || null : null;
-
-    const update = (patch: Partial<ScriptProject>) => {
-        if (project) updateProject(project.id, patch);
+    useEffect(() => { if (conflicts.length) setConflictOpen(true); }, [conflicts.length]);
+    const run = async (action: () => Promise<unknown>) => {
+        try { await action(); } catch (error) { message.error(errorMessage(error, "保存失败")); }
     };
-
-    const lockDraft = () => {
+    const update = (updater: (current: ScriptProjectDocument) => ScriptProjectDocument) => {
+        if (project) void run(() => useScriptStore.getState().updateDocument(project.id, updater));
+    };
+    const addEpisode = async () => {
         if (!project) return;
-        const draft = createScriptDraft(project, locked ? "锁定稿（更新）" : "锁定稿");
-        updateProject(project.id, {
-            drafts: [...(project.drafts || []), draft],
-            status: "locked",
-            lockedDraftId: draft.id,
+        await run(async () => {
+            await useScriptStore.getState().addEpisode(project.id);
+            selectEpisode(useScriptStore.getState().documents[project.id].episodes.at(-1)!.id);
         });
-        message.success(locked ? "已更新锁定稿；已转分镜的项目可在影视项目里「按最新剧本重新解析」" : "已锁定当前稿，可以转影视分镜");
+    };
+    const addScene = async () => {
+        if (!project || !episodeId) return;
+        await run(async () => {
+            await useScriptStore.getState().addScene(project.id, episodeId);
+            const next = useScriptStore.getState().documents[project.id].episodes.find((item) => item.id === episodeId)!;
+            setSceneId(next.scenes.at(-1)!.id);
+        });
+    };
+    const lock = async () => {
+        if (!project || !episode) return;
+        const scope = project.lockedVersionId ? "project" : "episode";
+        const ok = await confirm({ title: scope === "project" ? "更新项目锁定稿" : `锁定「${episode.title}」`, description: scope === "project" ? "当前全部剧集会保存为新的项目锁定稿。" : "保存本集当前内容，后续可基于锁定稿发布到影视。", confirmText: "锁定", tone: "default" });
+        if (!ok) return;
+        await run(() => useScriptStore.getState().lockVersion(project.id, { scope, episodeId: scope === "episode" ? episode.id : undefined, label: scope === "project" ? "项目锁定稿" : `${episode.title}锁定稿` }));
     };
 
-    const handoffToFilm = () => {
+    const publish = async () => {
         if (!project) return;
-        const draft = lockedDraft || createScriptDraft(project, "锁定稿");
-        const existing = project.filmProjectId ? useCanvasStore.getState().projects.find((item) => item.id === project.filmProjectId && item.domain === "film") : undefined;
-        if (existing) {
-            router.push(`/film/studio/${existing.id}`);
+        const episodeIds = project.episodes.filter((item) => project.lockedVersionId || (item.lockedVersionId && item.lockedVersionHash)).map((item) => item.id);
+        if (!episodeIds.length) {
+            message.warning("请先锁定要发布的剧集");
             return;
         }
-        const { scriptText, episodes, document } = buildFilmPlanFromDraft(draft);
-        const shotCount = episodes.reduce((total, episode) => total + episode.scenes.reduce((sceneTotal, scene) => sceneTotal + scene.shots.length, 0), 0);
-        const filmProjectId = createFilmProject(`${project.title} · 分镜`);
-        const created = useCanvasStore.getState().projects.find((item) => item.id === filmProjectId);
-        const scriptNode = created?.nodes.find((node) => node.type === CanvasNodeType.FilmScript);
-        if (!created || !scriptNode) return;
-        const scriptNodeWithText = {
-            ...scriptNode,
-            metadata: {
-                ...scriptNode.metadata,
-                filmScript: {
-                    ...(scriptNode.metadata?.filmScript ?? { parseSnapshots: [] }),
-                    text: scriptText,
-                    sourceScriptProjectId: project.id,
-                    sourceScriptHash: document.scriptHash,
-                },
-            },
-        };
-        const nodesWithScript = created.nodes.map((node) => node.id === scriptNode.id ? scriptNodeWithText : node);
-        const parsed = shotCount ? buildFilmParseGraph(episodes, scriptNodeWithText, nodesWithScript, created.connections, "overwrite") : null;
-        updateCanvasProject(filmProjectId, { nodes: parsed?.nodes ?? nodesWithScript, connections: parsed?.connections ?? created.connections });
-        updateProject(project.id, {
-            filmProjectId,
-            drafts: lockedDraft ? (project.drafts || []) : [...(project.drafts || []), draft],
-            lockedDraftId: lockedDraft ? project.lockedDraftId : draft.id,
-            status: "locked",
-        });
-        message.success(shotCount ? `已生成影视分镜：${episodes.length} 集 / ${shotCount} 个分镜` : "已创建影视画布，可在 Studio 继续拆镜");
-        router.push(`/film/studio/${filmProjectId}`);
+        try {
+            const publication = await publishScriptToFilm({ projectId: project.id, episodeIds });
+            message.success("已发布到影视画布");
+            router.push(`/canvas/${encodeURIComponent(publication.filmProjectId!)}`);
+        } catch (error) {
+            message.error(errorMessage(error, "发布失败"));
+        }
     };
 
-    const saveTitle = () => {
-        if (!project) return;
-        const title = titleDraft.trim();
-        if (!title) return;
-        update({ title });
-        setRenameOpen(false);
-    };
-
-    const exportScript = () => {
-        if (!project) return;
-        downloadFile(new Blob([exportScriptText(project)], { type: "text/plain;charset=utf-8" }), `${project.title || "剧本"}.txt`);
-    };
-
-    if (!hydrated) {
-        return <div className="grid h-full place-items-center"><LoadingState label="正在加载剧本" /></div>;
-    }
-
-    if (!project) {
-        return (
-            <div className="grid h-full place-items-center">
-                <EmptyState
-                    title="剧本不存在"
-                    description="可能已经被删除，或者链接不正确。"
-                    action={<Link href="/script" className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-4 text-xs font-medium text-foreground transition hover:border-acid/60">返回剧本列表</Link>}
-                />
-            </div>
-        );
-    }
+    if (loadState === "loading" || loadState === "idle") return <div className="grid h-full place-items-center"><LoadingState label="正在加载剧本" /></div>;
+    if (!project || loadState === "missing" || loadState === "error") return (
+        <div className="grid h-full place-items-center"><EmptyState title={loadState === "error" ? "剧本加载失败" : "剧本不存在"} description={loadState === "error" ? "本机缓存和云端都暂时无法读取，请稍后重试。" : "可能已经被删除，或者链接不正确。"} action={<Link href="/script" className="inline-flex h-9 items-center rounded-md border border-border bg-card px-4 text-xs">返回剧本列表</Link>} /></div>
+    );
 
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden bg-transparent text-foreground">
-            <header className="relative shrink-0 overflow-hidden border-b border-border/70 bg-background/40">
-                <FilmAmbient className="-top-24 h-44 opacity-60" />
-                <div className="relative z-10 mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-4 sm:gap-3 sm:px-6">
-                    <Link href="/script" aria-label="返回剧本创作" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground">
-                        <ArrowLeft className="size-4" />
-                    </Link>
-                    <div className="min-w-0">
-                        <p className="font-mono text-[9px] tracking-[0.2em] text-muted-foreground/60 uppercase">创作工作台</p>
-                        <div className="flex items-center gap-1">
-                            <h1 className="max-w-48 truncate text-[15px] font-semibold tracking-tight text-foreground">{project.title}</h1>
-                            <button type="button" aria-label="重命名剧本" className="grid size-6 place-items-center rounded text-muted-foreground/40 transition-colors hover:bg-foreground/5 hover:text-foreground" onClick={() => { setTitleDraft(project.title); setRenameOpen(true); }}>
-                                <PencilLine className="size-3" />
-                            </button>
-                        </div>
-                    </div>
-
-                    <nav className="ml-2 hidden h-16 items-center gap-1 md:flex" aria-label="剧本工作流">
-                        {TABS.map((item, index) => (
-                            <button
-                                key={item.key}
-                                type="button"
-                                onClick={() => setTab(item.key)}
-                                aria-current={tab === item.key ? "page" : undefined}
-                                className={cn(
-                                    "relative flex h-16 items-center gap-1.5 px-3 text-[13px] transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-[2px] after:rounded-t-full after:transition-all after:duration-300",
-                                    tab === item.key ? "font-medium text-foreground after:bg-acid after:shadow-[0_0_14px_var(--acid)]" : "text-muted-foreground after:bg-transparent hover:text-foreground",
-                                )}
-                            >
-                                <span className={cn("font-mono text-[9px] tabular-nums", tab === item.key ? "text-acid/80" : "text-muted-foreground/35")}>{String(index + 1).padStart(2, "0")}</span>
-                                {item.label}
-                            </button>
-                        ))}
-                    </nav>
-
-                    <div className="ml-auto flex items-center gap-2">
-                        <span className="hidden font-mono text-[10px] text-muted-foreground/60 tabular-nums sm:inline">{project.scenes.length} 场 · {words.toLocaleString()} 字 · 约 {pages} 页</span>
-                        <span className="hidden sm:block">
-                            <LocalSaveIndicator compact />
-                        </span>
-                        <span className={cn("chip hidden sm:inline-flex", locked ? "border-acid/40 text-acid" : "")}>{locked ? "已锁定" : "草稿"}</span>
-                        {locked ? (
-                            <>
-                                <Button size="small" type="text" className="hidden sm:inline-flex" onClick={lockDraft}>更新锁定稿</Button>
-                                <Button size="small" type="primary" icon={<Clapperboard className="size-3.5" />} onClick={handoffToFilm}>
-                                    {project.filmProjectId ? "打开影视分镜" : "转影视分镜"}
-                                </Button>
-                            </>
-                        ) : (
-                            <Button size="small" icon={<Lock className="size-3.5" />} onClick={lockDraft}>锁定稿</Button>
-                        )}
-                        <Button size="small" icon={<History className="size-3.5" />} onClick={() => setVersionsOpen(true)}>版本</Button>
-                        <Button size="small" icon={<Download className="size-3.5" />} onClick={exportScript}>导出</Button>
-                    </div>
-                </div>
-                <div className="relative z-10 flex gap-1 overflow-x-auto border-t border-border/50 px-4 md:hidden">
-                    {TABS.map((item) => (
-                        <button key={item.key} type="button" onClick={() => setTab(item.key)} className={cn("relative shrink-0 px-3 py-2 text-xs", tab === item.key ? "text-acid" : "text-muted-foreground")}>
-                            {item.label}
-                        </button>
-                    ))}
-                </div>
-            </header>
-
-            <main className="min-h-0 flex-1 overflow-y-auto">
-                <div key={tab} className="film-stage-enter mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
-                    {tab === "story" ? <ScriptStoryPanel project={project} onUpdate={update} /> : null}
-                    {tab === "characters" ? <ScriptCharactersPanel project={project} onUpdate={update} /> : null}
-                    {tab === "structure" ? <ScriptStructurePanel project={project} onUpdate={update} /> : null}
-                    {tab === "scenes" ? (
-                        <ScriptScenesPanel
-                            project={project}
-                            onUpdate={update}
-                            onOpenEditor={(sceneId) => {
-                                setSelectedSceneId(sceneId);
-                                setTab("editor");
-                            }}
-                        />
-                    ) : null}
-                    {tab === "editor" ? (
-                        <ScriptEditorPanel
-                            project={project}
-                            selectedSceneId={selectedSceneId}
-                            onSelectScene={setSelectedSceneId}
-                            onUpdate={update}
-                        />
-                    ) : null}
-                </div>
-            </main>
-
-            <Modal title="重命名剧本" open={renameOpen} onCancel={() => setRenameOpen(false)} onOk={saveTitle} okText="保存" cancelText="取消" destroyOnHidden>
-                <Input autoFocus value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} onPressEnter={saveTitle} />
-            </Modal>
-
-            <ScriptVersionsModal open={versionsOpen} project={project} onUpdate={update} onClose={() => setVersionsOpen(false)} />
+            <ScriptWorkspaceHeader project={project} syncState={syncState} onRename={() => { setTitleDraft(project.title); setRenameOpen(true); }} onVersions={() => setVersionsOpen(true)} onExport={() => downloadFile(new Blob([exportScriptText(snapshotScriptContent(project))], { type: "text/plain;charset=utf-8" }), `${project.title || "剧本"}.txt`)} onLock={() => void lock()} onPublish={() => void publish()} onResolve={() => setConflictOpen(true)} />
+            <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border/50 px-4 sm:px-6" aria-label="剧本工作流">
+                {TABS.map((item, index) => <button key={item.key} type="button" onClick={() => setTab(item.key)} aria-current={tab === item.key ? "page" : undefined} className={cn("relative flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-xs", tab === item.key ? "text-acid after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:bg-acid" : "text-muted-foreground hover:text-foreground")}><span className="font-mono text-[8px] opacity-50">{String(index + 1).padStart(2, "0")}</span>{item.label}</button>)}
+            </nav>
+            {(tab === "scenes" || tab === "editor") && project.episodes.length ? <div className="shrink-0 border-b border-border/40 px-4 py-2 sm:px-6"><ScriptEpisodeSwitcher episodes={project.episodes} value={episodeId} onChange={selectEpisode} onAdd={addEpisode} /></div> : null}
+            <main className="min-h-0 flex-1 overflow-y-auto"><div key={tab} className="film-stage-enter mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
+                {tab === "story" ? <ScriptStoryPanel project={project} onUpdate={update} /> : null}
+                {tab === "characters" ? <ScriptCharactersPanel project={project} onUpdate={update} /> : null}
+                {tab === "structure" ? <ScriptStructurePanel project={project} onUpdate={update} /> : null}
+                {tab === "scenes" && episode ? <ScriptScenesPanel project={project} episodeId={episode.id} onUpdateScene={(scene, patch) => void run(() => useScriptStore.getState().updateScene(project.id, episode.id, scene, patch))} onAddScene={addScene} onRemoveScene={(scene) => void run(() => useScriptStore.getState().removeScene(project.id, episode.id, scene))} onMoveScene={(scene, direction) => void run(() => useScriptStore.getState().moveScene(project.id, episode.id, scene, direction))} onOpenEditor={(scene) => { setSceneId(scene); setTab("editor"); }} /> : null}
+                {tab === "editor" && episode ? <ScriptEditorPanel project={project} episodeId={episode.id} selectedSceneId={sceneId} onSelectScene={setSceneId} onUpdateScene={(scene, patch) => void run(() => useScriptStore.getState().updateScene(project.id, episode.id, scene, patch))} onAddScene={addScene} /> : null}
+            </div></main>
+            <Modal title="重命名剧本" open={renameOpen} onCancel={() => setRenameOpen(false)} onOk={() => { const title = titleDraft.trim(); if (!title) return; update((current) => ({ ...current, title })); setRenameOpen(false); }} okText="保存" cancelText="取消" destroyOnHidden><Input autoFocus value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} onPressEnter={() => update((current) => ({ ...current, title: titleDraft.trim() || current.title }))} /></Modal>
+            <ScriptVersionsModal open={versionsOpen} project={project} initialEpisodeId={episodeId} onClose={() => setVersionsOpen(false)} />
+            <ScriptConflictModal open={conflictOpen} projectId={project.id} conflicts={conflicts} onClose={() => setConflictOpen(false)} />
         </div>
     );
 }

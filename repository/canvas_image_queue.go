@@ -9,13 +9,23 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	// 未派发即中断的任务最多领取次数，超过后失败退款，避免异常任务反复重排。
+	canvasImageTaskMaxAttempts = 3
+	// 单个用户同时执行的图片任务上限，避免一次大批量占满全局 worker。
+	canvasImageTaskUserConcurrency = 2
+)
+
 func ClaimNextCanvasImageTask(owner string, now time.Time, leaseUntil time.Time) (model.CanvasImageTask, bool, error) {
 	db, err := DB()
 	if err != nil {
 		return model.CanvasImageTask{}, false, err
 	}
+	busyUsers := db.Model(&model.CanvasImageTask{}).Select("user_id").
+		Where("status = ? AND (workflow_ref = ? OR workflow_ref IS NULL)", "processing", "").
+		Group("user_id").Having("COUNT(*) >= ?", canvasImageTaskUserConcurrency)
 	var task model.CanvasImageTask
-	if err := db.Where("status = ? AND (workflow_ref = ? OR workflow_ref IS NULL)", "queued", "").Order("created_at ASC, id ASC").First(&task).Error; err != nil {
+	if err := db.Where("status = ? AND (workflow_ref = ? OR workflow_ref IS NULL) AND user_id NOT IN (?)", "queued", "", busyUsers).Order("created_at ASC, id ASC").First(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return model.CanvasImageTask{}, false, nil
 		}
@@ -140,8 +150,23 @@ func RecoverExpiredCanvasImageTasks(now time.Time) (int64, error) {
 	if unknown.Error != nil {
 		return 0, unknown.Error
 	}
+	var exhausted []model.CanvasImageTask
+	if err := db.Where("status = ? AND lease_until < ? AND dispatch_state <> ? AND attempt >= ? AND (workflow_ref = ? OR workflow_ref IS NULL)", "processing", now.UTC(), "dispatched", canvasImageTaskMaxAttempts, "").Find(&exhausted).Error; err != nil {
+		return unknown.RowsAffected, err
+	}
+	failed := int64(0)
+	for _, task := range exhausted {
+		task.Status, task.Error, task.ErrorDetail, task.CompletedAt = "failed", "图片任务多次中断，已退回算力点，请重新生成", "任务未派发到上游，已达最大重试次数", stamp
+		ok, err := CompleteCanvasImageTask(task, task.LeaseOwner)
+		if err != nil {
+			return unknown.RowsAffected + failed, err
+		}
+		if ok {
+			failed++
+		}
+	}
 	queued := db.Model(&model.CanvasImageTask{}).
-		Where("status = ? AND lease_until < ? AND dispatch_state <> ? AND (workflow_ref = ? OR workflow_ref IS NULL)", "processing", now.UTC(), "dispatched", "").
+		Where("status = ? AND lease_until < ? AND dispatch_state <> ? AND attempt < ? AND (workflow_ref = ? OR workflow_ref IS NULL)", "processing", now.UTC(), "dispatched", canvasImageTaskMaxAttempts, "").
 		Updates(map[string]any{"status": "queued", "lease_owner": "", "lease_until": nil, "updated_at": stamp})
-	return unknown.RowsAffected + queued.RowsAffected, queued.Error
+	return unknown.RowsAffected + failed + queued.RowsAffected, queued.Error
 }

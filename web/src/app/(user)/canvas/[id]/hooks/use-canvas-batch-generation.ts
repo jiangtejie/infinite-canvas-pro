@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { requestCreditCost } from "@/constant/credits";
+import { usesAccountProxy } from "@/services/api/ai-request";
 import { useConfigStore, type AiConfig } from "@/stores/use-config-store";
 
 import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prompt-panel";
@@ -47,13 +48,15 @@ export type CanvasBatchResult = "success" | "failure" | "stopped" | "timeout";
 
 const INITIAL_STATE: CanvasBatchGenerationState = { running: false, total: 0, completed: 0, failed: 0, currentTitle: "", currentIndex: 0 };
 const NODE_TIMEOUT_MS = 10 * 60 * 1000;
+// 云端队列模式下任务会排队等待服务端 worker，等待上限要覆盖排队时间。
+const SERVER_QUEUE_TIMEOUT_MS = 30 * 60 * 1000;
 const POLL_INTERVAL_MS = 700;
 const ACTIVITY_GRACE_MS = 5000;
 const ACTIVE_STATUS = new Set(["loading", "stopping"]);
 
 /**
- * 画布批量生成：串行队列，逐张调用现有单节点生成链路并等待任务终态；
- * 不引入新的任务系统，也不改变 runningRequestRef 的单例语义。
+ * 画布批量生成：逐张调用现有单节点生成链路。本地直连时串行等待每张终态；
+ * 登录代理时任务由服务端持久队列执行，先逐张提交再统一等待，刷新页面也不会丢失已提交任务。
  */
 export function useCanvasBatchGeneration({
     nodesRef,
@@ -74,6 +77,7 @@ export function useCanvasBatchGeneration({
     const runningRef = useRef(false);
     const stopRequestedRef = useRef(false);
     const activeNodeIdRef = useRef("");
+    const queuedNodeIdsRef = useRef<string[]>([]);
     const runTokenRef = useRef(0);
 
     useEffect(() => () => {
@@ -90,11 +94,11 @@ export function useCanvasBatchGeneration({
             : { running: false, total: batch.nodeIds.length, completed: batch.completed, failed: batch.failed, currentTitle: "", currentIndex: batch.cursor });
     });
 
-    const waitForGeneration = useCallback(async (targetNodeId: string, runToken: number, snapshot: { ids: Set<string>; status?: string; startedAt?: number; clientTaskId?: string }): Promise<CanvasBatchResult> => {
+    const waitForGeneration = useCallback(async (targetNodeId: string, runToken: number, snapshot: { ids: Set<string>; status?: string; startedAt?: number; clientTaskId?: string }, timeoutMs = NODE_TIMEOUT_MS): Promise<CanvasBatchResult> => {
         const startedAt = Date.now();
         let sawActivity = false;
         await sleep(POLL_INTERVAL_MS);
-        while (Date.now() - startedAt < NODE_TIMEOUT_MS) {
+        while (Date.now() - startedAt < timeoutMs) {
             if (runTokenRef.current !== runToken) return "stopped";
             const nodes = nodesRef.current;
             const connections = connectionsRef.current;
@@ -150,13 +154,14 @@ export function useCanvasBatchGeneration({
         }
         const credits = requestCreditCost({ channelMode: effectiveConfig.channelMode, modelCosts, model: imageModel, count: 1 }) * targets.length;
         const label = options?.label?.trim() || "批量生成";
+        const serverQueued = usesAccountProxy(effectiveConfig);
         runningRef.current = true;
         let confirmed = false;
         try {
             const remixReview = await reviewBatch(targets, credits);
             confirmed = remixReview === null ? await confirm({
                 title: `${label}（${targets.length} 张）`,
-                description: `将按顺序逐张生成图片，图片模型：${imageModel}；${credits > 0 ? `预计消耗 ${credits.toLocaleString()} 力点；` : ""}生成过程中可随时停止，已完成的结果会保留。`,
+                description: `${serverQueued ? "将全部提交到云端队列生成，关闭页面后仍会继续" : "将按顺序逐张生成图片"}，图片模型：${imageModel}；${credits > 0 ? `预计消耗 ${credits.toLocaleString()} 力点；` : ""}生成过程中可随时停止，已完成的结果会保留。`,
                 confirmText: "开始生成",
                 cancelText: "取消",
             }) : remixReview;
@@ -191,6 +196,38 @@ export function useCanvasBatchGeneration({
         let failedNodeIds = [...(resume?.failedNodeIds || [])];
         persistProgress(initialCursor, completed, failed, failedNodeIds, "running");
         setBatchState({ running: true, total: targets.length, completed: 0, failed: 0, currentTitle: "", currentIndex: 0 });
+        const recordResult = (nodeId: string, result: CanvasBatchResult) => {
+            if (result === "success") {
+                displayCompleted += 1;
+                completedNodeIds.push(nodeId);
+            } else {
+                displayFailed += 1;
+                if (result === "timeout") timedOut = true;
+            }
+            const counts = remixBatchAttemptCounts({ completed, failed, failedNodeIds }, nodeId, result === "success" ? "success" : "failure");
+            completed = counts.completed;
+            failed = counts.failed;
+            failedNodeIds = counts.failedNodeIds;
+            setBatchState((prev) => ({ ...prev, completed: displayCompleted, failed: displayFailed }));
+        };
+        // 提交单张并返回等待其终态的 Promise（包在对象里，避免 async 自动展开成串行等待）；串行模式立即等待，云端队列模式全部提交后统一等待。
+        const submitTarget = async (node: CanvasNodeData): Promise<{ waiting: Promise<CanvasBatchResult> }> => {
+            const snapshot = {
+                ids: new Set(nodesRef.current.map((item) => item.id)),
+                status: node.metadata?.status,
+                startedAt: node.metadata?.startedAt,
+                clientTaskId: node.metadata?.clientTaskId,
+            };
+            activeNodeIdRef.current = node.id;
+            try {
+                await handleGenerateNode(node.id, "image", node.metadata?.prompt || "", { background: true, countOverride: "1", overwrite: options?.overwrite });
+            } catch {
+                return { waiting: Promise.resolve<CanvasBatchResult>("failure") };
+            }
+            return { waiting: waitForGeneration(node.id, runToken, snapshot, serverQueued ? SERVER_QUEUE_TIMEOUT_MS : NODE_TIMEOUT_MS) };
+        };
+        const pending: Promise<void>[] = [];
+        queuedNodeIdsRef.current = serverQueued ? targets : [];
         try {
             for (const [targetIndex, nodeId] of targets.entries()) {
                 if (stopRequestedRef.current || runTokenRef.current !== runToken) {
@@ -200,59 +237,50 @@ export function useCanvasBatchGeneration({
                 const node = nodesRef.current.find((item) => item.id === nodeId);
                 cursor = Math.max(0, progressNodeIds.indexOf(nodeId));
                 if (!node || !isCanvasImageNodeType(node.type)) {
-                    const counts = remixBatchAttemptCounts({ completed, failed, failedNodeIds }, nodeId, "failure");
-                    completed = counts.completed;
-                    failed = counts.failed;
-                    failedNodeIds = counts.failedNodeIds;
-                    displayFailed += 1;
+                    recordResult(nodeId, "failure");
                     persistProgress(cursor + 1, completed, failed, failedNodeIds, "running");
-                    setBatchState((prev) => ({ ...prev, completed: displayCompleted, failed: displayFailed }));
                     continue;
                 }
                 persistProgress(cursor, completed, failed, failedNodeIds, "running");
                 setBatchState((prev) => ({ ...prev, currentIndex: targetIndex + 1, currentTitle: node.title || `图片 ${targetIndex + 1}` }));
-                const snapshot = {
-                    ids: new Set(nodesRef.current.map((item) => item.id)),
-                    status: node.metadata?.status,
-                    startedAt: node.metadata?.startedAt,
-                    clientTaskId: node.metadata?.clientTaskId,
-                };
-                activeNodeIdRef.current = nodeId;
-                let attemptResult: CanvasBatchResult = "failure";
-                try {
-                    await handleGenerateNode(nodeId, "image", node.metadata?.prompt || "", { background: true, countOverride: "1", overwrite: options?.overwrite });
-                    const result = await waitForGeneration(nodeId, runToken, snapshot);
-                    attemptResult = result;
-                    if (result === "stopped") {
-                        interrupted = true;
-                        break;
-                    }
-                    if (result === "success") {
-                        displayCompleted += 1;
-                        completedNodeIds.push(nodeId);
-                    }
-                    else {
-                        displayFailed += 1;
-                        if (result === "timeout") timedOut = true;
-                    }
-                } catch {
-                    displayFailed += 1;
+                const { waiting } = await submitTarget(node);
+                const submittedCursor = cursor + 1;
+                if (serverQueued) {
+                    persistProgress(submittedCursor, completed, failed, failedNodeIds, "running");
+                    pending.push(waiting.then((result) => {
+                        if (result === "stopped") {
+                            interrupted = true;
+                            return;
+                        }
+                        recordResult(nodeId, result);
+                        if (runTokenRef.current === runToken) persistProgress(submittedCursor, completed, failed, failedNodeIds, "running");
+                    }));
+                    continue;
                 }
-                const counts = remixBatchAttemptCounts({ completed, failed, failedNodeIds }, nodeId, attemptResult === "success" ? "success" : "failure");
-                completed = counts.completed;
-                failed = counts.failed;
-                failedNodeIds = counts.failedNodeIds;
+                const result = await waiting;
+                if (result === "stopped") {
+                    interrupted = true;
+                    break;
+                }
+                recordResult(nodeId, result);
                 if (runTokenRef.current !== runToken) {
                     return createBatchRunResult("stopped", progressNodeIds.length, completed, failed, [...failedNodeIds], targets, completedNodeIds);
                 }
-                persistProgress(cursor + 1, completed, failed, failedNodeIds, "running");
-                setBatchState((prev) => ({ ...prev, completed: displayCompleted, failed: displayFailed }));
+                persistProgress(submittedCursor, completed, failed, failedNodeIds, "running");
+            }
+            if (pending.length) {
+                setBatchState((prev) => ({ ...prev, currentTitle: "等待云端队列完成" }));
+                await Promise.all(pending);
+                if (runTokenRef.current !== runToken) {
+                    return createBatchRunResult("stopped", progressNodeIds.length, completed, failed, [...failedNodeIds], targets, completedNodeIds);
+                }
             }
         } finally {
             if (runTokenRef.current === runToken) {
                 runningRef.current = false;
                 stopRequestedRef.current = false;
                 activeNodeIdRef.current = "";
+                queuedNodeIdsRef.current = [];
                 setBatchState((prev) => ({ ...prev, running: false, currentTitle: "", currentIndex: 0 }));
                 const latest = resume ? reconcileRemixBatchResume({ ...resume, status: "running" }, nodesRef.current) : undefined;
                 const finalCursor = latest?.cursor ?? progressNodeIds.length;
@@ -274,12 +302,10 @@ export function useCanvasBatchGeneration({
     const stopBatch = useCallback(async () => {
         if (!runningRef.current) return;
         stopRequestedRef.current = true;
-        const activeNodeId = activeNodeIdRef.current;
-        if (!activeNodeId) return;
-        const activeNode = nodesRef.current.find((node) => node.id === activeNodeId);
-        if (!activeNode) return;
-        if (activeNode.metadata?.status !== "loading" && activeNode.metadata?.status !== "stopping") return;
-        await handleStopNode(activeNodeId).catch(() => undefined);
+        // 云端队列模式下多张同时在跑，停止时一并停掉本批次所有进行中的节点。
+        const ids = new Set([activeNodeIdRef.current, ...queuedNodeIdsRef.current].filter(Boolean));
+        const activeNodes = nodesRef.current.filter((node) => ids.has(node.id) && ACTIVE_STATUS.has(node.metadata?.status || ""));
+        await Promise.all(activeNodes.map((node) => handleStopNode(node.id).catch(() => undefined)));
     }, [handleStopNode, nodesRef]);
 
     return { batchState, startBatch, stopBatch };

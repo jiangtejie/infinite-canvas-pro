@@ -52,7 +52,8 @@ type CanvasStore = {
     saveStatus: CanvasSaveStatus;
     projects: CanvasProject[];
     createProject: (title?: string, options?: { agentConfig?: CanvasAgentConfig; pendingAgentRequest?: CanvasPendingAgentRequest }) => string;
-    createFilmProject: (title?: string) => string;
+    createFilmProject: (title?: string, options?: { id?: string; scriptPublicationId?: string }) => string;
+    saveProjectNow: (id: string) => Promise<void>;
     createComicProject: (title?: string) => string;
     importProject: (project: Partial<CanvasProject>) => string;
     openProject: (id: string) => CanvasProject | null;
@@ -73,6 +74,7 @@ let accountCanvasSyncEnabled = false;
 const projectSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const pendingProjectSaves = new Map<string, { token: string; project: CanvasProject }>();
 const savingProjects = new Set<string>();
+const projectSavePromises = new Map<string, Promise<void>>();
 const cloudSaveFailures = new Set<string>();
 let cloudSaveInFlight = 0;
 let syncFailed = false;
@@ -92,15 +94,23 @@ async function flushProjectSave(id: string) {
     savingProjects.add(id);
     cloudSaveInFlight += 1;
     applySaveStatus();
+    const operation = (async () => {
+        try {
+            await saveCanvasProject(pending.token, pending.project);
+            cloudSaveFailures.delete(id);
+        } catch {
+            cloudSaveFailures.add(id);
+        } finally {
+            savingProjects.delete(id);
+            cloudSaveInFlight = Math.max(0, cloudSaveInFlight - 1);
+            applySaveStatus();
+        }
+    })();
+    projectSavePromises.set(id, operation);
     try {
-        await saveCanvasProject(pending.token, pending.project);
-        cloudSaveFailures.delete(id);
-    } catch {
-        cloudSaveFailures.add(id);
+        await operation;
     } finally {
-        savingProjects.delete(id);
-        cloudSaveInFlight = Math.max(0, cloudSaveInFlight - 1);
-        applySaveStatus();
+        projectSavePromises.delete(id);
     }
     void flushProjectSave(id);
 }
@@ -315,17 +325,59 @@ export const useCanvasStore = create<CanvasStore>()(
                 queueProjectSave(project);
                 return id;
             },
-            createFilmProject: (title = "未命名影视画布") => {
+            createFilmProject: (title = "未命名影视画布", options) => {
                 const project = buildFilmCanvasProject(title, {
-                    id: nanoid(),
+                    id: options?.id || nanoid(),
                     now: new Date().toISOString(),
                     viewport: initialViewport,
                     sidePanel: DEFAULT_CANVAS_SIDE_PANEL,
                     agentPanel: DEFAULT_CANVAS_AGENT_PANEL,
                 });
+                if (options?.scriptPublicationId) project.film!.scriptPublicationId = options.scriptPublicationId;
                 set((state) => ({ projects: [project, ...state.projects] }));
                 queueProjectSave(project);
                 return project.id;
+            },
+            saveProjectNow: async (id) => {
+                const project = get().projects.find((item) => item.id === id);
+                if (!project) throw new Error("影视项目不存在");
+                const key = accountStorageKey(CANVAS_STORE_KEY);
+                const timer = projectSaveTimers.get(id);
+                if (timer) clearTimeout(timer);
+                projectSaveTimers.delete(id);
+                pendingProjectSaves.delete(id);
+                await projectSavePromises.get(id);
+                if (saveTimer) clearTimeout(saveTimer);
+                saveTimer = null;
+                const state: PersistedCanvasState = { projects: get().projects };
+                queuedPersistState = null;
+                const sequence = ++saveSequence;
+                localSaveStatus = "saving";
+                applySaveStatus();
+                try {
+                    await localForageStorage.setItem(key, JSON.stringify({ state, version: 0 }));
+                    if (sequence === saveSequence) localSaveStatus = "saved";
+                } catch (error) {
+                    if (sequence === saveSequence) localSaveStatus = "error";
+                    throw error;
+                } finally {
+                    applySaveStatus();
+                }
+                const token = useUserStore.getState().token;
+                if (token && accountCanvasSyncEnabled) {
+                    cloudSaveInFlight += 1;
+                    applySaveStatus();
+                    try {
+                        await saveCanvasProject(token, get().projects.find((item) => item.id === id)!);
+                        cloudSaveFailures.delete(id);
+                    } catch (error) {
+                        cloudSaveFailures.add(id);
+                        throw error;
+                    } finally {
+                        cloudSaveInFlight = Math.max(0, cloudSaveInFlight - 1);
+                        applySaveStatus();
+                    }
+                }
             },
             createComicProject: (title = "未命名漫画") => {
                 const project = buildComicCanvasProject(title, {

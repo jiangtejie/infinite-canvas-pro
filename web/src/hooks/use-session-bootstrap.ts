@@ -33,11 +33,17 @@ export function useSessionBootstrap() {
         if (!userId) {
             wasLoggedOutRef.current = true;
             void import("@/services/creative-sync").then((module) => module.stopCreativeAccountSync());
+            void import("@/app/(user)/script/stores/use-script-store").then(async (module) => {
+                module.stopScriptAccountSync();
+                await module.configureScriptAccount("guest");
+                await module.hydrateScriptIndex("guest");
+            });
             return;
         }
         if (!token) return;
         if (isAdminRoute) {
             void import("@/services/creative-sync").then((module) => module.stopCreativeAccountSync());
+            void import("@/app/(user)/script/stores/use-script-store").then((module) => module.stopScriptAccountSync());
         }
         const syncCanvasAfterLogin = wasLoggedOutRef.current;
         wasLoggedOutRef.current = false;
@@ -47,6 +53,12 @@ export function useSessionBootstrap() {
         let canceled = false;
         const isStale = () => canceled || useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId;
 
+        if (!isAdminRoute) {
+            void import("@/app/(user)/script/stores/use-script-store").then(async (module) => {
+                await module.configureScriptAccount(accountId);
+                if (!isStale()) await module.hydrateScriptIndex(accountId);
+            });
+        }
         void fetchUserConfig(accountToken)
             .then(async (payload) => {
                 if (isStale()) return;
@@ -64,6 +76,10 @@ export function useSessionBootstrap() {
                     void useAssetStore.getState().hydrateAccountAssets(accountToken, syncEnabled);
                     const { hydrateCreativeAccountSync } = await import("@/services/creative-sync");
                     void hydrateCreativeAccountSync(accountToken, syncEnabled);
+                    const scriptStore = await import("@/app/(user)/script/stores/use-script-store");
+                    if (isStale()) return;
+                    if (syncEnabled) scriptStore.startScriptAutoSync();
+                    else scriptStore.stopScriptAccountSync();
                 }
                 // TokenDance 回调页只同步画布与素材，模型配置交给回调页自行写入。
                 if (isTokenDanceCallback) return;

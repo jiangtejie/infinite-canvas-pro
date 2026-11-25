@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { App, Drawer, Input } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
+import { errorMessage as toErrorMessage } from "@/lib/utils";
 import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { loadScriptProject, useScriptStore } from "@/app/(user)/script/stores/use-script-store";
+import { isPublicationStale } from "@/app/(user)/script/utils/script-publication";
+import { previewScriptPublicationRefresh, type ScriptFilmRefreshPreview } from "@/services/script-film-publication";
 import { applyFilmLibraryEntry, filmLibraryEntryIsNewer, findFilmLibraryEntry } from "@/app/(user)/film/utils/film-library";
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
 import { canvasStatusColors } from "../lib/canvas-palette";
@@ -28,6 +32,7 @@ type CanvasFilmInspectorProps = {
     analysisProgress?: { stage: "structure" | "assets"; done: number; total: number } | null;
     onRunDirectorAnalysis?: (nodeId: string) => void;
     onUndoParse?: (nodeId: string) => void;
+    onApplyPublicationRefresh?: (projectId: string, publicationId: string, expectedHash: string) => Promise<void>;
     boundShotNumbers?: string[];
     onImportLibraryAsset?: (kind: FilmAssetKind, entry: FilmAsset) => void;
     onStopAssetTask?: (nodeId: string) => void;
@@ -71,18 +76,32 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     );
 }
 
-export function CanvasFilmInspector({ open, node, onClose, onChange, analysisProgress, onRunDirectorAnalysis, onUndoParse, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
+export function CanvasFilmInspector({ open, node, onClose, onChange, analysisProgress, onRunDirectorAnalysis, onUndoParse, onApplyPublicationRefresh, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const projectId = useParams<{ id: string }>()?.id || "";
+    const router = useRouter();
     const { message } = App.useApp();
     const confirm = useConfirm();
     const [libraryOpen, setLibraryOpen] = useState(false);
+    const [refreshPreview, setRefreshPreview] = useState<ScriptFilmRefreshPreview | null>(null);
+    const [refreshLoading, setRefreshLoading] = useState(false);
+    const source = node?.metadata?.filmScript?.source;
+    const sourceProjectId = source?.projectId || "";
+    const publicationId = source?.publicationId || "";
+    const sourceDocument = useScriptStore((state) => sourceProjectId ? state.documents[sourceProjectId] : undefined);
     const characters = useFilmCastStore((state) => state.characters);
     const locations = useFilmCastStore((state) => state.locations);
     const props = useFilmCastStore((state) => state.props);
     const costumes = useFilmCastStore((state) => state.costumes);
     const styles = useFilmCastStore((state) => state.styles);
     const saveAsset = useFilmCastStore((state) => state.saveAsset);
+    useEffect(() => {
+        setRefreshPreview(null);
+    }, [node?.id, source?.hash]);
+    useEffect(() => {
+        if (!sourceProjectId || !publicationId || sourceDocument) return;
+        void loadScriptProject(sourceProjectId).catch((error) => message.error(toErrorMessage(error, "来源剧本加载失败")));
+    }, [message, publicationId, sourceDocument, sourceProjectId]);
     if (!node) return null;
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
     const patchScript = (patch: Partial<FilmScriptNodeData>) => onChange(node.id, (current) => patchFilmScriptNode(current, patch));
@@ -90,6 +109,8 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
     const patchAsset = (patch: Partial<FilmAsset>) => onChange(node.id, (current) => patchFilmContextAssetNode(current, patch));
     const updateAsset = (updater: (asset: FilmAsset) => FilmAsset) => onChange(node.id, (current) => updateFilmContextAssetNode(current, updater));
     const script = node.metadata?.filmScript;
+    const sourcePublication = sourceDocument?.publications.find((item) => item.id === publicationId);
+    const publicationStale = Boolean(source && sourcePublication && isPublicationStale(sourceDocument, sourcePublication.episodeIds, source.hash));
     const scene = node.metadata?.filmScene;
     const shot = node.metadata?.filmShot;
     const beat = node.metadata?.filmBeat;
@@ -150,6 +171,39 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
         onChange(node.id, (current) => updateFilmContextAssetNode(current, () => updated));
         message.success("已从母版库更新资产");
     };
+    const previewPublicationRefresh = async () => {
+        if (!source) return;
+        setRefreshLoading(true);
+        try {
+            setRefreshPreview(await previewScriptPublicationRefresh(source.projectId, source.publicationId));
+        } catch (error) {
+            message.error(toErrorMessage(error, "刷新预览失败"));
+        } finally {
+            setRefreshLoading(false);
+        }
+    };
+    const confirmPublicationRefresh = async () => {
+        if (!source || !refreshPreview || !onApplyPublicationRefresh) return;
+        const counts = refreshPreview.plan;
+        const ok = await confirm({
+            title: "刷新影视画布？",
+            description: `新增 ${counts.added.length}、更新 ${counts.updated.length}、保留 ${counts.kept.length}、删除 ${counts.removed.length}、保护 ${counts.protected.length}。人工提示词、媒体、任务和上下文绑定会保留。`,
+            confirmText: "确认刷新",
+            tone: counts.removed.length ? "warning" : "default",
+            stacked: true,
+        });
+        if (!ok) return;
+        setRefreshLoading(true);
+        try {
+            await onApplyPublicationRefresh(source.projectId, source.publicationId, refreshPreview.source.hash);
+            setRefreshPreview(null);
+        } catch (error) {
+            message.error(toErrorMessage(error, "刷新失败"));
+            setRefreshPreview(null);
+        } finally {
+            setRefreshLoading(false);
+        }
+    };
 
     return (
         <Drawer
@@ -165,25 +219,59 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
         >
             <div className="flex flex-col gap-3">
                 {node.type === CanvasNodeType.FilmScript ? (
-                    <>
-                        <Field label="剧本正文">
-                            <Input.TextArea
-                                value={script?.text || ""}
-                                autoSize={{ minRows: 12, maxRows: 24 }}
-                                style={inputStyle}
-                                onChange={(event) => patchScript({ text: event.target.value })}
-                            />
-                        </Field>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} disabled={Boolean(analysisProgress)} onClick={() => onRunDirectorAnalysis?.(node.id)}>
-                                {analysisProgress ? `导演分析中 · ${analysisProgress.stage === "structure" ? "拆解结构" : "提取资产"}${analysisProgress.total ? ` ${analysisProgress.done}/${analysisProgress.total}` : "…"}` : "导演分析"}
-                            </button>
+                    source ? (
+                        <div className="flex flex-col gap-3 rounded-lg border px-3 py-3" style={{ borderColor: publicationStale ? canvasStatusColors.loading : theme.node.stroke, background: theme.node.fill }}>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs" style={{ color: theme.node.muted }}>来源剧本</span>
+                                <span className="text-[11px]" style={{ color: publicationStale ? canvasStatusColors.loading : theme.node.muted }}>
+                                    {!sourceDocument ? "正在检查来源" : publicationStale ? "来源已更新" : "来源已同步"}
+                                </span>
+                            </div>
+                            <div className="text-sm" style={{ color: theme.node.text }}>{source.projectTitle}</div>
+                            <div className="text-[11px]" style={{ color: theme.node.muted }}>发布于 {formatTime(source.publishedAt)}</div>
+                            <div className="break-all font-mono text-[10px]" style={{ color: theme.node.muted }}>{source.hash}</div>
+                            <div className="flex flex-wrap gap-2">
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} onClick={() => router.push(`/script/${source.projectId}`)}>打开来源剧本</button>
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={refreshLoading} onClick={() => void previewPublicationRefresh()}>预览并刷新</button>
+                            </div>
+                            {refreshPreview ? (
+                                <div className="flex flex-col gap-2 border-t pt-3 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
+                                    <span>新增 {refreshPreview.plan.added.length} · 更新 {refreshPreview.plan.updated.length} · 保留 {refreshPreview.plan.kept.length}</span>
+                                    <span>删除 {refreshPreview.plan.removed.length} · 受保护 {refreshPreview.plan.protected.length}</span>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={refreshLoading || !onApplyPublicationRefresh} onClick={() => void confirmPublicationRefresh()}>确认刷新</button>
+                                        <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} disabled={refreshLoading} onClick={() => setRefreshPreview(null)}>取消预览</button>
+                                    </div>
+                                </div>
+                            ) : null}
+                            <div className="text-[11px] leading-5" style={{ color: theme.node.muted }}>刷新只更新剧本派生节点；人工节点、提示词、媒体、任务与绑定会保留。</div>
                             {(script?.parseSnapshots?.length ?? 0) > 0 ? (
-                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={Boolean(analysisProgress)} onClick={() => onUndoParse?.(node.id)}>撤销上次导演分析</button>
+                                <button type="button" className="self-start rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} disabled={refreshLoading} onClick={() => onUndoParse?.(node.id)}>
+                                    {script?.parseSnapshots?.at(-1)?.mode === "refresh" ? "撤销上次来源刷新" : "撤销上次导演分析"}
+                                </button>
                             ) : null}
                         </div>
-                        <div className="text-xs" style={{ color: theme.node.muted }}>AI 会先生成结构、镜头与资产提案，确认后一次写入画布；撤销会恢复最近一次分析前的节点和连线。</div>
-                    </>
+                    ) : (
+                        <>
+                            <Field label="剧本正文">
+                                <Input.TextArea
+                                    value={script?.text || ""}
+                                    autoSize={{ minRows: 12, maxRows: 24 }}
+                                    style={inputStyle}
+                                    onChange={(event) => patchScript({ text: event.target.value })}
+                                />
+                            </Field>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} disabled={Boolean(analysisProgress)} onClick={() => onRunDirectorAnalysis?.(node.id)}>
+                                    {analysisProgress ? `导演分析中 · ${analysisProgress.stage === "structure" ? "拆解结构" : "提取资产"}${analysisProgress.total ? ` ${analysisProgress.done}/${analysisProgress.total}` : "…"}` : "导演分析"}
+                                </button>
+                                {(script?.parseSnapshots?.length ?? 0) > 0 ? (
+                                    <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={Boolean(analysisProgress)} onClick={() => onUndoParse?.(node.id)}>撤销上次导演分析</button>
+                                ) : null}
+                            </div>
+                            <div className="text-xs" style={{ color: theme.node.muted }}>AI 会先生成结构、镜头与资产提案，确认后一次写入画布；撤销会恢复最近一次分析前的节点和连线。</div>
+                        </>
+                    )
                 ) : null}
                 {node.type === CanvasNodeType.FilmScene ? (
                     <>

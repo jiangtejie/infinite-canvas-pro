@@ -160,7 +160,7 @@ export function parseFilmConsistencyReview(content: string, input: FilmGraphRevi
             };
         })
         .filter((issue) => issue.message);
-    const hashSource = input.filmMeta?.scriptHash || input.script?.sourceScriptHash || input.script?.text || filmReviewContextText(input);
+    const hashSource = input.script?.source?.hash || input.script?.text || filmReviewContextText(input);
     return {
         scriptHash: scriptTextHash(hashSource),
         reviewedAt: new Date().toISOString(),

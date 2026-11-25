@@ -153,8 +153,7 @@ export type CanvasFilmMeta = {
     stylePresetId: FilmStylePresetId;
     directorStyleId: string;
     targetDuration?: number;
-    scriptProjectId?: string;
-    scriptHash?: string;
+    scriptPublicationId?: string;
     consistencyReview?: FilmConsistencyReview;
     shotGroups?: FilmShotGroup[];
     assetQueue?: CanvasFilmAssetQueue;
@@ -164,17 +163,27 @@ export type CanvasFilmMeta = {
 export type FilmParseSnapshot = {
     id: string;
     createdAt: string;
-    mode: "overwrite" | "append";
+    mode: "overwrite" | "append" | "refresh";
     nodes: CanvasNodeData[];
     connections: CanvasConnection[];
     removedNodes?: CanvasNodeData[];
     removedConnections?: CanvasConnection[];
+    updatedNodes?: CanvasNodeData[];
+    detachedNodes?: CanvasNodeData[];
+};
+
+export type FilmScriptSource = {
+    projectId: string;
+    projectTitle: string;
+    publicationId: string;
+    versionIds: string[];
+    hash: string;
+    publishedAt: string;
 };
 
 export type FilmScriptNodeData = {
     text: string;
-    sourceScriptProjectId?: string;
-    sourceScriptHash?: string;
+    source?: FilmScriptSource;
     parseSnapshots: FilmParseSnapshot[];
     structurePlan?: FilmStructurePlan;
 };
@@ -189,6 +198,7 @@ export type FilmSceneNodeData = {
     purpose?: string;
     beatSummary?: string;
     notes?: string;
+    scriptSourceKey?: string;
 };
 
 export type FilmShotNodeData = Omit<
@@ -196,6 +206,8 @@ export type FilmShotNodeData = Omit<
     "id" | "characterBindings" | "propBindings" | "locationId" | "locationVariantId"
 > & {
     lastFailedTaskKind?: "image" | "video";
+    scriptSourceKey?: string;
+    scriptSourcePromptHash?: string;
 };
 
 export type CanvasNodeMetadata = {

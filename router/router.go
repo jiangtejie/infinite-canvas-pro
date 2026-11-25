@@ -102,6 +102,22 @@ func New() *gin.Engine {
 		handler.DeleteUserAgentSkill(c.Writer, c.Request, c.Param("id"))
 	})
 	v1.POST("/storage/measure", gin.WrapF(handler.MeasureUserStorageProvider))
+	v1.GET("/script/projects", gin.WrapF(handler.ListScriptProjects))
+	v1.POST("/script/projects", gin.WrapF(handler.CreateScriptProject))
+	v1.GET("/script/projects/:id", func(c *gin.Context) { handler.GetScriptProject(c.Writer, c.Request, c.Param("id")) })
+	v1.POST("/script/projects/:id/changes", func(c *gin.Context) { handler.ChangeScriptProject(c.Writer, c.Request, c.Param("id")) })
+	v1.DELETE("/script/projects/:id", func(c *gin.Context) { handler.DeleteScriptProject(c.Writer, c.Request, c.Param("id")) })
+	v1.GET("/script/projects/:id/versions", func(c *gin.Context) { handler.ListScriptProjectVersions(c.Writer, c.Request, c.Param("id")) })
+	v1.POST("/script/projects/:id/versions", func(c *gin.Context) { handler.CreateScriptProjectVersion(c.Writer, c.Request, c.Param("id")) })
+	v1.GET("/script/projects/:id/versions/:versionId", func(c *gin.Context) {
+		handler.GetScriptProjectVersion(c.Writer, c.Request, c.Param("id"), c.Param("versionId"))
+	})
+	v1.POST("/script/projects/:id/versions/:versionId/restore", func(c *gin.Context) {
+		handler.RestoreScriptProjectVersion(c.Writer, c.Request, c.Param("id"), c.Param("versionId"))
+	})
+	v1.DELETE("/script/projects/:id/versions/:versionId", func(c *gin.Context) {
+		handler.DeleteScriptProjectVersion(c.Writer, c.Request, c.Param("id"), c.Param("versionId"))
+	})
 	v1.POST("/files", gin.WrapF(handler.UploadFile))
 	v1.POST("/files/direct", gin.WrapF(handler.RegisterDirectFile))
 	v1.DELETE("/files/:id", func(c *gin.Context) {
@@ -154,8 +170,6 @@ func New() *gin.Engine {
 	v1.POST("/user-data/film-library", gin.WrapF(handler.SaveUserFilmLibraryData))
 	v1.GET("/user-data/comic-cast", gin.WrapF(handler.UserComicCastData))
 	v1.POST("/user-data/comic-cast", gin.WrapF(handler.SaveUserComicCastData))
-	v1.GET("/user-data/script-projects", gin.WrapF(handler.UserScriptProjectData))
-	v1.POST("/user-data/script-projects", gin.WrapF(handler.SaveUserScriptProjectData))
 	api.GET("/proxy-image", gin.WrapF(handler.ProxyImage))
 	api.GET("/prompts", middleware.OptionalAuth, gin.WrapF(handler.Prompts))
 	api.GET("/agent-skills", gin.WrapF(handler.AgentSkills))

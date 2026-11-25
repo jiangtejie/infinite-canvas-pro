@@ -38,6 +38,8 @@ MySQL 建库默认使用 `utf8mb4 / utf8mb4_bin`，与 SQLite 的 BINARY 比较�
 - `canvas_projects`
 - `publish_records`
 - `user_configs`
+- `script_projects`
+- `script_versions`
 - `storage_objects`
 - `recharge_packages`
 - `recharge_orders`
@@ -93,11 +95,59 @@ MySQL 建库默认使用 `utf8mb4 / utf8mb4_bin`，与 SQLite 的 BINARY 比较�
 | `asset_data` | text | 用户素材同步数据 |
 | `film_library_data` | 大文本 | 影视五类资产库同步数据，结构为 `{ "characters": [], "locations": [], "props": [], "costumes": [], "styles": [] }` |
 | `comic_cast_data` | 大文本 | 漫画角色/场景库同步数据，结构为 `{ "characters": [], "locations": [] }` |
-| `script_project_data` | 大文本 | 剧本项目列表同步数据，结构为 `{ "projects": [...] }` |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 
 `storage_provider.s3` 保存 Endpoint、Region、Bucket、Access Key、Secret、公开域名和路径前缀；`storage_provider.webdav` 保存 WebDAV 地址、远程目录、用户名和密码/应用密码。自动同步开关不重复写入 Provider；后端下载和删除旧媒体时仍会读取已保存但已停用的 Provider。
+
+### script_projects
+
+剧本当前项目表。完整可变项目文档保存在 `data`，列表查询只读取摘要列；`user_id + id` 组成复合主键，账号之间项目 ID 可以相同。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `user_id` | string | 所属用户，复合主键 |
+| `id` | string | 项目 ID，复合主键 |
+| `title` | string | 项目标题 |
+| `format` | string | 剧本形式：电影、剧集或短剧 |
+| `genre` | string | 类型 |
+| `logline` | string | 一句话梗概 |
+| `episode_count` | number | 剧集数 |
+| `scene_count` | number | 总场次数 |
+| `character_count` | number | 人物数 |
+| `word_count` | number | 正文字数 |
+| `locked_episode_count` | number | 已锁定剧集数 |
+| `has_publication` | boolean | 是否已有影视发布记录 |
+| `publication_stale` | boolean | 当前锁定稿是否已不同于发布来源 |
+| `revision` | number | 服务端单调递增修订号，用于变更与删除校验 |
+| `data` | 大文本 | 完整 `ScriptProjectDocument` JSON，包含剧集、场次、人物、锁定引用与发布记录 |
+| `created_at` | string | 创建时间 |
+| `updated_at` | string | 更新时间 |
+| `deleted_at` | string | 删除墓碑；空字符串表示未删除，不物理删除项目及其版本 |
+
+项目创建和变更请求上限为 8 MB；服务端序列化后的项目文档同样不能超过 8 MB。场次变更在事务中按 header 与场次内容分别三方合并，只有实际内容变化才递增 `revision`。
+
+### script_versions
+
+剧本不可变版本快照表。`user_id + project_id + id` 组成复合主键；`scope` 为 `project` 或 `episode`，`kind` 为 `manual`、`locked` 或服务端恢复前生成的 `safety`。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `user_id` | string | 所属用户，复合主键 |
+| `project_id` | string | 所属项目，复合主键 |
+| `id` | string | 版本 ID，复合主键 |
+| `scope` | string | 全项目版本或单集版本 |
+| `episode_id` | string | 单集版本对应的剧集 ID；全项目版本为空 |
+| `label` | string | 版本显示名 |
+| `kind` | string | `manual`、`locked` 或 `safety` |
+| `hash` | string | 由完整版本文本计算的内容哈希 |
+| `data` | 大文本 | 不可变 `ScriptContentSnapshot` JSON，保存版本创建时的完整内容 |
+| `created_at` | string | 创建时间 |
+| `deleted_at` | string | 删除墓碑；空字符串表示未删除 |
+
+索引：`idx_script_versions_project_created (user_id, project_id, deleted_at, created_at)`，用于按项目列出未删除版本并按创建时间排序。
+
+版本创建请求和快照上限为 16 MB；恢复参数请求上限为 1 MB。创建并激活锁定版本、恢复版本、清理多余安全稿都在同一项目事务中完成。手动命名版本不会被自动清理；当前项目/本集锁定版本和已发布来源版本不能显式删除。每个项目最多保留最近 3 份 `safety` 版本，更早的安全稿写入删除墓碑。
 
 ### storage_objects
 

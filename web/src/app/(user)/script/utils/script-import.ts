@@ -1,6 +1,7 @@
 import { parseFilmScriptDocument, readFilmScriptFile } from "@/lib/film/film-script-import";
 import type { FilmScriptDocument, FilmScriptScene } from "@/lib/film/types";
-import type { ScriptProject } from "../types";
+import { nanoid } from "nanoid";
+import type { ScriptEpisode, ScriptProjectDocument } from "../types";
 import { createScriptCharacter, createScriptProject, createScriptScene } from "./script-project";
 
 function sceneContent(scene: FilmScriptScene) {
@@ -10,24 +11,25 @@ function sceneContent(scene: FilmScriptScene) {
     }).filter(Boolean).join("\n\n");
 }
 
-function firstActionText(scene: FilmScriptScene) {
-    const action = scene.blocks.find((block) => block.type === "action");
-    return action ? action.text.slice(0, 80) : "";
-}
-
-export function scriptProjectFromDocument(document: FilmScriptDocument, title: string): ScriptProject {
+export function scriptProjectFromDocument(document: FilmScriptDocument, title: string): ScriptProjectDocument {
     const project = createScriptProject({ title });
-    const parsedScenes = document.episodes.flatMap((episode) => episode.scenes);
-    project.scenes = parsedScenes.map((scene, index) => ({
-        ...createScriptScene(index + 1),
-        interiorExterior: scene.interiorExterior,
-        location: scene.location || scene.heading,
-        timeOfDay: scene.timeOfDay,
-        characters: scene.characters,
-        summary: firstActionText(scene) || scene.heading,
-        content: sceneContent(scene),
-    }));
-    const names = [...new Set(project.scenes.flatMap((scene) => scene.characters))];
+    project.episodes = document.episodes.length ? document.episodes.map((episode, episodeIndex): ScriptEpisode => ({
+        id: nanoid(),
+        no: episodeIndex + 1,
+        title: episode.title || `第 ${episodeIndex + 1} 集`,
+        scenes: episode.scenes.map((scene, sceneIndex) => ({
+            ...createScriptScene(sceneIndex + 1),
+            interiorExterior: scene.interiorExterior,
+            location: scene.location || scene.heading,
+            timeOfDay: scene.timeOfDay,
+            characters: scene.characters,
+            summary: scene.blocks.find((block) => block.type === "action")?.text.slice(0, 80) || scene.heading,
+            content: sceneContent(scene),
+        })),
+    })) : [{
+        id: nanoid(), no: 1, title: "第 1 集", scenes: [createScriptScene(1)],
+    }];
+    const names = [...new Set(project.episodes.flatMap((episode) => episode.scenes.flatMap((scene) => scene.characters)))];
     project.characters = names.map((name) => ({ ...createScriptCharacter(), name }));
     return project;
 }

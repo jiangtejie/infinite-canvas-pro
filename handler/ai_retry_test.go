@@ -3,7 +3,9 @@ package handler
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,6 +53,19 @@ func TestAIUnexpectedEOFMessage(t *testing.T) {
 	message := aiTransportErrorMessage(errors.New("unexpected EOF"))
 	if !strings.Contains(message, "上游连接中断") {
 		t.Fatalf("unexpected message: %s", message)
+	}
+}
+
+func TestAIProxyConnectMessageIncludesProxyAddress(t *testing.T) {
+	err := fmt.Errorf("proxyconnect %w", &net.OpError{
+		Op:   "dial",
+		Net:  "tcp",
+		Addr: &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 10911},
+		Err:  errors.New("connection refused"),
+	})
+	want := "AI 接口请求失败：代理连接失败（127.0.0.1:10911），请检查服务器的代理配置"
+	if message := aiTransportErrorMessage(err); message != want {
+		t.Fatalf("aiTransportErrorMessage() = %q, want %q", message, want)
 	}
 }
 func TestDoAIRequestWithRetryReplaysImageBody(t *testing.T) {

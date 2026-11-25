@@ -98,6 +98,8 @@ func DB() (*gorm.DB, error) {
 			&model.Asset{},
 			&model.Setting{},
 			&model.CreativeWorkflow{},
+			&model.ScriptProject{},
+			&model.ScriptVersion{},
 			&model.UserConfig{},
 			&model.MarketingWorkspace{},
 			&model.MarketingBrand{},

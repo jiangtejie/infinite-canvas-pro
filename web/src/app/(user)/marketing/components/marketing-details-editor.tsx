@@ -23,7 +23,9 @@ export function MarketingFactsEditor({ value, onChange }: { value: MarketingFact
     </div>;
 }
 
-export function MarketingDetailsEditor({ value, onChange }: { value: MarketingDetails; onChange: (patch: Partial<MarketingDetails>) => void }) {
+export type MarketingDetailsVariant = "context" | "location" | "offering";
+
+export function MarketingDetailsEditor({ value, onChange, variant = "context" }: { value: MarketingDetails; onChange: (patch: Partial<MarketingDetails>) => void; variant?: MarketingDetailsVariant }) {
     const { message } = App.useApp();
     const assets = useAssetStore((state) => state.assets);
     const addAsset = useAssetStore((state) => state.addAsset);
@@ -52,8 +54,8 @@ export function MarketingDetailsEditor({ value, onChange }: { value: MarketingDe
     };
     return <div className="space-y-5">
         <label className="block space-y-2 text-sm"><span>基本介绍</span><Input.TextArea aria-label="基本介绍" rows={3} maxLength={5000} value={value.description} placeholder="提供可核对的背景介绍；具体营销主张写到下方事实中" onChange={(event) => onChange({ description: event.target.value })} /></label>
-        <label className="block space-y-2 text-sm"><span>目标受众</span><Input aria-label="目标受众" maxLength={2000} value={value.audience} placeholder="如：附近上班族、带孩子的家庭" onChange={(event) => onChange({ audience: event.target.value })} /></label>
-        <label className="block space-y-2 text-sm"><span>表达与风格指导</span><Input.TextArea aria-label="表达与风格指导" rows={3} maxLength={5000} value={value.guidance} placeholder="描述希望采用的语气和风格；不是给 Agent 的执行权限" onChange={(event) => onChange({ guidance: event.target.value })} /></label>
+        {variant === "context" ? <label className="block space-y-2 text-sm"><span>目标受众</span><Input aria-label="目标受众" maxLength={2000} value={value.audience} placeholder="如：附近上班族、带孩子的家庭" onChange={(event) => onChange({ audience: event.target.value })} /></label> : null}
+        {variant === "context" ? <label className="block space-y-2 text-sm"><span>表达与风格指导</span><Input.TextArea aria-label="表达与风格指导" rows={3} maxLength={5000} value={value.guidance} placeholder="描述希望采用的语气和风格；不是给 Agent 的执行权限" onChange={(event) => onChange({ guidance: event.target.value })} /></label> : null}
         <label className="block space-y-2 text-sm"><span>避免的表述</span><Select className="w-full" mode="tags" aria-label="避免的表述" tokenSeparators={["，", ","]} value={value.forbidden} onChange={(forbidden) => onChange({ forbidden })} placeholder="如：全市第一、保证有效；Enter 添加" /></label>
         <MarketingFactsEditor value={value.facts} onChange={(facts) => onChange({ facts })} />
         <div className="space-y-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">关联图片</span><div className="flex flex-wrap items-center gap-2"><Button size="small" icon={<Upload className="size-3.5" />} loading={uploading} onClick={() => uploadRef.current?.click()}>上传图片</Button><Button size="small" icon={<Plus className="size-3.5" />} disabled={value.assets.some((ref) => !ref.assetId)} onClick={() => onChange({ assets: [...value.assets, { assetId: "", role: "商品外观" }] })}>选择图片</Button></div></div><input ref={uploadRef} type="file" accept="image/*" multiple className="hidden" onChange={(event) => void uploadImages(event.target.files)} /><p className="text-xs leading-5 text-muted-foreground">复用“我的素材”，可标注 Logo、门店环境、包装、商品外观等用途。上传的图片会自动加入“我的素材”。<a href="/assets" target="_blank" rel="noreferrer">管理我的素材</a></p>

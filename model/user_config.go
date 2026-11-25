@@ -9,7 +9,6 @@ type UserConfig struct {
 	AssetData         string `json:"assetData"`
 	FilmLibraryData   string `json:"filmLibraryData" gorm:"size:134217728"`
 	ComicCastData     string `json:"comicCastData" gorm:"size:134217728"`
-	ScriptProjectData string `json:"scriptProjectData" gorm:"size:134217728"`
 	CreatedAt         string `json:"createdAt"`
 	UpdatedAt         string `json:"updatedAt"`
 }

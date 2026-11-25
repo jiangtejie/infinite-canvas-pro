@@ -1,11 +1,11 @@
 "use client";
 
-import type { ScriptProject } from "../types";
+import type { ScriptProjectDocument } from "../types";
 import { scriptSceneHeading, scriptSceneMissingFields } from "../utils/script-project";
 
 type ScriptStructurePanelProps = {
-    project: ScriptProject;
-    onUpdate: (patch: Partial<ScriptProject>) => void;
+    project: ScriptProjectDocument;
+    onUpdate: (updater: (document: ScriptProjectDocument) => ScriptProjectDocument) => void;
 };
 
 const ACTS: Array<{ key: "actOne" | "actTwo" | "actThree"; label: string; hint: string }> = [
@@ -15,8 +15,9 @@ const ACTS: Array<{ key: "actOne" | "actTwo" | "actThree"; label: string; hint: 
 ];
 
 export function ScriptStructurePanel({ project, onUpdate }: ScriptStructurePanelProps) {
-    const incomplete = project.scenes.filter((scene) => scriptSceneMissingFields(scene).length > 0);
-    const unnamedCharacters = project.scenes.filter((scene) => scene.characters.length === 0).length;
+    const scenes = project.episodes.flatMap((episode) => episode.scenes);
+    const incomplete = scenes.filter((scene) => scriptSceneMissingFields(scene).length > 0);
+    const unnamedCharacters = scenes.filter((scene) => scene.characters.length === 0).length;
 
     return (
         <div className="grid gap-4 xl:grid-cols-3">
@@ -33,7 +34,7 @@ export function ScriptStructurePanel({ project, onUpdate }: ScriptStructurePanel
                             className="mt-3 min-h-28 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors focus:border-acid/50"
                             value={project[act.key]}
                             placeholder="这一幕发生了什么？主角的目标和阻力如何变化？"
-                            onChange={(event) => onUpdate({ [act.key]: event.target.value })}
+                            onChange={(event) => onUpdate((current) => ({ ...current, [act.key]: event.target.value }))}
                         />
                     </section>
                 ))}
@@ -43,7 +44,7 @@ export function ScriptStructurePanel({ project, onUpdate }: ScriptStructurePanel
                 <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">结构诊断</span>
                     <div className="mt-3 grid gap-2 text-[11px] leading-5">
-                        <p className="text-muted-foreground/80">共 {project.scenes.length} 场</p>
+                        <p className="text-muted-foreground/80">共 {scenes.length} 场</p>
                         <p className={incomplete.length ? "text-hot/90" : "text-acid/90"}>{incomplete.length ? `${incomplete.length} 场缺少目标 / 冲突 / 转折 / 结果` : "场景四要素齐全"}</p>
                         <p className={unnamedCharacters ? "text-muted-foreground/70" : "text-acid/90"}>{unnamedCharacters ? `${unnamedCharacters} 场没有标注出场人物` : "每场都有出场人物"}</p>
                         <p className="text-muted-foreground/60">结构诊断是规则提示，不替你做判断。</p>
@@ -52,19 +53,25 @@ export function ScriptStructurePanel({ project, onUpdate }: ScriptStructurePanel
                 <section className="punk-panel rounded-xl p-4">
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">场次序列</span>
                     <div className="thin-scrollbar mt-3 grid max-h-[420px] gap-1 overflow-y-auto pr-1">
-                        {project.scenes.length ? project.scenes.map((scene) => {
-                            const missing = scriptSceneMissingFields(scene);
-                            return (
-                                <div key={scene.id} className="grid gap-0.5 rounded-md border border-border/40 bg-background/30 px-2 py-1.5">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="font-mono text-[9px] text-muted-foreground/50">{String(scene.no).padStart(2, "0")}</span>
-                                        <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/80">{scriptSceneHeading(scene)}</span>
-                                        {missing.length ? <span className="font-mono text-[8px] text-hot/70">缺{missing.join("/")}</span> : <span className="font-mono text-[8px] text-acid/70">OK</span>}
-                                    </div>
-                                    {scene.summary.trim() ? <p className="line-clamp-1 pl-4 text-[10px] text-muted-foreground/60">{scene.summary}</p> : null}
-                                </div>
-                            );
-                        }) : <p className="py-4 text-center text-[11px] text-muted-foreground/60">还没有场次，先去「分场」建场景卡。</p>}
+                        {project.episodes.map((episode) => (
+                            <div key={episode.id}>
+                                <p className="px-2 py-1 font-mono text-[9px] text-acid/70">{episode.title}</p>
+                                {episode.scenes.map((scene) => {
+                                    const missing = scriptSceneMissingFields(scene);
+                                    return (
+                                        <div key={scene.id} className="mt-1 grid gap-0.5 rounded-md border border-border/40 bg-background/30 px-2 py-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-mono text-[9px] text-muted-foreground/50">{String(scene.no).padStart(2, "0")}</span>
+                                                <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/80">{scriptSceneHeading(scene)}</span>
+                                                {missing.length ? <span className="font-mono text-[8px] text-hot/70">缺{missing.join("/")}</span> : <span className="font-mono text-[8px] text-acid/70">OK</span>}
+                                            </div>
+                                            {scene.summary.trim() ? <p className="line-clamp-1 pl-4 text-[10px] text-muted-foreground/60">{scene.summary}</p> : null}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                        {!scenes.length ? <p className="py-4 text-center text-[11px] text-muted-foreground/60">还没有场次，先去「分场」建场景卡。</p> : null}
                     </div>
                 </section>
             </aside>

@@ -1,7 +1,5 @@
 import type { ComicLibraryCharacter, ComicLibraryLocation } from "@/app/(user)/comic/types";
 import { useComicCastStore } from "@/app/(user)/comic/stores/use-comic-cast-store";
-import { useScriptStore, SCRIPT_STORE_KEY } from "@/app/(user)/script/stores/use-script-store";
-import type { ScriptProject } from "@/app/(user)/script/types";
 import type { FilmLibrarySnapshot } from "@/lib/film/film-account-merge";
 import { mergeListedSnapshot, parseTombstones, type Tombstones } from "@/lib/account-domain-merge";
 import { currentAccountId } from "@/lib/account-storage";
@@ -11,7 +9,7 @@ import { waitForStoreHydration } from "@/lib/store-hydration";
 import { readTombstones, recordRemovedRecords, writeTombstones } from "@/lib/sync-tombstones";
 import { COMIC_CAST_STORE_KEY, FILM_CAST_STORE_KEY, FILM_STORE_KEY } from "@/lib/storage-keys";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
-import { fetchUserComicCast, fetchUserFilmLibrary, fetchUserScriptProjects, syncUserComicCast, syncUserFilmLibrary, syncUserScriptProjects } from "@/services/api/user-config";
+import { fetchUserComicCast, fetchUserFilmLibrary, syncUserComicCast, syncUserFilmLibrary } from "@/services/api/user-config";
 import { applyFilmMediaPromotionsToLibrary, collectFilmMediaPromotions, filmMediaNeedsPromotion } from "@/services/film-media-sync";
 import { applyMediaPromotions, collectMediaPromotions, collectMediaRefsFromValue, mediaNeedsPromotion, type MediaPromotionReplacement } from "@/services/media-promotion";
 
@@ -166,26 +164,6 @@ const domains: SyncDomain[] = [
             needs: comicMedia.needs,
             collect: comicMedia.collect,
             apply: applyComicCastMedia,
-        },
-    },
-    {
-        key: "script-projects",
-        listKeys: ["projects"],
-        load: async (token) => {
-            const payload = await fetchUserScriptProjects<{ projects?: ScriptProject[]; deleted?: unknown }>(token);
-            return { value: { projects: payload.projects || [] }, deleted: parseTombstones(payload.deleted) };
-        },
-        save: (token, value, deleted) => syncUserScriptProjects(token, { projects: value.projects, deleted }),
-        merge: (remote, local) => mergeListedSnapshot(remote.value, local.value, ["projects"], remote.deleted, local.deleted),
-        read: () => ({ projects: useScriptStore.getState().projects }),
-        write: (value) => useScriptStore.setState({ projects: value.projects as ScriptProject[] }),
-        ready: () => waitForStoreHydration(useScriptStore),
-        subscribe: (notify) => useScriptStore.subscribe((state, previous) => {
-            if (state.projects !== previous.projects) notify(previous as unknown as DomainValue, state as unknown as DomainValue);
-        }),
-        guest: {
-            key: `${SCRIPT_STORE_KEY}:guest`,
-            extract: (state) => Array.isArray(state.projects) ? { projects: state.projects } : null,
         },
     },
 ];
@@ -371,7 +349,7 @@ async function consumeGuestDomains() {
     }
 }
 
-/** 登录后统一同步影视、漫画与剧本数据：合并远端、接管游客分区、失败重试、聚焦拉取。 */
+/** 登录后统一同步影视与漫画数据：合并远端、接管游客分区、失败重试、聚焦拉取。 */
 export async function hydrateCreativeAccountSync(token: string, enabled: boolean): Promise<void> {
     if (!legacyFilmStoreCleaned) {
         legacyFilmStoreCleaned = true;

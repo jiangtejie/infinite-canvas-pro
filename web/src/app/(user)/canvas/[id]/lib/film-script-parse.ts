@@ -118,19 +118,25 @@ export function undoFilmParseGraph(scriptNode: CanvasNodeData, nodes: CanvasNode
     if (!snapshot) return null;
     const generatedNodeIds = new Set(snapshot.nodes.map((node) => node.id));
     const generatedConnectionIds = new Set(snapshot.connections.map((edge) => edge.id));
-    const remainingNodes = nodes.filter((node) => !generatedNodeIds.has(node.id));
+    const updatedNodeIds = new Set((snapshot.updatedNodes ?? []).map((node) => node.id));
+    const remainingNodes = nodes.filter((node) => !generatedNodeIds.has(node.id) && !updatedNodeIds.has(node.id));
     const existingNodeIds = new Set(remainingNodes.map((node) => node.id));
-    const restoredNodes = (snapshot.removedNodes ?? []).filter((node) => !existingNodeIds.has(node.id));
+    const restoredNodes = [
+        ...(snapshot.updatedNodes ?? []),
+        ...(snapshot.detachedNodes ?? []),
+        ...(snapshot.removedNodes ?? []),
+    ].filter((node) => !generatedNodeIds.has(node.id) && (updatedNodeIds.has(node.id) || !existingNodeIds.has(node.id)));
     const remainingConnections = connections.filter((edge) => !generatedConnectionIds.has(edge.id) && !generatedNodeIds.has(edge.fromNodeId) && !generatedNodeIds.has(edge.toNodeId));
     const existingConnectionIds = new Set(remainingConnections.map((edge) => edge.id));
     const restoredConnections = (snapshot.removedConnections ?? []).filter((edge) => !existingConnectionIds.has(edge.id));
     const scriptPatch: Partial<FilmScriptNodeData> = { parseSnapshots: snapshots.slice(0, -1) };
+    const restoredScript = restoredNodes.find((node) => node.id === scriptNode.id);
     const nextScriptNode: CanvasNodeData = {
-        ...scriptNode,
-        metadata: { ...scriptNode.metadata, filmScript: { ...scriptNode.metadata?.filmScript, ...scriptPatch } as FilmScriptNodeData },
+        ...(restoredScript ?? scriptNode),
+        metadata: { ...(restoredScript ?? scriptNode).metadata, filmScript: { ...(restoredScript ?? scriptNode).metadata?.filmScript, ...scriptPatch } as FilmScriptNodeData },
     };
     return {
-        nodes: [...remainingNodes.map((node) => node.id === scriptNode.id ? nextScriptNode : node), ...restoredNodes],
+        nodes: [...remainingNodes.filter((node) => node.id !== scriptNode.id), ...restoredNodes.filter((node) => node.id !== scriptNode.id), nextScriptNode],
         connections: [...remainingConnections, ...restoredConnections],
         scriptPatch,
     };

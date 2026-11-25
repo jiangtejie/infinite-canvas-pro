@@ -1,6 +1,7 @@
 import { cleanAiJsonText } from "@/lib/ai-json";
+import { errorMessage } from "@/lib/utils";
 import { NODE_DEFAULT_SIZE } from "../../constants";
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { CanvasNodeType, type CanvasAgentProtocolMessage, type CanvasConnection, type CanvasNodeData } from "../../types";
 import type { RemixInput, RemixRun, SourceRemixPlan } from "../../remix-types";
 import { REMIX_CORE_VERSION } from "../../remix-policy";
 import { canvasConnection } from "./canvas-connection";
@@ -166,8 +167,10 @@ export function validateSourceRemixPlan(value: unknown, input: RemixInput): Sour
     if (!record(value) || value.schemaVersion !== 1 || !record(value.copy) || !record(value.sourcePattern) || !record(value.marketingPlacement) || !record(value.visual)) throw new Error("策划输出结构不完整");
     const title = text(value.copy.title, "标题", 20);
     const body = text(value.copy.body, "正文", 2000);
-    const tags = strings(value.copy.tags, "话题", true);
-    if (tags.length > 5 || new Set(tags).size !== tags.length || tags.some((tag) => /[#\s]/.test(tag))) throw new Error("策划话题最多 5 个，不能重复或包含 # 与空白");
+    // 话题只是格式问题：去掉 # 与空白、去重并截到 5 个，不因此作废整次策划。
+    if (!Array.isArray(value.copy.tags)) throw new Error("策划 话题 必须为数组");
+    const tags = [...new Set(value.copy.tags.map((tag) => typeof tag === "string" ? tag.replace(/[#\s]/g, "") : "").filter(Boolean))].slice(0, 5);
+    if (tags.some((tag) => Array.from(tag).length > 4000)) throw new Error("策划 话题 缺失或过长");
     const mode = input.settings.mode === "content" ? "content" : input.settings.placement;
     if (value.marketingPlacement.mode !== mode || typeof value.marketingPlacement.cta !== "string") throw new Error("策划植入方式与本次设置不一致");
     const assetIds = new Set(input.marketing?.assets.map((asset) => asset.assetId) || []);
@@ -192,6 +195,26 @@ export function validateSourceRemixPlan(value: unknown, input: RemixInput): Sour
     const output = [title, body, plan.marketingPlacement.cta, ...images.map((image) => image.prompt)].join("\n");
     if (input.marketing?.forbidden.some((word) => word.trim() && output.includes(word))) throw new Error("策划包含资料中明确禁止的表述，请重新策划");
     return plan;
+}
+
+export type RemixPlanTurn = { content: string; reasoningContent?: string; toolCalls: unknown[] };
+
+/** 策划校验失败时把错误回传模型修正一次，避免整次读图策划因格式问题白费。 */
+export async function requestRemixPlanWithRepair(input: RemixInput, requestTurn: (repair: CanvasAgentProtocolMessage[]) => Promise<RemixPlanTurn>) {
+    const repair: CanvasAgentProtocolMessage[] = [];
+    for (let attempt = 0; ; attempt++) {
+        const turn = await requestTurn(repair);
+        if (turn.toolCalls.length || !turn.content.trim()) throw new Error("策划没有返回完整内容，请重新策划");
+        try {
+            return await parseSourceRemixPlan(turn.content, input);
+        } catch (error) {
+            if (attempt >= 1) throw error;
+            repair.push(
+                { role: "assistant", content: turn.content, ...(turn.reasoningContent !== undefined ? { reasoningContent: turn.reasoningContent } : {}) },
+                { role: "user", content: `上一次输出未通过校验：${errorMessage(error, "格式无效")}。请只修正该问题，其余内容尽量保持不变，重新返回完整 JSON。` },
+            );
+        }
+    }
 }
 
 export function remixApprovalKey(run: RemixRun) {

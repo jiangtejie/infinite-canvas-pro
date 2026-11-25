@@ -23,6 +23,37 @@ description: 业务接口统一响应结构与前端处理约定
 
 接口连接失败、服务不可达、返回体不是约定 JSON 时，前端按网络或接口异常处理。
 
+## 剧本项目同步
+
+- `/api/v1/script/projects` 及其项目、版本子路由均要求登录，并按 JWT 当前用户隔离数据。列表接口只返回摘要；项目正文与单个版本按需读取。
+- 项目创建和 `/api/v1/script/projects/:id/changes` 请求上限为 8 MB；版本创建请求上限为 16 MB；版本恢复参数请求上限为 1 MB。
+- `POST /api/v1/script/projects/:id/changes` 请求包含 `baseRevision`、`baseHeaderHash`、`baseScenes`、`document` 和可选 `resolutions`。`baseScenes` 按场次 ID 记录 `{ revision, hash, episodeId }`，用于场次级三方合并，不再用整篇文档最后写入覆盖其他页面的修改。
+- 业务冲突仍返回 HTTP 200 和 `code: 0`；前端必须检查 `data.conflicts`，不能把 HTTP 成功当作没有冲突：
+
+```json
+{
+  "code": 0,
+  "data": {
+    "document": {},
+    "revision": 3,
+    "conflicts": [
+      {
+        "scope": "scene",
+        "id": "scene-1",
+        "local": {},
+        "remote": {}
+      }
+    ]
+  },
+  "msg": "ok"
+}
+```
+
+- `conflicts[].scope` 为 `header` 或 `scene`。`header` 冲突不传 `id`，两侧对象包含项目字段、人物、剧集外壳、场次 ID 顺序、锁定引用与发布记录，不包含场次正文；`scene` 冲突通过 `id` 定位，两侧为场次对象或删除后的 `null`。未解决时 header 默认保留本地，场次默认保留远端。
+- 用户选择通过 `resolutions: [{ scope, id?, choice }]` 回传，`choice` 为 `local` 或 `remote`。resolution 只作用于基于原始基线重新计算出的当前冲突；远端预览不会替换本地 outbox 的原始基线或未解决内容。
+- 只有合并结果实际变化时服务端才递增项目 `revision` 并写入。基线高于服务器、版本竞争、格式或大小校验失败仍返回非零 `code` 和中文 `msg`。
+- 删除项目和版本使用字符串时间墓碑，不物理删除。当前项目/本集锁定版本与已发布来源版本拒绝删除；恢复前安全稿每个项目最多保留最近 3 份。
+
 ## AI 生图连接中断重试
 
 - `/api/v1/images/generations` 和 `/api/v1/images/edits` 在上游返回 `EOF` / `unexpected EOF` / connection reset / broken pipe / GOAWAY / forcibly closed 等连接中断、且没有拿到响应时，或返回 500/502/503/504 时，服务端会自动用同一请求体重试一次；只对图片接口重试，聊天/视频等非幂等接口不重试。

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -154,7 +156,11 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		return
 	}
 	credits := 0.0
-	if userChannelID == "" {
+	taskBilling, taskBilled := r.Context().Value(canvasTaskBillingContextKey{}).(canvasTaskBilling)
+	if taskBilled {
+		credits = taskBilling.credits
+	}
+	if userChannelID == "" && !taskBilled {
 		credits, err = service.ModelCost(modelName)
 		if err != nil {
 			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
@@ -198,7 +204,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
-	if credits > 0 {
+	if credits > 0 && !taskBilled {
 		if err := service.ConsumeUserCredits(user.ID, modelName, credits, upstreamPath); err != nil {
 			FailError(w, err)
 			return
@@ -215,7 +221,7 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		Credits:         credits,
 		RequestBody:     summarizeAIRequest(body, contentType),
 	}, func() {
-		if credits > 0 && ctx.Err() == nil {
+		if credits > 0 && !taskBilled && ctx.Err() == nil {
 			if err := service.RefundUserCredits(user.ID, modelName, credits, upstreamPath); err != nil {
 				log.Printf("AI proxy refund credits failed: user=%s model=%s credits=%g err=%v", user.ID, modelName, credits, err)
 			}
@@ -458,16 +464,27 @@ func aiTransportErrorMessage(err error) string {
 		return "AI 接口请求失败：请求超时，请检查服务器网络或渠道地址"
 	case strings.Contains(lower, "no such host"):
 		return "AI 接口请求失败：域名解析失败，请检查渠道地址"
+	case strings.Contains(lower, "proxyconnect"):
+		if address := aiProxyAddress(err); address != "" {
+			return fmt.Sprintf("AI 接口请求失败：代理连接失败（%s），请检查服务器的代理配置", address)
+		}
+		return "AI 接口请求失败：代理连接失败，请检查服务器的代理配置"
 	case strings.Contains(lower, "connection refused"):
 		return "AI 接口请求失败：连接被拒绝，请检查渠道地址或代理"
-	case strings.Contains(lower, "proxyconnect"):
-		return "AI 接口请求失败：代理连接失败，请检查服务器的代理配置"
 	case strings.Contains(lower, "certificate"):
 		return "AI 接口请求失败：证书校验失败"
 	case strings.Contains(lower, "unexpected eof"), strings.HasSuffix(strings.TrimSpace(lower), "eof"), strings.Contains(lower, "connection reset by peer"), strings.Contains(lower, "broken pipe"), strings.Contains(lower, "forcibly closed"):
 		return "AI 接口请求失败：上游连接中断（可能是网关或本地代理超时），请稍后重试；若持续出现请检查代理和渠道超时设置"
 	}
 	return "AI 接口请求失败：" + truncateForLog(text, 120)
+}
+
+func aiProxyAddress(err error) string {
+	var operation *net.OpError
+	if errors.As(err, &operation) && operation.Addr != nil {
+		return operation.Addr.String()
+	}
+	return ""
 }
 
 func truncateForLog(text string, limit int) string {

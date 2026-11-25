@@ -6,24 +6,24 @@ import { Plus, Trash2 } from "lucide-react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Field } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/state-panel";
-import type { ScriptCharacter, ScriptProject } from "../types";
+import type { ScriptCharacter, ScriptProjectDocument } from "../types";
 import { createScriptCharacter } from "../utils/script-project";
 
 type ScriptCharactersPanelProps = {
-    project: ScriptProject;
-    onUpdate: (patch: Partial<ScriptProject>) => void;
+    project: ScriptProjectDocument;
+    onUpdate: (updater: (document: ScriptProjectDocument) => ScriptProjectDocument) => void;
 };
 
 export function ScriptCharactersPanel({ project, onUpdate }: ScriptCharactersPanelProps) {
     const confirm = useConfirm();
     const updateCharacter = (id: string, patch: Partial<ScriptCharacter>) => {
-        onUpdate({ characters: project.characters.map((character) => character.id === id ? { ...character, ...patch } : character) });
+        onUpdate((current) => ({ ...current, characters: current.characters.map((character) => character.id === id ? { ...character, ...patch } : character) }));
     };
     const addCharacter = () => {
-        onUpdate({ characters: [...project.characters, createScriptCharacter()] });
+        onUpdate((current) => ({ ...current, characters: [...current.characters, createScriptCharacter()] }));
     };
     const removeCharacter = (id: string) => {
-        onUpdate({ characters: project.characters.filter((character) => character.id !== id) });
+        onUpdate((current) => ({ ...current, characters: current.characters.filter((character) => character.id !== id) }));
     };
 
     return (

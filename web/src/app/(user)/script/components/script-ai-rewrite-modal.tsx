@@ -5,13 +5,13 @@ import { Button, Input, Modal, Select, Spin } from "antd";
 import { Check, Copy, Sparkles } from "lucide-react";
 
 import { useCopyText } from "@/hooks/use-copy-text";
-import type { ScriptProject, ScriptScene } from "../types";
+import type { ScriptProjectDocument, ScriptScene } from "../types";
 import { useScriptAi } from "../hooks/use-script-ai";
 import { SCRIPT_REWRITE_MODES, type ScriptRewriteMode } from "../utils/script-ai";
 
 type ScriptAiRewriteModalProps = {
     open: boolean;
-    project: ScriptProject;
+    project: ScriptProjectDocument;
     scene: ScriptScene | null;
     selectedText: string;
     onClose: () => void;

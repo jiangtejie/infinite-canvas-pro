@@ -6,21 +6,25 @@ import { Clapperboard, PenLine, Plus, Sparkles } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/state-panel";
 import { cn } from "@/lib/utils";
-import type { ScriptProject, ScriptScene } from "../types";
-import { collectScriptCharacterNames, createScriptScene, normalizeScriptCharacters, scriptSceneHeading, scriptSceneMissingFields } from "../utils/script-project";
+import type { ScriptProjectDocument, ScriptScene } from "../types";
+import { collectScriptCharacterNames, normalizeScriptCharacters, scriptSceneHeading, scriptSceneMissingFields } from "../utils/script-project";
+import type { ScenePatch } from "../stores/use-script-store";
 import { ScriptAiDiagnosisModal } from "./script-ai-diagnosis-modal";
 import { ScriptAiRewriteModal } from "./script-ai-rewrite-modal";
 
 type ScriptEditorPanelProps = {
-    project: ScriptProject;
+    project: ScriptProjectDocument;
+    episodeId: string;
     selectedSceneId: string;
     onSelectScene: (sceneId: string) => void;
-    onUpdate: (patch: Partial<ScriptProject>) => void;
+    onUpdateScene: (sceneId: string, patch: ScenePatch) => void;
+    onAddScene: () => void;
 };
 
-export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onUpdate }: ScriptEditorPanelProps) {
+export function ScriptEditorPanel({ project, episodeId, selectedSceneId, onSelectScene, onUpdateScene, onAddScene }: ScriptEditorPanelProps) {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const scene = project.scenes.find((item) => item.id === selectedSceneId) || project.scenes[0];
+    const scenes = project.episodes.find((episode) => episode.id === episodeId)?.scenes || [];
+    const scene = scenes.find((item) => item.id === selectedSceneId) || scenes[0];
     const characterNames = collectScriptCharacterNames(project);
     const [selection, setSelection] = useState({ start: 0, end: 0, text: "" });
     const [diagnosisOpen, setDiagnosisOpen] = useState(false);
@@ -33,8 +37,7 @@ export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onU
     }, [scene?.id]);
 
     const updateScene = (patch: Partial<ScriptScene>) => {
-        if (!scene) return;
-        onUpdate({ scenes: project.scenes.map((item) => item.id === scene.id ? { ...item, ...patch } : item) });
+        if (scene) onUpdateScene(scene.id, patch);
     };
 
     const applyRewrite = (text: string) => {
@@ -59,11 +62,7 @@ export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onU
         });
     };
 
-    const addScene = () => {
-        const next = createScriptScene(project.scenes.length + 1);
-        onUpdate({ scenes: [...project.scenes, next] });
-        onSelectScene(next.id);
-    };
+    const addScene = () => onAddScene();
 
     const insertText = (snippet: string) => {
         if (!scene) return;
@@ -104,7 +103,7 @@ export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onU
                     <Button size="small" type="text" aria-label="添加场景" icon={<Plus className="size-3.5" />} onClick={addScene} />
                 </div>
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto p-1.5">
-                    {project.scenes.map((item) => {
+                    {scenes.map((item) => {
                         const active = item.id === scene.id;
                         const missing = scriptSceneMissingFields(item).length;
                         return (
@@ -121,7 +120,7 @@ export function ScriptEditorPanel({ project, selectedSceneId, onSelectScene, onU
                         );
                     })}
                 </div>
-                <div className="shrink-0 border-t border-border/60 px-3 py-2 font-mono text-[9px] text-muted-foreground/50">共 {project.scenes.length} 场</div>
+                <div className="shrink-0 border-t border-border/60 px-3 py-2 font-mono text-[9px] text-muted-foreground/50">共 {scenes.length} 场</div>
             </aside>
 
             <section className="punk-panel flex min-h-0 flex-col overflow-hidden rounded-xl lg:col-span-3">

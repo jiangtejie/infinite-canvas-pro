@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -15,7 +16,25 @@ import (
 const canvasImageHeartbeatInterval = 15 * time.Second
 
 func StartCanvasImageWorker() {
-	service.StartCanvasImageTaskWorker(runPersistedCanvasImageTask)
+	service.StartCanvasImageTaskWorker(func(task model.CanvasImageTask, owner string) {
+		runCanvasImageTaskSafely(task, owner, runPersistedCanvasImageTask)
+	})
+}
+
+// runCanvasImageTaskSafely 兜住执行中的 panic：任务失败退款，而不是让整个进程崩溃后反复重领。
+func runCanvasImageTaskSafely(task model.CanvasImageTask, owner string, run func(model.CanvasImageTask, string)) {
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
+		}
+		log.Printf("canvas image task panic: task=%s err=%v", task.ID, recovered)
+		task.Status, task.Error, task.ErrorDetail, task.CompletedAt = "failed", "图片任务执行异常，已退回算力点，请重新生成", fmt.Sprint(recovered), taskTime()
+		if ok, err := repository.CompleteCanvasImageTask(task, owner); err != nil || !ok {
+			log.Printf("finish panicked canvas image task failed: task=%s ok=%v err=%v", task.ID, ok, err)
+		}
+	}()
+	run(task, owner)
 }
 
 func runPersistedCanvasImageTask(task model.CanvasImageTask, owner string) {
@@ -60,7 +79,7 @@ func runPersistedCanvasImageTask(task model.CanvasImageTask, owner string) {
 			case <-heartbeatCtx.Done():
 				return
 			case <-ticker.C:
-				ok, err := repository.RenewCanvasImageTaskLease(task.ID, task.UserID, owner, time.Now().UTC().Add(60*time.Second))
+				ok, err := repository.RenewCanvasImageTaskLease(task.ID, task.UserID, owner, time.Now().UTC().Add(service.CanvasImageTaskLease))
 				if err != nil || !ok {
 					log.Printf("renew canvas image task lease failed: task=%s ok=%v err=%v", task.ID, ok, err)
 					cancelRun()

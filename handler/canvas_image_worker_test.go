@@ -141,3 +141,33 @@ func TestPersistedCanvasImageWorkerCompletesClaimedTask(t *testing.T) {
 		t.Fatalf("worker result: %#v calls=%d err=%v", saved, calls, err)
 	}
 }
+
+func TestCanvasImageWorkerPanicFailsAndRefundsTask(t *testing.T) {
+	config.Cfg = config.Config{StorageDriver: "sqlite", DatabaseDSN: ":memory:", AILogDir: t.TempDir()}
+	db, err := repository.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := model.User{ID: "panic-user", Username: "panic-user", AffCode: "panic-user", Status: model.UserStatusActive, Credits: 10}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	task := model.CanvasImageTask{ID: "panic-task", ClientTaskID: "panic-client", UserID: user.ID, RequestHash: "panic-hash", Model: "image-model", Credits: 2, Status: "queued", CreatedAt: now.Format(time.RFC3339Nano), UpdatedAt: now.Format(time.RFC3339Nano)}
+	if _, created, err := repository.CreateCanvasImageTaskWithCredits(task, model.CreditLog{ID: "panic-consume", UserID: user.ID, Type: model.CreditLogTypeAIConsume, Amount: -2, Remark: "consume", CreatedAt: now.Format(time.RFC3339Nano)}, ""); err != nil || !created {
+		t.Fatalf("create: created=%v err=%v", created, err)
+	}
+	claimed, ok, err := repository.ClaimNextCanvasImageTask("panic-worker", now, now.Add(time.Minute))
+	if err != nil || !ok {
+		t.Fatalf("claim: ok=%v err=%v", ok, err)
+	}
+	runCanvasImageTaskSafely(claimed, "panic-worker", func(model.CanvasImageTask, string) { panic("boom") })
+	var saved model.CanvasImageTask
+	if err := db.First(&saved, "id = ?", task.ID).Error; err != nil || saved.Status != "failed" || saved.BillingState != "refunded" || saved.LeaseOwner != "" {
+		t.Fatalf("panic task: %#v err=%v", saved, err)
+	}
+	var balance model.User
+	if err := db.First(&balance, "id = ?", user.ID).Error; err != nil || balance.Credits != 10 {
+		t.Fatalf("balance=%v want=10 err=%v", balance.Credits, err)
+	}
+}

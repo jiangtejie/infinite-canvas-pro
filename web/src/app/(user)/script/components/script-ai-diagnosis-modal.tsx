@@ -6,13 +6,13 @@ import { CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useEffectiveConfig } from "@/stores/use-config-store";
-import type { ScriptProject, ScriptScene } from "../types";
+import type { ScriptProjectDocument, ScriptScene } from "../types";
 import { useScriptAi } from "../hooks/use-script-ai";
 import type { ScriptSceneDiagnosis } from "../utils/script-ai";
 
 type ScriptAiDiagnosisModalProps = {
     open: boolean;
-    project: ScriptProject;
+    project: ScriptProjectDocument;
     scene: ScriptScene | null;
     onClose: () => void;
 };

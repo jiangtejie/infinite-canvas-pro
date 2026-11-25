@@ -77,14 +77,6 @@ export async function syncUserComicCast<T>(token: string, data: T) {
     return apiPost<T>("/api/v1/user-data/comic-cast", { data }, token);
 }
 
-export async function fetchUserScriptProjects<T>(token: string) {
-    return apiGet<T>("/api/v1/user-data/script-projects", undefined, token);
-}
-
-export async function syncUserScriptProjects<T>(token: string, data: T) {
-    return apiPost<T>("/api/v1/user-data/script-projects", { data }, token);
-}
-
 export type CreativeWorkflowRecord<T = unknown> = {
     id: string;
     ownerUserId?: string;

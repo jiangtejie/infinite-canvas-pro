@@ -54,7 +54,7 @@ export type FilmGraphReviewInput = {
         styles: FilmAsset[];
     };
     style?: FilmAsset;
-    script?: { text: string; sourceScriptHash?: string; structurePlan?: FilmStructurePlan };
+    script?: { text: string; source?: import("../../types").FilmScriptSource; structurePlan?: FilmStructurePlan };
     filmMeta?: CanvasFilmMeta;
 };
 
@@ -166,7 +166,7 @@ export function selectFilmReviewInput(
         contexts,
         assets,
         style,
-        script: script ? { text: script.text, sourceScriptHash: script.sourceScriptHash, structurePlan: script.structurePlan } : undefined,
+        script: script ? { text: script.text, source: script.source, structurePlan: script.structurePlan } : undefined,
         filmMeta,
     };
 }

@@ -5,7 +5,7 @@ import { CanvasNodeType, type CanvasNodeData } from "../../types";
 import type { RemixInput, RemixRun, SourceRemixPlan } from "../../remix-types";
 import { REMIX_CORE_VERSION } from "../../remix-policy";
 import { buildSourceMaterialPlan, sourceMaterialSignature } from "./canvas-source-plan";
-import { applySourceRemixPlan, assertRemixRunStructure, collectCollapsedRemixNodeIds, collectPublishableRemixImages, collectPublishableRemixRunIds, collectRemixImageNodeIds, collectSourceMaterialNodes, collectSourceRemixHistory, detachRemixNodes, findRemixRunNode, findRemixControlledSourceNode, findSourceRemixTextNode, parseSourceRemixPlan, planSourceRemix, remixApprovalKey, validateSourceRemixPlan } from "./canvas-source-remix";
+import { applySourceRemixPlan, assertRemixRunStructure, collectCollapsedRemixNodeIds, collectPublishableRemixImages, collectPublishableRemixRunIds, collectRemixImageNodeIds, collectSourceMaterialNodes, collectSourceRemixHistory, detachRemixNodes, findRemixRunNode, findRemixControlledSourceNode, findSourceRemixTextNode, parseSourceRemixPlan, planSourceRemix, remixApprovalKey, requestRemixPlanWithRepair, validateSourceRemixPlan } from "./canvas-source-remix";
 const source = (): CanvasNodeData => ({ id: "source-1", type: CanvasNodeType.Source, title: "原始攻略", position: { x: 100, y: 200 }, width: 420, height: 300, metadata: { sourceStatus: "success", sourceTitle: "同城周末攻略", sourceText: "第三人称推荐清单", sourceTags: ["周末"], sourceImages: [{ url: "https://example.test/source-1.jpg", storageKey: "server:source-1", width: 1080, height: 1440, mimeType: "image/jpeg" }, { url: "https://example.test/source-2.jpg", storageKey: "server:source-2", width: 1080, height: 1440, mimeType: "image/jpeg" }] } });
 function setup() {
     const original = source();
@@ -110,7 +110,26 @@ test("marketing plan rejects unselected facts, unselected images, wrong placemen
     const badImage = { ...valid, visual: { ...valid.visual, images: valid.visual.images.map((item) => ({ ...item, referenceAssetIds: ["unselected"] })) } };
     assert.throws(() => validateSourceRemixPlan(badImage, marketing), /营销图片/);
     assert.throws(() => validateSourceRemixPlan({ ...valid, copy: { ...valid.copy, body: "这家店闭眼入" } }, marketing), /禁止/);
-    assert.throws(() => validateSourceRemixPlan({ ...valid, copy: { ...valid.copy, tags: ["bad topic"] } }, marketing), /话题/);
+    assert.deepEqual(validateSourceRemixPlan({ ...valid, copy: { ...valid.copy, tags: ["#周末 攻略", "周末攻略", " ", "a", "b", "c", "d", "e"] } }, marketing).copy.tags, ["周末攻略", "a", "b", "c", "d"]);
+});
+
+test("策划校验失败时把错误回传模型修正一次", async () => {
+    const state = setup();
+    const valid = plan(state.input);
+    const invalid = { ...valid, copy: { ...valid.copy, title: "这是一个明显超过二十个字限制的复刻标题需要修正" } };
+    const calls: unknown[][] = [];
+    const replies = [JSON.stringify(invalid), JSON.stringify(valid)];
+    const parsed = await requestRemixPlanWithRepair(state.input, async (repair) => {
+        calls.push(structuredClone(repair));
+        return { content: replies[calls.length - 1], reasoningContent: "思考", toolCalls: [] };
+    });
+    assert.deepEqual(parsed, valid);
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[0], []);
+    assert.deepEqual(calls[1][0], { role: "assistant", content: JSON.stringify(invalid), reasoningContent: "思考" });
+    assert.match(String((calls[1][1] as { content: string }).content), /标题/);
+    await assert.rejects(requestRemixPlanWithRepair(state.input, async () => ({ content: JSON.stringify(invalid), toolCalls: [] })), /标题/);
+    await assert.rejects(requestRemixPlanWithRepair(state.input, async () => ({ content: " ", toolCalls: [] })), /没有返回完整内容/);
 });
 
 test("marketing references wire reference nodes and number attached images", () => {

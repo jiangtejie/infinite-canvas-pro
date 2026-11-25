@@ -7,52 +7,44 @@ import { ChevronDown, ChevronRight, ChevronUp, PenLine, Plus, Trash2 } from "luc
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Field } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/state-panel";
-import type { ScriptProject, ScriptScene } from "../types";
-import { collectScriptCharacterNames, createScriptScene, normalizeScriptCharacters, scriptSceneCompleteness, scriptSceneHeading, scriptSceneMissingFields } from "../utils/script-project";
+import type { ScriptProjectDocument, ScriptScene } from "../types";
+import { collectScriptCharacterNames, normalizeScriptCharacters, scriptSceneCompleteness, scriptSceneHeading, scriptSceneMissingFields } from "../utils/script-project";
+import type { ScenePatch } from "../stores/use-script-store";
 
 type ScriptScenesPanelProps = {
-    project: ScriptProject;
-    onUpdate: (patch: Partial<ScriptProject>) => void;
+    project: ScriptProjectDocument;
+    episodeId: string;
+    onUpdateScene: (sceneId: string, patch: ScenePatch) => void;
+    onAddScene: () => void;
+    onRemoveScene: (sceneId: string) => void;
+    onMoveScene: (sceneId: string, direction: -1 | 1) => void;
     onOpenEditor: (sceneId: string) => void;
 };
 
 const INTERIOR_OPTIONS = [{ value: "内景" }, { value: "外景" }, { value: "内外景" }];
 
-export function ScriptScenesPanel({ project, onUpdate, onOpenEditor }: ScriptScenesPanelProps) {
+export function ScriptScenesPanel({ project, episodeId, onUpdateScene, onAddScene, onRemoveScene, onMoveScene, onOpenEditor }: ScriptScenesPanelProps) {
     const confirm = useConfirm();
-    const [expandedId, setExpandedId] = useState(project.scenes[0]?.id || "");
+    const scenes = project.episodes.find((episode) => episode.id === episodeId)?.scenes || [];
+    const [expandedId, setExpandedId] = useState(scenes[0]?.id || "");
     const characterOptions = collectScriptCharacterNames(project).map((name) => ({ value: name, label: name }));
-    const incomplete = project.scenes.filter((scene) => scriptSceneMissingFields(scene).length > 0).length;
+    const incomplete = scenes.filter((scene) => scriptSceneMissingFields(scene).length > 0).length;
 
-    const updateScene = (id: string, patch: Partial<ScriptScene>) => {
-        onUpdate({ scenes: project.scenes.map((scene) => scene.id === id ? { ...scene, ...patch } : scene) });
-    };
-    const addScene = () => {
-        const scene = createScriptScene(project.scenes.length + 1);
-        onUpdate({ scenes: [...project.scenes, scene] });
-        setExpandedId(scene.id);
-    };
-    const removeScene = (id: string) => {
-        onUpdate({ scenes: project.scenes.filter((scene) => scene.id !== id).map((scene, index) => ({ ...scene, no: index + 1 })) });
-    };
-    const moveScene = (index: number, direction: -1 | 1) => {
-        const next = [...project.scenes];
-        const target = index + direction;
-        if (target < 0 || target >= next.length) return;
-        [next[index], next[target]] = [next[target], next[index]];
-        onUpdate({ scenes: next.map((scene, sceneIndex) => ({ ...scene, no: sceneIndex + 1 })) });
-    };
+    const updateScene = (id: string, patch: Partial<ScriptScene>) => onUpdateScene(id, patch);
+    const addScene = () => onAddScene();
+    const removeScene = (id: string) => onRemoveScene(id);
+    const moveScene = (index: number, direction: -1 | 1) => onMoveScene(scenes[index].id, direction);
 
     return (
         <div className="grid gap-3">
             <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground/70">每场先写目标、冲突、转折、结果，再进剧本写对白。</span>
-                <span className="chip">{project.scenes.length} 场</span>
+                <span className="chip">{scenes.length} 场</span>
                 {incomplete ? <span className="chip border-hot/35 text-hot/80">{incomplete} 场待补全</span> : null}
                 <Button size="small" type="primary" className="ml-auto" icon={<Plus className="size-3.5" />} onClick={addScene}>添加场景</Button>
             </div>
 
-            {project.scenes.length === 0 ? (
+            {scenes.length === 0 ? (
                 <EmptyState
                     className="rounded-xl border border-dashed border-border/70 bg-card/25 py-10"
                     title="还没有场景卡"
@@ -61,7 +53,7 @@ export function ScriptScenesPanel({ project, onUpdate, onOpenEditor }: ScriptSce
                 />
             ) : (
                 <div className="grid gap-2">
-                    {project.scenes.map((scene, index) => {
+                    {scenes.map((scene, index) => {
                         const expanded = expandedId === scene.id;
                         const missing = scriptSceneMissingFields(scene);
                         return (
@@ -77,7 +69,7 @@ export function ScriptScenesPanel({ project, onUpdate, onOpenEditor }: ScriptSce
                                     </button>
                                     <span className={missing.length ? "chip border-hot/30 text-hot/70" : "chip border-acid/30 text-acid/80"}>{missing.length ? `缺${missing.join("/")}` : `${scriptSceneCompleteness(scene)}%`}</span>
                                     <Button size="small" type="text" aria-label="上移场景" disabled={index === 0} icon={<ChevronUp className="size-3.5" />} onClick={() => moveScene(index, -1)} />
-                                    <Button size="small" type="text" aria-label="下移场景" disabled={index === project.scenes.length - 1} icon={<ChevronDown className="size-3.5" />} onClick={() => moveScene(index, 1)} />
+                                    <Button size="small" type="text" aria-label="下移场景" disabled={index === scenes.length - 1} icon={<ChevronDown className="size-3.5" />} onClick={() => moveScene(index, 1)} />
                                     <Button
                                         size="small"
                                         type="text"

@@ -26,7 +26,7 @@ export function MarketingEntityEditor({ value, workspace, onSave, onClose }: { v
         setSaving(true);
         try { await onSave(draft, listings); onClose(); } catch (error) { message.error(errorMessage(error, "资料保存失败")); } finally { setSaving(false); }
     };
-    return <Modal title={`编辑${labels[draft.kind]}`} open width="min(840px, 96vw)" onCancel={saving ? undefined : onClose} mask={{ closable: false }} footer={<div className="flex justify-end gap-2"><Button disabled={saving} onClick={onClose}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存资料</Button></div>}>
+    return <Modal title={`编辑${labels[draft.kind]}`} open width="min(840px, 96vw)" onCancel={saving ? undefined : onClose} mask={{ closable: false }} destroyOnHidden footer={<div className="flex justify-end gap-2"><Button disabled={saving} onClick={onClose}>取消</Button><Button type="primary" loading={saving} onClick={() => void save()}>保存资料</Button></div>}>
         <fieldset disabled={saving} className="max-h-[72dvh] space-y-5 overflow-y-auto py-2 pr-2">
             <label className="block space-y-2 text-sm"><span>名称</span><Input autoFocus aria-label="资料名称" maxLength={100} value={draft.item.name} onChange={(event) => patch({ name: event.target.value })} /></label>
             {draft.kind === "workspace" ? <label className="block space-y-2 text-sm"><span>所属行业</span><Input aria-label="所属行业" maxLength={200} placeholder="如：餐饮、家政、零售、企业服务，可自由填写" value={draft.item.industry} onChange={(event) => patch({ industry: event.target.value })} /></label> : null}
@@ -37,7 +37,7 @@ export function MarketingEntityEditor({ value, workspace, onSave, onClose }: { v
                 <label className="block space-y-2 text-sm"><span>当地风格与客群特点</span><Input.TextArea aria-label="当地风格与客群特点" rows={3} maxLength={5000} value={draft.item.localContext} placeholder="填写实际了解的本地偏好；留空时不让模型凭城市名编造" onChange={(event) => patch({ localContext: event.target.value })} /></label>
             </> : null}
             {draft.kind === "offering" ? <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-2 text-sm"><span>类型</span><Select className="w-full" aria-label="商品服务类型" value={draft.item.kind} options={[{ value: "product", label: "商品" }, { value: "service", label: "服务" }]} onChange={(kind) => patch({ kind })} /></label><label className="space-y-2 text-sm"><span>分类</span><Input aria-label="商品分类" maxLength={200} value={draft.item.category} onChange={(event) => patch({ category: event.target.value })} /></label></div> : null}
-            <MarketingDetailsEditor value={draft.item} onChange={patch} />
+            <MarketingDetailsEditor value={draft.item} onChange={patch} variant={draft.kind === "workspace" || draft.kind === "brand" ? "context" : draft.kind} />
             {draft.kind === "location" ? <section className="space-y-4 border-t border-border pt-5"><h3 className="text-sm font-semibold">本店可提供的商品 / 服务</h3><p className="text-xs text-muted-foreground">先在品牌下建立商品，再配置本店是否提供。价格、库存或优惠等门店特有信息请填写为本店事实。</p>
                 {workspace.offerings.filter((item) => item.brandId === draft.item.brandId).map((offering) => {
                     const listing = listings.find((item) => item.locationId === draft.item.id && item.offeringId === offering.id);

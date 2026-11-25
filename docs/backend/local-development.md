@@ -27,6 +27,21 @@ cp .env.example .env
 go run .
 ```
 
+Windows 下如果没有显式配置渠道代理，后端会读取系统代理。Qoder、VS Code 等桌面应用可能向终端注入已经失效的 `HTTP_PROXY` / `HTTPS_PROXY`，导致环境代理覆盖正常系统代理。需要改用系统代理时，Git Bash 使用：
+
+```bash
+env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy go run .
+```
+
+PowerShell 使用：
+
+```powershell
+Remove-Item Env:HTTP_PROXY,Env:HTTPS_PROXY,Env:http_proxy,Env:https_proxy -ErrorAction SilentlyContinue
+go run .
+```
+
+启动日志的 `outbound proxy` 会显示实际来源与地址；如果出现 `Windows system proxy ignored`，说明环境变量仍在覆盖系统代理。Docker 或服务器需要显式代理时，不要清除对应环境变量。
+
 后端会读取根目录 `.env`，并监听：
 
 ```text

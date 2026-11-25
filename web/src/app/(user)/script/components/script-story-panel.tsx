@@ -1,23 +1,24 @@
 "use client";
 
-import type { ScriptProject } from "../types";
+import type { ScriptProjectDocument } from "../types";
 import { collectScriptCharacterNames, scriptPageCount, scriptWordCount } from "../utils/script-project";
 
 // 故事圣经：logline、主题、梗概与写作提示。
 type ScriptStoryPanelProps = {
-    project: ScriptProject;
-    onUpdate: (patch: Partial<ScriptProject>) => void;
+    project: ScriptProjectDocument;
+    onUpdate: (updater: (document: ScriptProjectDocument) => ScriptProjectDocument) => void;
 };
 
 export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
     const names = collectScriptCharacterNames(project);
-    const scenesWithoutGoal = project.scenes.filter((scene) => !scene.goal.trim()).length;
+    const scenes = project.episodes.flatMap((episode) => episode.scenes);
+    const scenesWithoutGoal = scenes.filter((scene) => !scene.goal.trim()).length;
     const hints = [
         !project.logline.trim() ? "先写一句话故事：谁、想要什么、被什么阻止、失败会怎样。" : "",
         !project.theme.trim() ? "写下这个故事的主题问题，后面每场戏都要围绕它。" : "",
         !project.characters.length ? "先建人物，把 want / need / flaw 写清楚再分场。" : "",
-        !project.scenes.length ? "开始拆场：每场先写目标、冲突和转折，再写对白。" : "",
-        project.scenes.length && scenesWithoutGoal ? `还有 ${scenesWithoutGoal} 场没有写「目标」。` : "",
+        !scenes.length ? "开始拆场：每场先写目标、冲突和转折，再写对白。" : "",
+        scenes.length && scenesWithoutGoal ? `还有 ${scenesWithoutGoal} 场没有写「目标」。` : "",
     ].filter(Boolean);
 
     return (
@@ -33,7 +34,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                         className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors hover:border-border focus:border-acid/50 focus:ring-2 focus:ring-acid/10"
                         value={project.logline}
                         placeholder="例如：一个过气的拳击手为了给女儿治病，接下最后一场假拳，却在擂台上发现对手是女儿的父亲。"
-                        onChange={(event) => onUpdate({ logline: event.target.value })}
+                        onChange={(event) => onUpdate((current) => ({ ...current, logline: event.target.value }))}
                     />
                 </section>
 
@@ -44,7 +45,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                         className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors hover:border-border focus:border-acid/50 focus:ring-2 focus:ring-acid/10"
                         value={project.theme}
                         placeholder="这个故事真正想说的是什么？主角最后明白了什么？"
-                        onChange={(event) => onUpdate({ theme: event.target.value })}
+                        onChange={(event) => onUpdate((current) => ({ ...current, theme: event.target.value }))}
                     />
                 </section>
 
@@ -55,7 +56,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                         className="mt-3 w-full resize-y rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 text-sm leading-7 text-foreground outline-none transition-colors hover:border-border focus:border-acid/50 focus:ring-2 focus:ring-acid/10"
                         value={project.synopsis}
                         placeholder="用 300–800 字把故事从头到尾讲一遍，先不写对白。"
-                        onChange={(event) => onUpdate({ synopsis: event.target.value })}
+                        onChange={(event) => onUpdate((current) => ({ ...current, synopsis: event.target.value }))}
                     />
                 </section>
             </div>
@@ -65,7 +66,7 @@ export function ScriptStoryPanel({ project, onUpdate }: ScriptStoryPanelProps) {
                     <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/60 uppercase">当前进度</span>
                     <div className="mt-3 grid grid-cols-2 gap-2">
                         {[
-                            ["场次", String(project.scenes.length)],
+                            ["场次", String(scenes.length)],
                             ["角色", String(names.length)],
                             ["字数", scriptWordCount(project).toLocaleString()],
                             ["约页数", String(scriptPageCount(project))],
