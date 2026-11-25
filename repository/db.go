@@ -111,6 +111,8 @@ func DB() (*gorm.DB, error) {
 			&model.VideoGenerationLog{},
 			&model.ImageGenerationLog{},
 			&model.CanvasImageTask{},
+			&model.CanvasRemixApproval{},
+			&model.CanvasRemixApprovalSlot{},
 			&model.CanvasAudioTask{},
 			&model.CanvasProject{},
 			&model.ComfyBridge{},

@@ -15,6 +15,14 @@ export function canvasTaskFailed(status?: string) {
     return ["failed", "fail", "error", "cancelled", "canceled"].includes((status || "").toLowerCase());
 }
 
+export function canvasTaskUnknown(status?: string) {
+    return (status || "").toLowerCase() === "unknown";
+}
+
+export function canvasImageTaskRetryBlockReason(metadata?: CanvasNodeMetadata) {
+    return metadata?.imageTaskUnknown ? "上游状态未知，任务可能已执行，请先查询原任务后再决定是否重试" : "";
+}
+
 export function parseCanvasTaskTime(value: unknown) {
     if (typeof value === "number") return value > 100000000000 ? value : value * 1000;
     if (typeof value !== "string" || !value.trim()) return 0;

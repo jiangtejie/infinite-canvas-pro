@@ -266,31 +266,37 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 ### canvas_image_tasks
 
-画布图片生成任务表。只用于画布节点生成恢复，不影响生图工作台原接口。
+画布图片生成任务表。普通画布任务由数据库队列领取并执行，工作流图片任务复用同一记录与计费链路但由工作流执行器处理；不影响生图工作台原接口。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `id` | string | 主键，本地任务 ID |
+| `id` | string | 主键，服务端任务 ID |
 | `user_id` | string | 用户 ID |
 | `user_display_name` | string | 提交任务时的用户名快照 |
 | `source` | string | 固定为 `canvas` |
-| `source_id` | string | 画布来源 ID |
+| `source_id` | string | 画布或工作流来源 ID |
 | `node_id` | string | 画布节点 ID |
+| `client_task_id` | string | 客户端请求标识；与用户 ID 组成唯一键，网络重放返回原任务 |
+| `request_hash` | string | 模型、最终提示词、完整请求载荷等参数的 SHA-256 摘要；同客户端 ID 但请求不同则拒绝 |
+| `remix_approval` | string | 复刻审批信封 ID，可为空 |
+| `remix_slot` | string | 复刻审批槽位 ID，可为空；消费与扣费、任务创建在同一事务完成 |
 | `model` | string | 模型名称 |
 | `channel_id` | string | 模型渠道 ID |
 | `user_channel_id` | string | 用户自定义渠道 ID，可为空 |
 | `channel_name` | string | 渠道名称快照 |
-| `workflow_ref` | text | 仅新工作流任务使用的渠道/条目精确引用；旧图片任务为空 |
-| `credits` | decimal(20,2) | 本次任务预扣的算力点 |
-| `status` | string | 状态：`queued`、`processing`、`completed`、`failed` |
+| `workflow_ref` | text | 工作流渠道/条目精确引用；非空时普通画布 worker 不领取 |
+| `credits` | decimal(20,2) | 本次任务原子预扣的算力点 |
+| `billing_state` | string | 计费状态：`free`、`charged`、`refunding`、`refunded`；成功保持 `charged`，失败/取消只退款一次 |
+| `status` | string | `queued`、`processing`、`running`、`completed`、`failed`、`cancelled`、`unknown`；`unknown` 表示可能已向上游派发但结果丢失，不自动重发 |
 | `progress` | number | 生成进度 |
-| `prompt` | text | 提示词 |
+| `prompt` | text | 最终提交给上游的提示词 |
 | `generation_type` | string | `generation` 或 `edit` |
 | `endpoint` | string | 实际请求的上游接口路径 |
 | `content_type` | string | 请求体 Content-Type |
-| `request_body` | 大文本 | 发往上游的请求体快照，可能包含 base64 媒体 |
+| `request_body` | 大文本 | 脱敏后的请求摘要，用于排查 |
+| `payload` | blob | 完整 JSON 或 multipart 请求载荷，供进程重启后继续执行；不进入 API JSON |
 | `response_body` | 大文本 | 上游响应体快照，可能包含 base64 图片 |
-| `upstream_task_id` | string | Midjourney 等异步渠道的上游任务 ID，便于超时/重启后排查 |
+| `upstream_task_id` | string | 异步渠道的上游任务 ID，便于超时/重启后排查 |
 | `error` | 大文本 | 失败摘要 |
 | `error_detail` | 大文本 | 失败详情 |
 | `image_url` | 大文本 | 完成后图片 URL 或第一张图片 URL，可能是 data URL |
@@ -304,8 +310,50 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `updated_at` | string | 更新时间 |
 | `started_at` | string | 开始时间 |
 | `completed_at` | string | 完成时间 |
+| `attempt` | number | 领取执行次数 |
+| `dispatch_state` | string | 上游派发状态；已派发但租约过期的任务转为 `unknown` |
+| `lease_owner` | string | 当前 worker 的进程级租约持有者 |
+| `lease_until` | datetime | 当前执行租约到期时间 |
 
-索引：`idx_canvas_image_tasks_user_source_node (user_id, source, source_id, node_id)`
+索引：`idx_canvas_image_tasks_user_source_node (user_id, source, source_id, node_id)`、`idx_canvas_image_tasks_user_client (user_id, client_task_id)` 唯一索引、`lease_owner` 与 `lease_until` 单列索引。
+
+### canvas_remix_approvals
+
+复刻审阅产生的服务端审批信封。审批按用户、运行、策划 key 与审阅请求 ID 确定身份，同一审阅的网络重放复用信封，重新审阅生成新信封；默认有效期 30 分钟。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键，审批信封 ID |
+| `user_id` | string | 用户 ID |
+| `run_id` | string | 复刻运行 ID |
+| `approval_key` | text | 已审阅策划的 key |
+| `source_signature` | string | 源素材签名 |
+| `marketing_key` | string | 营销快照 key，可为空 |
+| `core_version` | string | 复刻核心规则版本 |
+| `skills` | text | 审阅时 Skill 快照 JSON |
+| `created_at` | datetime | 创建时间 |
+| `expires_at` | datetime | 过期时间 |
+
+索引：`idx_canvas_remix_approvals_user_run (user_id, run_id)`、`expires_at` 单列索引。
+
+### canvas_remix_approval_slots
+
+审批信封下的配图槽位。每个节点只允许消费一次，请求哈希绑定节点、模型与最终提示词。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键，审批槽位 ID |
+| `approval_id` | string | 所属审批信封 ID |
+| `user_id` | string | 用户 ID |
+| `run_id` | string | 复刻运行 ID |
+| `node_id` | string | 配图节点 ID |
+| `model` | string | 审阅时确定的模型或工作流稳定计费标识 |
+| `prompt` | text | 审阅时确定的最终提示词 |
+| `request_hash` | string | 节点、模型与最终提示词请求哈希 |
+| `consumed_by_task` | string | 消费该槽位的服务端任务 ID；空字符串表示未消费 |
+| `created_at` | datetime | 创建时间 |
+
+索引：`idx_canvas_remix_approval_slots_approval_node (approval_id, node_id)` 唯一索引，以及 `user_id`、`run_id`、`request_hash`、`consumed_by_task` 单列索引。
 
 ### canvas_audio_tasks
 

@@ -1,5 +1,5 @@
 import { currentAccountId } from "@/lib/account-storage";
-import { buildMarketingSnapshot, marketingAssetIds, marketingSnapshotKey, type MarketingSelection } from "@/lib/marketing";
+import { compileMarketingSnapshot, marketingSelectionAssetIds, marketingSnapshotKey, type MarketingSelection } from "@/lib/marketing";
 import { fetchSystemAgentSkillPackage, fetchUserAgentSkills, type AgentSkill } from "@/services/api/agent-skills";
 import { requestCanvasAgentTurn } from "@/services/api/canvas-agent";
 import { imageToDataUrl, resolveImageUrl } from "@/services/image-storage";
@@ -51,10 +51,10 @@ export async function currentMarketingSnapshot(selection: MarketingSelection) {
     });
     const token = useUserStore.getState().token;
     if (token) await store.getState().hydrateAccountAssets(token, false);
-    const referenced = new Set(marketingAssetIds(workspace));
+    const referenced = new Set(marketingSelectionAssetIds(workspace, selection));
     const images = await Promise.all(store.getState().assets.filter((asset): asset is Extract<Asset, { kind: "image" }> => asset.kind === "image" && referenced.has(asset.id)).map(async (asset) => ({ ...asset, data: { ...asset.data, dataUrl: await resolveImageUrl(asset.data.storageKey, asset.data.dataUrl) } })));
     if (owner !== currentAccountId()) throw new Error("账号已切换，请重新选择营销资料");
-    return buildMarketingSnapshot(workspace, selection, images);
+    return compileMarketingSnapshot(workspace, selection, images, Date.now());
 }
 
 export async function assertRemixInputFresh(input: RemixInput) {
@@ -63,7 +63,7 @@ export async function assertRemixInputFresh(input: RemixInput) {
     if (input.settings.mode === "marketing") {
         if (!input.marketing) throw new Error("营销资料快照缺失，请重新策划");
         const current = await currentMarketingSnapshot(input.marketing.selection);
-        if (marketingSnapshotKey(current) !== input.marketingKey) throw new Error("当前门店、商品、事实或营销图片已更新，请重新策划");
+        if (marketingSnapshotKey(current) !== input.marketingKey) throw new Error("当前经营主体、事实或营销图片已更新，请重新策划");
     }
     const skills = await resolveRemixSkills(input.settings.skills);
     if (JSON.stringify(skills.snapshots) !== JSON.stringify(input.skills)) throw new Error("所选 Skill 已更新，请重新策划");

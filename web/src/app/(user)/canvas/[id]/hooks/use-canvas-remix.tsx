@@ -6,17 +6,25 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { requestCreditCost } from "@/constant/credits";
 import { currentAccountId } from "@/lib/account-storage";
 import { marketingSnapshotKey } from "@/lib/marketing";
+import { approveCanvasRemix } from "@/services/api/canvas-remix-approval";
+import { usesAccountProxy } from "@/services/api/ai-request";
 import { useConfigStore, type AiConfig } from "@/stores/use-config-store";
 import { CanvasRemixSetup, type RemixSetupResult } from "../../components/canvas-remix-setup";
-import { RemixPlanSummary } from "../../components/canvas-remix-plan-panel";
+import { RemixGenerationSummary } from "../../components/canvas-remix-plan-panel";
 import { buildCanvasAgentRequestConfig } from "../../agent/canvas-agent-request";
 import { assertRemixInputFresh, currentMarketingSnapshot, requestRemixPlan, resolveRemixSkills, type RemixPlanner } from "../../remix-planner";
 import { REMIX_CORE_VERSION } from "../../remix-policy";
-import type { RemixInput, RemixRun, RemixSkillSelection } from "../../remix-types";
+import type { RemixBatchProgress, RemixInput, RemixRun, RemixSkillSelection } from "../../remix-types";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { applySourceRemixPlan, assertRemixRunStructure, collectSourceMaterialNodes, findRemixRunNode, planSourceRemix, remixApprovalKey } from "../lib/canvas-source-remix";
+import { assertRemixAccountFresh, remixApprovalHeaders } from "../lib/canvas-remix-approval";
+import { getRemixReviewImages } from "../lib/canvas-remix-actions";
+import { buildCanvasNodeRequestPrompt } from "../lib/canvas-request-prompt";
+import { buildGenerationConfig } from "../lib/canvas-generation-config";
+import { pauseRemixBatches, remixBatchTargetRunId, updateRemixBatchProgress } from "../lib/canvas-remix-batch";
 import { canReuseRemixFreshness } from "../lib/remix-freshness";
 import { sourceExpansionNeedsSync, sourceMaterialSignature } from "../lib/canvas-source-plan";
+import { canvasWorkflowModel } from "../lib/canvas-workflow-tasks";
 import { sourceNodeText } from "../lib/canvas-node-meta";
 import type { CanvasSourceActionResult } from "./use-canvas-source";
 
@@ -51,8 +59,9 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
     useEffect(() => {
         mountedRef.current = true;
         const freshCache = freshCacheRef.current;
+        commit(pauseRemixBatches(nodesRef.current));
         return () => { mountedRef.current = false; planningRef.current?.abort(); setupRef.current?.resolve(null); setupRef.current = null; freshCache.clear(); };
-    }, []);
+    }, [commit, nodesRef]);
     const settle = useCallback((result: RemixSetupResult | null) => {
         const pending = setupRef.current;
         setupRef.current = null;
@@ -120,6 +129,7 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
 
     const freshRun = useCallback(async (id: string, cached = false) => {
         const run = assertRemixRunStructure(nodesRef.current, connectionsRef.current, id);
+        assertRemixAccountFresh(run, currentAccountId());
         const key = remixApprovalKey(run);
         if (cached && canReuseRemixFreshness(freshCacheRef.current, id, key)) return run;
         await assertRemixInputFresh(run.input);
@@ -129,39 +139,53 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
         return current;
     }, [connectionsRef, nodesRef]);
 
-    const reviewRuns = useCallback(async (ids: string[], count: number, cost?: number) => {
+    const reviewRuns = useCallback(async (ids: string[], cost?: number, nodeIds?: string[]) => {
         if (reviewRef.current) throw new Error("已有复刻生成正在等待确认");
         reviewRef.current = true;
         try {
             const runs = await Promise.all([...new Set(ids)].map((id) => freshRun(id)));
+            const scopes = runs.map((run) => ({ run, images: getRemixReviewImages(run, nodesRef.current, nodeIds) }));
+            const targetCount = scopes.reduce((total, scope) => total + scope.images.length, 0);
+            if (!targetCount) throw new Error("本次复刻没有可生成的配图");
             const keys = runs.map(remixApprovalKey);
             const model = effectiveConfig.imageModel || effectiveConfig.model;
-            const credits = cost ?? requestCreditCost({ channelMode: effectiveConfig.channelMode, modelCosts: useConfigStore.getState().publicSettings?.modelChannel.modelCosts, model, count });
+            const credits = cost ?? requestCreditCost({ channelMode: effectiveConfig.channelMode, modelCosts: useConfigStore.getState().publicSettings?.modelChannel.modelCosts, model, count: targetCount });
             const accepted = await confirm({
-                title: `审阅策划并生成 ${count} 张配图`,
-                width: "min(760px, calc(100vw - 48px))",
+                title: targetCount === 1 ? "确认重做 1 张配图" : `确认生成 ${targetCount} 张配图`,
+                width: "min(560px, calc(100vw - 48px))",
                 stacked: true,
-                description: (
-                    <div className="max-h-[min(64dvh,640px)] space-y-5 overflow-y-auto pr-1">
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border/70 bg-muted/20 px-3 py-2 text-xs">
-                            <span>模型：{model}</span>
-                            {credits > 0 ? <span>预计 {credits.toLocaleString()} 算力点</span> : null}
-                            <span className="text-muted-foreground sm:ml-auto">已完成的结果会保留</span>
-                        </div>
-                        {runs.map((run) => <RemixPlanSummary key={run.id} run={run} />)}
-                    </div>
-                ),
-                confirmText: "确认策划并生成",
+                description: <RemixGenerationSummary scopes={scopes} count={targetCount} model={model} credits={credits} />,
+                confirmText: "确认并生成",
                 cancelText: "暂不生成",
             });
             if (!accepted || !mountedRef.current) return false;
             const current = await Promise.all(runs.map((run) => freshRun(run.id)));
             if (current.some((run, index) => remixApprovalKey(run) !== keys[index])) throw new Error("确认期间策划发生变化，请重新审阅");
-            const approvals = new Map(current.map((run) => [run.id, remixApprovalKey(run)]));
-            commit(nodesRef.current.map((node) => node.metadata?.remixRun && approvals.has(node.metadata.remixRun.id) ? { ...node, metadata: { ...node.metadata, remixRun: { ...node.metadata.remixRun, approvedKey: approvals.get(node.metadata.remixRun.id) } } } : node));
+            const approvalEntries = await Promise.all(current.map(async (run) => {
+                const images = getRemixReviewImages(run, nodesRef.current, nodeIds);
+                if (!images.length) throw new Error("复刻策划没有可生成的配图");
+                const slots = await Promise.all(images.map(async (node) => {
+                    const generationConfig = buildGenerationConfig(effectiveConfig, node, "image");
+                    const compiled = await buildCanvasNodeRequestPrompt({ nodeId: node.id, mode: "image", prompt: node.metadata?.prompt || "", nodes: nodesRef.current, connections: connectionsRef.current });
+                    return { nodeId: node.id, model: node.metadata?.workflowRef ? canvasWorkflowModel(node.metadata.workflowRef) : generationConfig.model, prompt: compiled.requestPrompt };
+                }));
+                const key = remixApprovalKey(run);
+                const approval = usesAccountProxy(effectiveConfig) ? await approveCanvasRemix({
+                    requestId: nanoid(), runId: run.id, approvalKey: key, sourceSignature: run.input.sourceSignature,
+                    marketingKey: run.input.marketingKey, coreVersion: run.input.coreVersion, skills: run.input.skills, slots,
+                }) : undefined;
+                return [run.id, { key, approval }] as const;
+            }));
+            if (approvalEntries.some(([id]) => !findRemixRunNode(nodesRef.current, id))) throw new Error("复刻运行已删除，审批未写入画布");
+            if (current.some((run) => currentAccountId() !== run.input.ownerId)) throw new Error("账号已切换，请重新审阅");
+            const approvals = new Map(approvalEntries);
+            commit(nodesRef.current.map((node) => node.metadata?.remixRun && approvals.has(node.metadata.remixRun.id) ? {
+                ...node,
+                metadata: { ...node.metadata, remixRun: { ...node.metadata.remixRun, approvedKey: approvals.get(node.metadata.remixRun.id)!.key, approval: approvals.get(node.metadata.remixRun.id)!.approval } },
+            } : node));
             return true;
         } finally { reviewRef.current = false; }
-    }, [commit, confirm, effectiveConfig, freshRun, nodesRef]);
+    }, [commit, confirm, connectionsRef, effectiveConfig, freshRun, nodesRef]);
 
     const authorizeImage = useCallback(async (nodeId: string, mode: string, prompt: string, background: boolean) => {
         const node = nodesRef.current.find((item) => item.id === nodeId);
@@ -170,7 +194,7 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
         const runId = node.metadata.remixRunId;
         const live = nodesRef.current.find((item) => item.id === nodeId);
         if (!live || live.metadata?.prompt !== prompt) throw new Error("复刻提示词已变化，请重新策划");
-        if (!background) return reviewRuns([runId], 1);
+        if (!background) return reviewRuns([runId], undefined, [nodeId]);
         const run = await freshRun(runId, true);
         if (run.approvedKey !== remixApprovalKey(run)) throw new Error("尚未确认整组策划，请先审阅后生成");
         return true;
@@ -179,9 +203,24 @@ export function useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnecti
         const targets = nodeIds.map((id) => nodesRef.current.find((node) => node.id === id));
         const ids = [...new Set(targets.flatMap((node) => node?.metadata?.remixRole === "image" && node.metadata.remixRunId ? [node.metadata.remixRunId] : []))];
         if (!ids.length) return null;
+        remixBatchTargetRunId(nodesRef.current, nodeIds);
         if (targets.some((node) => !node?.metadata?.remixRunId || node.metadata.remixRole !== "image")) throw new Error("请将复刻配图与普通图片分开批量生成，以明确审阅范围");
-        return reviewRuns(ids, nodeIds.length, cost);
+        return reviewRuns(ids, cost, nodeIds);
     }, [nodesRef, reviewRuns]);
 
-    return { planRemix, authorizeImage, reviewBatch, freshRun, setupDialog: setup ? <CanvasRemixSetup key={setup.sourceTitle} sourceTitle={setup.sourceTitle} initialSkills={setup.initialSkills} instruction={setup.instruction} onResolve={settle} /> : null };
+    const resolveRemixApproval = useCallback((nodeId: string, model: string, requestPrompt: string) => {
+        const node = nodesRef.current.find((item) => item.id === nodeId);
+        if (!node?.metadata?.remixRunId) return undefined;
+        const run = assertRemixRunStructure(nodesRef.current, connectionsRef.current, node.metadata.remixRunId);
+        assertRemixAccountFresh(run, currentAccountId());
+        if (run.approvedKey !== remixApprovalKey(run)) throw new Error("尚未确认整组策划，请先审阅后生成");
+        if (!usesAccountProxy(effectiveConfig)) return undefined;
+        return remixApprovalHeaders(run, nodeId, model, requestPrompt, Date.now(), currentAccountId());
+    }, [connectionsRef, effectiveConfig, nodesRef]);
+
+    const updateBatchProgress = useCallback((nodeIds: string[], progress: Omit<RemixBatchProgress, "id" | "runId">) => {
+        commit(updateRemixBatchProgress(nodesRef.current, nodeIds, progress));
+    }, [commit, nodesRef]);
+
+    return { planRemix, authorizeImage, reviewBatch, freshRun, resolveRemixApproval, updateBatchProgress, setupDialog: setup ? <CanvasRemixSetup key={setup.sourceTitle} sourceTitle={setup.sourceTitle} initialSkills={setup.initialSkills} instruction={setup.instruction} onResolve={settle} /> : null };
 }

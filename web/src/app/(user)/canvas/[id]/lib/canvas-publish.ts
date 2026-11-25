@@ -1,8 +1,11 @@
+import { nanoid } from "nanoid";
+
 import type { ReferenceImage } from "@/types/image";
 
 import { buildNodeGenerationInputs } from "../../components/canvas-node-generation";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
+import { assertRemixRunStructure, collectPublishableRemixImages, collectPublishableRemixRunIds, findRemixRunNode, findSourceRemixTextNode, hasSourceRemixText } from "./canvas-source-remix";
 
 export const PUBLISH_TITLE_LIMIT = 20;
 export const PUBLISH_TAGS_LIMIT = 5;
@@ -171,6 +174,38 @@ export function planSourcePublishNode(nodes: CanvasNodeData[], connections: Canv
     }
     const createPosition = getPublishNodePlacement(nodes, upstreamNodeIds);
     return { upstreamNodeIds, existingPublishNodeId: null, createPosition, connectNodeIds: createPosition ? upstreamNodeIds : [] };
+}
+
+/** 静默补齐复刻发布节点与成功配图连接；保留用户已有草稿、二维码和发布记录。 */
+export function reconcileSourcePublishNodes(nodes: CanvasNodeData[], connections: CanvasConnection[], runIds = collectPublishableRemixRunIds(nodes)) {
+    let nextNodes = nodes;
+    let nextConnections = connections;
+    for (const runId of runIds) {
+        try {
+            assertRemixRunStructure(nextNodes, nextConnections, runId);
+        } catch {
+            continue;
+        }
+        const images = collectPublishableRemixImages(nextNodes, runId);
+        if (!images.length) continue;
+        const text = findSourceRemixTextNode(nextNodes, runId);
+        const plan = planSourcePublishNode(nextNodes, nextConnections, runId, hasSourceRemixText(text) ? text!.id : null, images.map((node) => node.id));
+        if (plan.existingPublishNodeId) {
+            if (!plan.connectNodeIds.length) continue;
+            nextConnections = [...nextConnections, ...plan.connectNodeIds.map((fromNodeId) => ({ id: nanoid(), fromNodeId, toNodeId: plan.existingPublishNodeId! }))];
+            continue;
+        }
+        if (!plan.createPosition) continue;
+        const run = findRemixRunNode(nextNodes, runId)?.metadata?.remixRun;
+        const publishNode: CanvasNodeData = {
+            id: nanoid(), ...NODE_DEFAULT_SIZE[CanvasNodeType.Publish], type: CanvasNodeType.Publish, title: "发布",
+            position: { x: plan.createPosition.x - NODE_DEFAULT_SIZE[CanvasNodeType.Publish].width / 2, y: plan.createPosition.y - NODE_DEFAULT_SIZE[CanvasNodeType.Publish].height / 2 },
+            metadata: { publishSourceId: runId, remixRunId: runId, remixSourceId: run?.input.sourceNodeId, remixRole: "publish" },
+        };
+        nextNodes = [...nextNodes, publishNode];
+        nextConnections = [...nextConnections, ...plan.connectNodeIds.map((fromNodeId) => ({ id: nanoid(), fromNodeId, toNodeId: publishNode.id }))];
+    }
+    return nextNodes === nodes && nextConnections === connections ? { nodes, connections } : { nodes: nextNodes, connections: nextConnections };
 }
 
 /** 二维码是否已过期；时间解析失败时按未过期处理，交给后端预检兜底。 */

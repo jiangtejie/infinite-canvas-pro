@@ -76,7 +76,7 @@ export function cloneCanvasConnections(connections: CanvasConnection[], idMap: M
 function cloneNodeMetadata(node: CanvasNodeData): CanvasNodeMetadata | undefined {
     if (!node.metadata) return undefined;
     const metadata: CanvasNodeMetadata = { ...node.metadata, clientTaskId: undefined, taskBackend: undefined };
-    if (metadata.remixRun) metadata.remixRun = { ...metadata.remixRun, binding: "detached", approvedKey: undefined };
+    if (metadata.remixRun) metadata.remixRun = { ...metadata.remixRun, binding: "detached", approvedKey: undefined, approval: undefined, batch: undefined };
     if (metadata.remixRunId) metadata.remixRunId = `detached:${metadata.remixRunId}`;
     if (metadata.remixRun) metadata.remixRun.id = metadata.remixRunId!;
     if (node.type === CanvasNodeType.Publish) {

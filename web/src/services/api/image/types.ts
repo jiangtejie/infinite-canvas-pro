@@ -46,7 +46,8 @@ export type CanvasImageTask = {
     workflowRef?: string;
     model?: string;
     prompt?: string;
-    status: "queued" | "processing" | "completed" | "failed" | string;
+    status: "queued" | "processing" | "completed" | "failed" | "unknown" | string;
+    billingState?: "free" | "charged" | "refunding" | "refunded" | string;
     progress?: number;
     url?: string;
     image_url?: string;
@@ -65,7 +66,15 @@ export type CanvasImageTask = {
     error?: { message?: string };
     error_detail?: string;
 };
-export type CanvasImageTaskOptions = { nodeId?: string; source?: "canvas" | "image-workbench" | "workflow"; sourceId?: string; clientTaskId?: string; signal?: AbortSignal; onServerTask?: () => void };
+export type CanvasImageTaskOptions = {
+    nodeId?: string;
+    source?: "canvas" | "image-workbench" | "workflow";
+    sourceId?: string;
+    clientTaskId?: string;
+    signal?: AbortSignal;
+    onServerTask?: () => void;
+    remixApproval?: { approvalId: string; slotId: string };
+};
 
 export type ParsedImageResponse = {
     images: GeneratedImage[];

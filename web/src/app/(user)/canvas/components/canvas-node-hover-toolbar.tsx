@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { App, Dropdown, Modal, Segmented, Tooltip } from "antd";
-import { CircleAlert, ClipboardCheck, Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Layers, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Send, Settings2, Sparkles, Trash2, Upload, Video } from "lucide-react";
+import { Download, Ellipsis, FolderPlus, Image as ImageIcon, Info, Layers, Link2, MessageSquare, Minus, Music2, Plus, RefreshCw, Scissors, Send, Settings2, Trash2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
@@ -46,15 +46,9 @@ type CanvasNodeHoverToolbarProps = {
     onRetry: (node: CanvasNodeData) => void;
     onToggleFreeResize: (node: CanvasNodeData) => void;
     onDelete: (node: CanvasNodeData) => void;
-    onSourceRemix: (node: CanvasNodeData) => void;
     onSourceExpand: (node: CanvasNodeData) => void;
     onSourceReset: (node: CanvasNodeData) => void;
     sourceExpandedNeedsSync: boolean;
-    sourceRemixStale: boolean;
-    onGenerateRemix: (node: CanvasNodeData) => void;
-    onReplanRemix: (node: CanvasNodeData) => void;
-    remixCanGenerate: boolean;
-    remixCanReplan: boolean;
 };
 
 type ToolbarTool = {
@@ -95,15 +89,9 @@ export function CanvasNodeHoverToolbar({
     onRetry,
     onToggleFreeResize,
     onDelete,
-    onSourceRemix,
     onSourceExpand,
     onSourceReset,
     sourceExpandedNeedsSync,
-    sourceRemixStale,
-    onGenerateRemix,
-    onReplanRemix,
-    remixCanGenerate,
-    remixCanReplan,
 }: CanvasNodeHoverToolbarProps) {
     const [quickToolsConfigs, setQuickToolsConfigs] = useState(() => ({
         [IMAGE_QUICK_TOOLS_STORAGE_KEY]: { ids: defaultImageQuickToolIds, showLabels: true },
@@ -228,23 +216,6 @@ export function CanvasNodeHoverToolbar({
         ...(isText && !isRemixPlan ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
         ...(isConfig ? [{ id: "config", title: "生成配置", label: "生成配置", icon: <Settings2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isSource ? [{ id: "sourcePanel", title: "打开素材源面板", label: "解析", icon: <Link2 className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
-        ...(hasSourceMaterial && !node.metadata?.sourceParsing ? [{
-            id: "sourceRemix",
-            title: sourceRemixStale ? "原素材已更新，复刻配图需要重新策划" : "交给 Agent 复刻：先组级策划再整组生成",
-            label: "复刻",
-            icon: (
-                <span className="flex items-center gap-1">
-                    <Sparkles className="size-4" />
-                    {sourceRemixStale ? <CircleAlert className="size-3" style={{ color: canvasStatusColors.loading }} /> : null}
-                </span>
-            ),
-            onClick: () => onSourceRemix(node),
-        }] : []),
-        ...(isRemixPlan ? [
-            { id: "remixReview", title: "审阅复刻策划", label: "审阅", icon: <ClipboardCheck className="size-4" />, onClick: () => onToggleDialog(node) },
-            ...(remixCanGenerate ? [{ id: "remixGenerate", title: "生成复刻配图", label: "生成配图", icon: <Sparkles className="size-4" />, onClick: () => onGenerateRemix(node) }] : []),
-            ...(remixCanReplan ? [{ id: "remixReplan", title: "另做一版策划", label: "另做一版", icon: <RefreshCw className="size-4" />, onClick: () => onReplanRemix(node) }] : []),
-        ] : []),
         ...(isPublish ? [{ id: "publishPanel", title: "打开发布面板", label: "发布", icon: <Send className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText && !isRemixPlan ? [{ id: "decreaseFont", title: "减小字号", label: "缩小", icon: <Minus className="size-4" />, onClick: () => onDecreaseFont(node) }] : []),
         ...(isText && !isRemixPlan ? [{ id: "increaseFont", title: "增大字号", label: "放大", icon: <Plus className="size-4" />, onClick: () => onIncreaseFont(node) }] : []),

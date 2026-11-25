@@ -9,9 +9,17 @@ import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Canvas
 import { fitNodeSize, nodeSizeFromRatio } from "../../utils/canvas-node-size";
 import { PANORAMA_NODE_SIZE, isCanvasImageNodeType, isPanoramaNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_ERROR, NODE_STATUS_LOADING, NODE_STATUS_SUCCESS, VIDEO_NODE_MAX_HEIGHT, VIDEO_NODE_MAX_WIDTH } from "./canvas-node-constants";
-import { canvasImageTaskChildIds, canvasImageTaskURLs, canvasRecoverableTaskId, canvasTaskCompleted, canvasTaskFailed, canvasVideoTaskCompleted, canvasVideoTaskFailed, parseCanvasTaskTime, parseCanvasVideoTaskSize, parseCanvasVideoTaskTime } from "./canvas-task-helpers";
+import { canvasImageTaskChildIds, canvasImageTaskURLs, canvasRecoverableTaskId, canvasTaskCompleted, canvasTaskFailed, canvasTaskUnknown, canvasVideoTaskCompleted, canvasVideoTaskFailed, parseCanvasTaskTime, parseCanvasVideoTaskSize, parseCanvasVideoTaskTime } from "./canvas-task-helpers";
 
 export type CanvasTaskMediaSize = { mediaSize?: { content: string; width: number; height: number } };
+
+export function prepareCanvasImageTaskMetadata(metadata: CanvasNodeMetadata, overwriteExisting: boolean): CanvasNodeMetadata {
+    return {
+        ...metadata,
+        ...(overwriteExisting ? { content: undefined, storageKey: "", imageTaskResultId: undefined, taskBackend: undefined, durationMs: undefined, imageTaskUnknown: undefined } : {}),
+        errorDetails: undefined,
+    };
+}
 
 export function fitCanvasMediaNode(node: CanvasNodeData, size: CanvasTaskMediaSize["mediaSize"]) {
     if (!size || node.metadata?.content !== size.content || (node.type !== CanvasNodeType.Image && node.type !== CanvasNodeType.Video) || node.metadata.isBatchRoot || node.metadata.batchRootId) return node;
@@ -120,15 +128,18 @@ export function applyCanvasImageTaskUpdate(nodes: CanvasNodeData[], nodeId: stri
         const url = urls[0] || "";
         const completed = canvasTaskCompleted(task.status) || Boolean(url);
         const failed = canvasTaskFailed(task.status) || (completed && !url);
+        const unknown = canvasTaskUnknown(task.status);
         const taskStartedAt = parseCanvasTaskTime(task.started_at ?? task.startedAt ?? task.created_at ?? task.createdAt) || startedAt;
         const metadata: CanvasNodeMetadata = {
             ...node.metadata,
-            status: failed ? NODE_STATUS_ERROR : completed ? NODE_STATUS_SUCCESS : NODE_STATUS_LOADING,
-            errorDetails: failed ? task.error?.message || "图片生成失败" : undefined,
+            status: failed || unknown ? NODE_STATUS_ERROR : completed ? NODE_STATUS_SUCCESS : NODE_STATUS_LOADING,
+            errorDetails: unknown ? "上游状态未知，任务可能已执行，暂不自动重试；请先查询原任务" : failed ? task.error?.message || "图片生成失败" : undefined,
             startedAt: taskStartedAt,
             durationMs: Date.now() - taskStartedAt,
             progress,
             imageTaskId: task.id || node.metadata?.imageTaskId,
+            imageTaskUnknown: unknown || undefined,
+            imageTaskBillingState: task.billingState,
         };
         if (!completed || !url) return { ...node, metadata };
         const stored = task.imageStorage?.find((image) => image?.url === url);

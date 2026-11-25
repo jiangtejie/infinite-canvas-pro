@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasPublishDraft, type CanvasPublishRecord } from "../../types";
-import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired, reorderPublishImageIds } from "./canvas-publish";
+import type { RemixInput, RemixRun } from "../../remix-types";
+import { REMIX_CORE_VERSION } from "../../remix-policy";
+import { buildSourceMaterialPlan, sourceMaterialSignature } from "./canvas-source-plan";
+import { applySourceRemixPlan, assertRemixRunStructure, collectSourceMaterialNodes, planSourceRemix } from "./canvas-source-remix";
+import { buildDefaultPublishDraft, collectPublishInputs, extractPublishTags, findSourcePublishNode, getPublishNodePlacement, isPublishDraftDirty, planPublishNodeConnections, planSourcePublishNode, publishDraftSignature, publishQrExpired, reconcileSourcePublishNodes, reorderPublishImageIds } from "./canvas-publish";
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}): CanvasNodeData => ({
     id,
@@ -17,6 +21,32 @@ const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metada
 const nodeAt = (id: string, type: CanvasNodeType, patch: Partial<CanvasNodeData>): CanvasNodeData => ({ ...node(id, type), ...patch });
 
 const connection = (fromNodeId: string, toNodeId: string): CanvasConnection => ({ id: `${fromNodeId}->${toNodeId}`, fromNodeId, toNodeId });
+
+function remixPublishFixture() {
+    const source = node("source-1", CanvasNodeType.Source, { sourceStatus: "success", sourceText: "原始攻略", sourceImages: [{ url: "https://example.test/source.jpg", storageKey: "server:source.jpg", width: 1080, height: 1440, mimeType: "image/jpeg" }] });
+    const expanded = buildSourceMaterialPlan(source);
+    const nodes = [source, ...expanded.nodes];
+    const materialImages = collectSourceMaterialNodes(nodes, source.id).materialImages;
+    const input: RemixInput = {
+        ownerId: "owner-1", sourceNodeId: source.id, sourceSignature: sourceMaterialSignature(source), sourceText: "原始攻略",
+        sourceImages: materialImages.map((image) => ({ nodeId: image.id, title: image.title, url: image.metadata!.content!, storageKey: image.metadata!.storageKey, width: image.metadata!.naturalWidth, height: image.metadata!.naturalHeight, mimeType: image.metadata!.mimeType })),
+        settings: { mode: "content", goal: "保留结构", placement: "natural", instruction: "", skills: [] }, skills: [], coreVersion: REMIX_CORE_VERSION,
+    };
+    const run: RemixRun = { id: "run-1", createdAt: "2026-11-24T00:00:00Z", input, binding: "active" };
+    const scaffold = planSourceRemix({ source, nodes, connections: expanded.connections, run });
+    const applied = applySourceRemixPlan(scaffold.nodes, scaffold.connections, run.id, {
+        schemaVersion: 1, sourcePattern: { type: "攻略清单", preserve: ["第三人称"] }, copy: { title: "复刻标题", body: "复刻正文", tags: ["攻略"] },
+        marketingPlacement: { mode: "content", reason: "保留原结构", cta: "" }, factsUsed: [], visual: { sharedAnchors: ["统一视觉"], images: input.sourceImages.map((image) => ({ sourceImageId: image.nodeId, role: "攻略卡片", prompt: "生成清晰攻略卡片", referenceAssetIds: [] })) },
+    });
+    assertRemixRunStructure(applied.nodes, applied.connections, run.id);
+    return {
+        run,
+        nodes: applied.nodes.map((item) => item.metadata?.remixRole === "image" ? { ...item, metadata: { ...item.metadata, status: "success" as const, content: "blob:generated" } } : item),
+        connections: applied.connections,
+        imageId: scaffold.imageNodeIds[0],
+        copyId: scaffold.copyNodeId,
+    };
+}
 
 const publish = node("publish", CanvasNodeType.Publish);
 const text = node("text", CanvasNodeType.Text, { content: "夏日海边穿搭分享\n#穿搭 #海边 #夏日" });
@@ -115,6 +145,33 @@ test("publish node placement sits right of the remix bounding box", () => {
         { x: 600 + 96 + 260, y: 100 },
     );
     assert.equal(getPublishNodePlacement([], []), null);
+});
+
+test("发布节点补齐成功配图连接，保留已有二维码和草稿快照", () => {
+    const fixture = remixPublishFixture();
+    const nodes = [
+        ...fixture.nodes,
+        { ...publishNode, metadata: { ...publishNode.metadata, publishSourceId: "run-1", publishRecord: { id: "old" } as never, publishDraftSnapshot: { title: "old" } as never } },
+    ];
+    const next = reconcileSourcePublishNodes(nodes, [...fixture.connections, connection(fixture.copyId, "publish-node")]);
+    assert.equal(next.nodes.length, nodes.length);
+    assert.deepEqual(next.connections.filter((item) => item.toNodeId === "publish-node").map((item) => item.fromNodeId), [fixture.copyId, fixture.imageId]);
+    assert.equal(next.nodes.find((item) => item.id === "publish-node")?.metadata?.publishRecord?.id, "old");
+    const unchanged = reconcileSourcePublishNodes(next.nodes, next.connections);
+    assert.equal(unchanged.nodes, next.nodes);
+    assert.equal(unchanged.connections, next.connections);
+});
+
+test("原素材或复刻结构失效后不自动创建发布节点", () => {
+    const fixture = remixPublishFixture();
+    const staleSource = fixture.nodes.map((item) => item.id === "source-1" ? { ...item, metadata: { ...item.metadata, sourceText: "已更新的原素材" } } : item);
+    const stale = reconcileSourcePublishNodes(staleSource, fixture.connections);
+    assert.equal(stale.nodes, staleSource);
+    assert.equal(stale.connections, fixture.connections);
+    const editedCopy = fixture.nodes.map((item) => item.id === fixture.copyId ? { ...item, metadata: { ...item.metadata, content: "手动改过的文案" } } : item);
+    const edited = reconcileSourcePublishNodes(editedCopy, fixture.connections);
+    assert.equal(edited.nodes, editedCopy);
+    assert.equal(edited.connections, fixture.connections);
 });
 
 test("source publish plan creates a node once and then only fills missing connections", () => {

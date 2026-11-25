@@ -46,6 +46,8 @@ type WorkflowRunInput struct {
 	SourceID              string         `json:"sourceId"`
 	NodeID                string         `json:"nodeId"`
 	ClientTaskID          string         `json:"clientTaskId"`
+	RemixApprovalID       string         `json:"remixApprovalId,omitempty"`
+	RemixSlotID           string         `json:"remixSlotId,omitempty"`
 }
 
 type WorkflowOverride struct {

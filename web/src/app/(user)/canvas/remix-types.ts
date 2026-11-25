@@ -32,6 +32,35 @@ export type SourceRemixPlan = {
     factsUsed: Array<{ factId: string; usedIn: string[] }>;
     visual: { sharedAnchors: string[]; images: Array<{ sourceImageId: string; role: string; prompt: string; referenceAssetIds: string[] }> };
 };
+export type RemixApprovalSlot = {
+    id: string;
+    nodeId: string;
+    model: string;
+    prompt: string;
+    requestHash?: string;
+    consumedByTask?: string;
+};
+
+export type RemixApproval = {
+    id: string;
+    requestId: string;
+    ownerId: string;
+    approvalKey: string;
+    expiresAt: string;
+    slots: RemixApprovalSlot[];
+};
+
+export type RemixBatchProgress = {
+    id: string;
+    runId: string;
+    nodeIds: string[];
+    cursor: number;
+    completed: number;
+    failed: number;
+    failedNodeIds: string[];
+    status: "running" | "paused" | "completed" | "failed";
+};
+
 export type RemixRun = {
     id: string;
     createdAt: string;
@@ -39,6 +68,8 @@ export type RemixRun = {
     binding: "active" | "detached";
     plan?: SourceRemixPlan;
     approvedKey?: string;
+    approval?: RemixApproval;
+    batch?: RemixBatchProgress;
     error?: string;
 };
 export type RemixNodeRole = "plan" | "copy" | "image" | "reference" | "publish";

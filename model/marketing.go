@@ -11,9 +11,8 @@ type MarketingFact struct {
 }
 
 type MarketingAssetReference struct {
-	AssetID    string `json:"assetId"`
-	StorageKey string `json:"storageKey"`
-	Role       string `json:"role"`
+	AssetID string `json:"assetId"`
+	Role    string `json:"role"`
 }
 
 type MarketingDetails struct {

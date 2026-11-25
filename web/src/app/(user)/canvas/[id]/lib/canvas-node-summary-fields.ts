@@ -30,6 +30,6 @@ export function canvasNodeSummaryFields(node: CanvasNodeData, maxText = 4000) {
         groupId: node.metadata?.groupId,
         remixRunId: node.metadata?.remixRunId,
         remixRole: node.metadata?.remixRole,
-        remixTarget: node.metadata?.remixRun?.input.marketing?.location.name,
+        remixTarget: node.metadata?.remixRun?.input.marketing ? [node.metadata.remixRun.input.marketing.workspace.name, node.metadata.remixRun.input.marketing.brand?.name, node.metadata.remixRun.input.marketing.location?.name, ...node.metadata.remixRun.input.marketing.offerings.map((item) => item.name)].filter(Boolean).join(" / ") : undefined,
     };
 }

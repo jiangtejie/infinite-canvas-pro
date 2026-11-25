@@ -29,6 +29,7 @@ func main() {
 	service.StartStorageCapacityScheduler()
 	service.StartAILogCleanupScheduler()
 	handler.StartVideoTaskPoller()
+	handler.StartCanvasImageWorker()
 	service.WakeComfyBridgePoller()
 	log.Fatal(router.New().Run(":" + config.Cfg.Port))
 }

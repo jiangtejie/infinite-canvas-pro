@@ -1,6 +1,18 @@
 import type { CanvasNodeData } from "../../types";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 
+export type CanvasBatchRunStatus = "success" | "partial" | "stopped" | "timeout" | "cancelled" | "busy" | "unavailable";
+
+export type CanvasBatchRunResult = {
+    status: CanvasBatchRunStatus;
+    total: number;
+    completed: number;
+    failed: number;
+    failedNodeIds: string[];
+    nodeIds: string[];
+    completedNodeIds: string[];
+};
+
 /** 可作为批量生成目标的图片节点：图片/全景图；批量组根节点只代表一组结果，不参与批量。 */
 export function isBatchTargetImageNode(node: CanvasNodeData) {
     return isCanvasImageNodeType(node.type) && !node.metadata?.isBatchRoot;

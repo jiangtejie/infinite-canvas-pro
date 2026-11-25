@@ -10,7 +10,11 @@ import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
-export async function submitCanvasWorkflowTask(ref: WorkflowRef, config: AiConfig, mode: "image" | "video" | "audio", prompt: string, images: ReferenceImage[], videos: ReferenceVideo[], audios: ReferenceAudio[], nodeId: string, projectId: string, clientTaskId: string, onServerTask?: () => void, signal?: AbortSignal) {
+export function canvasWorkflowModel(ref: WorkflowRef) {
+    return `workflow:${ref.scope}:${ref.channelId}:${ref.kind}:${ref.workflowId}`;
+}
+
+export async function submitCanvasWorkflowTask(ref: WorkflowRef, config: AiConfig, mode: "image" | "video" | "audio", prompt: string, images: ReferenceImage[], videos: ReferenceVideo[], audios: ReferenceAudio[], nodeId: string, projectId: string, clientTaskId: string, onServerTask?: () => void, signal?: AbortSignal, remixApproval?: { approvalId: string; slotId: string }) {
     const token = useUserStore.getState().token;
     if (!token) throw new Error("工作流生成需要先登录");
     const [referenceImages, referenceVideos, referenceAudios] = await Promise.all([
@@ -41,6 +45,8 @@ export async function submitCanvasWorkflowTask(ref: WorkflowRef, config: AiConfi
         audioSpeed: Number(config.audioSpeed) || 1,
         audioInstructions: config.audioInstructions,
         source: "canvas", sourceId: projectId, nodeId, clientTaskId,
+        remixApprovalId: remixApproval?.approvalId,
+        remixSlotId: remixApproval?.slotId,
     });
     if (useUserStore.getState().token !== token) throw new Error("登录状态已变化");
     return task;

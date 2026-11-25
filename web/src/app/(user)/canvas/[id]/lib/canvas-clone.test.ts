@@ -17,6 +17,17 @@ test("cloning a comic with its pages remaps page and cover ids", () => {
     assert.deepEqual(Object.keys(clonedComic.metadata?.comicBook?.lettering || {}), [result.idMap.get("image-1")]);
 });
 
+test("复制复刻节点会脱离原运行并清除审批与批次", () => {
+    const plan = node("plan", CanvasNodeType.Text, { remixRunId: "run-1", remixRun: { id: "run-1", binding: "active", approvedKey: "approved", approval: { id: "approval" } as never, batch: { id: "batch" } as never } as never });
+    const image = node("image", CanvasNodeType.Image, { remixRunId: "run-1", remixRole: "image" });
+    const cloned = cloneCanvasNodes([plan, image], { offset: { x: 10, y: 10 } }).nodes;
+    assert.equal(cloned[0].metadata?.remixRun?.binding, "detached");
+    assert.equal(cloned[0].metadata?.remixRun?.approvedKey, undefined);
+    assert.equal(cloned[0].metadata?.remixRun?.approval, undefined);
+    assert.equal(cloned[0].metadata?.remixRun?.batch, undefined);
+    assert.equal(cloned[1].metadata?.remixRunId, "detached:run-1");
+});
+
 test("cloning a comic alone keeps existing page references", () => {
     const comic = node("comic-1", CanvasNodeType.Comic, { comicBook: { pageNodeIds: ["image-1"], format: "page", direction: "ltr" } });
     const result = cloneCanvasNodes([comic], { offset: { x: 10, y: 10 } });

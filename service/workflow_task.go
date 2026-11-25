@@ -265,7 +265,7 @@ func createWorkflowTaskRecord(user model.AuthUser, id string, resolved ResolvedW
 		if input.Source == "image-workbench" || input.Source == "canvas" {
 			source = input.Source
 		}
-		_, err := CreateCanvasImageTask(CanvasImageTaskCreateInput{UserID: user.ID, UserDisplayName: user.DisplayName, Source: source, SourceID: input.SourceID, NodeID: input.NodeID, ClientTaskID: id, Model: resolved.Entry.Title, ChannelID: channelID, UserChannelID: userChannelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Prompt: input.Prompt})
+		_, _, err := CreateCanvasImageTask(CanvasImageTaskCreateInput{ID: id, UserID: user.ID, UserDisplayName: user.DisplayName, Source: source, SourceID: input.SourceID, NodeID: input.NodeID, ClientTaskID: id, RemixApproval: input.RemixApprovalID, RemixSlot: input.RemixSlotID, Model: resolved.Entry.Title, ChannelID: channelID, UserChannelID: userChannelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Prompt: input.Prompt})
 		return err
 	case "video":
 		source := "workflow"
@@ -282,16 +282,16 @@ func createWorkflowTaskRecord(user model.AuthUser, id string, resolved ResolvedW
 }
 
 func markRunningHubTask(userID, taskID, upstreamID string) error {
-	encoded, _ := json.Marshal(map[string]string{"upstreamTaskId": upstreamID})
 	switch {
 	case strings.HasPrefix(taskID, "wf-image-"):
-		task, found, err := repository.GetUserCanvasImageTask(userID, taskID)
-		if err != nil || !found {
-			return errors.New("图片任务不存在")
+		updated, err := repository.MarkWorkflowCanvasImageTaskRunning(userID, taskID, upstreamID)
+		if err != nil {
+			return err
 		}
-		task.Status, task.Progress, task.ResponseBody = "running", 10, string(encoded)
-		_, err = SaveCanvasImageTask(task)
-		return err
+		if !updated {
+			return errors.New("图片任务已停止或不再排队")
+		}
+		return nil
 	case strings.HasPrefix(taskID, "wf-video-"):
 		task, found, err := repository.GetUserVideoTask(userID, taskID)
 		if err != nil || !found {
@@ -308,6 +308,7 @@ func markRunningHubTask(userID, taskID, upstreamID string) error {
 		if err != nil || !found {
 			return errors.New("音频任务不存在")
 		}
+		encoded, _ := json.Marshal(map[string]string{"upstreamTaskId": upstreamID})
 		task.Status, task.Progress, task.ResponseBody = "running", 10, string(encoded)
 		_, err = SaveCanvasAudioTask(task)
 		return err

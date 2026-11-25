@@ -8,6 +8,7 @@ import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { getInputSummary } from "../lib/canvas-node-builders";
 import { isConnectionFlowing, isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
 import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
+import { collectCollapsedRemixNodeIds, collectSourceRemixHistory, sourceRemixNeedsSync } from "../lib/canvas-source-remix";
 import type { CanvasPublishInputs } from "../lib/canvas-publish";
 import { ActiveConnectionPath, ConnectionPath } from "../../components/canvas-connections";
 import { CanvasConfigComposer } from "../../components/canvas-config-composer";
@@ -21,7 +22,7 @@ import { CanvasMaterialTextCard } from "../../components/canvas-material-text-ca
 import { CanvasRemixPlanNodeCard } from "../../components/canvas-remix-plan-node-card";
 import { CanvasSourceNodeCard } from "../../components/canvas-source-node-card";
 import { CanvasSourceNodePanel } from "../../components/canvas-source-node-panel";
-import { CanvasRemixPlanPanel } from "../../components/canvas-remix-plan-panel";
+import { CanvasRemixWorkbench } from "../../components/canvas-remix-plan-panel";
 import { type NodeGenerationInput } from "../../components/canvas-node-generation";
 import { InfiniteCanvas } from "../../components/infinite-canvas";
 import { CanvasNode } from "../../components/canvas-node";
@@ -136,7 +137,7 @@ export type CanvasStageModel = {
     handleParseSource: (nodeId: string, input: string) => Promise<void>;
     handleCancelSourceParse: (nodeId: string) => void;
     handleRemixWithAgent: (nodeId: string) => void;
-    generateRemixRun: (runId: string) => Promise<void>;
+    generateRemixRun: (runId: string) => Promise<unknown>;
     assetInsertPositionRef: RefObject<Position | null>;
     setAssetPickerTab: Dispatch<SetStateAction<AssetPickerTab>>;
     setAssetPickerOpen: Dispatch<SetStateAction<boolean>>;
@@ -269,6 +270,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
 
     // 单选聚焦时淡出无关节点/连线；参考选择、连线中、框选中保持全亮以免干扰操作。
     const focusDim = selectionFocus && !referencePickerNodeId && !connectingParams && !selectionBox ? selectionFocus : null;
+    const [revealedRemixRunId, setRevealedRemixRunId] = useState<string | null>(null);
+    const collapsedRemixNodeIds = collectCollapsedRemixNodeIds(nodes, revealedRemixRunId);
 
     // 缩放动画期间节点内容沿用上一档比例，停止约 120ms 后统一刷新，避免每帧全量重渲染；浮层节点单独用实时比例。
     const [contentScale, setContentScale] = useState(viewport.k);
@@ -278,11 +281,46 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         return () => window.clearTimeout(timer);
     }, [contentScale, viewport.k]);
 
+    const openRemixWorkbench = useCallback((planNodeId: string) => {
+        const planNode = nodes.find((node) => node.id === planNodeId);
+        if (!planNode?.metadata?.remixRun) return;
+        setRevealedRemixRunId(planNode.metadata.remixRun.id);
+        selectOnly(planNodeId);
+        focusNode(planNodeId);
+        openOverlay({ kind: "prompt", nodeId: planNodeId });
+    }, [nodes, selectOnly, focusNode, openOverlay]);
+
+    const locateRemixNode = useCallback((nodeId: string) => {
+        const target = nodes.find((node) => node.id === nodeId);
+        if (!target) return;
+        setRevealedRemixRunId(target.metadata?.remixRunId || null);
+        selectOnly(nodeId);
+        focusNode(nodeId);
+        closeOverlay();
+    }, [nodes, selectOnly, focusNode, closeOverlay]);
+
+    const openRemixPublish = useCallback((runId: string) => {
+        const publishNode = nodes.find((node) => node.metadata?.remixRunId === runId && node.metadata?.remixRole === "publish");
+        if (!publishNode) return;
+        setRevealedRemixRunId(runId);
+        selectOnly(publishNode.id);
+        focusNode(publishNode.id);
+        openOverlay({ kind: "prompt", nodeId: publishNode.id });
+    }, [nodes, selectOnly, focusNode, openOverlay]);
+
     // 节点 render 回调与事件处理器全部稳定引用，平移/选中变化时节点 memo 才能跳过重渲染。
     const renderPanel = useCallback((panelNode: CanvasNodeData, compact: boolean): ReactNode => (
         isFilmNodeType(panelNode.type) ? null :
         panelNode.metadata?.remixRole === "plan" && panelNode.metadata.remixRun ? (
-            <CanvasRemixPlanPanel node={panelNode} nodes={nodes} onGenerate={(id) => void generateRemixRun(id)} onReplan={handleRemixWithAgent} onClose={closeOverlay} />
+            <CanvasRemixWorkbench
+                node={panelNode}
+                nodes={nodes}
+                onGenerate={(id) => void generateRemixRun(id)}
+                onReplan={(sourceId) => { setRevealedRemixRunId(null); handleRemixWithAgent(sourceId); }}
+                onPublish={openRemixPublish}
+                onFocusNode={locateRemixNode}
+                onClose={() => { setRevealedRemixRunId(null); closeOverlay(); }}
+            />
         ) : panelNode.type === CanvasNodeType.Config ? (
             <CanvasConfigComposer
                 value={panelNode.metadata?.composerContent ?? panelNode.metadata?.prompt ?? ""}
@@ -333,7 +371,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 }}
             />
         )
-    ), [nodes, generateRemixRun, handleRemixWithAgent, closeOverlay, configInputsById, handleConfigNodeChange, publishInputsById, sourceParseEnabled, handleParseSource, handleCancelSourceParse, runningNodeId, mentionReferencesByNodeId, connectedNodesByNodeId, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId, handleNodePromptChange, handleRetryNode, handleGenerateNode, handleStopNode, disconnectNodeReference, startNodeReferenceSelection, setNodeImageSettingsOpen, setToolbarNodeId]);
+    ), [nodes, generateRemixRun, handleRemixWithAgent, openRemixPublish, locateRemixNode, closeOverlay, configInputsById, handleConfigNodeChange, publishInputsById, sourceParseEnabled, handleParseSource, handleCancelSourceParse, runningNodeId, mentionReferencesByNodeId, connectedNodesByNodeId, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId, handleNodePromptChange, handleRetryNode, handleGenerateNode, handleStopNode, disconnectNodeReference, startNodeReferenceSelection, setNodeImageSettingsOpen, setToolbarNodeId]);
 
     const renderNodeContent = useCallback((contentNode: CanvasNodeData): ReactNode => (
         contentNode.metadata?.sourceMaterialRole === "text" || contentNode.id.endsWith("-material-text") ? (
@@ -365,10 +403,13 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         ) : contentNode.metadata?.remixRole === "plan" && contentNode.metadata.remixRun ? (
             <CanvasRemixPlanNodeCard
                 node={contentNode}
+                isLatest={collectSourceRemixHistory(nodes, contentNode.metadata!.remixRun!.input.sourceNodeId)[0]?.runId === contentNode.metadata!.remixRun!.id}
                 images={nodes.filter((node) => node.metadata?.remixRunId === contentNode.metadata?.remixRun?.id && node.metadata?.remixRole === "image")}
-                onOpen={() => openOverlay({ kind: "prompt", nodeId: contentNode.id })}
+                onOpen={() => openRemixWorkbench(contentNode.id)}
                 onGenerate={() => void generateRemixRun(contentNode.metadata!.remixRun!.id)}
-                onReplan={() => handleRemixWithAgent(contentNode.metadata!.remixRun!.input.sourceNodeId)}
+                onReplan={() => { setRevealedRemixRunId(null); handleRemixWithAgent(contentNode.metadata!.remixRun!.input.sourceNodeId); }}
+                hasPublishNode={nodes.some((node) => node.metadata?.remixRunId === contentNode.metadata?.remixRun?.id && node.metadata?.remixRole === "publish")}
+                onPublish={() => openRemixPublish(contentNode.metadata!.remixRun!.id)}
             />
         ) : contentNode.type === CanvasNodeType.Director ? (
             <CanvasDirectorNodePanel onOpen={() => openOverlay({ kind: "director", nodeId: contentNode.id })} />
@@ -376,6 +417,13 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
             <CanvasSourceNodeCard
                 node={contentNode}
                 expandedNeedsSync={sourceExpansionNeedsSync(contentNode, nodes)}
+                remixStale={sourceRemixNeedsSync(contentNode, nodes)}
+                history={collectSourceRemixHistory(nodes, contentNode.id)}
+                onOpenWorkbench={() => {
+                    const planNodeId = collectSourceRemixHistory(nodes, contentNode.id)[0]?.planNodeId;
+                    if (planNodeId) openRemixWorkbench(planNodeId);
+                }}
+                onRemix={() => { setRevealedRemixRunId(null); handleRemixWithAgent(contentNode.id); }}
                 onPreviewSize={(width, height) => {
                     const size = fitSourceNodeSize(width, height);
                     handleNodeResize(contentNode.id, size.width, size.height, {
@@ -407,7 +455,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 }}
             />
         )
-    ), [nodes, comic, onOpenComicWorkbench, selectedImageCount, openOverlay, focusNode, addSelectedComicPages, generateRemixRun, handleRemixWithAgent, handleNodeResize, publishInputsById, runningNodeId, configInputsById, handleConfigNodeChange, togglePromptOverlay, nodesRef, handleGenerateNode, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId]);
+    ), [nodes, comic, onOpenComicWorkbench, selectedImageCount, openOverlay, focusNode, addSelectedComicPages, generateRemixRun, handleRemixWithAgent, openRemixWorkbench, openRemixPublish, handleNodeResize, publishInputsById, runningNodeId, configInputsById, handleConfigNodeChange, togglePromptOverlay, nodesRef, handleGenerateNode, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId]);
 
     const handleNodeHoverStart = useCallback((nodeId: string) => {
         if (nodeDraggingRef.current) return;
@@ -481,7 +529,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             .filter((connection) => {
                                 const from = nodeById.get(connection.fromNodeId);
                                 const to = nodeById.get(connection.toNodeId);
-                                return Boolean(from && to && !isHiddenBatchConnectionEndpoint(from, nodes) && !isHiddenBatchConnectionEndpoint(to, nodes));
+                                return Boolean(from && to && !collapsedRemixNodeIds.has(connection.fromNodeId) && !collapsedRemixNodeIds.has(connection.toNodeId) && !isHiddenBatchConnectionEndpoint(from, nodes) && !isHiddenBatchConnectionEndpoint(to, nodes));
                             })
                             .map((connection) => {
                                 const from = nodeById.get(connection.fromNodeId);
@@ -515,7 +563,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                         {connectingParams ? <ActiveConnectionPath node={nodeById.get(connectingParams.nodeId)} handle={connectingParams} mouseWorld={mouseWorld} target={connectionTargetNodeId ? nodeById.get(connectionTargetNodeId) : undefined} /> : null}
                     </svg>
 
-                    {visibleNodes.map((node) => (
+                    {visibleNodes.filter((node) => !collapsedRemixNodeIds.has(node.id)).map((node) => (
                         <CanvasNode
                             key={node.id}
                             data={node}

@@ -29,6 +29,8 @@ export type WorkflowRunInput = {
     sourceId?: string;
     nodeId?: string;
     clientTaskId?: string;
+    remixApprovalId?: string;
+    remixSlotId?: string;
 };
 
 export type WorkflowGenerationTask = {

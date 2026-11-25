@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jiangtejie/infinite-canvas-pro/model"
 	"gorm.io/gorm"
@@ -91,6 +92,14 @@ func CompleteWorkflowTask(taskID, status string, urls []string, failure string, 
 				return nil
 			}
 			credits, workflowRef, userID, changed = task.Credits, task.WorkflowRef, task.UserID, true
+			if status == "failed" && task.BillingState == "charged" {
+				task.BillingState = "refunding"
+				if err := tx.Model(&model.CanvasImageTask{}).Where("id = ? AND user_id = ?", task.ID, task.UserID).Update("billing_state", task.BillingState).Error; err != nil {
+					return err
+				}
+				stamp, _ := time.Parse(time.RFC3339Nano, current)
+				return refundCanvasImageTask(tx, task, stamp)
+			}
 		case strings.HasPrefix(taskID, "wf-video-"):
 			var task model.VideoTask
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&task, "id = ?", taskID).Error; err != nil {
@@ -140,7 +149,7 @@ func CompleteWorkflowTask(taskID, status string, urls []string, failure string, 
 		default:
 			return errors.New("工作流任务 ID 无效")
 		}
-		if status != "failed" || credits <= 0 {
+		if status != "failed" || credits <= 0 || strings.HasPrefix(taskID, "wf-image-") {
 			return nil
 		}
 		if newRefundLog == nil {

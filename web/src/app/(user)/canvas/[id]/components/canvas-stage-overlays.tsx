@@ -8,7 +8,6 @@ import { isLegacyFilmNodeType } from "../lib/film-node-registry";
 import { isFilmCanvasNodeType } from "../../utils/film-mode";
 import { buildGenerationConfig } from "../lib/canvas-generation-config";
 import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
-import { sourceRemixNeedsSync } from "../lib/canvas-source-remix";
 import { CanvasDirector } from "../../components/canvas-director";
 import { CanvasNodeContextMenu } from "../../components/canvas-context-menu";
 import { CanvasNodeHoverToolbar } from "../../components/canvas-node-hover-toolbar";
@@ -63,10 +62,8 @@ export type CanvasStageOverlaysModel = {
     toolbarNode: CanvasNodeData | null;
     keepNodeToolbar: (nodeId: string) => void;
     hideNodeToolbar: () => void;
-    handleRemixWithAgent: (nodeId: string) => void;
     handleExpandSource: (nodeId: string) => void;
     handleResetSource: (nodeId: string) => void;
-    generateRemixRun: (runId: string) => Promise<void>;
     handleFontSizeChange: (nodeId: string, fontSize: number) => void;
     generateImageFromTextNode: (node: CanvasNodeData) => void;
     extractAudio: (node: CanvasNodeData, trim?: { start: number; end: number; }) => Promise<string | undefined>;
@@ -152,10 +149,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         toolbarNode,
         keepNodeToolbar,
         hideNodeToolbar,
-        handleRemixWithAgent,
         handleExpandSource,
         handleResetSource,
-        generateRemixRun,
         handleFontSizeChange,
         generateImageFromTextNode,
         extractAudio,
@@ -203,12 +198,7 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         createComicFromSelection,
     } = model;
 
-    const remixRun = toolbarNode?.metadata?.remixRole === "plan" ? toolbarNode.metadata.remixRun : undefined;
     const zenMode = useCanvasUiStore((state) => state.zenMode);
-    const remixImages = remixRun ? nodes.filter((node) => node.metadata?.remixRunId === remixRun.id && node.metadata?.remixRole === "image") : [];
-    const remixRunning = remixImages.some((node) => node.metadata?.status === "loading" || node.metadata?.status === "stopping");
-    const remixCanGenerate = Boolean(remixRun?.plan) && remixRun?.binding === "active" && !remixRunning;
-    const remixCanReplan = Boolean(remixRun) && !remixRunning && toolbarNode?.metadata?.status !== "loading";
     const hoverToolbarNode = toolbarNode && !isFilmCanvasNodeType(toolbarNode.type) && !isLegacyFilmNodeType(toolbarNode.type) ? toolbarNode : null;
 
     return (
@@ -260,21 +250,9 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     onRetry={(node) => void handleRetryNode(node)}
                     onToggleFreeResize={(node) => toggleNodeFreeResize(node.id)}
                     onDelete={(node) => deleteNodes(new Set([node.id]))}
-                    onSourceRemix={(node) => handleRemixWithAgent(node.id)}
                     onSourceExpand={(node) => handleExpandSource(node.id)}
                     onSourceReset={(node) => handleResetSource(node.id)}
                     sourceExpandedNeedsSync={toolbarNode?.type === CanvasNodeType.Source ? sourceExpansionNeedsSync(toolbarNode, nodes) : false}
-                    sourceRemixStale={toolbarNode?.type === CanvasNodeType.Source ? sourceRemixNeedsSync(toolbarNode, nodes) : false}
-                    onGenerateRemix={(node) => {
-                        const runId = node.metadata?.remixRun?.id;
-                        if (runId) void generateRemixRun(runId);
-                    }}
-                    onReplanRemix={(node) => {
-                        const sourceId = node.metadata?.remixRun?.input.sourceNodeId;
-                        if (sourceId) handleRemixWithAgent(sourceId);
-                    }}
-                    remixCanGenerate={remixCanGenerate}
-                    remixCanReplan={remixCanReplan}
                 /> : null}
 
                 {!zenMode ? <CanvasToolbar

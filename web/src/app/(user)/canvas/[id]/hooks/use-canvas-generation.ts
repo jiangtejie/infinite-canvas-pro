@@ -25,21 +25,22 @@ import type { CanvasNodeGenerationMode } from "../../components/canvas-node-prom
 import type { CanvasImageSplitParams } from "../../components/canvas-node-split-dialog";
 import type { CanvasImageUpscaleParams } from "../../components/canvas-node-upscale-dialog";
 import { NODE_DEFAULT_SIZE, getNodeSpec } from "../../constants";
-import { applyCameraPrompt } from "../../utils/canvas-camera";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "../../utils/canvas-image-data";
+import { applyCameraPrompt } from "../../utils/canvas-camera";
 import { resolveImageNegativePrompt } from "../../utils/canvas-negative-prompt";
 import { fitNodeSize, nodeSizeFromRatio } from "../../utils/canvas-node-size";
 import { PANORAMA_IMAGE_SIZE, buildPanoramaPrompt, isCanvasImageNodeType, isPanoramaNodeType } from "../../utils/canvas-panorama";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type CanvasNodeMetadata, type ContextMenuState } from "../../types";
-import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate } from "../lib/canvas-task-updates";
-import { canvasTaskCompleted, canvasTaskFailed, parseCanvasTaskTime } from "../lib/canvas-task-helpers";
+import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate, prepareCanvasImageTaskMetadata } from "../lib/canvas-task-updates";
+import { canvasImageTaskRetryBlockReason, canvasTaskCompleted, canvasTaskFailed, parseCanvasTaskTime } from "../lib/canvas-task-helpers";
 import { buildAudioGenerationMetadata, buildImageGenerationMetadata, getGenerationCount, imageMetadata } from "../lib/canvas-node-builders";
 import { NODE_STATUS_ERROR, NODE_STATUS_LOADING, NODE_STATUS_SUCCESS } from "../lib/canvas-node-constants";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { buildGenerationConfig } from "../lib/canvas-generation-config";
+import { buildCanvasNodeRequestPrompt } from "../lib/canvas-request-prompt";
 import { generationReferenceUrls, selectAudioReference, withCanvasVideoAdvancedConfig } from "../lib/canvas-generation-helpers";
 import { buildAngleLabel, buildAnglePrompt, findRetrySourceNode, sourceNodeReferenceImages } from "../lib/canvas-graph";
-import { submitCanvasWorkflowTask, workflowAudioTask, workflowImageTask, workflowVideoTask } from "../lib/canvas-workflow-tasks";
+import { canvasWorkflowModel, submitCanvasWorkflowTask, workflowAudioTask, workflowImageTask, workflowVideoTask } from "../lib/canvas-workflow-tasks";
 import type { CanvasNodeTaskRun } from "./use-canvas-tasks";
 import type { useCanvasTaskSystem } from "./use-canvas-task-system";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
@@ -88,6 +89,7 @@ type UseCanvasGenerationOptions = {
     closeOverlay: () => void;
     cancelPendingHistoryCommit: () => void;
     authorizeImage: (nodeId: string, mode: string, prompt: string, background: boolean) => Promise<boolean>;
+    resolveRemixApproval: (nodeId: string, model: string, requestPrompt: string) => { approvalId: string; slotId: string } | undefined;
 };
 
 /**
@@ -117,6 +119,7 @@ export function useCanvasGeneration({
     closeOverlay,
     cancelPendingHistoryCommit,
     authorizeImage,
+    resolveRemixApproval,
 }: UseCanvasGenerationOptions) {
     const createImageReversePromptNodes = useCallback(
         (node: CanvasNodeData) => {
@@ -477,18 +480,14 @@ export function useCanvasGeneration({
             }
             const sourceTextContent = sourceNode?.type === CanvasNodeType.Text ? sourceNode.metadata?.content?.trim() || "" : "";
             const editingTextNode = mode === "text" && Boolean(sourceTextContent) && !overwriteExisting;
-            const generationContext = await hydrateNodeGenerationContext(
-                buildNodeGenerationContext(nodeId, nodesRef.current, connectionsRef.current, editingTextNode ? `请根据要求修改以下文本。\n\n原文：\n${sourceTextContent}\n\n修改要求：\n${prompt}` : prompt),
-            );
-            const effectivePrompt = generationContext.prompt.trim();
-            const imageNegativePrompt = isCanvasImageNodeType(sourceNode?.type)
-                ? resolveImageNegativePrompt(effectivePrompt, sourceNode?.metadata?.negativePrompt, sourceNode?.metadata?.autoNegativePrompt !== false)
-                : "";
-            const cameraPrompt =
-                mode === "video" || (mode === "image" && !isPanoramaNodeType(sourceNode?.type))
-                    ? applyCameraPrompt(effectivePrompt, sourceNode?.metadata?.cameraControl)
-                    : effectivePrompt;
-            const requestPrompt = appendImageNegativePrompt(cameraPrompt, imageNegativePrompt);
+            const { generationContext, effectivePrompt, imageNegativePrompt, requestPrompt } = await buildCanvasNodeRequestPrompt({
+                nodeId,
+                mode,
+                prompt: editingTextNode ? `请根据要求修改以下文本。\n\n原文：\n${sourceTextContent}\n\n修改要求：\n${prompt}` : prompt,
+                nodes: nodesRef.current,
+                connections: connectionsRef.current,
+            });
+            let remixApproval: { approvalId: string; slotId: string } | undefined;
             const markSourceStatus = !isCanvasImageNodeType(sourceNode?.type) && !editingTextNode;
             const statusPrompt = sourceNode?.type === CanvasNodeType.Config ? effectivePrompt : prompt;
             if (!effectivePrompt && (mode === "text" || (mode === "audio" && !workflowRef))) {
@@ -500,6 +499,9 @@ export function useCanvasGeneration({
             const textTaskId = mode === "text" ? `client_text_task_${nanoid()}` : "";
             const generationStartedAt = Date.now();
             try {
+                remixApproval = sourceNode?.metadata?.remixRunId
+                    ? resolveRemixApproval(nodeId, workflowRef ? canvasWorkflowModel(workflowRef) : generationConfig.model, requestPrompt)
+                    : undefined;
                 if (overwriteExisting && (nodeTaskRunsRef.current.get(nodeId) !== preparingRun || preparingRun?.preparing !== runningRequest)) return;
                 const currentStatus = nodesRef.current.find((node) => node.id === nodeId)?.metadata?.status;
                 if (preparingRun?.id && !preparingRun.controller.signal.aborted
@@ -627,7 +629,7 @@ export function useCanvasGeneration({
                         targetIds.map(async (targetId) => {
                             try {
                                 const task = await submitNodeTask(targetId, targetTaskIds[targetId], async (signal, onServerTask) => workflowRef
-                                    ? await workflowImageTask(await submitCanvasWorkflowTask(workflowRef, panoramaGenerationConfig, "image", panoramaRequestPrompt, referenceImages, [], [], targetId, projectId, targetTaskIds[targetId], () => onServerTask("workflow"), signal))
+                                    ? await workflowImageTask(await submitCanvasWorkflowTask(workflowRef, panoramaGenerationConfig, "image", panoramaRequestPrompt, referenceImages, [], [], targetId, projectId, targetTaskIds[targetId], () => onServerTask("workflow"), signal, remixApproval))
                                     : await createCanvasImageTask({ ...panoramaGenerationConfig, count: "1", quality: panoramaGenerationConfig.quality === "auto" ? "medium" : panoramaGenerationConfig.quality }, panoramaRequestPrompt, referenceImages, { signal, onServerTask, nodeId: targetId, sourceId: projectId, clientTaskId: targetTaskIds[targetId] }));
                                 if (!isNodeTaskActive(targetId, targetTaskIds[targetId])) return true;
                                 if (task.image_url || task.url) {
@@ -746,7 +748,7 @@ export function useCanvasGeneration({
                         },
                         width: imageSize.width,
                         height: imageSize.height,
-                        metadata: { prompt: effectivePrompt, cameraControl: sourceNode?.metadata?.cameraControl, status: NODE_STATUS_LOADING, startedAt: generationStartedAt, progress: 0, clientTaskId: targetTaskIds[id], imageTaskId: targetTaskIds[id], batchRootId: batchRoot?.id || (createBatchRoot ? rootId : undefined), ...generationMetadata, workflowRef },
+                        metadata: { prompt: effectivePrompt, cameraControl: sourceNode?.metadata?.cameraControl, status: NODE_STATUS_LOADING, startedAt: generationStartedAt, progress: 0, clientTaskId: targetTaskIds[id], imageTaskId: targetTaskIds[id], imageTaskUnknown: undefined, batchRootId: batchRoot?.id || (createBatchRoot ? rootId : undefined), ...generationMetadata, workflowRef },
                     }));
                     const batchConnections = [...(isEmptyImageNode ? [] : [{ id: nanoid(), fromNodeId: nodeId, toNodeId: rootId }]), ...childIds.map((childId) => ({ id: nanoid(), fromNodeId: displayRootId, toNodeId: childId }))];
 
@@ -788,7 +790,7 @@ export function useCanvasGeneration({
                                             width: overwriteExisting ? node.width : rootNode.width,
                                             height: overwriteExisting ? node.height : rootNode.height,
                                             title: background ? node.title : rootNode.title,
-                                            metadata: { ...node.metadata, ...rootNode.metadata, ...(overwriteExisting ? { content: undefined, storageKey: "", imageTaskResultId: undefined, taskBackend: undefined, durationMs: undefined } : {}), errorDetails: undefined },
+                                            metadata: prepareCanvasImageTaskMetadata({ ...node.metadata, ...rootNode.metadata }, Boolean(overwriteExisting)),
                                         }
                                         : isImageNode
                                             ? {
@@ -823,8 +825,8 @@ export function useCanvasGeneration({
                         targetIds.map(async (targetId) => {
                             try {
                                 const task = await submitNodeTask(targetId, targetTaskIds[targetId], async (signal, onServerTask) => workflowRef
-                                    ? await workflowImageTask(await submitCanvasWorkflowTask(workflowRef, generationConfig, "image", requestPrompt, referenceImages, [], [], targetId, projectId, targetTaskIds[targetId], () => onServerTask("workflow"), signal))
-                                    : await createCanvasImageTask({ ...generationConfig, count: "1" }, requestPrompt, referenceImages, { signal, onServerTask, nodeId: targetId, sourceId: projectId, clientTaskId: targetTaskIds[targetId] }), overwriteExisting && targetId === nodeId ? runningRequest : undefined);
+                                    ? await workflowImageTask(await submitCanvasWorkflowTask(workflowRef, generationConfig, "image", requestPrompt, referenceImages, [], [], targetId, projectId, targetTaskIds[targetId], () => onServerTask("workflow"), signal, remixApproval))
+                                    : await createCanvasImageTask({ ...generationConfig, count: "1" }, requestPrompt, referenceImages, { signal, onServerTask, nodeId: targetId, sourceId: projectId, clientTaskId: targetTaskIds[targetId], remixApproval }), overwriteExisting && targetId === nodeId ? runningRequest : undefined);
                                 if (!isNodeTaskActive(targetId, targetTaskIds[targetId])) return true;
                                 if (task.image_url || task.url) {
                                     setNodes((prev) => {
@@ -1018,11 +1020,16 @@ export function useCanvasGeneration({
                 if (runningRequestRef.current === runningRequest) setRunningNodeId(null);
             }
         },
-        [authorizeImage, cancelPendingHistoryCommit, effectiveConfig, openConfigDialog, openOverlay, isNodeTaskActive, submitNodeTask, handleStopNode, isAiConfigReady, message, nodeTaskRunsRef, projectId, runningRequestRef, selectOnly, setRunningNodeId, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
+        [authorizeImage, cancelPendingHistoryCommit, effectiveConfig, openConfigDialog, openOverlay, isNodeTaskActive, submitNodeTask, handleStopNode, isAiConfigReady, message, nodeTaskRunsRef, projectId, resolveRemixApproval, runningRequestRef, selectOnly, setRunningNodeId, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
     );
 
     const handleRetryNode = useCallback(
         async (node: CanvasNodeData) => {
+            const retryBlockReason = canvasImageTaskRetryBlockReason(node.metadata);
+            if (retryBlockReason) {
+                message.error(retryBlockReason);
+                return;
+            }
             if (node.metadata?.remixRunId) {
                 await handleGenerateNode(node.id, "image", node.metadata.prompt || "", { overwrite: true, countOverride: "1" });
                 return;

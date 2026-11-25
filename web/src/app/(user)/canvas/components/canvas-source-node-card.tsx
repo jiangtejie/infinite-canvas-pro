@@ -1,18 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, CircleAlert, FileText, Link2, LoaderCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleAlert, FileText, Link2, LoaderCircle, Sparkles } from "lucide-react";
 import { theme as antdTheme, Tooltip } from "antd";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { sourceRemixActionVisible } from "../[id]/lib/canvas-remix-actions";
+import type { SourceRemixHistoryEntry } from "../[id]/lib/canvas-source-remix";
 import { NODE_DEFAULT_SIZE } from "../constants";
 import { CanvasNodeType, type CanvasNodeData } from "../types";
+
+type CanvasSourceNodeCardProps = {
+    node: CanvasNodeData;
+    expandedNeedsSync: boolean;
+    onPreviewSize?: (width: number, height: number) => void;
+    onRemix: () => void;
+    remixStale?: boolean;
+    history: SourceRemixHistoryEntry[];
+    onOpenWorkbench: () => void;
+};
 
 /**
  * 素材源节点卡片：展示解析状态与结果摘要，双击节点打开解析面板。
  */
-export function CanvasSourceNodeCard({ node, expandedNeedsSync, onPreviewSize }: { node: CanvasNodeData; expandedNeedsSync: boolean; onPreviewSize?: (width: number, height: number) => void }) {
+export function CanvasSourceNodeCard({ node, expandedNeedsSync, onPreviewSize, onRemix, remixStale = false, history, onOpenWorkbench }: CanvasSourceNodeCardProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const { token } = antdTheme.useToken();
     const [previewIndex, setPreviewIndex] = useState(0);
@@ -187,6 +199,43 @@ export function CanvasSourceNodeCard({ node, expandedNeedsSync, onPreviewSize }:
                     <span className="text-[11px]" style={{ color: theme.node.placeholder }}>文字素材，无图片</span>
                 </div>
             )}
+
+            {history.length ? (
+                <div className="flex h-7 shrink-0 items-center gap-2 text-[11px]">
+                    <span className="min-w-0 flex-1 truncate" style={{ color: theme.node.muted }}>最新复刻 · {history[0].title}</span>
+                    <button
+                        type="button"
+                        className="shrink-0 rounded px-1.5 py-0.5 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                        style={{ background: theme.toolbar.itemHover, color: theme.node.text, outlineColor: theme.node.activeStroke }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenWorkbench();
+                        }}
+                    >
+                        复刻工作台 {history.length} 版
+                    </button>
+                </div>
+            ) : null}
+
+            {sourceRemixActionVisible(node) ? (
+                <button
+                    type="button"
+                    className="flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{ background: theme.node.activeStroke, color: theme.node.fill, outlineColor: theme.node.activeStroke }}
+                    title={remixStale ? "原素材已更新，将基于当前素材重新策划" : "交给 Agent 复刻：先组级策划再整组生成"}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onRemix();
+                    }}
+                >
+                    {remixStale ? <CircleAlert className="size-4" /> : <Sparkles className="size-4" />}
+                    {remixStale ? "重新策划" : "开始复刻"}
+                </button>
+            ) : null}
         </div>
     );
 }

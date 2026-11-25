@@ -264,6 +264,8 @@ export type CanvasNodeMetadata = {
     taskBackend?: "account" | "workflow";
     imageTaskId?: string;
     imageTaskResultId?: string;
+    imageTaskUnknown?: boolean;
+    imageTaskBillingState?: "free" | "charged" | "refunding" | "refunded" | string;
     audioTaskId?: string;
     audioTaskResultId?: string;
     videoTaskId?: string;

@@ -52,7 +52,19 @@ export async function createCanvasImageTask(config: SeedableImageConfig, prompt:
         }, image.id);
     }
     const params = createImageRequestParams({ ...config, count: "1" });
-    const request: RequestInit = translation ? {method:"POST",headers:translationHeaders(config,translation),body:JSON.stringify({endpoint:references.length ? "/images/edits" : "/images/generations",nodeId:options.nodeId || "",source:options.source || "canvas",sourceId:options.sourceId || "",clientTaskId:options.clientTaskId || "",prompt,request:translationBody(config,await imageTranslationInput(config,prompt,references,params))})} : await createCanvasImageTaskRequest({ ...config, count: "1" }, prompt, references, params, options);
+    const request: RequestInit = translation ? {
+        method: "POST",
+        headers: { ...translationHeaders(config, translation), ...remixApprovalHeaders(options) },
+        body: JSON.stringify({
+            endpoint: references.length ? "/images/edits" : "/images/generations",
+            nodeId: options.nodeId || "",
+            source: options.source || "canvas",
+            sourceId: options.sourceId || "",
+            clientTaskId: options.clientTaskId || "",
+            prompt,
+            request: translationBody(config, await imageTranslationInput(config, prompt, references, params)),
+        }),
+    } : await createCanvasImageTaskRequest({ ...config, count: "1" }, prompt, references, params, options);
     options.signal?.throwIfAborted();
     options.onServerTask?.();
     const response = await fetch("/api/v1/canvas/image-tasks", request);
@@ -82,10 +94,18 @@ export async function pollCanvasImageTaskStatus(taskId: string, signal?: AbortSi
     return syncCanvasImageTask(payload.data);
 }
 
+function remixApprovalHeaders(options: CanvasImageTaskOptions): Record<string, string> {
+    if (!options.remixApproval) return {};
+    return {
+        "X-Canvas-Remix-Approval-ID": options.remixApproval.approvalId,
+        "X-Canvas-Remix-Slot-ID": options.remixApproval.slotId,
+    };
+}
+
 async function createCanvasImageTaskRequest(config: SeedableImageConfig, prompt: string, references: ReferenceImage[], params: ImageRequestParams, options: CanvasImageTaskOptions): Promise<RequestInit> {
     assertImageReferencesSupported(config.model, references);
     const taskChannelId = channelIdForActiveModel(config);
-    const taskChannelHeader: Record<string, string> = config.channelMode === "remote" && taskChannelId ? { "X-Model-Channel-ID": taskChannelId } : {};
+    const taskChannelHeader: Record<string, string> = { ...(config.channelMode === "remote" && taskChannelId ? { "X-Model-Channel-ID": taskChannelId } : {}), ...remixApprovalHeaders(options) };
     const tokenHeaders = { ...aiHeaders(config), ...taskChannelHeader };
     const jsonHeaders = { ...aiHeaders(config, "application/json"), ...taskChannelHeader };
     const meta = { nodeId: options.nodeId || "", source: options.source || "canvas", sourceId: options.sourceId || "", clientTaskId: options.clientTaskId || "", prompt, channelId: taskChannelId };

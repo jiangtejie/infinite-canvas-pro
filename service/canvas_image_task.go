@@ -1,6 +1,9 @@
 package service
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"strings"
 
 	"github.com/google/uuid"
@@ -9,12 +12,16 @@ import (
 )
 
 type CanvasImageTaskCreateInput struct {
+	ID              string
 	UserID          string
 	UserDisplayName string
 	Source          string
 	SourceID        string
 	NodeID          string
 	ClientTaskID    string
+	RequestHash     string
+	RemixApproval   string
+	RemixSlot       string
 	Model           string
 	ChannelID       string
 	UserChannelID   string
@@ -28,17 +35,22 @@ type CanvasImageTaskCreateInput struct {
 	Endpoint        string
 	ContentType     string
 	RequestBody     string
+	Payload         []byte
 }
 
-func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageTask, error) {
+func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageTask, bool, error) {
 	current := now()
 	task := model.CanvasImageTask{
-		ID:              firstVideoTaskValue(input.ClientTaskID, "canvas_image_task_"+uuid.NewString()),
+		ID:              firstVideoTaskValue(input.ID, "canvas_image_task_"+uuid.NewString()),
+		ClientTaskID:    strings.TrimSpace(input.ClientTaskID),
 		UserID:          strings.TrimSpace(input.UserID),
 		UserDisplayName: strings.TrimSpace(input.UserDisplayName),
 		Source:          normalizeCanvasImageTaskSource(input.Source),
 		SourceID:        strings.TrimSpace(input.SourceID),
 		NodeID:          strings.TrimSpace(input.NodeID),
+		RequestHash:     canvasImageTaskRequestHash(input),
+		RemixApproval:   strings.TrimSpace(input.RemixApproval),
+		RemixSlot:       strings.TrimSpace(input.RemixSlot),
 		Model:           strings.TrimSpace(input.Model),
 		ChannelID:       strings.TrimSpace(input.ChannelID),
 		UserChannelID:   strings.TrimSpace(input.UserChannelID),
@@ -52,20 +64,53 @@ func CreateCanvasImageTask(input CanvasImageTaskCreateInput) (model.CanvasImageT
 		Endpoint:        strings.TrimSpace(input.Endpoint),
 		ContentType:     strings.TrimSpace(input.ContentType),
 		RequestBody:     input.RequestBody,
+		Payload:         input.Payload,
+		BillingState:    "free",
 		CreatedAt:       current,
 		UpdatedAt:       current,
 	}
-	saved := task
+	created := true
 	var err error
-	if input.WorkflowRef != "" {
-		err = ConsumeUserCredits(task.UserID, input.BillingName, task.Credits, input.BillingPath, &task)
-	} else {
-		saved, err = repository.SaveCanvasImageTask(task)
+	approvalHash := ""
+	if task.RemixSlot != "" {
+		approvalModel := task.Model
+		if task.WorkflowRef != "" {
+			approvalModel = firstVideoTaskValue(input.BillingName, task.Model)
+		}
+		approvalHash = CanvasRemixSlotRequestHash(task.NodeID, approvalModel, task.Prompt)
 	}
-	if err == nil {
-		WakeVideoTaskPoller()
+	extra, _ := json.Marshal(map[string]string{"model": task.Model, "path": firstVideoTaskValue(input.BillingPath, task.Endpoint)})
+	consumeLog := model.CreditLog{ID: newID("credit"), UserID: task.UserID, Type: model.CreditLogTypeAIConsume, Amount: -normalizeCredits(task.Credits), Remark: "调用模型 " + task.Model, Extra: string(extra), CreatedAt: current}
+	task, created, err = repository.CreateCanvasImageTaskWithCredits(task, consumeLog, approvalHash)
+	if err == nil && created && task.WorkflowRef == "" {
+		WakeCanvasImageTaskWorker()
 	}
-	return saved, err
+	return task, created, err
+}
+
+func canvasImageTaskRequestHash(input CanvasImageTaskCreateInput) string {
+	if hash := strings.TrimSpace(input.RequestHash); hash != "" {
+		return hash
+	}
+	payloadSum := sha256.Sum256(input.Payload)
+	payload, _ := json.Marshal([]string{
+		input.UserID,
+		input.Source,
+		input.SourceID,
+		input.NodeID,
+		input.Model,
+		input.ChannelID,
+		input.UserChannelID,
+		input.Prompt,
+		input.GenerationType,
+		input.Endpoint,
+		input.ContentType,
+		input.RequestBody,
+		input.WorkflowRef,
+		hex.EncodeToString(payloadSum[:]),
+	})
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }
 
 func GetUserCanvasImageTask(userID string, id string) (model.CanvasImageTask, bool, error) {
@@ -100,11 +145,6 @@ func DeleteUserCanvasImageTask(userID string, id string) error {
 	return repository.DeleteUserCanvasImageTask(strings.TrimSpace(userID), strings.TrimSpace(id))
 }
 
-func SaveCanvasImageTask(task model.CanvasImageTask) (model.CanvasImageTask, error) {
-	task.UpdatedAt = now()
-	return repository.UpdateCanvasImageTask(task)
-}
-
 func CanvasImageTaskResponse(task model.CanvasImageTask) map[string]any {
 	result := map[string]any{
 		"id":             task.ID,
@@ -114,6 +154,7 @@ func CanvasImageTaskResponse(task model.CanvasImageTask) map[string]any {
 		"node_id":        task.NodeID,
 		"model":          task.Model,
 		"credits":        task.Credits,
+		"billingState":   task.BillingState,
 		"status":         task.Status,
 		"progress":       task.Progress,
 		"prompt":         task.Prompt,

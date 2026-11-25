@@ -89,7 +89,7 @@ function publishToken() {
     return token;
 }
 
-export function fetchPublishChannels() {
+export async function fetchPublishChannels() {
     return apiGet<PublishChannels>("/api/v1/publish/channels", undefined, publishToken());
 }
 

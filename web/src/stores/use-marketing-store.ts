@@ -44,15 +44,10 @@ async function persist(workspaces: MarketingWorkspaceSummary[], details: Record<
     await localForageStorage.setItem(accountStorageKey(MARKETING_STORE_KEY), JSON.stringify({ state: { workspaces, details: Object.values(details) } }));
 }
 
-/** 营销资料跨设备可用前，先把引用的图片同步进账号云存储，并把存储键写回引用。 */
+/** 跨设备可用前，先把引用图片同步进账号云存储；营销资料只保留素材引用。 */
 async function persistMarketingAssets(workspace: MarketingWorkspace, token: string) {
     const ids = marketingAssetIds(workspace);
-    if (!ids.length) return;
-    await useAssetStore.getState().syncMarketingAssets(token, ids);
-    const keys = new Map(useAssetStore.getState().assets.filter((asset) => asset.kind === "image").map((asset) => [asset.id, asset.data.storageKey]));
-    for (const owner of [workspace, ...workspace.brands, ...workspace.locations, ...workspace.offerings]) {
-        owner.assets = owner.assets.map((ref) => ({ ...ref, storageKey: keys.get(ref.assetId) || "" }));
-    }
+    if (ids.length) await useAssetStore.getState().syncMarketingAssets(token, ids);
 }
 
 export const useMarketingStore = create<MarketingState>((set, get) => ({

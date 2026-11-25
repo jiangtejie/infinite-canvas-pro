@@ -7,7 +7,8 @@ import type { VideoResponse } from "@/services/api/video";
 import type { AiConfig } from "@/stores/use-config-store";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate, fitCanvasMediaNode, resetInterruptedGeneration } from "./canvas-task-updates";
+import { canvasImageTaskRetryBlockReason } from "./canvas-task-helpers";
+import { applyCanvasAudioTaskUpdate, applyCanvasImageTaskConnections, applyCanvasImageTaskUpdate, applyCanvasVideoTaskUpdate, fitCanvasMediaNode, prepareCanvasImageTaskMetadata, resetInterruptedGeneration } from "./canvas-task-updates";
 
 const config = {
     model: "test-model",
@@ -104,6 +105,21 @@ test("completed image without a URL is reported as an error", () => {
     assert.equal(next[0].metadata?.errorDetails, "图片生成失败");
 });
 
+test("unknown image task blocks automatic retry until the original task is inspected", () => {
+    assert.match(canvasImageTaskRetryBlockReason({ imageTaskUnknown: true }), /上游状态未知/);
+    assert.equal(canvasImageTaskRetryBlockReason({ imageTaskUnknown: false }), "");
+});
+
+test("unknown image task stops loading and keeps its task id for manual inspection", () => {
+    const current = node({ type: CanvasNodeType.Image, metadata: { status: "loading", imageTaskId: "server-task-1" } });
+    const next = applyCanvasImageTaskUpdate([current], "n1", imageTask({ id: "server-task-1", status: "unknown", billingState: "charged" }), 1_000, { width: 1024, height: 1024 });
+    assert.equal(next[0].metadata?.status, "error");
+    assert.equal(next[0].metadata?.imageTaskId, "server-task-1");
+    assert.equal(next[0].metadata?.imageTaskUnknown, true);
+    assert.equal(next[0].metadata?.imageTaskBillingState, "charged");
+    assert.match(next[0].metadata?.errorDetails || "", /上游状态未知/);
+});
+
 test("workflow image batch fills its root and child nodes", () => {
     const root = node({ id: "root", type: CanvasNodeType.Image, title: "批次", metadata: { isBatchRoot: true, batchChildIds: ["n1"] } });
     const child = node({ id: "n1", type: CanvasNodeType.Image, metadata: { status: "loading", batchRootId: "root", clientTaskId: "client-1" } });
@@ -129,6 +145,29 @@ test("layer decomposition adds child connections", () => {
     const task = imageTask({ source: "direct", model: "seedream/5-pro-layer-decomposition", image_urls: ["https://example.com/1.png", "https://example.com/2.png"] });
     const next = applyCanvasImageTaskConnections([], "n1", task);
     assert.deepEqual(next.map((connection) => connection.toNodeId), ["n1-result-0", "n1-result-1"]);
+});
+
+test("覆盖图片任务时清除旧未知标记和结果字段，保留复刻槽位与提示词", () => {
+    const metadata = prepareCanvasImageTaskMetadata({
+        status: "error", content: "blob:old", storageKey: "old", imageTaskResultId: "old-task", taskBackend: "workflow", durationMs: 100,
+        imageTaskUnknown: true, errorDetails: "上游状态未知", remixRunId: "run-1", remixRole: "image", prompt: "复刻提示词",
+    }, true);
+    assert.equal(metadata.content, undefined);
+    assert.equal(metadata.storageKey, "");
+    assert.equal(metadata.imageTaskResultId, undefined);
+    assert.equal(metadata.taskBackend, undefined);
+    assert.equal(metadata.durationMs, undefined);
+    assert.equal(metadata.imageTaskUnknown, undefined);
+    assert.equal(metadata.errorDetails, undefined);
+    assert.equal(metadata.remixRunId, "run-1");
+    assert.equal(metadata.remixRole, "image");
+    assert.equal(metadata.prompt, "复刻提示词");
+});
+
+test("非覆盖图片任务不清除已有结果和未知标记", () => {
+    const metadata = prepareCanvasImageTaskMetadata({ status: "error", content: "blob:old", imageTaskUnknown: true }, false);
+    assert.equal(metadata.content, "blob:old");
+    assert.equal(metadata.imageTaskUnknown, true);
 });
 
 test("resetInterruptedGeneration marks only loading nodes without a recoverable task", () => {

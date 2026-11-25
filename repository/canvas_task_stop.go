@@ -31,9 +31,16 @@ func StopCanvasTask(userID, id, source string, task any, current time.Time) (boo
 				return err
 			}
 		}
+		updates := map[string]any{"status": "cancelled", "updated_at": stamp, "completed_at": stamp}
+		_, imageTask := task.(*model.CanvasImageTask)
+		if imageTask {
+			updates["lease_owner"] = ""
+			updates["lease_until"] = nil
+			updates["billing_state"] = gorm.Expr("CASE WHEN billing_state = ? THEN ? ELSE billing_state END", "charged", "refunding")
+		}
 		update := tx.Model(task).
 			Where("user_id = ? AND id = ? AND source = ? AND status IN ?", userID, id, source, []string{"queued", "processing", "running", "in_progress", "cancelled"}).
-			Updates(map[string]any{"status": "cancelled", "updated_at": stamp, "completed_at": stamp})
+			Updates(updates)
 		if update.Error != nil {
 			return update.Error
 		}
@@ -44,6 +51,17 @@ func StopCanvasTask(userID, id, source string, task any, current time.Time) (boo
 			return err
 		}
 		stopped = true
+		if imageTask {
+			var taskCurrent model.CanvasImageTask
+			if err := tx.First(&taskCurrent, "id = ? AND user_id = ?", id, userID).Error; err != nil {
+				return err
+			}
+			if taskCurrent.BillingState == "refunding" {
+				if err := refundCanvasImageTask(tx, taskCurrent, current); err != nil {
+					return err
+				}
+			}
+		}
 		if err := tx.Model(&model.ComfyBridgeRequest{}).
 			Where("task_id = ? AND status IN ?", id, []string{"pending", "claimed"}).
 			Updates(map[string]any{"status": "failed", "error": "用户停止", "updated_at": current, "completed_at": current}).Error; err != nil {

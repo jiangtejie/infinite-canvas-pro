@@ -83,8 +83,10 @@ import { useFilmShotBatch } from "./hooks/use-film-shot-batch";
 import { useFilmAssetProduction } from "./hooks/use-film-asset-production";
 import { useCanvasRemix } from "./hooks/use-canvas-remix";
 import { collectBatchTargetNodeIds } from "./lib/canvas-batch";
-import { planSourcePublishNode } from "./lib/canvas-publish";
-import { collectPublishableRemixImages, collectRemixImageNodeIds, findRemixRunNode, findSourceRemixTextNode, hasSourceRemixText } from "./lib/canvas-source-remix";
+import { planSourcePublishNode, reconcileSourcePublishNodes } from "./lib/canvas-publish";
+import { collectPublishableRemixImages, findRemixRunNode, findSourceRemixTextNode, hasSourceRemixText } from "./lib/canvas-source-remix";
+import { remixBatchGenerationNodeIds, remixBatchResumeBlockReason, remixBatchRetryNodeIds } from "./lib/canvas-remix-batch";
+import type { RemixRunGenerationResult } from "./lib/canvas-remix-actions";
 import { useCanvasAgentExecutor } from "./hooks/use-canvas-agent-executor";
 import { useCanvasUiState } from "./hooks/use-canvas-ui-state";
 import { useCanvasFileImport } from "./hooks/use-canvas-file-import";
@@ -1833,7 +1835,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     );
 
     const showRemixPlan = useCallback((nodeId: string) => openOverlay({ kind: "prompt", nodeId }), [openOverlay]);
-    const { planRemix, authorizeImage, reviewBatch, freshRun, setupDialog } = useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnections, effectiveConfig: agentEffectiveConfig, agentConfig: resolvedAgentConfig, handleExpandSource, selectMany, openPlan: showRemixPlan });
+    const { planRemix, authorizeImage, reviewBatch, freshRun, resolveRemixApproval, updateBatchProgress, setupDialog } = useCanvasRemix({ nodesRef, connectionsRef, setNodes, setConnections, effectiveConfig: agentEffectiveConfig, agentConfig: resolvedAgentConfig, handleExpandSource, selectMany, openPlan: showRemixPlan });
 
     const {
         handleGenerateNode,
@@ -1871,6 +1873,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         closeOverlay,
         cancelPendingHistoryCommit,
         authorizeImage,
+        resolveRemixApproval,
     });
 
     const { batchState, startBatch, stopBatch } = useCanvasBatchGeneration({
@@ -1884,6 +1887,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         handleStopNode,
         message,
         reviewBatch,
+        onBatchProgress: updateBatchProgress,
     });
 
     const createSourcePublishNode = useCallback((sourceId: string): string | null => {
@@ -1919,12 +1923,43 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         return publishNode.id;
     }, [connectionsRef, message, nodesRef, openOverlay, selectOnly, setConnections, setNodes, setSelectedConnectionId]);
 
-    const generateRemixRun = useCallback(async (runId: string) => {
+    useEffect(() => {
+        const next = reconcileSourcePublishNodes(nodes, connections);
+        if (next.nodes === nodes && next.connections === connections) return;
+        nodesRef.current = next.nodes;
+        connectionsRef.current = next.connections;
+        setNodes(next.nodes);
+        setConnections(next.connections);
+    }, [connections, connectionsRef, nodes, nodesRef, setConnections, setNodes]);
+
+    const generateRemixRun = useCallback(async (runId: string): Promise<RemixRunGenerationResult> => {
+        const unavailable = (text: string, nodeIds: string[]): RemixRunGenerationResult => ({
+            status: "unavailable", total: nodeIds.length, completed: 0, failed: 0, failedNodeIds: [], nodeIds, completedNodeIds: [], message: text,
+        });
+        let targetNodeIds: string[] = [];
         try {
-            const ids = collectRemixImageNodeIds(nodesRef.current, runId);
-            const result = await startBatch(ids, { label: "复刻配图", overwrite: true });
-            if (result.completed > 0) createSourcePublishNode(runId);
-        } catch (error) { message.error(toErrorMessage(error, "复刻配图生成失败")); }
+            const run = findRemixRunNode(nodesRef.current, runId)?.metadata?.remixRun;
+            if (!run) {
+                const result = unavailable("复刻运行不存在或已删除", []);
+                message.warning(result.message!);
+                return result;
+            }
+            const blockedReason = remixBatchResumeBlockReason(run, nodesRef.current);
+            targetNodeIds = remixBatchGenerationNodeIds(run, nodesRef.current);
+            if (blockedReason || !targetNodeIds.length) {
+                const result = unavailable(blockedReason || "没有可生成的复刻配图，请先检查已提交任务或状态未知的节点", targetNodeIds);
+                message.warning(result.message!);
+                return result;
+            }
+            const retrying = remixBatchRetryNodeIds(run, nodesRef.current).length > 0;
+            const result = await startBatch(targetNodeIds, { label: retrying ? "重试复刻失败项" : "复刻配图", overwrite: true, resume: run.batch && !retrying ? run.batch : undefined });
+            const publishNodeId = result.completedNodeIds.length > 0 ? createSourcePublishNode(runId) : null;
+            return { ...result, publishNodeId: publishNodeId || undefined };
+        } catch (error) {
+            const text = toErrorMessage(error, "复刻配图生成失败");
+            message.error(text);
+            return unavailable(text, targetNodeIds);
+        }
     }, [createSourcePublishNode, message, nodesRef, startBatch]);
 
     const handleRemixWithAgent = useCallback((sourceId: string) => {
@@ -2046,8 +2081,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         isAiConfigReady,
         getCanvasCenter,
         handleGenerateNode,
-        startBatch,
-        createSourcePublishNode,
+        generateRemixRun,
         handleExpandSource,
         planRemix,
         freshRun,
@@ -3077,8 +3111,6 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             handleDirectorProjectChange, handleDirectorPanoramaRemoved, handleDirectorCapturesSent, handleDirectorVideoSent,
             isNodeDragging, nodeImageSettingsOpen, toolbarNode, keepNodeToolbar,
             hideNodeToolbar, handleFontSizeChange, generateImageFromTextNode, extractAudio,
-            handleRemixWithAgent,
-            generateRemixRun,
             handleExpandSource: (nodeId) => {
                 const result = handleExpandSource(nodeId);
                 if (!result.ok) {

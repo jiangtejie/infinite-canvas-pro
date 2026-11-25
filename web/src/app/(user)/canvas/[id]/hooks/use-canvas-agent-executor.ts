@@ -27,9 +27,9 @@ import { applyNodeConfigPatch } from "../lib/canvas-node-builders";
 import { createCanvasNode } from "../lib/canvas-node-factory";
 import { buildAgentMediaPlan } from "../lib/canvas-agent-media";
 import { AGENT_PRIMARY_SCRIPT_NODE_SIZE, planArrangeNodes, planCreateConnection, planCreateTextNode, planUpdateNodeTitle, planUpdateTextNode } from "../lib/canvas-agent-write-tools";
-import { collectRemixImageNodeIds, collectSourceMaterialNodes } from "../lib/canvas-source-remix";
+import { collectRemixImageNodeIds, collectSourceMaterialNodes, findRemixControlledSourceNode } from "../lib/canvas-source-remix";
+import { getRemixAgentGenerationResult, type RemixRunGenerationResult } from "../lib/canvas-remix-actions";
 import type { RemixRun, RemixSkillSelection } from "../../remix-types";
-import type { CanvasBatchRunResult } from "./use-canvas-batch-generation";
 import type { CanvasSourceActionResult } from "./use-canvas-source";
 import type { CanvasGenerateNodeOptions } from "./use-canvas-generation";
 import { errorMessage } from "@/lib/utils";
@@ -49,8 +49,7 @@ type UseCanvasAgentExecutorOptions = {
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     getCanvasCenter: () => Position;
     handleGenerateNode: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string, options?: CanvasGenerateNodeOptions) => Promise<void>;
-    startBatch: (nodeIds: Iterable<string>, options?: { label?: string; overwrite?: boolean }) => Promise<CanvasBatchRunResult>;
-    createSourcePublishNode: (sourceId: string) => string | null;
+    generateRemixRun: (runId: string) => Promise<RemixRunGenerationResult>;
     handleExpandSource: (sourceId: string) => CanvasSourceActionResult;
     planRemix: (sourceId: string, instruction?: string, skills?: RemixSkillSelection[], signal?: AbortSignal) => Promise<{ runId: string; planNodeId: string; copyNodeId: string; imageNodeIds: string[] } | null>;
     freshRun: (runId: string) => Promise<RemixRun>;
@@ -79,8 +78,7 @@ export function useCanvasAgentExecutor({
     isAiConfigReady,
     getCanvasCenter,
     handleGenerateNode,
-    startBatch,
-    createSourcePublishNode,
+    generateRemixRun,
     handleExpandSource,
     planRemix,
     freshRun,
@@ -349,6 +347,8 @@ export function useCanvasAgentExecutor({
                     const missingNodeId = validateNodeIds(sourceNodeIds);
                     if (missingNodeId) return missingNodeResult(missingNodeId);
                     const sourceNodes = sourceNodeIds.map((nodeId) => getNode(nodeId)!);
+                    const remixSource = findRemixControlledSourceNode(nodesRef.current, sourceNodeIds);
+                    if (remixSource) return { ok: false, code: "remix_source_requires_plan", message: `复刻节点「${remixSource.title}」只能通过 generate_remix_images 按整组审阅后生成，不能用普通媒体工具绕过`, nodeId: remixSource.id };
                     if (action.name === "edit_image" && !sourceNodes.some((node) => isCanvasImageNodeType(node.type) && Boolean(node.metadata?.content))) {
                         return { ok: false, code: "image_reference_required", message: "图片编辑需要至少一个已有内容的图片节点" };
                     }
@@ -450,36 +450,18 @@ export function useCanvasAgentExecutor({
                     await freshRun(runId);
                     const imageNodeIds = collectRemixImageNodeIds(nodesRef.current, runId);
                     if (!imageNodeIds.length) return { ok: false, code: "remix_not_planned", message: "复刻配图节点已不存在，请重新策划" };
-                    if (!autoGenerateMedia) {
-                        return { ok: true, submitted: false, message: "复刻配图提示词已写齐；未开启自动生成，请让用户手动批量生成", imageNodeIds };
-                    }
                     // 批量组根节点代表一组结果，不能当单张槽位重跑；整组拒绝并指明是哪几张，
                     // 不静默少生成一张后报成功。
                     const expandedSlotIds = imageNodeIds.filter((id) => getNode(id)?.metadata?.isBatchRoot);
                     if (expandedSlotIds.length) {
                         return { ok: false, code: "remix_slot_expanded", message: `复刻配图 ${expandedSlotIds.join("、")} 已被手动展开成多结果批量组，无法整组重跑；请让用户先在这些节点上决定保留哪一张`, imageNodeIds, expandedSlotIds };
                     }
-                    // 复刻配图是组内固定槽位，必须原地覆盖：全局「生成到新节点」会让旧图留在原节点、
-                    // 新图落到组外的兄弟节点上，发布节点仍会取到旧图。
-                    const batch = await startBatch(imageNodeIds, { label: "复刻配图", overwrite: true });
-                    if (batch.status === "cancelled" || batch.status === "busy" || batch.status === "unavailable") {
-                        return {
-                            ok: false,
-                            code: "remix_batch_not_started",
-                            message: batch.status === "cancelled" ? "用户取消了复刻配图生成" : batch.status === "busy" ? "已有批量生成在进行中，请等它结束后重试" : "图片模型未配置或没有可生成的复刻配图",
-                            imageNodeIds,
-                        };
+                    if (!autoGenerateMedia) {
+                        return { ok: true, submitted: false, message: "复刻配图提示词已写齐；未开启自动生成，请让用户手动批量生成", imageNodeIds };
                     }
-                    const publishNodeId = batch.completed > 0 ? createSourcePublishNode(runId) : null;
-                    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-                    return {
-                        ok: batch.status === "success",
-                        ...(batch.status === "success" ? {} : { code: "remix_batch_incomplete", message: `复刻配图${batch.status === "stopped" ? "已停止" : "未全部成功"}：成功 ${batch.completed} 张，失败 ${batch.failed} 张` }),
-                        submitted: true,
-                        imageNodeIds,
-                        publishNodeId: publishNodeId || undefined,
-                        ...batch,
-                    };
+                    const result = await generateRemixRun(runId);
+                    execution?.signal?.throwIfAborted();
+                    return getRemixAgentGenerationResult(result);
                 }
 
                 return { ok: false, code: "unsupported_tool", message: "未实现工具 " + action.name };
@@ -487,7 +469,7 @@ export function useCanvasAgentExecutor({
                 return { ok: false, code: "tool_error", message: errorMessage(error, "画布工具执行失败") };
             }
         },
-        [agentEffectiveConfig, createGroupFromSelection, createSourcePublishNode, freshRun, handleExpandSource, planRemix, projectTitle, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, autoGenerateMedia, startBatch, updateProject, selectMany, selectedNodeIdsRef, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
+        [agentEffectiveConfig, createGroupFromSelection, freshRun, generateRemixRun, handleExpandSource, planRemix, projectTitle, deleteConnection, deleteNodes, getCanvasCenter, handleGenerateNode, isAiConfigReady, projectId, renameProject, autoGenerateMedia, updateProject, selectMany, selectedNodeIdsRef, setSelectedConnectionId, connectionsRef, nodesRef, setConnections, setNodes],
     );
 
     return { getCanvasAgentContext, executeCanvasAgentAction, beginCanvasAgentBatch, endCanvasAgentBatch };

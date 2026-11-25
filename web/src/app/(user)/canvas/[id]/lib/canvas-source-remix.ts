@@ -13,8 +13,33 @@ export function collectSourceMaterialNodes(nodes: CanvasNodeData[], sourceId: st
     };
 }
 
+export function findRemixControlledSourceNode(nodes: CanvasNodeData[], sourceNodeIds: string[]) {
+    const ids = new Set(sourceNodeIds);
+    return nodes.find((node) => ids.has(node.id) && node.metadata?.remixRunId);
+}
 export function findSourceRemixPlanNode(nodes: CanvasNodeData[], sourceId: string) {
     return nodes.findLast((node) => node.metadata?.remixRole === "plan" && node.metadata.remixSourceId === sourceId);
+}
+export type SourceRemixHistoryEntry = { runId: string; planNodeId: string; title: string; createdAt: string };
+export function collectSourceRemixHistory(nodes: CanvasNodeData[], sourceId: string): SourceRemixHistoryEntry[] {
+    return nodes.filter((node) => node.metadata?.remixRole === "plan" && node.metadata.remixSourceId === sourceId && node.metadata.remixRun).reverse().map((node) => ({
+        runId: node.metadata!.remixRun!.id,
+        planNodeId: node.id,
+        title: node.metadata!.remixRun!.plan?.copy.title || (node.metadata!.remixRun!.error ? "策划失败" : "正在策划"),
+        createdAt: node.metadata!.remixRun!.createdAt,
+    }));
+}
+export function collectCollapsedRemixNodeIds(nodes: CanvasNodeData[], revealedRunId: string | null) {
+    const latestRunBySource = new Map<string, string>();
+    for (const node of nodes) {
+        const sourceId = node.metadata?.remixSourceId;
+        if (sourceId && node.metadata?.remixRole === "plan" && node.metadata.remixRun) latestRunBySource.set(sourceId, node.metadata.remixRun.id);
+    }
+    return new Set(nodes.filter((node) => {
+        const sourceId = node.metadata?.remixSourceId;
+        const runId = node.metadata?.remixRunId;
+        return Boolean(sourceId && runId && runId !== revealedRunId && latestRunBySource.get(sourceId) !== runId);
+    }).map((node) => node.id));
 }
 export function findRemixRunNode(nodes: CanvasNodeData[], runId: string) {
     return nodes.find((node) => node.metadata?.remixRun?.id === runId && node.metadata.remixRole === "plan");
@@ -30,6 +55,9 @@ export function collectPublishableRemixImages(nodes: CanvasNodeData[], runId: st
     const ids = new Set(collectRemixImageNodeIds(nodes, runId));
     return nodes.filter((node) => ids.has(node.id) && node.metadata?.status === "success" && Boolean(node.metadata.content?.trim()))
         .sort((a, b) => (a.metadata?.remixIndex || 0) - (b.metadata?.remixIndex || 0));
+}
+export function collectPublishableRemixRunIds(nodes: CanvasNodeData[]) {
+    return [...new Set(nodes.filter((node) => node.type === CanvasNodeType.Image && node.metadata?.remixRole === "image" && node.metadata.remixRunId && node.metadata.status === "success" && node.metadata.content?.trim()).map((node) => node.metadata!.remixRunId!))].filter((runId) => findRemixRunNode(nodes, runId)?.metadata?.remixRun?.binding === "active");
 }
 export function hasSourceRemixText(node: CanvasNodeData | undefined) {
     return Boolean(node?.metadata?.content?.trim());
@@ -112,7 +140,7 @@ export function applySourceRemixPlan(nodes: CanvasNodeData[], connections: Canva
     return {
         nodes: nodes.map((node): CanvasNodeData => {
             if (node.metadata?.remixRunId !== runId) return node;
-            if (node.metadata.remixRole === "plan") return { ...node, metadata: { ...node.metadata, content: formatRemixPlan(plan), status: "success", remixRun: { ...run, plan, approvedKey: undefined, error: undefined } } };
+            if (node.metadata.remixRole === "plan") return { ...node, metadata: { ...node.metadata, content: formatRemixPlan(plan), status: "success", remixRun: { ...run, plan, approvedKey: undefined, approval: undefined, batch: undefined, error: undefined } } };
             if (node.metadata.remixRole === "copy") return { ...node, metadata: { ...node.metadata, content: remixCopyText(plan), status: "success" } };
             const index = imageIds.indexOf(node.id);
             return index < 0 ? node : { ...node, metadata: { ...node.metadata, prompt: remixImagePromptFromPlan(plan, index, run.input) } };
@@ -209,5 +237,5 @@ export function sourceRemixNeedsSync(source: CanvasNodeData, nodes: CanvasNodeDa
 }
 
 export function detachRemixNodes(nodes: CanvasNodeData[]) {
-    return nodes.map((node) => node.metadata?.remixRun ? { ...node, metadata: { ...node.metadata, remixRun: { ...node.metadata.remixRun, binding: "detached" as const, approvedKey: undefined } } } : node);
+    return nodes.map((node) => node.metadata?.remixRun ? { ...node, metadata: { ...node.metadata, remixRun: { ...node.metadata.remixRun, binding: "detached" as const, approvedKey: undefined, approval: undefined, batch: undefined } } } : node);
 }
