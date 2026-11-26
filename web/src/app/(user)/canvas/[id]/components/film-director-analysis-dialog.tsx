@@ -14,6 +14,7 @@ import type { FilmAnalysisDraftCommand } from "../lib/film-analysis-draft";
 import type { FilmProposalMode } from "../lib/film-structure-proposal";
 import { FilmAssetProposalTab } from "./film-asset-proposal-dialog";
 import { FilmProposalSceneBrowser } from "./film-proposal-scene-browser";
+import { CANVAS_DIALOG_SIZE } from "../../utils/canvas-dialog-size";
 
 type Props = {
     theme: CanvasTheme;
@@ -243,7 +244,7 @@ export function FilmDirectorAnalysisDialog({ theme, proposal, expired = false, p
     );
 
     return (
-        <Modal open onCancel={onCancel} footer={null} closable={false} centered width="min(1280px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open onCancel={onCancel} footer={null} closable={false} centered width={CANVAS_DIALOG_SIZE.lg} mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex max-h-[88vh] flex-col" style={{ color: theme.node.text }}>
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">

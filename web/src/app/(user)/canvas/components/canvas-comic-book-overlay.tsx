@@ -14,6 +14,7 @@ import { exportComicCbz, exportComicPdf, exportComicStrip } from "../[id]/lib/co
 import type { CanvasComicBook, CanvasComicMeta, CanvasNodeData, ComicExportPreset, ComicLetterElement, ComicLetterKind } from "../types";
 import { COMIC_LETTER_TEMPLATE_OPTIONS, comicLetterTailX, comicLetterTemplate, defaultComicLetterTemplate, fitComicLetterWidth } from "../utils/comic-lettering";
 import { comicBookPageKeyDirection, comicImageReplacementCandidates, comicPageImage, resolveComicPageSlots } from "../utils/comic-book-state";
+import { CANVAS_DIALOG_SIZE } from "../utils/canvas-dialog-size";
 
 const LETTER_KIND_OPTIONS: { value: ComicLetterKind; label: string }[] = [
     { value: "speech", label: "对白框" },
@@ -219,7 +220,7 @@ export function CanvasComicBookOverlay({ node, nodes, selectedImageNodes, comic,
 
     return (
         <>
-        <Modal open title={`${title} · ${pageSlots.length} 页`} width="min(1240px, 96vw)" mask={{ closable: true }} onCancel={onClose} footer={null} destroyOnHidden styles={{ body: { padding: 0 } }}>
+        <Modal open title={`${title} · ${pageSlots.length} 页`} width={CANVAS_DIALOG_SIZE.lg} mask={{ closable: true }} onCancel={onClose} footer={null} destroyOnHidden styles={{ body: { padding: 0 } }}>
             <div className="flex h-[min(78vh,900px)] min-h-0 flex-col overflow-hidden rounded-b-2xl" style={{ background: theme.canvas.background, color: theme.node.text }}>
                 <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5" style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border }}>
                     <Segmented size="small" value={format} options={[{ label: "页漫", value: "page" }, { label: "条漫", value: "strip" }]} onChange={(value) => patchComicSettings({ format: value as CanvasComicBook["format"] })} />

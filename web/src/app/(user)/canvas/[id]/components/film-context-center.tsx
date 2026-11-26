@@ -13,6 +13,7 @@ import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { FilmContextCenterRole } from "../lib/film-context-center";
 import { FILM_CONTEXT_ROLE_LABELS, type FilmDirectorBoardModel } from "../lib/film-studio-types";
 import { FilmLibraryPickerDialog } from "./film-library-picker-dialog";
+import { FilmStatusDot } from "./film-status-dot";
 
 const ROLE_ORDER: FilmContextCenterRole[] = ["character", "location", "prop", "style"];
 const ROLE_ICONS = { character: UserRound, location: MapPin, prop: Box, style: Palette } as const;
@@ -141,7 +142,7 @@ export function FilmContextCenter({ theme, model }: { theme: CanvasTheme; model:
                                             <span className="block truncate text-xs font-medium" style={{ color: theme.node.text }}>{card.name}</span>
                                             <span className="mt-0.5 block truncate text-[10px]" style={{ color: theme.node.muted }}>{card.description || "未填写设定"}</span>
                                             <span className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-                                                <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: card.pending ? canvasStatusColors.loading : card.ready ? theme.node.stroke : canvasStatusColors.error, color: card.pending ? canvasStatusColors.loading : card.ready ? theme.node.muted : canvasStatusColors.error }}>{card.pending ? "生成中" : card.ready ? "参考就绪" : "缺参考"}</span>
+                                                <FilmStatusDot theme={theme} tone={card.pending ? "busy" : card.ready ? "done" : "failed"} label={card.pending ? "生成中" : card.ready ? "参考就绪" : "缺参考"} />
                                                 {!card.impactedShots.length ? <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>未使用</span> : null}
                                                 <LibraryBadge card={card} library={libraries[card.role]} theme={theme} />
                                                 {card.costumeRefs.length ? <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>服装引用 {card.costumeRefs.length}</span> : null}

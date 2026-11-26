@@ -21,6 +21,7 @@ import { isPublicationStale } from "@/app/(user)/script/utils/script-publication
 import { previewScriptPublicationRefresh, type ScriptFilmRefreshPreview } from "@/services/script-film-publication";
 import { applyFilmLibraryEntry, filmLibraryEntryIsNewer, findFilmLibraryEntry } from "@/app/(user)/film/utils/film-library";
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
+import { CANVAS_DIALOG_SIZE } from "../utils/canvas-dialog-size";
 import { canvasStatusColors } from "../lib/canvas-palette";
 import { patchFilmContextAssetNode, patchFilmSceneNode, patchFilmScriptNode, updateFilmContextAssetNode } from "../[id]/lib/film-node-patch";
 import { isFilmAnalysisExpired, type FilmScriptAction } from "../[id]/lib/film-analysis-session";
@@ -317,7 +318,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
         <Drawer
             open={open}
             onClose={onClose}
-            size={node.type === CanvasNodeType.FilmScript ? "min(1120px, 96vw)" : "min(960px, 96vw)"}
+            size={node.type === CanvasNodeType.FilmScript ? CANVAS_DIALOG_SIZE.lg : CANVAS_DIALOG_SIZE.md}
             zIndex={CANVAS_Z.popover}
             title={`${TITLES[node.type] || "影视节点"} · ${node.type === CanvasNodeType.FilmShot ? "概览" : "编辑"}`}
             styles={{

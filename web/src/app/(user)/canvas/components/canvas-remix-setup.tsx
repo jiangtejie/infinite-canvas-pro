@@ -9,6 +9,7 @@ import { errorMessage } from "@/lib/utils";
 import { changeRemixSettingsMode, createInitialRemixSettings, readRemixSetupMemory, REMIX_DEFAULT_GOALS, saveRemixSetupMemory } from "../remix-setup-memory";
 import { CanvasAgentSkillPopover } from "./canvas-agent-skill-popover";
 import { REMIX_PLACEMENTS, type RemixSettings, type RemixSkillSelection } from "../remix-types";
+import { CANVAS_DIALOG_SIZE } from "../utils/canvas-dialog-size";
 
 export type RemixSetupResult = { settings: RemixSettings; selection?: MarketingSelection };
 const SCOPE_LABELS: Record<MarketingScope, string> = { workspace: "企业", brand: "品牌", location: "门店", offering: "商品" };
@@ -129,7 +130,7 @@ export function CanvasRemixSetup({ sourceTitle, initialSkills, instruction, onRe
         setSettings((current) => ({ ...current, skills: [...current.skills, skill] }));
     };
 
-    return <Modal open title="本次复刻设置" width="min(720px, 96vw)" mask={{ closable: false }} destroyOnHidden onCancel={() => onResolve(null)} footer={<div className="flex justify-end gap-2"><Button onClick={() => onResolve(null)}>取消</Button><Button type="primary" onClick={submit}>开始组级策划</Button></div>}>
+    return <Modal open title="本次复刻设置" width={CANVAS_DIALOG_SIZE.sm} mask={{ closable: false }} destroyOnHidden onCancel={() => onResolve(null)} footer={<div className="flex justify-end gap-2"><Button onClick={() => onResolve(null)}>取消</Button><Button type="primary" onClick={submit}>开始组级策划</Button></div>}>
         <div className="max-h-[70dvh] space-y-6 overflow-y-auto py-2 pr-1">
             <p className="text-sm text-muted-foreground">当前素材：{sourceTitle} · 每次创建独立版本，已有复刻结果保留。</p>
             <Segmented block value={settings.mode} options={[{ label: "内容复刻", value: "content" }, { label: "结合营销资料", value: "marketing" }]} onChange={(value) => { setSettings((current) => changeRemixSettingsMode(current, value as RemixSettings["mode"])); setError(""); }} />

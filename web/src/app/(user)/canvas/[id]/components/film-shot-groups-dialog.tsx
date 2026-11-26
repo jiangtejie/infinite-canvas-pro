@@ -5,9 +5,12 @@ import { Input, Modal } from "antd";
 import { Check, Clapperboard, Eye, FolderPlus, Pencil, Trash2, X } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFilmViewState } from "@/app/(user)/canvas/stores/use-film-view-store";
 import type { FilmShotGroupSummary } from "../lib/film-shot-groups";
+import type { FilmShotEntry } from "../lib/film-studio-types";
+import { CANVAS_DIALOG_SIZE } from "../../utils/canvas-dialog-size";
 
 type Props = {
     theme: CanvasTheme;
@@ -53,7 +56,7 @@ export function FilmShotGroupsDialog({ theme, projectId, groups, onCreate, onRen
     };
 
     return (
-        <Modal open onCancel={onClose} footer={null} closable={false} centered width="min(980px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open onCancel={onClose} footer={null} closable={false} centered width={CANVAS_DIALOG_SIZE.md} mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex flex-col" style={{ color: theme.node.text }}>
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">
@@ -94,9 +97,9 @@ export function FilmShotGroupsDialog({ theme, projectId, groups, onCreate, onRen
                                     </span>
                                 </div>
                                 {group.shots.length ? (
-                                    <div className="flex flex-wrap gap-1">
-                                        {group.shots.slice(0, 10).map((entry) => <span key={entry.shot.id} className="rounded-full border px-1.5 py-0.5 font-mono text-[10px] tabular-nums" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{entry.shot.metadata?.filmShot?.shotNo || entry.shot.title}</span>)}
-                                        {group.shots.length > 10 ? <span className="text-[10px]" style={{ color: theme.node.muted }}>等 {group.shots.length} 镜</span> : null}
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        {group.shots.slice(0, 6).map((entry) => <GroupShotThumb key={entry.shot.id} entry={entry} theme={theme} />)}
+                                        {group.shots.length > 6 ? <span className="text-[10px]" style={{ color: theme.node.muted }}>+{group.shots.length - 6} 镜</span> : null}
                                     </div>
                                 ) : <span className="text-[10px]" style={{ color: theme.node.muted }}>组内镜头已全部移除</span>}
                             </div>
@@ -109,5 +112,18 @@ export function FilmShotGroupsDialog({ theme, projectId, groups, onCreate, onRen
                 </div>
             </div>
         </Modal>
+    );
+}
+
+function GroupShotThumb({ entry, theme }: { entry: FilmShotEntry; theme: CanvasTheme }) {
+    const payload = entry.shot.metadata?.filmShot;
+    const imageSrc = useResolvedMediaSrc(payload?.imageUrl, payload?.storageKey);
+    const videoSrc = useResolvedMediaSrc(payload?.videoUrl, payload?.videoStorageKey, "media");
+    const label = payload?.shotNo || entry.shot.title;
+    return (
+        <span className="relative block h-12 w-20 shrink-0 overflow-hidden rounded-md border" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+            {imageSrc ? <img src={imageSrc} alt={label} className="size-full object-cover" /> : videoSrc ? <video src={videoSrc} muted preload="metadata" className="size-full object-cover" /> : <span className="grid size-full place-items-center text-[9px]" style={{ color: theme.node.muted }}>无图</span>}
+            <span className="absolute bottom-0.5 left-0.5 rounded px-1 text-[8px]" style={{ background: "rgba(0,0,0,0.45)", color: "#fff" }}>{label}</span>
+        </span>
     );
 }

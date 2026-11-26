@@ -10,6 +10,7 @@ import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import { FILM_REFERENCE_ROLE_LABELS } from "../lib/film-reference-labels";
 import { defaultFilmVersionPair, filmVersionSummary, type FilmVersionKind, type FilmVersionShot } from "../lib/film-version-room";
+import { CANVAS_DIALOG_SIZE } from "../../utils/canvas-dialog-size";
 
 export type FilmVersionRoomMode = "compare" | "batch";
 
@@ -39,7 +40,7 @@ export function FilmVersionRoomDialog({ theme, mode, kind, shots, activeShotId, 
     }, [activeShot]);
     const pickCount = Object.keys(picks).length;
     return (
-        <Modal open onCancel={onClose} footer={null} closable={false} centered width="min(1280px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open onCancel={onClose} footer={null} closable={false} centered width={CANVAS_DIALOG_SIZE.lg} mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex flex-col" style={{ color: theme.node.text }}>
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">

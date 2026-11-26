@@ -11,6 +11,8 @@ import type { FilmAssetProductionState } from "../lib/film-asset-production";
 import type { FilmProductionKind, FilmProductionPlan, FilmProductionPlanItem, FilmProductionAssetItem, FilmProductionShotItem } from "../lib/film-production-plan";
 import type { FilmShotBatchKind, FilmShotBatchState } from "../lib/film-studio-types";
 import { canvasStatusColors } from "../../lib/canvas-palette";
+import { CANVAS_DIALOG_SIZE } from "../../utils/canvas-dialog-size";
+import { FilmStatusDot } from "./film-status-dot";
 
 type ProductionTab = "all" | "assets" | "shots" | "failed" | "completed";
 type StartTarget = { kind: FilmProductionKind; ids: string[] };
@@ -151,7 +153,7 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
     };
 
     return (
-        <Modal open onCancel={running ? () => undefined : onClose} footer={null} closable={false} centered width="min(1360px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open onCancel={running ? () => undefined : onClose} footer={null} closable={false} centered width={CANVAS_DIALOG_SIZE.xl} mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex max-h-[90vh] flex-col" style={{ color: theme.node.text }}>
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">
@@ -167,6 +169,12 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
                 </div>
                 <div className="flex gap-1 overflow-x-auto border-b px-4 py-2 md:hidden" style={{ borderColor: theme.node.stroke }}>
                     {TABS.map((entry) => <button key={entry.value} type="button" className="shrink-0 rounded-full border px-2.5 py-1 text-[11px]" style={{ borderColor: tab === entry.value ? theme.canvas.selectionStroke : theme.node.stroke, background: tab === entry.value ? theme.canvas.selectionSoft : undefined, color: tab === entry.value ? theme.node.text : theme.node.muted }} onClick={() => changeTab(entry.value)}>{entry.label} {tabCount(entry.value)}</button>)}
+                    {groups.length ? (
+                        <select className="ml-1 shrink-0 rounded-full border bg-transparent px-2 py-1 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }} value={activeGroupKey ?? ""} onChange={(event) => setGroupFilter(event.target.value || null)} aria-label="筛选分组">
+                            <option value="">全部分组</option>
+                            {groups.map((group) => <option key={groupKeyOf(group)} value={groupKeyOf(group)}>{group.label}</option>)}
+                        </select>
+                    ) : null}
                 </div>
                 <div className="flex min-h-0 flex-1">
                     <aside className="thin-scrollbar hidden w-52 shrink-0 flex-col gap-4 overflow-y-auto border-r p-3 md:flex" style={{ borderColor: theme.node.stroke }}>
@@ -261,7 +269,7 @@ function ProductionAssetCard({ theme, item, checked, running, current, onToggle,
             <span className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
                 <span className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate text-xs font-medium">{item.title}</span>
-                    <StatusText theme={theme} status={item.status} />
+                    <FilmStatusDot theme={theme} tone={item.status} />
                 </span>
                 <span className="truncate text-[10px]" style={{ color: theme.node.muted }}>{item.subtitle}</span>
                 {item.reason && item.status !== "done" ? <span className="truncate text-[10px]" style={{ color: item.status === "failed" ? canvasStatusColors.error : theme.node.muted }}>{item.reason}</span> : null}
@@ -287,7 +295,7 @@ function ProductionShotCard({ theme, item, checked, running, current, onToggle, 
             </span>
             <span className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
                 <span className="flex min-w-0 items-center gap-1.5">
-                    <StatusText theme={theme} status={item.status} />
+                    <FilmStatusDot theme={theme} tone={item.status} />
                     {item.reason && item.status !== "done" ? <span className="ml-auto truncate text-[10px]" style={{ color: item.status === "failed" ? canvasStatusColors.error : theme.node.muted }}>{item.reason}</span> : null}
                 </span>
                 <span className="truncate text-[10px]" style={{ color: theme.node.muted }}>{item.subtitle}</span>
@@ -298,12 +306,6 @@ function ProductionShotCard({ theme, item, checked, running, current, onToggle, 
 
 function CardSelection({ checked, theme }: { checked: boolean; theme: CanvasTheme }) {
     return <span className="absolute left-2 top-2 grid size-5 place-items-center rounded-full border transition" style={{ borderColor: checked ? theme.canvas.selectionStroke : "rgba(255,255,255,0.65)", background: checked ? theme.canvas.selectionStroke : "rgba(0,0,0,0.32)" }}>{checked ? <Check className="size-3 text-white" /> : null}</span>;
-}
-
-function StatusText({ theme, status }: { theme: CanvasTheme; status: FilmProductionPlanItem["status"] }) {
-    const color = status === "done" ? canvasStatusColors.success : status === "failed" ? canvasStatusColors.error : status === "busy" ? canvasStatusColors.loading : status === "blocked" ? theme.node.muted : theme.node.text;
-    const label = status === "done" ? "已完成" : status === "failed" ? "失败" : status === "busy" ? "生成中" : status === "blocked" ? "不可执行" : "可执行";
-    return <span className="inline-flex shrink-0 items-center gap-1 text-[10px]" style={{ color }}>{status === "busy" ? <Loader2 className="size-2.5 animate-spin" /> : <span className="size-1.5 rounded-full" style={{ background: color }} />}{label}</span>;
 }
 
 function ProgressRow({ theme, label, current, total, title, completed, failed, progress, onStop }: { theme: CanvasTheme; label: string; current: number; total: number; title: string; completed: number; failed: number; progress: number; onStop: () => void }) {

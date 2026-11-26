@@ -9,6 +9,7 @@ import { useUserStore } from "@/stores/use-user-store";
 import { hydrateScriptIndex, useScriptStore } from "@/app/(user)/script/stores/use-script-store";
 import { SCRIPT_FORMAT_OPTIONS } from "@/app/(user)/script/utils/script-project";
 import type { ScriptFormat } from "@/app/(user)/script/types";
+import { CANVAS_DIALOG_SIZE } from "../../utils/canvas-dialog-size";
 
 const formatLabel = (format: ScriptFormat) => SCRIPT_FORMAT_OPTIONS.find((item) => item.value === format)?.label || "电影";
 
@@ -37,7 +38,7 @@ export function FilmScriptSourcePickerDialog({ open, theme, onClose, onPick }: {
         }
     };
     return (
-        <Modal open={open} onCancel={onClose} footer={null} closable={false} centered width="min(900px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open={open} onCancel={onClose} footer={null} closable={false} centered width={CANVAS_DIALOG_SIZE.md} mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex flex-col" style={{ color: theme.node.text }}>
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">

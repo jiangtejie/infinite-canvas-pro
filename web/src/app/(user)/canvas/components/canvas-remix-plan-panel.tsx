@@ -11,6 +11,7 @@ import { collectSourceRemixHistory, findRemixRunNode } from "../[id]/lib/canvas-
 import { canvasStatusColors } from "../lib/canvas-palette";
 import { REMIX_PLACEMENTS, type RemixRun } from "../remix-types";
 import type { CanvasNodeData } from "../types";
+import { CANVAS_DIALOG_SIZE } from "../utils/canvas-dialog-size";
 
 const SCOPE_LABELS = { workspace: "企业", brand: "品牌", location: "门店", offering: "商品", listing: "门店商品" } as const;
 
@@ -88,7 +89,7 @@ export function CanvasRemixWorkbench({ node, nodes, onGenerate, onReplan, onPubl
         <Modal
             open
             title="复刻版本工作台"
-            width="min(1180px, 96vw)"
+            width={CANVAS_DIALOG_SIZE.lg}
             centered
             mask={{ closable: true }}
             onCancel={onClose}

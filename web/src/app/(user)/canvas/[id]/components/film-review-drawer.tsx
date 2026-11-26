@@ -9,6 +9,7 @@ import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import type { CanvasFilmMeta } from "../../types";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import { CANVAS_Z } from "../lib/canvas-layer";
+import { CANVAS_DIALOG_SIZE } from "../../utils/canvas-dialog-size";
 import type { FilmReviewIssue, FilmReviewReport } from "../lib/film-review";
 import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
 
@@ -66,7 +67,7 @@ export function FilmReviewDrawer({ open, onClose, theme, model, report, film, on
         <Drawer
             open={open}
             onClose={onClose}
-            size="min(760px, 96vw)"
+            size={CANVAS_DIALOG_SIZE.sm}
             zIndex={CANVAS_Z.popover}
             title="就绪与一致性检查"
             styles={{ header: { background: theme.node.panel, color: theme.node.text }, body: { background: theme.node.panel, color: theme.node.text, paddingTop: 12 } }}

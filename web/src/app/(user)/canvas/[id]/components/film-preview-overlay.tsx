@@ -7,6 +7,7 @@ import { Film, Pause, Play, RotateCcw, SkipBack, SkipForward, Video, X } from "l
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import { CANVAS_Z } from "../lib/canvas-layer";
+import { CANVAS_DIALOG_SIZE } from "../../utils/canvas-dialog-size";
 import { buildFilmPreviewTimeline, filmPreviewClipAt, formatFilmPreviewTime, selectFilmPreviewEntries } from "../lib/film-animatic-preview";
 import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
 
@@ -140,7 +141,7 @@ export function FilmPreviewOverlay({ theme, model, onClose }: { theme: CanvasThe
     };
 
     return (
-        <Modal open onCancel={onClose} footer={null} closable={false} centered keyboard={false} width="min(1400px, 97vw)" mask={{ closable: false }} destroyOnHidden zIndex={CANVAS_Z.preview} styles={{ body: { padding: 0, background: "#09090b", borderRadius: 18, overflow: "hidden" } }}>
+        <Modal open onCancel={onClose} footer={null} closable={false} centered keyboard={false} width={CANVAS_DIALOG_SIZE.xl} mask={{ closable: false }} destroyOnHidden zIndex={CANVAS_Z.preview} styles={{ body: { padding: 0, background: "#09090b", borderRadius: 18, overflow: "hidden" } }}>
             <div className="flex h-[min(88vh,900px)] flex-col text-white">
                 <div className="flex items-center gap-3 border-b border-white/10 px-5 py-3">
                     <Play className="size-4" style={{ color: theme.canvas.selectionStroke }} />
