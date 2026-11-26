@@ -74,7 +74,7 @@ export function AnnouncementBanner() {
                             type="button"
                             aria-label={`显示第 ${index + 1} 条公告`}
                             aria-current={slide.index === index ? true : undefined}
-                            className={`group/item flex h-2.5 shrink cursor-pointer items-end justify-center rounded-sm px-1 pb-0.5 transition-[width] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${slide.index === index ? "w-9" : "w-5"}`}
+                            className={`group/item flex h-6 shrink cursor-pointer items-end justify-center rounded-sm px-1 pb-0.5 transition-[width] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${slide.index === index ? "w-9" : "w-8"}`}
                             onClick={() => setSlide((current) => current.index === index ? current : { index, direction: index < current.index ? "left" : "right" })}
                         >
                             <span className={`h-0.5 w-full rounded-full transition-[height,background-color] duration-150 group-hover/indicators:h-1.5 ${slide.index === index ? "bg-acid" : "bg-white/25 group-hover/item:bg-white/50"}`} />
@@ -85,7 +85,7 @@ export function AnnouncementBanner() {
             <button
                 type="button"
                 aria-label="关闭公告"
-                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer rounded-md p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+                className="absolute right-4 top-1/2 inline-flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-white/50 transition hover:bg-white/10 hover:text-white pointer-coarse:size-10"
                 onClick={() => {
                     setVisible(false);
                     try {

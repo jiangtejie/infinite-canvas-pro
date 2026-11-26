@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Tag } from "antd";
 
 import { cn } from "@/lib/utils";
 
@@ -28,26 +27,15 @@ export function FilterTagGroup({ label, options, isSelected, onSelect, className
         const value = optionValue(option);
         const text = typeof option === "string" ? option : option.label;
         return (
-            <span
+            <button
+                type="button"
                 key={value || "all"}
-                role="button"
-                tabIndex={0}
                 aria-pressed={isSelected(value)}
-                className="inline-flex"
-                onKeyDown={(event: React.KeyboardEvent<HTMLSpanElement>) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    onSelect(value);
-                }}
+                className={cn("filter-tag", isSelected(value) && "is-active")}
+                onClick={() => onSelect(value)}
             >
-                <Tag.CheckableTag
-                    checked={isSelected(value)}
-                    className={cn("filter-tag", isSelected(value) && "is-active")}
-                    onChange={() => onSelect(value)}
-                >
-                    {text}
-                </Tag.CheckableTag>
-            </span>
+                {text}
+            </button>
         );
     });
 

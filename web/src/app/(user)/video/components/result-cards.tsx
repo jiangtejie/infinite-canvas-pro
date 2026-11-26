@@ -1,10 +1,10 @@
 "use client";
 
 import { memo, useEffect, useState } from "react";
-import { Button, Checkbox, Tag } from "antd";
-import { AlertCircle, CloudUpload, Download, FolderPlus, LoaderCircle, RotateCcw, Square, Trash2 } from "lucide-react";
+import { Checkbox, Tag } from "antd";
+import { AlertCircle, CloudUpload, Download, FolderPlus, RotateCcw, Square, Trash2 } from "lucide-react";
 
-import { FailedResultCard, FailureDetailModal, MediaResultCard, PendingMediaCard, ReferenceThumbnailOverlay, TaskErrorLine, TaskPromptBlock, TaskResultInfo, formatTaskTime } from "@/components/workbench/task-result";
+import { FailedResultCard, FailureDetailModal, MediaResultCard, PendingMediaCard, ReferenceThumbnailOverlay, TaskActionButton, TaskErrorLine, TaskIconButton, TaskProgressState, TaskPromptBlock, TaskResultInfo, TaskStatusTag, formatTaskTime } from "@/components/workbench/task-result";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
 
 import { isCloudVideo, type GeneratedVideo, type GenerationLog, type GenerationResult } from "../history";
@@ -17,7 +17,7 @@ export function ResultVideoCard({ result, video, syncing, onCopyPrompt, onDownlo
             overlay={
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     <VideoSourceTag video={video} />
-                    <Tag className="m-0 !text-[10px]" color="blue">成功</Tag>
+                    <TaskStatusTag status="success" />
                 </div>
             }
             references={result.references}
@@ -34,9 +34,9 @@ export function ResultVideoCard({ result, video, syncing, onCopyPrompt, onDownlo
             }
             actions={
                 <>
-                    <Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(video)} onClick={() => onSync(video)} />
-                    <Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(video)} />
-                    <Button size="small" aria-label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(video)} />
+                    <TaskIconButton label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(video)} onClick={() => onSync(video)} />
+                    <TaskIconButton label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(video)} />
+                    <TaskIconButton label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(video)} />
                 </>
             }
             onCopyPrompt={onCopyPrompt}
@@ -46,7 +46,6 @@ export function ResultVideoCard({ result, video, syncing, onCopyPrompt, onDownlo
 }
 
 export function PendingVideoCard({ result, onCopyPrompt, onStop, onRetry, onDelete }: { result: GenerationResult; onCopyPrompt: (text: string) => void | Promise<void>; onStop: () => void; onRetry: () => void; onDelete: () => void }) {
-    const progress = typeof result.progress === "number" ? Math.max(0, Math.min(100, Math.floor(result.progress))) : null;
     const stopping = result.status === "stopping";
     const stopped = result.status === "stopped";
     const [now, setNow] = useState(Date.now);
@@ -63,28 +62,27 @@ export function PendingVideoCard({ result, onCopyPrompt, onStop, onRetry, onDele
             tags={<TaskMetaLine item={{ ...result, durationMs }} />}
             onCopyPrompt={onCopyPrompt}
         >
-            <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--foreground) 12%, transparent) 1.4px, transparent 1.6px)", backgroundSize: "16px 16px" }} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-                {stopped ? <span className="flex size-9 items-center justify-center rounded-xl bg-muted"><Square className="size-4" /></span> : <LoaderCircle className="size-6 animate-spin" />}
-                {stopped || stopping ? <span>{stopped ? "已停止" : result.error ? "停止未确认" : "停止中"}</span> : progress !== null ? <span className="animate-pulse font-semibold text-acid-ink">正在创作 {progress}%</span> : <span>生成中</span>}
-                <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(durationMs)}</span>
-                <Button type={stopped ? "default" : "primary"} danger={!stopped} disabled={stopping && !result.error} onClick={stopped ? onRetry : onStop} aria-label={stopped ? "重新生成" : stopping ? result.error ? "重试停止" : "停止中" : "停止"} className="!h-6 !min-w-12 !rounded-full !px-3">
-                    {stopped ? <RotateCcw className="size-3" /> : stopping && !result.error ? <LoaderCircle className="size-3.5 animate-spin" /> : <Square className="size-3" fill="currentColor" />}
-                    {stopped ? "重新生成" : null}
-                </Button>
-            </div>
-            {progress !== null && !stopped ? (
-                <div className="absolute inset-x-4 bottom-4 z-10 flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground">
-                        <span>当前创作进度</span>
-                        <span>{progress}%</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-acid shadow-[0_0_8px_-2px_var(--acid)] transition-[width] duration-300" style={{ width: `${progress}%` }} />
-                    </div>
-                </div>
-            ) : null}
-            {stopped || stopping && result.error ? <Button size="small" type="text" danger title="删除" aria-label="删除结果" className="!absolute right-1.5 top-1.5 z-10 !h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
+            <TaskProgressState
+                status={stopped ? "stopped" : stopping ? "stopping" : "pending"}
+                elapsedMs={durationMs}
+                progress={result.progress}
+                stoppingError={Boolean(result.error)}
+                action={
+                    <TaskActionButton
+                        type={stopped ? "default" : "primary"}
+                        danger={!stopped}
+                        loading={stopping && !result.error}
+                        disabled={stopping && !result.error}
+                        onClick={stopped ? onRetry : onStop}
+                        aria-label={stopped ? "重新生成" : stopping ? result.error ? "重试停止" : "停止中" : "停止"}
+                        className="!min-w-12 !rounded-full !px-3"
+                    >
+                        {stopped ? <RotateCcw className="size-3" /> : <Square className="size-3" fill="currentColor" />}
+                        {stopped ? "重新生成" : null}
+                    </TaskActionButton>
+                }
+            />
+            {stopped || stopping && result.error ? <TaskIconButton label="删除结果" danger className="!absolute right-1.5 top-1.5 z-10" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
         </PendingMediaCard>
     );
 }
@@ -97,7 +95,7 @@ export function FailedVideoCard({ result, error, onCopyPrompt, onPreview, onRetr
             error={error}
             detail={result.errorDetail || error}
             info={<TaskResultInfo prompt={result.prompt} tags={<TaskMetaLine item={result} />} error={error} onCopyPrompt={onCopyPrompt} />}
-            extraActions={<Button size="small" onClick={onPreview}>载入</Button>}
+            extraActions={<TaskActionButton onClick={onPreview}>载入</TaskActionButton>}
             onRetry={onRetry}
         />
     );
@@ -110,11 +108,11 @@ export const HistoryLogCard = memo(function HistoryLogCard({ log, index, selecte
             <div className="relative aspect-video bg-muted">
                 <div className={`absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 ${selected ? "sm:opacity-100" : ""}`}>
                     <Checkbox checked={selected} onChange={(event) => onToggleSelect(log.id, event.target.checked)} />
-                    {selected ? <Button size="small" type="text" danger title="删除" aria-label="删除视频结果" className="!h-6 !w-6 !p-0" icon={<Trash2 className="size-3.5" />} onClick={() => onDelete(log)} /> : null}
+                    {selected ? <TaskIconButton label="删除视频结果" danger icon={<Trash2 className="size-3.5" />} onClick={() => onDelete(log)} /> : null}
                 </div>
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     {log.video ? <VideoSourceTag video={log.video} /> : null}
-                    <Tag className="m-0 !text-[10px]" color={log.status === "成功" ? "blue" : log.status === "生成中" || log.status === "停止中" ? "processing" : log.status === "已停止" ? undefined : "red"}>{log.status}</Tag>
+                    <TaskStatusTag status={log.status} />
                 </div>
                 {log.video ? <video src={log.video.url} controls className="size-full bg-black object-contain" /> : log.status === "已停止" ? <div className="flex size-full flex-col items-center justify-center gap-2 text-sm"><Square className="size-7" /><span>已停止</span></div> : <div className="flex size-full flex-col items-center justify-center gap-2 p-5 text-center text-sm text-destructive"><AlertCircle className="size-7" /><span>{log.error || "没有可显示的视频"}</span></div>}
                 <ReferenceThumbnailOverlay references={log.references} className="bottom-1.5 right-1.5" />
@@ -126,10 +124,10 @@ export const HistoryLogCard = memo(function HistoryLogCard({ log, index, selecte
             </div>
             <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 border-t border-border/70 px-3 py-2.5">
                 <div className="flex flex-wrap gap-1">
-                    <Button size="small" onClick={() => onPreview(log)}>载入</Button>
-                    <Button size="small" icon={<RotateCcw className="size-3.5" />} onClick={() => onRetry(log)}>重试</Button>
+                    <TaskActionButton onClick={() => onPreview(log)}>载入</TaskActionButton>
+                    <TaskActionButton icon={<RotateCcw className="size-3.5" />} onClick={() => onRetry(log)}>重试</TaskActionButton>
                 </div>
-                {log.video ? <div className="flex shrink-0 gap-1"><Button size="small" title="同步到云端存储" aria-label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(log.video)} onClick={() => onSync(log, log.video!, index)} /><Button size="small" aria-label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(log.video!, log.prompt)} /><Button size="small" aria-label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(log.video!)} /></div> : null}
+                {log.video ? <div className="flex shrink-0 gap-1"><TaskIconButton label="同步到云端存储" icon={<CloudUpload className="size-3.5" />} loading={syncing} disabled={isCloudVideo(log.video)} onClick={() => onSync(log, log.video!, index)} /><TaskIconButton label="保存到我的素材" icon={<FolderPlus className="size-3.5" />} onClick={() => onSaveAsset(log.video!, log.prompt)} /><TaskIconButton label="下载视频" icon={<Download className="size-3.5" />} onClick={() => onDownload(log.video!)} /></div> : null}
             </div>
             <FailureDetailModal open={detailOpen} detail={log.errorDetail || log.error || ""} onClose={() => setDetailOpen(false)} />
         </div>

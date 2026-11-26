@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button, Checkbox, Dropdown, Image, Input, Tag } from "antd";
+import { Checkbox, Dropdown, Image, Input, Tag } from "antd";
 import { AlertCircle, BookmarkPlus, Brush, CloudUpload, Download, FolderPlus, ImagePlus, MoreHorizontal, Plus, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
 
-import { FailureDetailModal, ReferenceThumbnailOverlay, TaskErrorLine, TaskPromptBlock, formatTaskTime } from "@/components/workbench/task-result";
+import { FailureDetailModal, ReferenceThumbnailOverlay, TaskActionButton, TaskErrorLine, TaskIconButton, TaskPromptBlock, TaskStatusTag, formatTaskTime } from "@/components/workbench/task-result";
 import { formatDuration } from "@/lib/image-utils";
 import { ImageMetaLine } from "./image-card-parts";
 import { useImagePreviewUrl } from "./use-preview-url";
@@ -109,20 +109,16 @@ export function HistoryLogCard({
             <div className="relative aspect-[4/3] shrink-0 bg-muted">
                 <div className={`absolute left-1.5 top-1.5 z-10 flex items-center gap-1 rounded-md bg-background/85 px-1.5 py-1 shadow-sm transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 ${selected ? "sm:opacity-100" : ""}`}>
                     <Checkbox checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} />
-                    {selected ? <Button size="small" danger type="text" icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
+                    {selected ? <TaskIconButton label="删除图片结果" danger icon={<Trash2 className="size-3.5" />} onClick={onDelete} /> : null}
                 </div>
                 <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
                     {firstImage && !firstImage.storageKey?.startsWith("server:") ? <Tag className="m-0 !text-[10px]" color="gold">临时URL</Tag> : null}
                     {log.status === "生成中" || log.status === "停止中" ? (
-                        <Tag className="m-0 !text-[10px]" color="processing">
-                            生成中
-                        </Tag>
+                        <TaskStatusTag status={log.status} />
                     ) : log.status === "已停止" ? (
-                        <Tag className="m-0 !text-[10px]">已停止</Tag>
+                        <TaskStatusTag status="stopped" />
                     ) : log.failCount ? (
-                        <Tag className="m-0 !text-[10px]" color="red">
-                            失败 {log.failCount}
-                        </Tag>
+                        <TaskStatusTag status="failed" label={`失败 ${log.failCount}`} />
                     ) : log.imageCount > 1 ? (
                         <Tag className="m-0 !text-[10px]">{log.imageCount} 张</Tag>
                     ) : null}
@@ -172,13 +168,13 @@ export function HistoryLogCard({
                 />
             </div>
             <div className="flex items-center gap-1.5 border-t border-border/70 px-3 py-2.5">
-                <Button size="small" icon={<SlidersHorizontal className="size-3.5" />} onClick={() => closeThen(onPreview)}>
+                <TaskActionButton icon={<SlidersHorizontal className="size-3.5" />} onClick={() => closeThen(onPreview)}>
                     复用配置
-                </Button>
-                <Button size="small" type="text" className="!text-muted-foreground hover:!text-foreground" title="重试" aria-label="重试" icon={<RotateCcw className="size-3.5" />} onClick={() => closeThen(onRetry)} />
+                </TaskActionButton>
+                <TaskIconButton label="重试" className="!text-muted-foreground hover:!text-foreground" icon={<RotateCcw className="size-3.5" />} onClick={() => closeThen(onRetry)} />
                 <div ref={categoryMenuRef} className="relative ml-auto flex items-center">
                     <Dropdown trigger={["click"]} placement="bottomRight" menu={{ items: moreItems, onClick: ({ key }) => handleMore(key) }}>
-                        <Button size="small" type="text" className="!text-muted-foreground hover:!text-foreground" title="更多操作" aria-label="更多操作" icon={<MoreHorizontal className="size-3.5" />} />
+                        <TaskIconButton label="更多操作" className="!text-muted-foreground hover:!text-foreground" icon={<MoreHorizontal className="size-3.5" />} />
                     </Dropdown>
                     {categoryOpen ? (
                         <div className="absolute bottom-full right-0 z-20 mb-2 w-56 rounded-lg border border-border bg-popover p-2 shadow-xl">
@@ -193,11 +189,11 @@ export function HistoryLogCard({
                             </div>
                             <div className="mt-2 flex gap-1 border-t border-border pt-2">
                                 <Input size="small" value={categoryName} placeholder="新分类" onChange={(event) => setCategoryName(event.target.value)} onPressEnter={() => void createCategory()} />
-                                <Button size="small" icon={<Plus className="size-3.5" />} onClick={() => void createCategory()} />
+                                <TaskIconButton label="创建分类" icon={<Plus className="size-3.5" />} onClick={() => void createCategory()} />
                             </div>
-                            <Button size="small" type="link" className="!mt-1 !h-auto !p-0 text-xs" onClick={() => closeThen(onClearCategories)}>
+                            <TaskActionButton type="link" className="!mt-1 !h-auto !p-0 text-xs" onClick={() => closeThen(onClearCategories)}>
                                 移至未分类
-                            </Button>
+                            </TaskActionButton>
                         </div>
                     ) : null}
                 </div>

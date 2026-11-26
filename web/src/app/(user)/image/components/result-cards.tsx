@@ -1,9 +1,9 @@
 "use client";
 
-import { Button, Dropdown, Image, Tag } from "antd";
-import { Ban, CloudUpload, Download, FolderPlus, ImagePlus, LoaderCircle, MoreHorizontal, SlidersHorizontal } from "lucide-react";
+import { Dropdown, Image, Tag } from "antd";
+import { CloudUpload, Download, FolderPlus, ImagePlus, MoreHorizontal, SlidersHorizontal } from "lucide-react";
 
-import { FailedResultCard, MediaResultCard, PendingMediaCard, TaskPromptBlock, formatTaskTime } from "@/components/workbench/task-result";
+import { FailedResultCard, MediaResultCard, PendingMediaCard, TaskActionButton, TaskIconButton, TaskProgressState, TaskPromptBlock, TaskStatusTag, formatTaskTime } from "@/components/workbench/task-result";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { ImageMetaLine } from "./image-card-parts";
 import { useImagePreviewUrl } from "./use-preview-url";
@@ -33,6 +33,7 @@ function ResultBadges({ storageKey }: { storageKey?: string }) {
     if (storageKey?.startsWith("server:")) return null;
     return (
         <div className="absolute right-1.5 top-1.5 z-10 flex gap-1">
+            <TaskStatusTag status="success" />
             <Tag className="m-0 text-[10px]" color="gold">临时URL</Tag>
         </div>
     );
@@ -83,9 +84,9 @@ export function ResultImageCard({
             }
             actions={
                 <>
-                    <Button size="small" icon={<ImagePlus className="size-3.5" />} onClick={() => void onEdit(image, index)}>
+                    <TaskActionButton icon={<ImagePlus className="size-3.5" />} onClick={() => void onEdit(image, index)}>
                         作为参考图
-                    </Button>
+                    </TaskActionButton>
                     <Dropdown
                         trigger={["click"]}
                         placement="bottomRight"
@@ -99,7 +100,7 @@ export function ResultImageCard({
                             },
                         }}
                     >
-                        <Button size="small" type="text" className="!text-muted-foreground hover:!text-foreground" title="更多操作" aria-label="更多操作" icon={<MoreHorizontal className="size-3.5" />} />
+                        <TaskIconButton label="更多操作" className="!text-muted-foreground hover:!text-foreground" icon={<MoreHorizontal className="size-3.5" />} />
                     </Dropdown>
                 </>
             }
@@ -120,23 +121,12 @@ export function PendingImageCard({ result, now, onCopyPrompt, onStop, stopping }
                 </div>
             }
         >
-            <div
-                className="absolute inset-0 opacity-60"
-                style={{
-                    backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--foreground) 12%, transparent) 1.4px, transparent 1.6px)",
-                    backgroundSize: "16px 16px",
-                }}
+            <TaskProgressState
+                status={stopping ? "stopping" : "pending"}
+                elapsedMs={Math.max(0, now - result.createdAt)}
+                progress={result.progress}
+                action={onStop ? <TaskActionButton loading={stopping} onClick={onStop}>{stopping ? "停止中…" : "停止"}</TaskActionButton> : null}
             />
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-                <LoaderCircle className="size-6 animate-spin" />
-                <span>{stopping ? "停止中" : "生成中"}</span>
-                <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, now - result.createdAt))}</span>
-                {onStop ? (
-                    <Button size="small" loading={stopping} onClick={onStop}>
-                        {stopping ? "停止中…" : "停止"}
-                    </Button>
-                ) : null}
-            </div>
         </PendingMediaCard>
     );
 }
@@ -145,7 +135,7 @@ export function StoppedImageCard({ result, onCopyPrompt, onRetry }: { result: Ge
     return (
         <PendingMediaCard
             className="flex h-full flex-col"
-            mediaClassName="flex aspect-[4/3] shrink-0 flex-col items-center justify-center gap-2.5"
+            mediaClassName="aspect-[4/3] shrink-0"
             info={
                 <div className="flex-1 space-y-2 border-t border-border/70 p-3">
                     <TaskPromptBlock compact prompt={result.prompt} onCopyPrompt={onCopyPrompt} />
@@ -153,13 +143,7 @@ export function StoppedImageCard({ result, onCopyPrompt, onRetry }: { result: Ge
                 </div>
             }
         >
-            <span className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                <Ban className="size-4" aria-hidden />
-            </span>
-            <span className="text-[13px] text-muted-foreground">已停止生成</span>
-            <Button size="small" onClick={onRetry}>
-                重新生成
-            </Button>
+            <TaskProgressState status="stopped" elapsedMs={result.durationMs || 0} action={<TaskActionButton onClick={onRetry}>重新生成</TaskActionButton>} />
         </PendingMediaCard>
     );
 }

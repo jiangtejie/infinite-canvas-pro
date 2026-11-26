@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { Button } from "antd";
 import { CheckSquare, Download, History, Plus, Trash2 } from "lucide-react";
 
+import { EmptyState } from "@/components/ui/state-panel";
+
 export function ResultsPanelShell({ className = "", title, count, pendingCount, actions, empty, children }: {
     className?: string;
     title: string;
@@ -34,6 +36,26 @@ export function ResultsPanelShell({ className = "", title, count, pendingCount, 
     );
 }
 
+export function ResultsEmptyState({ icon, title, description, examples, onUseExample }: { icon: ReactNode; title: string; description: string; examples: string[]; onUseExample: (prompt: string) => void }) {
+    return (
+        <EmptyState
+            className="min-h-[320px] lg:min-h-[520px]"
+            icon={icon}
+            title={title}
+            description={description}
+            action={
+                <div className="flex max-w-lg flex-wrap justify-center gap-2">
+                    {examples.map((prompt) => (
+                        <Button key={prompt} size="small" className="!h-auto !whitespace-normal !px-3 !py-1.5 !text-left !text-[11px]" onClick={() => onUseExample(prompt)}>
+                            {prompt}
+                        </Button>
+                    ))}
+                </div>
+            }
+        />
+    );
+}
+
 export function ResultsToolbarActions({ onNew, newLabel = "新建", onToggleSelectAll, selectAllLabel, selectAllDisabled, onDownload, downloadDisabled, onDelete, deleteDisabled }: {
     onNew: () => void;
     newLabel?: string;
@@ -47,16 +69,16 @@ export function ResultsToolbarActions({ onNew, newLabel = "新建", onToggleSele
 }) {
     return (
         <>
-            <Button size="small" className="!h-7 !px-2.5" icon={<Plus className="size-3.5" />} onClick={onNew}>
+            <Button size="small" className="!h-8 pointer-coarse:!h-10 !px-2.5" icon={<Plus className="size-3.5" />} onClick={onNew}>
                 {newLabel}
             </Button>
-            <Button size="small" type="text" className="!h-7 !px-2.5 !text-muted-foreground hover:!text-foreground" icon={<CheckSquare className="size-3.5" />} disabled={selectAllDisabled} onClick={onToggleSelectAll}>
+            <Button size="small" type="text" className="!h-8 pointer-coarse:!h-10 !px-2.5 !text-muted-foreground hover:!text-foreground" icon={<CheckSquare className="size-3.5" />} disabled={selectAllDisabled} onClick={onToggleSelectAll}>
                 {selectAllLabel}
             </Button>
-            <Button size="small" type="text" className="!h-7 !px-2.5 !text-muted-foreground hover:!text-foreground" icon={<Download className="size-3.5" />} disabled={downloadDisabled} onClick={onDownload}>
+            <Button size="small" type="text" className="!h-8 pointer-coarse:!h-10 !px-2.5 !text-muted-foreground hover:!text-foreground" icon={<Download className="size-3.5" />} disabled={downloadDisabled} onClick={onDownload}>
                 下载
             </Button>
-            <Button size="small" type="text" danger className="!h-7 !px-2.5" icon={<Trash2 className="size-3.5" />} disabled={deleteDisabled} onClick={onDelete}>
+            <Button size="small" type="text" danger className="!h-8 pointer-coarse:!h-10 !px-2.5" icon={<Trash2 className="size-3.5" />} disabled={deleteDisabled} onClick={onDelete}>
                 删除
             </Button>
         </>

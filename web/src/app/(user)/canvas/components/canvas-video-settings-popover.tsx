@@ -202,7 +202,7 @@ function KlingMultiPromptSection({ items, options, theme, onChange }: { items: {
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-sm font-medium">分镜提示词{index + 1}</span>
                             <div className="flex items-center gap-1.5">
-                                <NumberField value={item.duration || "1"} min={1} max={15} theme={theme} onChange={(value) => update(index, { duration: value })} />
+                                <NumberField label={`分镜提示词 ${index + 1} 时长（秒）`} value={item.duration || "1"} min={1} max={15} theme={theme} onChange={(value) => update(index, { duration: value })} />
                                 <IconButton title="新增分镜提示词" theme={theme} onClick={() => onChange([...items, { textNodeId: "", duration: "1" }])}><Plus className="size-3.5" /></IconButton>
                                 <IconButton title="删除分镜提示词" disabled={items.length <= 1} danger theme={theme} onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-3.5" /></IconButton>
                             </div>
@@ -242,14 +242,39 @@ function FrameReferencePicker({ label, value, options, theme, onChange }: { labe
     const [open, setOpen] = useState(false);
     const selected = options.find((item) => item.nodeId === value);
     const items = [{ nodeId: "", label: "不指定" }, ...options];
-    return <div className="relative grid gap-1.5 text-xs" style={{ color: theme.node.muted }}><div>{label}</div><button type="button" className="flex h-12 w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-xl border px-2 text-left transition hover:opacity-90" style={{ background: theme.node.fill, borderColor: open ? theme.toolbar.activeText : theme.node.stroke, color: theme.node.text }} onClick={() => setOpen((current) => !current)}><FramePreview option={selected} /><span className="min-w-0 flex-1 overflow-hidden"><span className="block truncate font-medium">{selected?.label || "不指定"}</span><span className="block truncate opacity-55">{selected ? "已连接图片节点" : options.length ? "点击选择已连接图片" : "暂无已连接图片"}</span></span>{selected ? <ClearButton onClick={() => onChange("")} /> : null}</button>{open ? <PickerMenu items={items} value={value} theme={theme} renderPreview={(item) => <FramePreview option={item.nodeId ? item : undefined} />} renderTitle={(item) => item.label} renderSubtitle={(item) => (item.nodeId ? "已连接图片节点" : "不使用首尾帧图片")} onSelect={(nodeId) => { onChange(nodeId); setOpen(false); }} /> : null}</div>;
+    return (
+        <div className="relative grid gap-1.5 text-xs" style={{ color: theme.node.muted }}>
+            <div>{label}</div>
+            <div className="relative flex h-12 w-full min-w-0 max-w-full items-center rounded-xl border" style={{ background: theme.node.fill, borderColor: open ? theme.toolbar.activeText : theme.node.stroke }}>
+                <button type="button" aria-label={`选择${label}，当前：${selected?.label || "不指定"}`} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-l-xl px-2 py-1 text-left transition hover:opacity-90" style={{ color: theme.node.text }} onClick={() => setOpen((current) => !current)}>
+                    <FramePreview option={selected} />
+                    <span className="min-w-0 flex-1 overflow-hidden"><span className="block truncate font-medium">{selected?.label || "不指定"}</span><span className="block truncate opacity-55">{selected ? "已连接图片节点" : options.length ? "点击选择已连接图片" : "暂无已连接图片"}</span></span>
+                </button>
+                {selected ? <ClearButton label={`清除${label}`} onClick={() => onChange("")} /> : null}
+            </div>
+            {open ? <PickerMenu items={items} value={value} theme={theme} renderPreview={(item) => <FramePreview option={item.nodeId ? item : undefined} />} renderTitle={(item) => item.label} renderSubtitle={(item) => (item.nodeId ? "已连接图片节点" : "不使用首尾帧图片")} onSelect={(nodeId) => { onChange(nodeId); setOpen(false); }} /> : null}
+        </div>
+    );
 }
 
 export function ResourceSinglePicker({ label, value, options, placeholder, emptyText, theme, onChange }: { label?: string; value: string; options: CanvasVideoResourceOption[]; placeholder: string; emptyText: string; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onChange: (value: string) => void }) {
     const [open, setOpen] = useState(false);
     const selected = options.find((item) => item.nodeId === value);
     const items = [{ nodeId: "", kind: "text" as const, label: placeholder }, ...options];
-    return <div className="relative grid gap-1.5 text-xs" style={{ color: theme.node.muted }}>{label ? <div>{label}</div> : null}<button type="button" className="flex h-14 w-full min-w-0 max-w-full items-center gap-2 overflow-hidden rounded-xl border px-2 text-left transition hover:opacity-90" style={{ background: theme.node.fill, borderColor: open ? theme.toolbar.activeText : theme.node.stroke, color: theme.node.text }} onClick={() => setOpen((current) => !current)}><ResourcePreview option={selected} theme={theme} /><span className="min-w-0 flex-1 overflow-hidden"><span className="block truncate font-medium">{selected ? optionTitle(selected) : placeholder}</span><span className="block truncate opacity-55">{selected ? optionSubtitle(selected) : emptyText}</span></span>{selected ? <ClearButton onClick={() => onChange("")} /> : null}</button>{open ? <PickerMenu items={items} value={value} theme={theme} renderPreview={(item) => <ResourcePreview option={item.nodeId ? item : undefined} theme={theme} />} renderTitle={(item) => (item.nodeId ? optionTitle(item) : placeholder)} renderSubtitle={(item) => (item.nodeId ? optionSubtitle(item) : emptyText)} onSelect={(nodeId) => { onChange(nodeId); setOpen(false); }} /> : null}</div>;
+    const selectionLabel = label || "素材";
+    return (
+        <div className="relative grid gap-1.5 text-xs" style={{ color: theme.node.muted }}>
+            {label ? <div>{label}</div> : null}
+            <div className="relative flex h-14 w-full min-w-0 max-w-full items-center rounded-xl border" style={{ background: theme.node.fill, borderColor: open ? theme.toolbar.activeText : theme.node.stroke }}>
+                <button type="button" aria-label={`选择${selectionLabel}，当前：${selected ? optionTitle(selected) : placeholder}`} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-l-xl px-2 py-1 text-left transition hover:opacity-90" style={{ color: theme.node.text }} onClick={() => setOpen((current) => !current)}>
+                    <ResourcePreview option={selected} theme={theme} />
+                    <span className="min-w-0 flex-1 overflow-hidden"><span className="block truncate font-medium">{selected ? optionTitle(selected) : placeholder}</span><span className="block truncate opacity-55">{selected ? optionSubtitle(selected) : emptyText}</span></span>
+                </button>
+                {selected ? <ClearButton label={`清除${selectionLabel}`} onClick={() => onChange("")} /> : null}
+            </div>
+            {open ? <PickerMenu items={items} value={value} theme={theme} renderPreview={(item) => <ResourcePreview option={item.nodeId ? item : undefined} theme={theme} />} renderTitle={(item) => (item.nodeId ? optionTitle(item) : placeholder)} renderSubtitle={(item) => (item.nodeId ? optionSubtitle(item) : emptyText)} onSelect={(nodeId) => { onChange(nodeId); setOpen(false); }} /> : null}
+        </div>
+    );
 }
 
 function MultiResourcePicker({ values, options, theme, onChange }: { values: string[]; options: CanvasVideoResourceOption[]; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onChange: (values: string[]) => void }) {
@@ -276,16 +301,16 @@ function ResourcePreview({ option, theme, small = false }: { option?: CanvasVide
     return <span className={["flex shrink-0 items-center justify-center rounded-md", size].join(" ")} style={{ background: theme.node.fill }}><Icon className="size-4 opacity-55" /></span>;
 }
 
-function ClearButton({ onClick }: { onClick: () => void }) {
-    return <span role="button" tabIndex={0} className="rounded-full p-1 opacity-55 transition hover:opacity-100" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onClick(); }}><X className="size-3.5" /></span>;
+function ClearButton({ label, onClick }: { label: string; onClick: () => void }) {
+    return <button type="button" aria-label={label} title={label} className="mr-1 inline-flex size-9 shrink-0 items-center justify-center rounded-full opacity-55 transition hover:opacity-100 pointer-coarse:size-10" onClick={(event) => { event.preventDefault(); event.stopPropagation(); onClick(); }}><X className="size-3.5" /></button>;
 }
 
 function IconButton({ title, disabled = false, danger = false, theme, onClick, children }: { title: string; disabled?: boolean; danger?: boolean; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onClick: () => void; children: ReactNode }) {
-    return <button type="button" title={title} disabled={disabled} className="grid size-8 place-items-center rounded-lg border text-xs transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>{children}</button>;
+    return <button type="button" title={title} aria-label={title} disabled={disabled} className="grid size-8 place-items-center rounded-lg border text-xs transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-35 pointer-coarse:size-10" style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: danger ? "var(--destructive)" : theme.node.text }} onClick={onClick}>{children}</button>;
 }
 
-function NumberField({ value, min, max, theme, onChange }: { value: string; min: number; max: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onChange: (value: string) => void }) {
-    return <input type="number" min={min} max={max} className="h-8 w-16 rounded-full border bg-transparent px-2 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text }} value={value} onChange={(event) => onChange(event.target.value)} onMouseDown={(event) => event.stopPropagation()} />;
+function NumberField({ label, value, min, max, theme, onChange }: { label: string; value: string; min: number; max: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onChange: (value: string) => void }) {
+    return <input type="number" aria-label={label} min={min} max={max} className="h-8 w-16 rounded-full border bg-transparent px-2 text-center text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text, outlineColor: theme.toolbar.activeText }} value={value} onChange={(event) => onChange(event.target.value)} onMouseDown={(event) => event.stopPropagation()} />;
 }
 
 function OptionPill({ selected, theme, onClick, children }: { selected: boolean; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onClick: () => void; children: ReactNode }) {

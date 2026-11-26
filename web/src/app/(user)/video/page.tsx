@@ -5,34 +5,33 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import dynamic from "next/dynamic";
 import { App, Button } from "antd";
 import { nanoid } from "nanoid";
-import { saveAs } from "file-saver";
 
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import type { WorkbenchLayout } from "@/components/workbench-header";
 import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
+import { PageFrame } from "@/components/ui/page-frame";
 import { LoadingState } from "@/components/ui/state-panel";
 import { WORKBENCH_BOTTOM_RESULTS_CLASS, WorkbenchShell } from "@/components/workbench/workbench-shell";
 import { VideoWorkbenchPanel } from "./components/workbench-panel";
-import type { GeneratedVideo, GenerationResult, GenerationLog, UpdateAiConfig, AssetPickerTarget, WorkflowPollContext } from "./history";
-import { logStore, createResultFromLog, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoTask, isLocalClientVideoLog, videoResultIdentityKeys, videoLogDeleteKeys, referenceUsedByGeneration, mediaReferenceUsedByGeneration, disposableLogStorageKeys, updateResult, mergePendingLogResults, sortVideoResults, sortVideoLogs, isCloudVideo, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, normalizeCharacterOrientation, defaultKlingElementList, normalizeKlingElementList, normalizeKlingMultiPrompts, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
+import type { GenerationResult, GenerationLog, UpdateAiConfig, AssetPickerTarget, WorkflowPollContext } from "./history";
+import { logStore, createResultFromLog, shouldSyncVideoLog, dedupeVideoLogs, isLocalClientVideoLog, referenceUsedByGeneration, mediaReferenceUsedByGeneration, mergePendingLogResults, sortVideoResults, sortVideoLogs, readStoredLogs, serializeLog, isSupportedAudioFile, filterAudioReferencesByDuration, moveListItem, buildLog, buildVideoConfig, videoTaskChannelId, resolveVideoChannelId, normalizeCharacterOrientation, defaultKlingElementList, normalizeKlingElementList, normalizeKlingMultiPrompts, normalizeVideoCount, buildResumeVideoConfig, videoLogTaskId } from "./history";
 import { ReferenceVideoStrip } from "./components/reference-strips";
 import { ResultsPanel } from "./components/results-panel";
 import { useVideoTaskPolling } from "./hooks/use-video-task-polling";
 import { useVideoHistorySync } from "./hooks/use-video-history-sync";
 import { useVideoGeneration } from "./hooks/use-video-generation";
 import { useVideoTaskStop } from "./hooks/use-video-task-stop";
+import { useVideoResultActions } from "./hooks/use-video-result-actions";
 import { useAutoDLWorkflow } from "@/hooks/use-autodl-workflow";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { getAutoDLCapabilities, isAutoDLConfig } from "@/lib/autodl";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
 import { videoFrameReferencesEnabled, videoReferenceCapacity } from "@/lib/video-reference-limits";
-import { deleteStoredMedia, downloadRemoteMedia, uploadMediaFile, uploadRemoteMediaToServer } from "@/services/file-storage";
-import { isStorageNotConfiguredError } from "@/services/storage-errors";
+import { deleteStoredMedia, uploadMediaFile } from "@/services/file-storage";
 import { deleteStoredImages, uploadImage } from "@/services/image-storage";
-import { deleteVideoGenerationLogs, saveVideoGenerationLogs } from "@/services/api/generation-logs";
-import { deleteVideoGenerationTask, VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
-import { useAssetStore } from "@/stores/use-asset-store";
+import { saveVideoGenerationLogs } from "@/services/api/generation-logs";
+import { VIDEO_POLL_INTERVAL_MS, type VideoResponse } from "@/services/api/video";
 import { useConfigStore, useEffectiveConfig, type AiConfig, type VideoElementItem, type VideoElementReference } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
@@ -75,7 +74,6 @@ export default function VideoPage() {
     }, [updateConfig]);
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
-    const addAsset = useAssetStore((state) => state.addAsset);
     const token = useUserStore((state) => state.token);
     const userId = useUserStore((state) => state.user?.id || "");
     const isUserReady = useUserStore((state) => state.isReady);
@@ -697,62 +695,6 @@ export default function VideoPage() {
         applyVideoGenerationConfig(result.config, result.model, result.task, result.providerWorkflowRef, result.taskCount);
     }, [applyVideoGenerationConfig, confirmDraftOverwrite]);
 
-    const downloadVideo = useCallback(async (video: GeneratedVideo) => {
-        const hideLoading = message.loading("正在下载视频...", 0);
-        try {
-            saveAs(await downloadRemoteMedia(video.url), "video.mp4");
-        } catch (error) {
-            message.error(errorMessage(error, "视频下载失败"));
-        } finally {
-            hideLoading();
-        }
-    }, [message]);
-
-    const syncVideo = useCallback(async (video: GeneratedVideo, index = 0) => {
-        if (isCloudVideo(video)) return video;
-        setSyncingVideoIds((ids) => Array.from(new Set([...ids, video.id])));
-        const hideLoading = message.loading("正在同步视频到云端存储...", 0);
-        try {
-            const uploaded = await uploadRemoteMediaToServer(video.url, `video-${index + 1}.mp4`);
-            message.success("视频已同步到云端存储");
-            return { ...video, url: uploaded.url, storageKey: uploaded.storageKey, width: uploaded.width || video.width, height: uploaded.height || video.height, bytes: uploaded.bytes || video.bytes, mimeType: uploaded.mimeType || video.mimeType };
-        } catch (error) {
-            message.error(isStorageNotConfiguredError(error) ? "未添加云存储" : errorMessage(error, "视频同步失败"));
-            return null;
-        } finally {
-            hideLoading();
-            setSyncingVideoIds((ids) => ids.filter((id) => id !== video.id));
-        }
-    }, [message]);
-
-    const syncResultVideo = useCallback(async (resultId: string, video: GeneratedVideo, index: number) => {
-        const synced = await syncVideo(video, index);
-        if (!synced) return;
-        setResults((value) => updateResult(value, resultId, { video: synced }));
-    }, [syncVideo]);
-
-    const syncLogVideo = useCallback(async (log: GenerationLog, video: GeneratedVideo, index: number) => {
-        const synced = await syncVideo(video, index);
-        if (!synced) return;
-        const nextLog = { ...log, video: synced };
-        await saveGenerationLog(nextLog);
-        await persistVideoLog(nextLog);
-        if (previewLog?.id === log.id) setPreviewLog(nextLog);
-    }, [persistVideoLog, previewLog, saveGenerationLog, syncVideo]);
-
-    const saveResultToAssets = useCallback((video: GeneratedVideo, resultPrompt: string) => {
-        addAsset({
-            kind: "video",
-            title: resultPrompt.slice(0, 12) || "生成视频",
-            coverUrl: "",
-            tags: [],
-            source: "视频工作台",
-            data: { url: video.url, storageKey: video.storageKey, width: video.width, height: video.height, bytes: video.bytes, mimeType: video.mimeType },
-            metadata: { source: "video-page", prompt: resultPrompt },
-        });
-        message.success("已加入我的素材");
-    }, [addAsset, message]);
-
     const insertPickedAsset = async (payload: InsertAssetPayload) => {
         const insertImage = async () => {
             if (!referenceImageLimit) {
@@ -848,36 +790,29 @@ export default function VideoPage() {
         setPreviewLog(null);
     };
 
-    const deleteSelectedLogs = () => {
-        const selectedLogs = logs.filter((log) => selectedLogIds.includes(log.id));
-        const deleteKeys = new Set(selectedLogs.flatMap(videoLogDeleteKeys));
-        const deletedLogs = logs.filter((log) => selectedLogIds.includes(log.id) || videoLogDeleteKeys(log).some((key) => deleteKeys.has(key)));
-        const nextLogs = logs.filter((log) => !deletedLogs.some((deleted) => deleted.id === log.id));
-        const keys = disposableLogStorageKeys(deletedLogs, nextLogs, [firstFrame, lastFrame, ...references].filter((item): item is ReferenceImage => Boolean(item)), [...videoReferences, ...audioReferences], results);
-        setLogs(nextLogs);
-        logsRef.current = nextLogs;
-        deletedLogs.forEach((log) => videoTaskRunsRef.current.delete(log.id));
-        setResults((value) => value.filter((item) => !selectedLogIds.includes(item.id) && !selectedLogIds.includes(item.taskLogId || "") && !videoResultIdentityKeys(item).some((key) => deleteKeys.has(key))));
-        void Promise.all([deleteBackendVideoTasks(deletedLogs), deleteAccountVideoLogs(deletedLogs), deleteStoredMedia(keys.media), deleteStoredImages(keys.images), ...deletedLogs.map((log) => logStore.removeItem(log.id))]).catch(() => undefined);
-        if (previewLog && deletedLogs.some((log) => log.id === previewLog.id)) {
-            setPreviewLog(null);
-        }
-        setSelectedLogIds([]);
-        setDeleteConfirmOpen(false);
-    };
-
-    const deleteBackendVideoTasks = async (items: GenerationLog[]) => {
-        const config = effectiveConfigRef.current;
-        if (!token || !usesBackendVideoTasks(config)) return;
-        await Promise.all(items.filter((item) => item.task && (item.taskBackend === "account" || !isLocalClientVideoTask(item.task))).map((item) => deleteVideoGenerationTask(config, item.task).catch(() => undefined)));
-    };
-
-    const deleteAccountVideoLogs = async (items: GenerationLog[]) => {
-        if (!token) return;
-        const ids = Array.from(new Set(items.flatMap(videoLogDeleteKeys)));
-        if (!ids.length) return;
-        await deleteVideoGenerationLogs(token, ids).catch(() => undefined);
-    };
+    const { downloadVideo, syncResultVideo, syncLogVideo, saveResultToAssets, deleteSelectedLogs, deleteAccountVideoLogs } = useVideoResultActions({
+        logs,
+        logsRef,
+        results,
+        references,
+        firstFrame,
+        lastFrame,
+        videoReferences,
+        audioReferences,
+        selectedLogIds,
+        previewLog,
+        videoTaskRunsRef,
+        effectiveConfigRef,
+        usesBackendVideoTasks,
+        setLogs,
+        setResults,
+        setSelectedLogIds,
+        setPreviewLog,
+        setDeleteConfirmOpen,
+        setSyncingVideoIds,
+        saveGenerationLog,
+        persistVideoLog,
+    });
 
     const { loadAccountVideoHistory, syncBackendVideoTasks } = useVideoHistorySync({ token, effectiveConfigRef, logsRef, setLogs, setResults, usesBackendVideoTasks });
     useLayoutEffect(() => {
@@ -1048,7 +983,7 @@ export default function VideoPage() {
     );
 
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-transparent text-foreground">
+        <PageFrame variant="workbench">
             <WorkbenchShell layout={workbenchLayout} panel={workbenchPanel} results={resultsPanel} />
             <input
                 ref={fileInputRef}
@@ -1106,7 +1041,7 @@ export default function VideoPage() {
                 }}
                 onCancel={() => setDeleteConfirmOpen(false)}
             />
-        </div>
+        </PageFrame>
     );
 }
 

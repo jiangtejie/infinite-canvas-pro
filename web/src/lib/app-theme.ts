@@ -2,7 +2,7 @@ import type { ThemeConfig } from "antd";
 import { theme as antdTheme } from "antd";
 import { appFontFamily } from "@/lib/app-font";
 
-/* 朋克双色：与 globals.css 的 --acid / --hot 同源 */
+/* antd 算法色需要具体色值；这里保持与 globals.css 朋克配色一致的固定适配色。 */
 export const punkAccent = {
     acid: "#d0ec00",
     hot: "#ff3ead",

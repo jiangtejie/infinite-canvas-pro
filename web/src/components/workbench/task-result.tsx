@@ -1,13 +1,69 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Button, Modal, Typography } from "antd";
-import { AlertCircle, ChevronDown, ChevronUp, Copy } from "lucide-react";
+import { Button, Modal, Tag, Typography, type ButtonProps, type TagProps } from "antd";
+import { AlertCircle, Ban, ChevronDown, ChevronUp, Copy, LoaderCircle } from "lucide-react";
 
+import { formatDuration } from "@/lib/image-utils";
+import { cn } from "@/lib/utils";
 import type { ReferenceImage } from "@/types/image";
 
 export function formatTaskTime(value: number) {
     return new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
+
+export function TaskActionButton({ className, ...props }: ButtonProps) {
+    return <Button size="small" className={cn("!h-8 !px-2.5 pointer-coarse:!h-10", className)} {...props} />;
+}
+
+export function TaskIconButton({ label, className, ...props }: ButtonProps & { label: string }) {
+    return <TaskActionButton {...props} type={props.type ?? "text"} title={label} aria-label={label} className={cn("!size-8 pointer-coarse:!size-10 !p-0", className)} />;
+}
+
+export function TaskStatusTag({ status, label, className }: { status: "pending" | "stopping" | "stopped" | "success" | "failed" | "partial" | "生成中" | "停止中" | "已停止" | "成功" | "失败"; label?: string; className?: string }) {
+    const config: Record<typeof status, { label: string; color?: TagProps["color"] }> = {
+        pending: { label: "生成中", color: "processing" },
+        stopping: { label: "停止中", color: "processing" },
+        stopped: { label: "已停止" },
+        success: { label: "成功", color: "blue" },
+        failed: { label: "失败", color: "red" },
+        partial: { label: "部分失败", color: "red" },
+        生成中: { label: "生成中", color: "processing" },
+        停止中: { label: "停止中", color: "processing" },
+        已停止: { label: "已停止" },
+        成功: { label: "成功", color: "blue" },
+        失败: { label: "失败", color: "red" },
+    };
+    const current = config[status];
+    return <Tag className={cn("m-0 !text-[10px]", className)} color={current.color}>{label || current.label}</Tag>;
+}
+
+export function TaskProgressState({ status, elapsedMs, progress, stoppingError = false, action }: { status: "pending" | "stopping" | "stopped"; elapsedMs: number; progress?: number | null; stoppingError?: boolean; action?: ReactNode }) {
+    const safeProgress = typeof progress === "number" ? Math.max(0, Math.min(100, Math.floor(progress))) : null;
+    const stopped = status === "stopped";
+    const label = stopped ? "已停止" : status === "stopping" ? stoppingError ? "停止未确认" : "停止中" : safeProgress !== null ? `正在创作 ${safeProgress}%` : "生成中";
+    return (
+        <>
+            <div aria-hidden className="absolute inset-0 opacity-60" style={{ backgroundImage: "radial-gradient(circle, color-mix(in oklch, var(--foreground) 12%, transparent) 1.4px, transparent 1.6px)", backgroundSize: "16px 16px" }} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                {stopped ? <span className="flex size-9 items-center justify-center rounded-xl bg-muted"><Ban className="size-4" aria-hidden /></span> : <LoaderCircle className="size-6 animate-spin" aria-hidden />}
+                <span role="status" aria-live="polite">{label}</span>
+                <span className="rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm">{formatDuration(Math.max(0, elapsedMs))}</span>
+                {action}
+            </div>
+            {safeProgress !== null && !stopped ? (
+                <div className="absolute inset-x-4 bottom-4 z-10 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground">
+                        <span>当前创作进度</span>
+                        <span>{safeProgress}%</span>
+                    </div>
+                    <div role="progressbar" aria-label="生成进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={safeProgress} className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-acid shadow-[0_0_8px_-2px_var(--acid)] transition-[width] duration-300" style={{ width: `${safeProgress}%` }} />
+                    </div>
+                </div>
+            ) : null}
+        </>
+    );
 }
 
 export function ReferenceThumbnailOverlay({ references, className = "" }: { references?: ReferenceImage[]; className?: string }) {
@@ -111,13 +167,13 @@ export function FailedResultCard({ mediaClassName, references, error, detail, in
             <div className="flex items-center justify-between gap-2 border-t border-destructive/30 p-3.5">
                 <div className="flex gap-2">{extraActions}</div>
                 <div className="flex gap-2">
-                    <Button size="small" onClick={() => setDetailOpen(true)}>
+                    <TaskActionButton onClick={() => setDetailOpen(true)}>
                         详情
-                    </Button>
+                    </TaskActionButton>
                     {onRetry ? (
-                        <Button size="small" danger onClick={onRetry}>
+                        <TaskActionButton danger onClick={onRetry}>
                             重试
-                        </Button>
+                        </TaskActionButton>
                     ) : null}
                 </div>
             </div>

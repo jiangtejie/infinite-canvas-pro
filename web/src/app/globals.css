@@ -31,6 +31,13 @@
     --font-heading: "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     --font-sans: "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+    --text-xs: var(--type-xs);
+    --text-sm: var(--type-sm);
+    --text-base: var(--type-base);
+    --text-lg: var(--type-lg);
+    --text-xl: var(--type-xl);
+    --text-2xl: var(--type-2xl);
+    --text-3xl: var(--type-3xl);
     --color-input: var(--input);
     --color-destructive: var(--destructive);
     --color-accent-foreground: var(--accent-foreground);
@@ -62,13 +69,13 @@
     --duration-slow: 450ms;
 
     /* 字体层级 - 系统化字阶 */
-    --text-xs: 11px;
-    --text-sm: 13px;
-    --text-base: 15px;
-    --text-lg: 17px;
-    --text-xl: 20px;
-    --text-2xl: 28px;
-    --text-3xl: clamp(2rem, 4vw, 3.2rem);
+    --type-xs: 11px;
+    --type-sm: 13px;
+    --type-base: 15px;
+    --type-lg: 17px;
+    --type-xl: 20px;
+    --type-2xl: 28px;
+    --type-3xl: clamp(2rem, 4vw, 3.2rem);
     --leading-tight: 1.1;
     --leading-snug: 1.4;
     --leading-normal: 1.65;
@@ -224,6 +231,9 @@
     }
     button:not(.ant-btn):focus-visible,
     a:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
     [role="button"]:not(.ant-btn):focus-visible,
     summary:focus-visible {
         outline: 2px solid var(--ring);

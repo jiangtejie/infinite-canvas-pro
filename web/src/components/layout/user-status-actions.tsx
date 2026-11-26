@@ -40,7 +40,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const menuOpen = accountOpen ?? uncontrolledOpen;
     const setMenuOpen = onAccountOpenChange ?? setUncontrolledOpen;
     const containerRef = useRef<HTMLDivElement>(null);
-    const naturalIconClass = "inline-flex size-7 shrink-0 items-center justify-center text-muted-foreground transition hover:text-foreground [&_svg]:size-4";
+    const naturalIconClass = "inline-flex size-8 shrink-0 items-center justify-center text-muted-foreground transition hover:text-foreground pointer-coarse:size-10 [&_svg]:size-4";
     const iconStyle: CSSProperties | undefined = variant === "canvas" ? { color: canvasTheme.node.text } : undefined;
     const avatarStyle: CSSProperties | undefined = variant === "canvas" ? { borderColor: canvasTheme.toolbar.border, color: canvasTheme.node.text, background: "transparent" } : undefined;
     const panelStyle: CSSProperties = variant === "canvas"
@@ -100,7 +100,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 </span>
             ) : null}
             {!user ? (
-                <Link href="/login" className="px-1.5 text-sm font-medium text-muted-foreground underline-offset-4 transition hover:text-foreground hover:underline" style={iconStyle}>
+                <Link href="/login" className="inline-flex h-8 items-center px-1.5 text-sm font-medium text-muted-foreground underline-offset-4 transition hover:text-foreground hover:underline pointer-coarse:h-10" style={iconStyle}>
                     登录
                 </Link>
             ) : null}
@@ -115,7 +115,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 <div ref={setContainerRef} className="relative">
                     <button
                         type="button"
-                        className="admin-user-trigger group flex h-8 shrink-0 items-center gap-1 rounded-full border border-transparent bg-transparent pl-1 pr-1.5 transition hover:border-border hover:bg-[var(--canvas-topbar-hover,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        className="admin-user-trigger group flex h-8 shrink-0 items-center gap-1 rounded-full border border-transparent bg-transparent pl-1 pr-1.5 transition hover:border-border hover:bg-[var(--canvas-topbar-hover,var(--accent))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background pointer-coarse:h-10"
                         style={variant === "canvas" ? { borderColor: canvasTheme.toolbar.border } : undefined}
                         aria-label={`账户菜单：${userName}`}
                         aria-haspopup="menu"

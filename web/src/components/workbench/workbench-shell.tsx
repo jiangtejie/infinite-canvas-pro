@@ -11,7 +11,7 @@ export const WORKBENCH_BOTTOM_RESULTS_CLASS = "min-h-[360px] flex-1 pb-72 lg:pb-
  */
 export function WorkbenchShell({ layout, panel, results }: { layout: WorkbenchLayout; panel: ReactNode; results: ReactNode }) {
     return (
-        <main className={`${layout === "side" ? "grid grid-cols-1 lg:grid-cols-[minmax(300px,376px)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-4 overflow-y-auto p-3 lg:overflow-hidden lg:p-4`}>
+        <div className={`${layout === "side" ? "grid grid-cols-1 lg:grid-cols-[minmax(300px,376px)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]" : "relative flex flex-col"} min-h-0 flex-1 gap-4 overflow-y-auto p-3 lg:overflow-hidden lg:p-4`}>
             {layout === "side" ? (
                 <>
                     {panel}
@@ -23,6 +23,6 @@ export function WorkbenchShell({ layout, panel, results }: { layout: WorkbenchLa
                     {panel}
                 </>
             )}
-        </main>
+        </div>
     );
 }

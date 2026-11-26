@@ -4,8 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { App, Button, Input, Modal } from "antd";
 import { ImagePlus } from "lucide-react";
 
-import { EmptyState } from "@/components/ui/state-panel";
-import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
+import { ResultsEmptyState, ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
 import { useResultsWindow } from "@/components/workbench/use-results-window";
 
 import { cn } from "@/lib/utils";
@@ -206,25 +205,13 @@ export function ResultsPanel({
                 </>
             }
             empty={
-                <div
-                    className="flex min-h-[320px] items-center justify-center overflow-hidden rounded-2xl bg-muted/10 lg:min-h-[520px]"
-                    style={{ backgroundImage: "radial-gradient(circle at 50% 34%, var(--acid-soft), transparent 58%)" }}
-                >
-                    <EmptyState
-                icon={<ImagePlus className="size-6" />}
-                title="还没有生成图片"
-                description="输入提示词并开始生成，或者先试试这些方向。"
-                action={
-                    <div className="flex max-w-lg flex-wrap justify-center gap-2">
-                        {EMPTY_PROMPTS.map((prompt) => (
-                            <Button key={prompt} size="small" className="!h-auto !whitespace-normal !px-3 !py-1.5 !text-left !text-[11px]" onClick={() => onUseExample(prompt)}>
-                                {prompt}
-                            </Button>
-                        ))}
-                    </div>
-                }
-            />
-                </div>
+                <ResultsEmptyState
+                    icon={<ImagePlus className="size-6" />}
+                    title="还没有生成图片"
+                    description="输入提示词并开始生成，或者先试试这些方向。"
+                    examples={EMPTY_PROMPTS}
+                    onUseExample={onUseExample}
+                />
             }
         >
             {showLiveSection ? (

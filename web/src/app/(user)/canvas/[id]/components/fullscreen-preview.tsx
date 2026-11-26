@@ -33,6 +33,8 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
     const imgRef = useRef<HTMLImageElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const videoPlayerRef = useRef<HTMLDivElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
 
     useEffect(() => {
         setZoom(1);
@@ -66,18 +68,51 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
     };
 
     useEffect(() => {
-        if (!isVideo) return;
         const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        videoRef.current?.focus({ preventScroll: true });
-        return () => previousFocus?.focus({ preventScroll: true });
+        if (isVideo) videoRef.current?.focus({ preventScroll: true });
+        else closeButtonRef.current?.focus({ preventScroll: true });
+        return () => {
+            if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+        };
     }, [isVideo]);
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Tab") {
+                const dialog = dialogRef.current;
+                if (!dialog) return;
+                const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+                    .filter((element) => element.getClientRects().length > 0);
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                const active = document.activeElement;
+                if (!first || !last) {
+                    event.preventDefault();
+                    dialog.focus({ preventScroll: true });
+                } else if (!dialog.contains(active)) {
+                    event.preventDefault();
+                    (event.shiftKey ? last : first).focus({ preventScroll: true });
+                } else if (!focusable.includes(active as HTMLElement)) {
+                    event.preventDefault();
+                    (event.shiftKey ? last : first).focus({ preventScroll: true });
+                } else if (event.shiftKey && (active === first || active === dialog)) {
+                    event.preventDefault();
+                    last.focus({ preventScroll: true });
+                } else if (!event.shiftKey && active === last) {
+                    event.preventDefault();
+                    first.focus({ preventScroll: true });
+                }
+                return;
+            }
             if (event.key === "Escape") {
                 event.preventDefault();
                 onClose();
-            } else if (event.key === "ArrowLeft" && hasPrev) {
+                return;
+            }
+            const target = event.target;
+            const isFormControl = target instanceof HTMLElement && (target.matches("input, textarea, select") || target.isContentEditable);
+            if (isFormControl) return;
+            if (event.key === "ArrowLeft" && hasPrev) {
                 event.preventDefault();
                 onPrev?.();
             } else if (event.key === "ArrowRight" && hasNext) {
@@ -152,11 +187,12 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
     };
 
     return (
-        <div role="dialog" aria-modal="true" aria-label={alt || "媒体预览"} className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm" data-canvas-no-zoom={isPanorama ? "" : undefined} onClick={onClose}>
+        <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={alt || "媒体预览"} tabIndex={-1} className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm outline-none" data-canvas-no-zoom={isPanorama ? "" : undefined} onClick={onClose}>
             {hasPrev || hasNext ? (
                 <>
                     <button
                         type="button"
+                        aria-label="上一项"
                         disabled={!hasPrev}
                         onClick={(e) => { e.stopPropagation(); onPrev?.(); }}
                         onPointerDown={(e) => e.stopPropagation()}
@@ -166,6 +202,7 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
                     </button>
                     <button
                         type="button"
+                        aria-label="下一项"
                         disabled={!hasNext}
                         onClick={(e) => { e.stopPropagation(); onNext?.(); }}
                         onPointerDown={(e) => e.stopPropagation()}
@@ -176,6 +213,7 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
                 </>
             ) : null}
             <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="关闭预览"
                 onClick={(event) => {
@@ -237,8 +275,8 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
                                 setVideoTime(time);
                             }}
                             onPointerUp={() => videoRef.current?.focus({ preventScroll: true })}
-                            className="pointer-events-auto block h-1 w-full cursor-pointer appearance-none rounded-full focus-visible:outline-none [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
-                            style={{ background: `linear-gradient(to right, #67e8f9 ${videoDuration ? Math.min(videoTime / videoDuration, 1) * 100 : 0}%, rgba(255,255,255,0.35) 0)` }}
+                            className="pointer-events-auto block h-6 w-full cursor-pointer appearance-none bg-center bg-no-repeat [background-size:100%_4px] rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white [&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+                            style={{ backgroundImage: `linear-gradient(to right, #67e8f9 ${videoDuration ? Math.min(videoTime / videoDuration, 1) * 100 : 0}%, rgba(255,255,255,0.35) 0)` }}
                         />
                         <div className="pointer-events-auto mt-2 flex items-center justify-between">
                             <div className="flex items-center gap-1">
@@ -249,7 +287,7 @@ export function FullscreenPreview({ src, alt, isVideo, isPanorama, proxyGenerate
                                     <button type="button" aria-label={videoVolume === 0 ? "恢复声音" : "静音"} onPointerDown={(event) => event.preventDefault()} onClick={() => { if (videoRef.current) videoRef.current.muted = !videoRef.current.muted; }} className={VIDEO_PREVIEW_CONTROL_CLASS}>
                                         {videoVolume === 0 ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
                                     </button>
-                                    <input type="range" min={0} max={1} step="0.01" value={videoVolume} aria-label="音量" onChange={(event) => { const volume = Number(event.currentTarget.value); if (!videoRef.current) return; if (volume === 0) videoRef.current.muted = true; else { videoRef.current.volume = volume; videoRef.current.muted = false; } }} onPointerUp={() => videoRef.current?.focus({ preventScroll: true })} className="h-1 w-0 pointer-events-none cursor-pointer appearance-none rounded-full opacity-0 transition-[width,opacity] duration-200 focus-visible:outline-none group-hover/volume:mx-1 group-hover/volume:w-20 group-hover/volume:pointer-events-auto group-hover/volume:opacity-100 [&::-moz-range-thumb]:size-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-webkit-slider-thumb]:size-2 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" style={{ background: `linear-gradient(to right, white ${videoVolume * 100}%, rgba(255,255,255,0.35) 0)` }} />
+                                    <input type="range" min={0} max={1} step="0.01" value={videoVolume} aria-label="音量" onChange={(event) => { const volume = Number(event.currentTarget.value); if (!videoRef.current) return; if (volume === 0) videoRef.current.muted = true; else { videoRef.current.volume = volume; videoRef.current.muted = false; } }} onPointerUp={() => videoRef.current?.focus({ preventScroll: true })} className="h-6 w-0 pointer-events-none cursor-pointer appearance-none bg-center bg-no-repeat [background-size:100%_4px] rounded-full opacity-0 transition-[width,opacity] duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white group-hover/volume:mx-1 group-hover/volume:w-20 group-hover/volume:pointer-events-auto group-hover/volume:opacity-100 group-focus-within/volume:mx-1 group-focus-within/volume:w-20 group-focus-within/volume:pointer-events-auto group-focus-within/volume:opacity-100 [&::-moz-range-thumb]:size-2 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white [&::-webkit-slider-thumb]:size-2 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" style={{ backgroundImage: `linear-gradient(to right, white ${videoVolume * 100}%, rgba(255,255,255,0.35) 0)` }} />
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">

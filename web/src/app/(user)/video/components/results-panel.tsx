@@ -4,8 +4,7 @@ import { useCallback, type CSSProperties } from "react";
 import { Button } from "antd";
 import { VideoIcon } from "lucide-react";
 
-import { EmptyState } from "@/components/ui/state-panel";
-import { ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
+import { ResultsEmptyState, ResultsPanelShell, ResultsToolbarActions } from "@/components/workbench/results-shell";
 import { useResultsWindow } from "@/components/workbench/use-results-window";
 
 import type { GeneratedVideo, GenerationLog, GenerationResult } from "../history";
@@ -84,7 +83,7 @@ export function ResultsPanel({
     return (
         <ResultsPanelShell
             className={className}
-            title="全部成果"
+            title="全部结果"
             count={totalCount}
             pendingCount={pendingCount}
             actions={
@@ -100,20 +99,12 @@ export function ResultsPanel({
                 />
             }
             empty={
-                <EmptyState
-                    className="min-h-[320px] lg:min-h-[520px]"
+                <ResultsEmptyState
                     icon={<VideoIcon className="size-6" />}
                     title="还没有生成视频"
                     description="填写提示词并开始创作，或者先试试这些方向。"
-                    action={
-                        <div className="flex max-w-lg flex-wrap justify-center gap-2">
-                            {EMPTY_PROMPTS.map((prompt) => (
-                                <Button key={prompt} size="small" className="!h-auto !whitespace-normal !px-3 !py-1.5 !text-left !text-[11px]" onClick={() => onUseExample(prompt)}>
-                                    {prompt}
-                                </Button>
-                            ))}
-                        </div>
-                    }
+                    examples={EMPTY_PROMPTS}
+                    onUseExample={onUseExample}
                 />
             }
         >
