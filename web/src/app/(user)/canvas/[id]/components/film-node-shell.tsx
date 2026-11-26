@@ -47,7 +47,7 @@ export function FilmNodeShell({ node, theme, summary, onTitleChange, actions = [
 
     return (
         <section className="flex h-full w-full flex-col overflow-hidden rounded-[inherit]" style={{ color: theme.node.text, "--film-shell-hover": theme.toolbar.itemHover } as CSSProperties}>
-            <header className="flex min-h-11 items-center gap-2 border-b px-3" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
+            <header className="flex min-h-11 shrink-0 items-center gap-2 border-b px-3" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
                 {editingTitle ? (
                     <input
                         autoFocus
@@ -82,12 +82,12 @@ export function FilmNodeShell({ node, theme, summary, onTitleChange, actions = [
                     {collapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}
                 </button>
             </header>
-            {!collapsed ? <div className="min-h-0 flex-1 overflow-hidden">{children}</div> : (
+            {!collapsed ? <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto" onWheel={(event) => { const el = event.currentTarget; if (el.scrollHeight <= el.clientHeight + 1) return; const atTop = el.scrollTop <= 0; const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1; if ((event.deltaY < 0 && !atTop) || (event.deltaY > 0 && !atBottom)) event.stopPropagation(); }}>{children}</div> : (
                 <div className="min-h-0 flex-1 overflow-hidden px-3 py-2 text-xs" style={{ color: theme.node.muted }}>
                     <div className="line-clamp-2 break-words">{summary.description || "暂无摘要"}</div>
                 </div>
             )}
-            {actions.length ? <footer className="flex flex-wrap items-center gap-1.5 border-t px-3 py-2" style={{ borderColor: theme.node.stroke, background: theme.node.panel }} onPointerDown={(event) => event.stopPropagation()}>
+            {actions.length ? <footer className="flex shrink-0 flex-wrap items-center gap-1.5 border-t px-3 py-2" style={{ borderColor: theme.node.stroke, background: theme.node.panel }} onPointerDown={(event) => event.stopPropagation()}>
                 {actions.map((action) => <button key={action.label} type="button" className={`rounded border px-2 py-1 text-[11px] transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 ${action.primary ? "font-medium" : ""}`} style={{ borderColor: action.primary ? theme.canvas.selectionStroke : "transparent", color: action.primary ? theme.node.text : theme.node.muted, background: action.primary ? theme.canvas.selectionSoft : "transparent" }} disabled={action.disabled} onClick={action.onClick}>{action.label}</button>)}
             </footer> : null}
         </section>

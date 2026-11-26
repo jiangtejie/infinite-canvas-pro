@@ -26,6 +26,8 @@ export function FilmBeatNodeCard(props: FilmNodeCardProps) {
     const preview = activeSlotImage(beat?.preview);
     const previewSrc = useResolvedMediaSrc(preview?.url, preview?.storageKey);
     const busy = filmBeatIsBusy(props.node);
+    const linkedShotText = linked.shots.length ? linked.shots.map((shot) => shot.shotNo).join("、") : "无";
+    const linkedContextText = linked.contexts.length ? linked.contexts.map((context) => `${FILM_CONTEXT_ROLE_LABELS[context.role]}·${context.name}`).join(" / ") : "无";
     const actions: FilmNodeShellAction[] = [];
     if (props.onDecomposeBeat) actions.push({ label: "AI 拆解动作", primary: !busy, disabled: busy || !filmBeatHasContent(beat), onClick: () => props.onDecomposeBeat?.(props.node.id) });
     if (busy) {
@@ -90,8 +92,8 @@ export function FilmBeatNodeCard(props: FilmNodeCardProps) {
                     <div className="line-clamp-2 break-words text-[10px]" style={{ color: canvasStatusColors.error }}>{beat?.errorMessage || "生成失败"}</div>
                 ) : null}
                 <div className="flex flex-col gap-0.5 text-[10px] leading-4" style={{ color: props.theme.node.muted }}>
-                    <span className="break-words">关联镜头：{linked.shots.length ? linked.shots.map((shot) => shot.shotNo).join("、") : "无"}</span>
-                    <span className="break-words">上下文：{linked.contexts.length ? linked.contexts.map((context) => `${FILM_CONTEXT_ROLE_LABELS[context.role]}·${context.name}`).join(" / ") : "无"}</span>
+                    <span className="truncate" title={linkedShotText}>关联镜头：{linkedShotText}</span>
+                    <span className="truncate" title={linkedContextText}>上下文：{linkedContextText}</span>
                 </div>
             </div>
         </FilmNodeShell>
