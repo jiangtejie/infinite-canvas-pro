@@ -48,14 +48,14 @@ export function FilmShotFocus({ model, theme }: { model: FilmDirectorBoardModel;
     const moveResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
         const resize = resizeRef.current;
         if (!resize) return;
-        const next = Math.max(280, Math.min(480, resize.startWidth + event.clientX - resize.startX));
+        const next = Math.max(320, Math.min(560, resize.startWidth + event.clientX - resize.startX));
         updateView(model.projectId, (current) => current.panelWidth === next ? current : { ...current, panelWidth: next });
     };
     const endResize = () => {
         resizeRef.current = null;
         setResizing(false);
     };
-    const resetPanelWidth = () => updateView(model.projectId, (current) => ({ ...current, panelWidth: 320 }));
+    const resetPanelWidth = () => updateView(model.projectId, (current) => ({ ...current, panelWidth: 420 }));
     useEffect(() => {
         if (window.matchMedia("(max-width: 767px)").matches) setPanelOpen(false);
     }, []);

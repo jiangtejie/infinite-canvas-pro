@@ -77,21 +77,21 @@ export function FilmShotEditor({
         <div className="flex flex-col">
             <EditorSection theme={theme} {...sectionState("visual")} title="画面">
                 <EditorField theme={theme} label="描述">
-                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={filmShot?.description || ""} style={inputStyle} onChange={(event) => update({ description: event.target.value })} />
+                    <Input.TextArea autoSize={{ minRows: 4, maxRows: 12 }} value={filmShot?.description || ""} style={inputStyle} onChange={(event) => update({ description: event.target.value })} />
                 </EditorField>
                 <EditorField theme={theme} label="创作补充">
-                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} placeholder="只写结构化字段无法表达的动作或意图，系统会与镜头字段统一编译" value={filmShot?.prompt || ""} style={inputStyle} onChange={(event) => update({ prompt: event.target.value })} />
+                    <Input.TextArea autoSize={{ minRows: 4, maxRows: 12 }} placeholder="只写结构化字段无法表达的动作或意图，系统会与镜头字段统一编译" value={filmShot?.prompt || ""} style={inputStyle} onChange={(event) => update({ prompt: event.target.value })} />
                 </EditorField>
                 <details className="rounded-lg border px-2 py-1.5" style={{ borderColor: theme.node.stroke }}>
                     <summary className="cursor-pointer text-[11px]" style={{ color: theme.node.muted }}>高级提示词（负面）</summary>
                     <div className="mt-2">
                         <EditorField theme={theme} label="负面提示词">
-                            <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.negativePrompt || ""} style={inputStyle} onChange={(event) => update({ negativePrompt: event.target.value })} />
+                            <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={filmShot?.negativePrompt || ""} style={inputStyle} onChange={(event) => update({ negativePrompt: event.target.value })} />
                         </EditorField>
                     </div>
                 </details>
                 <EditorField theme={theme} label="动作补充（视频）">
-                    <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.videoPrompt || ""} style={inputStyle} onChange={(event) => update({ videoPrompt: event.target.value })} />
+                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={filmShot?.videoPrompt || ""} style={inputStyle} onChange={(event) => update({ videoPrompt: event.target.value })} />
                 </EditorField>
                 <MediaSummary theme={theme} shot={shot} />
             </EditorSection>
@@ -109,7 +109,7 @@ export function FilmShotEditor({
             </EditorSection>
             <EditorSection theme={theme} {...sectionState("performance")} title="表演">
                 <EditorField theme={theme} label="台词">
-                    <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={filmShot?.dialogue || ""} style={inputStyle} onChange={(event) => update({ dialogue: event.target.value })} />
+                    <Input.TextArea autoSize={{ minRows: 3, maxRows: 10 }} value={filmShot?.dialogue || ""} style={inputStyle} onChange={(event) => update({ dialogue: event.target.value })} />
                 </EditorField>
                 <FilmShotProfessionalFields theme={theme} payload={filmShot} onUpdate={update} variant="panel" groups={["performance", "sound"]} />
             </EditorSection>

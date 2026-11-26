@@ -21,7 +21,7 @@ const EMPTY_FILM_VIEW_STATE: FilmViewState = {
     boardColumns: 4,
     selectedShotIds: new Set(),
     expandedShotId: null,
-    panelWidth: 320,
+    panelWidth: 420,
     stripOpen: true,
     openShotSections: new Set(["visual", "language", "context", "generation"]),
 };

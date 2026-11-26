@@ -86,9 +86,9 @@ export function FilmShotProfessionalFields({ theme, payload, onUpdate, variant =
         prompt: (
             <>
                 <div className="col-span-full text-[11px] leading-5" style={{ color: theme.node.muted }}>结构化字段会自动编译进提示词；这里只写无法归入字段的动作或意图补充。</div>
-                <DetailField theme={theme} label="创作补充"><DetailTextArea theme={theme} rows={4} value={payload?.prompt || ""} onChange={(value) => onUpdate({ prompt: value })} /></DetailField>
-                <DetailField theme={theme} label="负面提示词"><DetailTextArea theme={theme} rows={4} value={payload?.negativePrompt || ""} onChange={(value) => onUpdate({ negativePrompt: value })} /></DetailField>
-                <DetailField theme={theme} label="动作补充（视频）"><DetailTextArea theme={theme} rows={4} value={payload?.videoPrompt || ""} onChange={(value) => onUpdate({ videoPrompt: value })} /></DetailField>
+                <DetailField theme={theme} label="创作补充"><DetailTextArea theme={theme} rows={5} value={payload?.prompt || ""} onChange={(value) => onUpdate({ prompt: value })} /></DetailField>
+                <DetailField theme={theme} label="负面提示词"><DetailTextArea theme={theme} rows={5} value={payload?.negativePrompt || ""} onChange={(value) => onUpdate({ negativePrompt: value })} /></DetailField>
+                <DetailField theme={theme} label="动作补充（视频）"><DetailTextArea theme={theme} rows={5} value={payload?.videoPrompt || ""} onChange={(value) => onUpdate({ videoPrompt: value })} /></DetailField>
             </>
         ),
     };

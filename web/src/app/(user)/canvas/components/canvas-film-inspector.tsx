@@ -406,23 +406,27 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                 ) : null}
                 {node.type === CanvasNodeType.FilmScene ? (
                     <>
-                        <Field label="集标题">
-                            <Input value={scene?.episodeTitle || ""} style={inputStyle} onChange={(event) => patchScene({ episodeTitle: event.target.value })} />
-                        </Field>
-                        <Field label="场次名称">
-                            <Input value={scene?.name || ""} style={inputStyle} onChange={(event) => patchScene({ name: event.target.value })} />
-                        </Field>
-                        <Field label="地点">
-                            <Input value={scene?.location || ""} style={inputStyle} onChange={(event) => patchScene({ location: event.target.value })} />
-                        </Field>
-                        <Field label="时间">
-                            <Input value={scene?.time || ""} style={inputStyle} onChange={(event) => patchScene({ time: event.target.value })} />
-                        </Field>
-                        <Field label="气氛">
-                            <Input value={scene?.mood || ""} style={inputStyle} onChange={(event) => patchScene({ mood: event.target.value })} />
-                        </Field>
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <Field label="集标题">
+                                <Input value={scene?.episodeTitle || ""} style={inputStyle} onChange={(event) => patchScene({ episodeTitle: event.target.value })} />
+                            </Field>
+                            <Field label="场次名称">
+                                <Input value={scene?.name || ""} style={inputStyle} onChange={(event) => patchScene({ name: event.target.value })} />
+                            </Field>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <Field label="地点">
+                                <Input value={scene?.location || ""} style={inputStyle} onChange={(event) => patchScene({ location: event.target.value })} />
+                            </Field>
+                            <Field label="时间">
+                                <Input value={scene?.time || ""} style={inputStyle} onChange={(event) => patchScene({ time: event.target.value })} />
+                            </Field>
+                            <Field label="气氛">
+                                <Input value={scene?.mood || ""} style={inputStyle} onChange={(event) => patchScene({ mood: event.target.value })} />
+                            </Field>
+                        </div>
                         <Field label="备注">
-                            <Input.TextArea value={scene?.notes || ""} autoSize={{ minRows: 2, maxRows: 6 }} style={inputStyle} onChange={(event) => patchScene({ notes: event.target.value })} />
+                            <Input.TextArea value={scene?.notes || ""} autoSize={{ minRows: 4, maxRows: 12 }} style={inputStyle} onChange={(event) => patchScene({ notes: event.target.value })} />
                         </Field>
                     </>
                 ) : null}
@@ -465,23 +469,25 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                 ) : null}
                 {node.type === CanvasNodeType.FilmBeat ? (
                     <>
-                        <Field label="标题">
-                            <Input value={beat?.title || ""} style={inputStyle} onChange={(event) => onChange(node.id, (current) => updateFilmBeatTitle(current, event.target.value))} />
-                        </Field>
+                        <div className="md:max-w-sm">
+                            <Field label="标题">
+                                <Input value={beat?.title || ""} style={inputStyle} onChange={(event) => onChange(node.id, (current) => updateFilmBeatTitle(current, event.target.value))} />
+                            </Field>
+                        </div>
                         <Field label="总提示词">
                             <Input.TextArea
                                 value={beat?.prompt || ""}
-                                autoSize={{ minRows: 3, maxRows: 8 }}
+                                autoSize={{ minRows: 5, maxRows: 12 }}
                                 style={inputStyle}
                                 onChange={(event) => onChange(node.id, (current) => updateFilmBeatPrompt(current, event.target.value))}
                             />
                         </Field>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {Array.from({ length: filmBeatFrameCount(beat?.mode ?? "grid9") }, (_, index) => (
                                 <Field key={index} label={`节拍 ${index + 1}`}>
                                     <Input.TextArea
                                         value={beat?.frames[index] || ""}
-                                        autoSize={{ minRows: 2, maxRows: 4 }}
+                                        autoSize={{ minRows: 3, maxRows: 6 }}
                                         maxLength={120}
                                         style={inputStyle}
                                         onChange={(event) => onChange(node.id, (current) => updateFilmBeatFrame(current, index, event.target.value))}
@@ -495,17 +501,19 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                 ) : null}
                 {assetNode?.asset ? (
                     <>
-                        <Field label="资产类型">
-                            <Input value={FILM_ASSET_KIND_LABELS[assetNode.kind]} disabled style={inputStyle} />
-                        </Field>
-                        <Field label="名称">
-                            <Input value={assetNode.asset.name} style={inputStyle} onChange={(event) => patchAsset({ name: event.target.value })} />
-                        </Field>
+                        <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                            <Field label="资产类型">
+                                <Input value={FILM_ASSET_KIND_LABELS[assetNode.kind]} disabled style={inputStyle} />
+                            </Field>
+                            <Field label="名称">
+                                <Input value={assetNode.asset.name} style={inputStyle} onChange={(event) => patchAsset({ name: event.target.value })} />
+                            </Field>
+                        </div>
                         <Field label="设定描述">
-                            <Input.TextArea value={assetNode.asset.description} autoSize={{ minRows: 3, maxRows: 8 }} style={inputStyle} onChange={(event) => patchAsset({ description: event.target.value })} />
+                            <Input.TextArea value={assetNode.asset.description} autoSize={{ minRows: 5, maxRows: 14 }} style={inputStyle} onChange={(event) => patchAsset({ description: event.target.value })} />
                         </Field>
                         <Field label="视觉提示">
-                            <Input.TextArea value={assetNode.asset.visualPrompt} autoSize={{ minRows: 3, maxRows: 8 }} style={inputStyle} onChange={(event) => patchAsset({ visualPrompt: event.target.value })} />
+                            <Input.TextArea value={assetNode.asset.visualPrompt} autoSize={{ minRows: 4, maxRows: 12 }} style={inputStyle} onChange={(event) => patchAsset({ visualPrompt: event.target.value })} />
                         </Field>
                         <div className="rounded-lg border px-3 py-2" style={{ borderColor: theme.node.stroke }}>
                             <div className="flex items-start justify-between gap-2 text-xs">

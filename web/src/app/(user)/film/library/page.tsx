@@ -188,10 +188,10 @@ export default function FilmLibraryPage() {
                                                 <Input value={selected.aliases.join("，")} placeholder="使用逗号分隔" onChange={(event) => updateSelected({ aliases: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />
                                             </Field>
                                             <Field label="描述">
-                                                <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={selected.description} onChange={(event) => updateSelected({ description: event.target.value })} />
+                                                <Input.TextArea autoSize={{ minRows: 4, maxRows: 10 }} value={selected.description} onChange={(event) => updateSelected({ description: event.target.value })} />
                                             </Field>
                                             <Field label="视觉提示词">
-                                                <Input.TextArea autoSize={{ minRows: 2, maxRows: 6 }} value={selected.visualPrompt} placeholder="留空则用名称和描述" onChange={(event) => updateSelected({ visualPrompt: event.target.value })} />
+                                                <Input.TextArea autoSize={{ minRows: 3, maxRows: 8 }} value={selected.visualPrompt} placeholder="留空则用名称和描述" onChange={(event) => updateSelected({ visualPrompt: event.target.value })} />
                                             </Field>
                                             <Field label="标签">
                                                 <Input value={(selected.tags || []).join("，")} placeholder="用逗号分隔，用于库内搜索" onChange={(event) => updateSelected({ tags: event.target.value.split(/[,，]/).map((value) => value.trim()).filter(Boolean) })} />

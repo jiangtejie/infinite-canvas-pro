@@ -62,7 +62,7 @@ export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onC
                     {profile.states.map((state) => (
                         <div key={state.id} className="flex flex-col gap-2 rounded-lg border p-2" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
                             <div className="flex items-center gap-1">
-                                <Input size="small" value={state.name} style={inputStyle} onChange={(event) => patchState(state.id, { name: event.target.value })} />
+                                <Input size="small" value={state.name} className="max-w-xs" style={inputStyle} onChange={(event) => patchState(state.id, { name: event.target.value })} />
                                 <button type="button" className="grid size-7 shrink-0 place-items-center rounded border" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => patchProfile({ states: profile.states.filter((item) => item.id !== state.id) })} aria-label={`删除造型 ${state.name}`}><Trash2 className="size-3.5" /></button>
                             </div>
                             <SlotEditor theme={theme} title="造型参考" slot={state.look} nextLabel={state.name} onChange={(look) => patchState(state.id, { look })} onPreview={onPreviewImage} />
@@ -79,7 +79,7 @@ export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onC
                     {variants.map((variant) => (
                         <div key={variant.id} className="flex flex-col gap-2 rounded-lg border p-2" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
                             <div className="flex items-center gap-1">
-                                <Input size="small" value={variant.name} style={inputStyle} onChange={(event) => patchVariants(variants.map((item) => item.id === variant.id ? { ...item, name: event.target.value } : item))} />
+                                <Input size="small" value={variant.name} className="max-w-xs" style={inputStyle} onChange={(event) => patchVariants(variants.map((item) => item.id === variant.id ? { ...item, name: event.target.value } : item))} />
                                 <button type="button" className="grid size-7 shrink-0 place-items-center rounded border" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => patchVariants(variants.filter((item) => item.id !== variant.id))} aria-label={`删除变体 ${variant.name}`}><Trash2 className="size-3.5" /></button>
                             </div>
                             <SlotEditor theme={theme} title="变体概念图" slot={variant.concept} nextLabel={variant.name} onChange={(concept) => patchVariants(variants.map((item) => item.id === variant.id ? { ...item, concept } : item))} onPreview={onPreviewImage} />
