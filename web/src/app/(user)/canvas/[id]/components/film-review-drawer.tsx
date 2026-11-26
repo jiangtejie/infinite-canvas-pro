@@ -66,23 +66,23 @@ export function FilmReviewDrawer({ open, onClose, theme, model, report, film, on
         <Drawer
             open={open}
             onClose={onClose}
-            size="min(520px, 96vw)"
+            size="min(760px, 96vw)"
             zIndex={CANVAS_Z.popover}
             title="就绪与一致性检查"
             styles={{ header: { background: theme.node.panel, color: theme.node.text }, body: { background: theme.node.panel, color: theme.node.text, paddingTop: 12 } }}
         >
             {report ? (
                 <div className="flex flex-col gap-3">
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-lg border px-3 py-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
                         {[
                             { label: "就绪", value: `${report.readiness.ready}/${report.readiness.checked}` },
                             { label: "缺参考", value: report.readiness.missing.length },
                             { label: "未锁定", value: report.readiness.unlocked.length },
                             { label: "问题", value: report.issues.length },
                         ].map((item) => (
-                            <div key={item.label} className="rounded-lg border px-2 py-2 text-center" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
-                                <div className="text-lg font-semibold tabular-nums" style={{ color: theme.node.text }}>{item.value}</div>
-                                <div className="text-[10px]" style={{ color: theme.node.muted }}>{item.label}</div>
+                            <div key={item.label} className="flex items-baseline gap-1.5">
+                                <span className="text-base font-semibold tabular-nums" style={{ color: theme.node.text }}>{item.value}</span>
+                                <span className="text-[10px]" style={{ color: theme.node.muted }}>{item.label}</span>
                             </div>
                         ))}
                     </div>
@@ -119,14 +119,19 @@ export function FilmReviewDrawer({ open, onClose, theme, model, report, film, on
                         )) : <span className="text-xs" style={{ color: theme.node.muted }}>没有未锁定的资产参考</span>}
                     </Section>
                     <Section theme={theme} title="问题">
-                        {report.issues.length ? report.issues.slice(0, 60).map((issue) => (
-                            <button key={issue.id} type="button" className="flex w-full items-start gap-2 rounded-lg border px-2 py-1.5 text-left" style={{ borderColor: issue.level === "error" ? canvasStatusColors.error : theme.node.stroke, background: theme.node.fill }} onClick={() => openIssue(issue)}>
-                                <span className="mt-0.5 size-1.5 shrink-0 rounded-full" style={{ background: issue.level === "error" ? canvasStatusColors.error : issue.level === "warning" ? canvasStatusColors.loading : theme.node.muted }} />
-                                <span className="min-w-0">
-                                    <span className="block text-xs" style={{ color: theme.node.text }}><span style={{ color: theme.node.muted }}>[{SOURCE_LABELS[issue.source]}] </span>{issue.message}</span>
-                                    {issue.suggestion ? <span className="block text-[11px]" style={{ color: theme.node.muted }}>{issue.suggestion}</span> : null}
-                                </span>
-                            </button>
+                        {report.issues.length ? groupIssues(report.issues).map(([source, issues]) => (
+                            <div key={source} className="flex flex-col gap-1">
+                                <span className="text-[10px] font-medium" style={{ color: theme.node.muted }}>{SOURCE_LABELS[source]} · {issues.length}</span>
+                                {issues.map((issue) => (
+                                    <button key={issue.id} type="button" className="flex w-full items-start gap-2 rounded-lg border px-2 py-1.5 text-left" style={{ borderColor: issue.level === "error" ? canvasStatusColors.error : theme.node.stroke, background: theme.node.fill }} onClick={() => openIssue(issue)}>
+                                        <span className="mt-0.5 size-1.5 shrink-0 rounded-full" style={{ background: issue.level === "error" ? canvasStatusColors.error : issue.level === "warning" ? canvasStatusColors.loading : theme.node.muted }} />
+                                        <span className="min-w-0">
+                                            <span className="block text-xs" style={{ color: theme.node.text }}>{issue.message}</span>
+                                            {issue.suggestion ? <span className="block text-[11px]" style={{ color: theme.node.muted }}>{issue.suggestion}</span> : null}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
                         )) : <span className="inline-flex items-center gap-1 text-xs" style={{ color: canvasStatusColors.success }}><CheckCircle2 className="size-3.5" />没有发现覆盖、连续性、风格或绑定问题</span>}
                     </Section>
                 </div>
@@ -142,4 +147,14 @@ function Section({ theme, title, children }: { theme: CanvasTheme; title: string
             {children}
         </section>
     );
+}
+
+function groupIssues(issues: FilmReviewIssue[]) {
+    const groups = new Map<FilmReviewIssue["source"], FilmReviewIssue[]>();
+    issues.slice(0, 60).forEach((issue) => {
+        const group = groups.get(issue.source);
+        if (group) group.push(issue);
+        else groups.set(issue.source, [issue]);
+    });
+    return [...groups.entries()];
 }

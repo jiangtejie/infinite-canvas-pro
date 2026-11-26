@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Box, Crosshair, Library, MapPin, Palette, Plus, RefreshCw, Sparkles, UserRound } from "lucide-react";
+import { AlertTriangle, Box, ChevronDown, Crosshair, Library, MapPin, Palette, Plus, RefreshCw, Sparkles, UserRound } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
@@ -87,19 +87,29 @@ export function FilmContextCenter({ theme, model }: { theme: CanvasTheme; model:
                     </div>
                 </span>
             </div>
-            {aiOpen && pendingAi.length ? (
-                <div className="mx-4 mt-2 flex flex-col gap-1 rounded-lg border px-2.5 py-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
-                    <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
-                        <span>AI 关联待确认 · {pendingAi.length}</span>
+            {pendingAi.length ? (
+                <div className="mx-4 mt-2 rounded-lg border" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+                    <div className="flex items-center justify-between gap-2 px-2.5 py-2 text-[11px]" style={{ color: theme.node.muted }}>
+                        <button type="button" className="inline-flex items-center gap-1" onClick={() => setAiOpen((value) => !value)} aria-expanded={aiOpen}>
+                            <ChevronDown className={`size-3 transition-transform ${aiOpen ? "rotate-180" : ""}`} />
+                            AI 关联待确认 · {pendingAi.length}
+                        </button>
                         <button type="button" className="rounded-full border px-2 py-0.5" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text }} onClick={() => pendingAi.forEach(({ chip }) => model.onUpdateContext(chip.edgeId, { source: "manual" }))}>全部接受</button>
                     </div>
-                    {pendingAi.map(({ shotId, chip }) => (
-                        <div key={chip.edgeId} className="flex flex-wrap items-center gap-2 text-[11px]" style={{ color: theme.node.text }}>
-                            <span className="min-w-0 flex-1 truncate">{FILM_CONTEXT_ROLE_LABELS[chip.role]} · {chip.name} → {shotLabel(shotId)}</span>
-                            <button type="button" className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text }} onClick={() => model.onUpdateContext(chip.edgeId, { source: "manual" })}>接受</button>
-                            <button type="button" className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => model.onRemoveContext(chip.edgeId)}>移除</button>
+                    {aiOpen ? (
+                        <div className="grid gap-1.5 px-2.5 pb-2 sm:grid-cols-2">
+                            {pendingAi.map(({ shotId, chip }) => (
+                                <div key={chip.edgeId} className="flex min-w-0 flex-col gap-1 rounded-md border px-2 py-1.5" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
+                                    <span className="truncate text-[11px]" style={{ color: theme.node.text }}>{FILM_CONTEXT_ROLE_LABELS[chip.role]} · {chip.name}</span>
+                                    <span className="truncate text-[10px]" style={{ color: theme.node.muted }}>→ {shotLabel(shotId)}</span>
+                                    <span className="mt-0.5 flex items-center gap-1">
+                                        <button type="button" className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text }} onClick={() => model.onUpdateContext(chip.edgeId, { source: "manual" })}>接受</button>
+                                        <button type="button" className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => model.onRemoveContext(chip.edgeId)}>移除</button>
+                                    </span>
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    ) : null}
                 </div>
             ) : null}
             {view.issues.length ? (
@@ -126,7 +136,7 @@ export function FilmContextCenter({ theme, model }: { theme: CanvasTheme; model:
                                 <div className="flex min-w-0 items-start gap-2 p-2.5">
                                     <input type="checkbox" className="mt-1 shrink-0" checked={selected.has(card.nodeId)} onChange={() => toggle(card.nodeId)} aria-label={`选择上下文 ${card.name}`} />
                                     <button type="button" className="flex min-w-0 flex-1 items-start gap-2 text-left" onClick={() => model.onEditAsset(card.nodeId)}>
-                                        <FilmAssetThumbnail asset={card.asset} className="h-14 w-14 shrink-0 rounded-lg" />
+                                        <FilmAssetThumbnail asset={card.asset} className="h-24 w-24 shrink-0 rounded-lg" />
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-xs font-medium" style={{ color: theme.node.text }}>{card.name}</span>
                                             <span className="mt-0.5 block truncate text-[10px]" style={{ color: theme.node.muted }}>{card.description || "未填写设定"}</span>
