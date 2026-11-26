@@ -23,6 +23,8 @@ type Options = {
     ensureConfig: (kind: FilmShotBatchKind) => boolean;
     resolveReferenceLimit: (kind: FilmShotBatchKind) => number;
     onQueueChange?: (queue: CanvasFilmShotQueue | null) => void;
+    stylePresetId?: string;
+    directorStyleId?: string;
     message: Message;
 };
 
@@ -37,7 +39,7 @@ const NODE_TIMEOUT_MS = 10 * 60 * 1000;
 const ACTIVITY_GRACE_MS = 15000;
 const STOP_GRACE_MS = 5000;
 
-export function useFilmShotBatch({ nodesRef, connectionsRef, generate, stop, ensureConfig, resolveReferenceLimit, onQueueChange, message }: Options) {
+export function useFilmShotBatch({ nodesRef, connectionsRef, generate, stop, ensureConfig, resolveReferenceLimit, onQueueChange, stylePresetId, directorStyleId, message }: Options) {
     const confirm = useConfirm();
     const [state, setState] = useState<FilmShotBatchState>(INITIAL_STATE);
     const runningRef = useRef(false);
@@ -81,7 +83,7 @@ export function useFilmShotBatch({ nodesRef, connectionsRef, generate, stop, ens
             message.warning("已有批量生成在进行中");
             return;
         }
-        const plan = planFilmShotBatch(nodesRef.current, connectionsRef.current, shotIds, kind, { maxReferences: resolveReferenceLimit(kind) });
+        const plan = planFilmShotBatch(nodesRef.current, connectionsRef.current, shotIds, kind, { maxReferences: resolveReferenceLimit(kind), stylePresetId, directorStyleId });
         if (!plan.ready.length) {
             if (options.resume) onQueueChange?.(null);
             const reasons = [...new Set(plan.skipped.map((skip) => skip.message))].slice(0, 3).join("；");
@@ -159,7 +161,7 @@ export function useFilmShotBatch({ nodesRef, connectionsRef, generate, stop, ens
                 else message.success(`已生成 ${completed} 镜${kindLabel}`);
             }
         }
-    }, [confirm, connectionsRef, ensureConfig, generate, message, nodesRef, onQueueChange, resolveReferenceLimit, waitForShot]);
+    }, [confirm, connectionsRef, directorStyleId, ensureConfig, generate, message, nodesRef, onQueueChange, resolveReferenceLimit, stylePresetId, waitForShot]);
 
     const stopBatch = useCallback(async () => {
         if (!runningRef.current) return;

@@ -7,7 +7,7 @@ import { activeSlotImage } from "./film-image-slot";
 import { buildFilmShotPrompt } from "./film-shot-prompt";
 import { createDefaultSegments, validateSegments } from "./film-video-segments";
 
-export const FILM_GENERATION_COMPILER_VERSION = "film-shot-gen/6";
+export const FILM_GENERATION_COMPILER_VERSION = "film-shot-gen/7";
 export const FILM_IMAGE_REFERENCE_LIMIT = 6;
 
 export type FilmGenerationOptions = {
@@ -184,10 +184,22 @@ export function buildFilmShotGenerationContext(project: FilmGenerationProjectCon
     for (const snapshot of snapshots) snapshot.references = references.filter((ref) => ref.characterId === snapshot.characterId);
 
     const directorStyle = directorStyleFor(project.directorStyleId);
-    const styleText = [
-        resolveFilmStyleText(project),
-        directorStyle && [directorStyle.visual, directorStyle.camera.grammar, directorStyle.camera.movement, directorStyle.prompts.imageSuffix].filter(Boolean).join("；"),
-    ].filter(Boolean).join("；");
+    const directorStyleText = directorStyle
+        ? [
+            directorStyle.visual.palette,
+            directorStyle.visual.lighting,
+            directorStyle.visual.composition,
+            directorStyle.visual.texture,
+            directorStyle.visual.keywords.length ? directorStyle.visual.keywords.join("、") : "",
+            directorStyle.camera.grammar,
+            directorStyle.camera.movement,
+            directorStyle.camera.transitions,
+            directorStyle.prompts.imageSuffix,
+        ].filter(Boolean).join("；")
+        : "";
+    const explicitStyleText = resolveFilmStyleText(project);
+    const styleText = [explicitStyleText, directorStyleText].filter(Boolean).join("；");
+    if (!explicitStyleText) warnings.push("项目未设置风格预设且风格圣经为空，生成只会使用导演风格。");
     const previousInstruction = references.some((ref) => ref.role === "previous-shot") ? "参考图中的上一镜画面用于衔接本镜，保持人物位置、道具状态和环境光线一致。" : "";
     const anchorInstruction = references.some((ref) => ref.role === "anchor-shot") ? "与参考图中的锚点帧保持相同的色调、光线、材质与画风，角色和场景设定不要改变。" : "";
     const promptBase = {

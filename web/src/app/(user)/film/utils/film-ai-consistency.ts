@@ -5,6 +5,7 @@ import type { AiConfig } from "@/stores/use-config-store";
 import type { FilmConsistencyIssue, FilmConsistencyReview } from "@/lib/film/types";
 import type { FilmGraphReviewInput } from "@/app/(user)/canvas/[id]/lib/film-review-input";
 import { directorStyleFor } from "@/lib/film/director-styles";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { scriptTextHash } from "@/lib/film/film-script-import";
 import { structurePlanPromptContext } from "./film-ai-structure";
 import { filmCharacterSignature } from "./film-character";
@@ -99,7 +100,7 @@ export function buildFilmConsistencyContext(input: FilmGraphReviewInput) {
         locations: locations.map((asset) => asset.name).slice(0, 40),
         props: props.map((asset) => asset.name).slice(0, 40),
         costumes: input.assets.costumes.map((asset) => asset.name).slice(0, 40),
-        styleBible: input.style?.visualPrompt || undefined,
+        styleBible: resolveFilmStyleText({ stylePreset: input.filmMeta?.stylePresetId, style: input.style }) || undefined,
         shots,
     });
 }

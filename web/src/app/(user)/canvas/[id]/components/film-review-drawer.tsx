@@ -50,6 +50,16 @@ export function FilmReviewDrawer({ open, onClose, theme, model, report, film, on
             model.onRunConsistencyReview();
             return;
         }
+        if (issue.id === "style-missing") {
+            onClose();
+            model.onCreateAsset("style");
+            return;
+        }
+        if (issue.id === "style-empty" && issue.targetContextNodeId) {
+            onClose();
+            model.onEditAsset(issue.targetContextNodeId);
+            return;
+        }
         if (openContext(issue.targetContextNodeId)) return;
         if (issue.targetShotId) {
             onClose();

@@ -90,6 +90,32 @@ test("compiles a shot from graph nodes and edges", () => {
     assert.ok(context!.prompt.includes("冷调、低饱和"));
 });
 
+test("applies project style preset and director style when the style bible text is empty", () => {
+    const emptyStyle = assetNode("style-empty", { ...createFilmAsset("style", 1), name: "风格圣经 1", visualPrompt: "" }, "style");
+    const styledShot = shotNode("styled-shot", { description: "主角回头", prompt: "" });
+    const context = buildFilmShotGenerationFromGraph([emptyStyle, styledShot], [], styledShot.id, {
+        medium: "image",
+        maxReferences: 6,
+        stylePresetId: "cinematic",
+        directorStyleId: "cinematic-classic",
+    });
+    assert.ok(context);
+    assert.match(context.prompt, /电影感画面/);
+    assert.match(context.prompt, /自然低饱和/);
+    assert.doesNotMatch(context.prompt, /\[object Object\]/);
+});
+
+test("warns when neither a style preset nor style bible text is available", () => {
+    const emptyStyle = assetNode("style-empty", { ...createFilmAsset("style", 1), name: "风格圣经 1", visualPrompt: "" }, "style");
+    const styledShot = shotNode("styled-shot", { description: "主角回头", prompt: "" });
+    const context = buildFilmShotGenerationFromGraph([emptyStyle, styledShot], [], styledShot.id, {
+        medium: "image",
+        maxReferences: 6,
+        stylePresetId: "custom",
+    });
+    assert.ok(context?.warnings.some((warning) => warning.includes("风格")));
+});
+
 test("uses the single project style bible for every shot, independently of board relationship edges", () => {
     const withoutEdge = buildFilmShotGenerationFromGraph(nodes, connections, "shot", { medium: "image", maxReferences: 10 });
     const withStyleEdge: CanvasConnection[] = [...connections, {

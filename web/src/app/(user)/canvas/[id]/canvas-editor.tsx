@@ -308,16 +308,18 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         if (!shotNode) return { image: null, video: null };
         const videoMode = filmVideoMode(shotNode.metadata?.filmShot);
         return {
-            image: selectFilmShotContextLens(nodes, connections, shotNode.id, { medium: "image", maxReferences: FILM_IMAGE_REFERENCE_LIMIT }),
-            video: selectFilmShotContextLens(nodes, connections, shotNode.id, { medium: "video", videoMode, maxReferences: filmVideoReferenceLimit(effectiveConfig.videoModel || effectiveConfig.model) }),
+            image: selectFilmShotContextLens(nodes, connections, shotNode.id, { medium: "image", maxReferences: FILM_IMAGE_REFERENCE_LIMIT, stylePresetId: currentProject?.film?.stylePresetId, directorStyleId: currentProject?.film?.directorStyleId }),
+            video: selectFilmShotContextLens(nodes, connections, shotNode.id, { medium: "video", videoMode, maxReferences: filmVideoReferenceLimit(effectiveConfig.videoModel || effectiveConfig.model), stylePresetId: currentProject?.film?.stylePresetId, directorStyleId: currentProject?.film?.directorStyleId }),
         };
-    }, [activeFilm.shot, connections, effectiveConfig.model, effectiveConfig.videoModel, nodes]);
+    }, [activeFilm.shot, connections, currentProject?.film?.directorStyleId, currentProject?.film?.stylePresetId, effectiveConfig.model, effectiveConfig.videoModel, nodes]);
     const filmStyleName = useMemo(() => (filmMode ? selectFilmStyleName(nodes) : null), [filmMode, nodes]);
     const filmSummaryOptions = useMemo(() => ({
         costumes: filmCostumes,
         videoMaxReferences: filmVideoReferenceLimit(effectiveConfig.videoModel || effectiveConfig.model),
         aspect: currentProject?.film?.aspect,
-    }), [currentProject?.film?.aspect, effectiveConfig.model, effectiveConfig.videoModel, filmCostumes]);
+        stylePresetId: currentProject?.film?.stylePresetId,
+        directorStyleId: currentProject?.film?.directorStyleId,
+    }), [currentProject?.film?.aspect, currentProject?.film?.directorStyleId, currentProject?.film?.stylePresetId, effectiveConfig.model, effectiveConfig.videoModel, filmCostumes]);
     const filmMediaPreviewNode = filmMediaPreviewId ? nodes.find((node) => node.id === filmMediaPreviewId) ?? null : null;
     const filmMediaPreviewShot = filmMediaPreviewNode?.metadata?.filmShot;
     const filmMediaPreviewIsVideo = Boolean(filmMediaPreviewShot?.videoUrl || filmMediaPreviewShot?.videoStorageKey);
@@ -353,8 +355,10 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             assetQueue: currentProject?.film?.assetQueue,
             shotQueue: currentProject?.film?.shotQueue,
             assetPlan: filmAssetProductionPlan,
+            stylePresetId: currentProject?.film?.stylePresetId,
+            directorStyleId: currentProject?.film?.directorStyleId,
         }) : EMPTY_FILM_PRODUCTION_PLAN),
-        [connections, currentProject?.film?.assetQueue, currentProject?.film?.shotQueue, effectiveConfig.model, effectiveConfig.videoModel, filmAssetProductionPlan, filmMode, nodes, productionAssetIds, productionEntryKind, productionOpen, productionShotIds, productionShotKind],
+        [connections, currentProject?.film?.assetQueue, currentProject?.film?.directorStyleId, currentProject?.film?.shotQueue, currentProject?.film?.stylePresetId, effectiveConfig.model, effectiveConfig.videoModel, filmAssetProductionPlan, filmMode, nodes, productionAssetIds, productionEntryKind, productionOpen, productionShotIds, productionShotKind],
     );
     const filmShotQueueBusy = useMemo(
         () => filmShots.some((entry) => entry.shot.metadata?.status === "loading" || entry.shot.metadata?.status === "stopping"),
@@ -2928,6 +2932,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             medium: "image",
             maxReferences: FILM_IMAGE_REFERENCE_LIMIT,
             costumes: filmCostumes,
+            stylePresetId: currentProject?.film?.stylePresetId,
+            directorStyleId: currentProject?.film?.directorStyleId,
         });
         if (!context) return;
         const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
@@ -2974,7 +2980,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             } as CanvasImageTask, clientTaskId));
             message.error(errorDetails);
         }
-    }, [connectionsRef, currentProject?.film?.aspect, filmCostumes, isNodeTaskActive, message, nodesRef, projectId, resolveModelConfig, setNodes, submitNodeTask]);
+    }, [connectionsRef, currentProject?.film?.aspect, currentProject?.film?.directorStyleId, currentProject?.film?.stylePresetId, filmCostumes, isNodeTaskActive, message, nodesRef, projectId, resolveModelConfig, setNodes, submitNodeTask]);
 
     const stopFilmShotImage = useCallback(async (shotId: string) => {
         await handleStopNode(shotId);
@@ -3018,6 +3024,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             includeStoryboard: videoMode === "reference",
             includePreviousShot: videoMode === "reference",
             costumes: filmCostumes,
+            stylePresetId: currentProject?.film?.stylePresetId,
+            directorStyleId: currentProject?.film?.directorStyleId,
         });
         if (!context) return;
         const { images, missingReferenceIds } = await loadFilmShotGenerationReferences(context);
@@ -3082,7 +3090,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             } : item));
             message.error(errorDetails);
         }
-    }, [connectionsRef, currentProject?.film?.aspect, filmCostumes, isNodeTaskActive, message, nodesRef, resolveModelConfig, setNodes, submitNodeTask]);
+    }, [connectionsRef, currentProject?.film?.aspect, currentProject?.film?.directorStyleId, currentProject?.film?.stylePresetId, filmCostumes, isNodeTaskActive, message, nodesRef, resolveModelConfig, setNodes, submitNodeTask]);
 
     const stopFilmShotVideo = useCallback(async (shotId: string) => {
         await handleStopNode(shotId);
@@ -3106,6 +3114,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         selectFilmShot,
         focusNode,
         fitNodesToView,
+        stylePresetId: currentProject?.film?.stylePresetId,
+        directorStyleId: currentProject?.film?.directorStyleId,
         message,
     });
 
@@ -3128,6 +3138,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         ensureConfig: (kind) => Boolean(resolveModelConfig(kind)),
         resolveReferenceLimit: (kind) => kind === "image" ? FILM_IMAGE_REFERENCE_LIMIT : filmVideoReferenceLimit(effectiveConfig.videoModel || effectiveConfig.model),
         onQueueChange: updateFilmShotQueue,
+        stylePresetId: currentProject?.film?.stylePresetId,
+        directorStyleId: currentProject?.film?.directorStyleId,
         message,
     });
 

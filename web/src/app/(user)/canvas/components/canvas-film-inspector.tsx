@@ -7,6 +7,7 @@ import { FileUp } from "lucide-react";
 import { saveAs } from "file-saver";
 
 import { canvasThemes } from "@/lib/canvas-theme";
+import { FILM_STYLE_PRESETS, normalizeFilmStylePreset } from "@/lib/film/film-styles";
 import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import type { FilmImageRef } from "@/lib/film/types";
 import { normalizeScriptText, parseFilmScriptDocument, readFilmScriptFile } from "@/lib/film/film-script-import";
@@ -16,6 +17,7 @@ import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { useCanvasStore } from "../stores/use-canvas-store";
 import { loadScriptProject, useScriptStore } from "@/app/(user)/script/stores/use-script-store";
 import { isPublicationStale } from "@/app/(user)/script/utils/script-publication";
 import { previewScriptPublicationRefresh, type ScriptFilmRefreshPreview } from "@/services/script-film-publication";
@@ -95,6 +97,8 @@ function FilmAssetImagePreview({ image, onClose }: { image: FilmImageRef; onClos
 export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScriptSource, hasSourceScenes = false, onScriptAction, onApplyPublicationRefresh, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const projectId = useParams<{ id: string }>()?.id || "";
+    const filmProject = useCanvasStore((state) => state.projects.find((project) => project.id === projectId));
+    const updateProject = useCanvasStore((state) => state.updateProject);
     const router = useRouter();
     const { message } = App.useApp();
     const confirm = useConfirm();
@@ -502,6 +506,19 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                 ) : null}
                 {assetNode?.asset ? (
                     <>
+                        {assetNode.kind === "style" ? (
+                            <div className="flex flex-col gap-2 rounded-lg border px-3 py-2.5 md:max-w-xl" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+                                <Field label="项目风格预设">
+                                    <select className="w-full rounded border px-2 py-1.5 text-sm" style={inputStyle} value={normalizeFilmStylePreset(filmProject?.film?.stylePresetId)} onChange={(event) => {
+                                        if (!filmProject?.film) return;
+                                        updateProject(projectId, { film: { ...filmProject.film, stylePresetId: normalizeFilmStylePreset(event.target.value) } });
+                                    }}>
+                                        {FILM_STYLE_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}
+                                    </select>
+                                </Field>
+                                <span className="text-[11px] leading-5" style={{ color: theme.node.muted }}>风格预设与下方风格圣经视觉提示会合并进入镜头生成和 AI 一致性检查；选择“自定义”时只使用视觉提示。</span>
+                            </div>
+                        ) : null}
                         <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
                             <Field label="资产类型">
                                 <Input value={FILM_ASSET_KIND_LABELS[assetNode.kind]} disabled style={inputStyle} />

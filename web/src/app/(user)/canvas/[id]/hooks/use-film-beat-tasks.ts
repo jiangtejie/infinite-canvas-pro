@@ -34,10 +34,12 @@ type Options = {
     selectFilmShot: (shotId: string) => void;
     focusNode: (nodeId: string) => void;
     fitNodesToView: (nodes: CanvasNodeData[]) => void;
+    stylePresetId?: string;
+    directorStyleId?: string;
     message: Message;
 };
 
-export function useFilmBeatTasks({ projectId, nodesRef, connectionsRef, setNodes, resolveModelConfig, setStudioView, setShotFocusOpen, selectFilmShot, focusNode, fitNodesToView, message }: Options) {
+export function useFilmBeatTasks({ projectId, nodesRef, connectionsRef, setNodes, resolveModelConfig, setStudioView, setShotFocusOpen, selectFilmShot, focusNode, fitNodesToView, stylePresetId, directorStyleId, message }: Options) {
     const filmCostumes = useFilmCastStore((state) => state.costumes);
     const filmBeatPreviewControllersRef = useRef(new Map<string, AbortController>());
     const filmBeatPreviewTaskIdsRef = useRef(new Map<string, string>());
@@ -97,6 +99,8 @@ export function useFilmBeatTasks({ projectId, nodesRef, connectionsRef, setNodes
                 medium: "image",
                 maxReferences: FILM_IMAGE_REFERENCE_LIMIT,
                 costumes: filmCostumes,
+                stylePresetId,
+                directorStyleId,
             }) : null;
             const references = shotContext ? (await loadFilmShotGenerationReferences(shotContext)).images : [];
             if (filmBeatPreviewControllersRef.current.get(beatId) !== controller) return;
@@ -137,7 +141,7 @@ export function useFilmBeatTasks({ projectId, nodesRef, connectionsRef, setNodes
                 filmBeatPreviewTaskIdsRef.current.delete(beatId);
             }
         }
-    }, [connectionsRef, filmCostumes, message, nodesRef, projectId, resolveModelConfig, setNodes]);
+    }, [connectionsRef, directorStyleId, filmCostumes, message, nodesRef, projectId, resolveModelConfig, setNodes, stylePresetId]);
 
     const stopFilmBeatTask = useCallback((beatId: string) => {
         filmBeatDecomposeControllersRef.current.get(beatId)?.abort();

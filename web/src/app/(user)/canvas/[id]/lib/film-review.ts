@@ -2,6 +2,7 @@ import type { FilmAsset, FilmConsistencyReview } from "@/lib/film/types";
 import type { FilmAssetReadinessReport } from "@/app/(user)/film/utils/film-asset-readiness";
 import { filmAssetReadiness } from "@/app/(user)/film/utils/film-asset-readiness";
 import { checkFilmStyleScenes } from "@/app/(user)/film/utils/film-style-check";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { filmReviewContextText } from "@/app/(user)/film/utils/film-ai-consistency";
 import { CanvasNodeType, type CanvasConnection, type CanvasFilmMeta, type CanvasNodeData } from "../../types";
 import { selectFilmReviewInput as selectGraphFilmReviewInput, type FilmGraphReviewInput } from "./film-review-input";
@@ -64,7 +65,23 @@ export function selectFilmReview(nodes: CanvasNodeData[], connections: CanvasCon
     const issues: FilmReviewIssue[] = [];
     const push = (issue: FilmReviewIssue) => issues.push(issue);
     const styleNodeId = nodes.find((node) => node.type === CanvasNodeType.FilmStyle)?.id;
+    const styleText = resolveFilmStyleText({ stylePreset: film?.stylePresetId, style: input.style });
     const fingerprint = filmReviewFingerprint(input);
+
+    if (!styleText) {
+        push({
+            id: styleNodeId ? "style-empty" : "style-missing",
+            level: "warning",
+            scope: "project",
+            source: "style",
+            message: styleNodeId
+                ? "风格圣经没有可用风格文本，且未选择风格预设；生成只会使用导演风格。"
+                : "项目缺少风格圣经，且未选择风格预设；生成只会使用导演风格。",
+            suggestion: styleNodeId ? "在风格圣经里选择项目风格预设，或填写视觉提示。" : "新建风格圣经并选择项目风格预设。",
+            targetNodeId: styleNodeId,
+            targetContextNodeId: styleNodeId,
+        });
+    }
 
     if (!input.shots.length) {
         push({ id: "empty", level: "error", scope: "project", source: "coverage", message: "还没有分镜，先从剧本解析出镜头或手动添加。", targetReview: true });

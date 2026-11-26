@@ -1,4 +1,5 @@
 import type { FilmGenerationReferenceRole, FilmVideoMode } from "@/lib/film/types";
+import { resolveFilmStyleText } from "@/lib/film/film-styles";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { orderFilmShots } from "./film-layout";
 import { buildFilmShotGenerationFromGraph } from "./film-shot-generation-context";
@@ -28,6 +29,8 @@ export type FilmContextLensOptions = {
     medium: "image" | "video";
     maxReferences: number;
     videoMode?: FilmVideoMode;
+    stylePresetId?: string;
+    directorStyleId?: string;
 };
 
 function errorMessage(error: unknown) {
@@ -61,10 +64,12 @@ export function selectFilmShotContextLens(
     const previous = shotIndex > 0 ? ordered[shotIndex - 1] : undefined;
     const previousPayload = previous?.metadata?.filmShot;
     const styleName = selectFilmStyleName(nodes);
+    const styleAsset = nodes.find((node) => node.type === CanvasNodeType.FilmStyle)?.metadata?.filmStyle?.asset;
+    const styleText = resolveFilmStyleText({ stylePreset: options.stylePresetId, style: styleAsset });
     const issues: FilmContextIssue[] = [];
     if (!(payload.prompt || payload.description || "").trim()) issues.push({ level: "error", message: "缺少画面描述或提示词" });
     if (!scene) issues.push({ level: "warning", message: "镜头未归属场次，生成时不会带入场次地点/时间/氛围" });
-    if (!styleName) issues.push({ level: "warning", message: "项目缺少风格圣经，视觉风格不会进入提示词" });
+    if (!styleText) issues.push({ level: "warning", message: styleAsset ? "风格圣经为空且未选择风格预设，生成只会使用导演风格" : "项目缺少风格圣经且未选择风格预设，生成只会使用导演风格" });
     const videoMode = options.videoMode ?? "reference";
     let compileError: string | null = null;
     let prompt = "";
@@ -77,6 +82,8 @@ export function selectFilmShotContextLens(
             ...(options.medium === "video" ? { videoMode } : {}),
             includeStoryboard: options.medium === "video" && videoMode === "reference",
             includePreviousShot: options.medium === "image" || videoMode === "reference",
+            stylePresetId: options.stylePresetId,
+            directorStyleId: options.directorStyleId,
         });
         if (!context) {
             compileError = "无法编译镜头上下文";

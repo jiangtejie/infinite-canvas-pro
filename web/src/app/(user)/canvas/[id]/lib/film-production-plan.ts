@@ -69,6 +69,8 @@ export type FilmProductionOptions = {
     assetQueue?: { remainingNodeIds: string[] } | null;
     shotQueue?: { remainingShotIds: string[]; kind: FilmShotBatchKind } | null;
     assetPlan?: FilmAssetProductionPlan;
+    stylePresetId?: string;
+    directorStyleId?: string;
 };
 
 /** 制作中心读模型：组合既有资产计划、镜头计划与批量预检，不创建第二套执行状态。 */
@@ -104,6 +106,8 @@ export function selectFilmProductionPlan(nodes: CanvasNodeData[], connections: C
     const shotPlan = planFilmShotProduction(entries, shotKind);
     const batch = planFilmShotBatch(nodes, connections, shotPlan.items.map((item) => item.shotId), shotKind, {
         maxReferences: shotKind === "image" ? options.imageMaxReferences ?? FILM_IMAGE_REFERENCE_LIMIT : options.videoMaxReferences ?? 8,
+        stylePresetId: options.stylePresetId,
+        directorStyleId: options.directorStyleId,
     });
     const readyIds = new Set(batch.ready.map((item) => item.shotId));
     const skips = new Map(batch.skipped.map((skip) => [skip.shotId, skip]));

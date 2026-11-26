@@ -38,7 +38,7 @@ export function planFilmShotBatch(
     connections: CanvasConnection[],
     shotIds: Iterable<string>,
     kind: FilmShotBatchKind,
-    options: { maxReferences: number },
+    options: { maxReferences: number; stylePresetId?: string; directorStyleId?: string },
 ): FilmBatchPlan {
     const shots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
     const order = new Map(orderFilmShots(shots, connections).map((node, index) => [node.id, index]));
@@ -75,6 +75,8 @@ export function planFilmShotBatch(
                 ...(kind === "video" ? { videoMode } : {}),
                 includeStoryboard: kind === "video" && videoMode === "reference",
                 includePreviousShot: kind === "image" || videoMode === "reference",
+                stylePresetId: options.stylePresetId,
+                directorStyleId: options.directorStyleId,
             });
             if (!context) {
                 skip("compile-error", "无法编译镜头上下文");

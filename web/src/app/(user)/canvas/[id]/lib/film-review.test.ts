@@ -122,6 +122,26 @@ test("targets variant, prop and deleted-costume readiness at their context nodes
     assert.equal(report.readiness.missing.find((item) => item.kind === "prop")?.contextNodeId, "prop");
 });
 
+test("style preset and style bible text reach review and AI consistency context", () => {
+    const emptyStyle = node("style", CanvasNodeType.FilmStyle, { filmStyle: { asset: { ...createFilmAsset("style", 1), name: "风格圣经 1", visualPrompt: "" } } });
+    const filmMeta = { aspect: "16:9" as const, stylePresetId: "cinematic" as const, directorStyleId: "cinematic-classic" };
+    const graphNodes = [...nodes, emptyStyle];
+    const input = selectFilmReviewInput(graphNodes, connections, filmMeta, "测试项目");
+    const context = JSON.parse(buildFilmConsistencyContext(input));
+    assert.match(context.styleBible, /电影感画面/);
+    const report = selectFilmReview(graphNodes, connections, filmMeta);
+    assert.ok(!report.issues.some((issue) => issue.id === "style-empty" || issue.id === "style-missing"));
+});
+
+test("warns when the style bible is missing or empty", () => {
+    const filmMeta = { aspect: "16:9" as const, stylePresetId: "custom" as const, directorStyleId: "cinematic-classic" };
+    const missing = selectFilmReview(nodes, connections, filmMeta);
+    assert.ok(missing.issues.some((issue) => issue.id === "style-missing"));
+    const emptyStyle = node("style", CanvasNodeType.FilmStyle, { filmStyle: { asset: { ...createFilmAsset("style", 1), name: "风格圣经 1", visualPrompt: "" } } });
+    const empty = selectFilmReview([...nodes, emptyStyle], connections, filmMeta);
+    assert.ok(empty.issues.some((issue) => issue.id === "style-empty" && issue.targetContextNodeId === "style"));
+});
+
 test("targets style issues at the style node and stale AI reviews at the review entry", () => {
     const styleNode = node("style", CanvasNodeType.FilmStyle, { filmStyle: { asset: { ...createFilmAsset("style", 1), name: "冷峻电影感" } } });
     const report = selectFilmReview([...nodes, styleNode], connections, {

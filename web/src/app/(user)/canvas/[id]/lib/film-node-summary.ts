@@ -15,6 +15,8 @@ export type FilmNodeSummaryOptions = {
     costumes?: FilmAsset[];
     videoMaxReferences?: number;
     aspect?: import("@/lib/film/types").FilmAspect;
+    stylePresetId?: string;
+    directorStyleId?: string;
 };
 
 export type FilmNodeSummary = {
@@ -98,7 +100,7 @@ function summarizeShot(node: CanvasNodeData, nodes: CanvasNodeData[], connection
     // 图像编译器同时提供当前签名、参考数量与上一镜，一次编译同时供状态与卡片使用。
     let imageContext: ReturnType<typeof buildFilmShotGenerationFromGraph> = null;
     try {
-        imageContext = buildFilmShotGenerationFromGraph(nodes, connections, node.id, { medium: "image", maxReferences: FILM_IMAGE_REFERENCE_LIMIT, costumes: options.costumes });
+        imageContext = buildFilmShotGenerationFromGraph(nodes, connections, node.id, { medium: "image", maxReferences: FILM_IMAGE_REFERENCE_LIMIT, costumes: options.costumes, stylePresetId: options.stylePresetId, directorStyleId: options.directorStyleId });
     } catch {
         imageContext = null;
     }
@@ -113,6 +115,8 @@ function summarizeShot(node: CanvasNodeData, nodes: CanvasNodeData[], connection
                 includeStoryboard: filmVideoMode(shot) === "reference",
                 includePreviousShot: filmVideoMode(shot) === "reference",
                 costumes: options.costumes,
+                stylePresetId: options.stylePresetId,
+                directorStyleId: options.directorStyleId,
             })?.inputSignature;
         }
     } catch {

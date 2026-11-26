@@ -8,6 +8,8 @@ import { orderFilmShots } from "./film-layout";
 export type FilmGraphGenerationOptions = Omit<FilmGenerationOptions, "previousShot" | "anchorShot"> & {
     includePreviousShot?: boolean;
     costumes?: FilmAsset[];
+    stylePresetId?: string;
+    directorStyleId?: string;
 };
 
 function assetOf(node: CanvasNodeData | undefined): FilmAsset | undefined {
@@ -105,7 +107,7 @@ export function buildFilmShotGenerationFromGraph(
     if (!node) return null;
     const shot = shotFromNode(node, nodes, connections);
     if (!shot) return null;
-    const { includePreviousShot = true, costumes = [], ...generationOptions } = options;
+    const { includePreviousShot = true, costumes = [], stylePresetId, directorStyleId, ...generationOptions } = options;
     const style = assetsOfType(nodes, CanvasNodeType.FilmStyle, "filmStyle")[0];
     return buildFilmShotGenerationContext({
         characters: assetsOfType(nodes, CanvasNodeType.FilmCharacter, "filmCharacter"),
@@ -113,6 +115,8 @@ export function buildFilmShotGenerationFromGraph(
         props: assetsOfType(nodes, CanvasNodeType.FilmProp, "filmProp"),
         costumes,
         style,
+        stylePreset: stylePresetId,
+        directorStyleId,
     }, shot, {
         ...generationOptions,
         previousShot: includePreviousShot ? previousShotOf(nodes, connections, shotId) : undefined,
