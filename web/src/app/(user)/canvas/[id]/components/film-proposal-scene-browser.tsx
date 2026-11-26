@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, Plus } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FILM_CAMERA_MOVEMENT_OPTIONS, FILM_SHOT_TYPE_OPTIONS } from "@/app/(user)/film/utils/film-shot-types";
@@ -130,8 +131,8 @@ export function FilmProposalSceneBrowser({ theme, episodes, selectedSceneKeys, o
                                                 <textarea aria-label="画面描述" rows={2} className="thin-scrollbar rounded border px-2 py-1 text-[11px] leading-5" style={inputStyle} value={shot.description} onChange={(event) => onEditShot?.(focused.key, index, { description: event.target.value })} />
                                                 <input aria-label="台词" className="rounded border px-2 py-1 text-[11px]" style={inputStyle} placeholder="台词/声音" value={shot.dialogue ?? ""} onChange={(event) => onEditShot?.(focused.key, index, { dialogue: event.target.value })} />
                                                 <div className="flex flex-wrap items-center gap-1 text-[11px]">
-                                                    <button type="button" className="rounded border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={index === 0} onClick={() => onMoveShot?.(focused.key, index, -1)}>↑</button>
-                                                    <button type="button" className="rounded border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={index === focused.shots.length - 1} onClick={() => onMoveShot?.(focused.key, index, 1)}>↓</button>
+                                                    <button type="button" className="grid place-items-center rounded border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={index === 0} onClick={() => onMoveShot?.(focused.key, index, -1)} aria-label="上移镜头"><ChevronUp className="size-3" /></button>
+                                                    <button type="button" className="grid place-items-center rounded border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={index === focused.shots.length - 1} onClick={() => onMoveShot?.(focused.key, index, 1)} aria-label="下移镜头"><ChevronDown className="size-3" /></button>
                                                     <button type="button" className="rounded border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }} disabled={index === focused.shots.length - 1} onClick={() => onMergeShot?.(focused.key, index)}>合并下一镜</button>
                                                     <button type="button" className="rounded border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.text }} onClick={() => onSplitShot?.(focused.key, index)}>拆分</button>
                                                     <button type="button" className="ml-auto rounded border px-1.5 py-0.5" style={{ borderColor: canvasStatusColors.error, color: canvasStatusColors.error }} onClick={() => onRemoveShot?.(focused.key, index)}>删除</button>
@@ -151,7 +152,7 @@ export function FilmProposalSceneBrowser({ theme, episodes, selectedSceneKeys, o
                                         )}
                                     </div>
                                 ))}
-                                {editing ? <button type="button" className="rounded-lg border border-dashed px-2 py-2 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => onAddShot?.(focused.key)}>＋ 添加镜头</button> : null}
+                                {editing ? <button type="button" className="inline-flex items-center justify-center gap-1 rounded-lg border border-dashed px-2 py-2 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => onAddShot?.(focused.key)}><Plus className="size-3" />添加镜头</button> : null}
                             </div>
                         </div>
                     </>

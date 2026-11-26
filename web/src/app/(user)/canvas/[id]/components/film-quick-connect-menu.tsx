@@ -2,7 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { App } from "antd";
-import { Box, ChevronDown, Clapperboard, FileText, Images, MapPin, Palette, Upload, UserRound, Video, Workflow } from "lucide-react";
+import { Box, ChevronDown, Clapperboard, FileText, Images, MapPin, Palette, Upload, UserRound, Video, Workflow, X } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -107,7 +107,7 @@ export function FilmQuickConnectMenu({
         >
             <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>{sourceNode ? "影视快捷创建" : "添加影视节点"}</span>
-                <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭">×</button>
+                <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭"><X className="size-4" /></button>
             </div>
             <div className="grid gap-1">
                 {actions.length ? (

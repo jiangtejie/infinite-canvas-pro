@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { BookOpen, Globe2, ImageIcon, Images, Layers3, Link2, List, Music2, Send, Settings2, Upload, Video } from "lucide-react";
+import { BookOpen, Globe2, ImageIcon, Images, Layers3, Link2, List, Music2, Send, Settings2, Upload, Video, X } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
@@ -152,7 +152,7 @@ export function NodeCreateMenu({
         <div ref={menuRef} className="thin-scrollbar absolute w-[300px] overflow-y-auto rounded-[18px] border p-3 shadow-2xl backdrop-blur" data-canvas-no-zoom role="menu" aria-label="添加节点" style={{ left: position.x, top: position.y, maxHeight: "calc(100dvh - 24px)", transform: `scale(calc(var(--canvas-inverse-scale) * 0.9)) translateY(-${offsetY / 0.9}px)`, transformOrigin: "top left", background: theme.node.panel, borderColor: theme.node.stroke, color: theme.node.text, zIndex: CANVAS_Z.createMenu }} onPointerDown={(event) => event.stopPropagation()} onKeyDown={menuNavigation.handleKeyDown}>
             <div className="mb-2 flex items-center justify-between px-1">
                 <span className="text-sm font-medium" style={{ color: theme.node.muted }}>添加节点</span>
-                <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭">×</button>
+                <button type="button" className="grid size-7 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭"><X className="size-4" /></button>
             </div>
             <div className="grid gap-1">
                 {generalOptions.map((option) => <ConnectionCreateOption key={option.title} theme={theme} {...option} />)}

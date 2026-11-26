@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { App, Select } from "antd";
-import { FolderOpen, ImageIcon, Upload } from "lucide-react";
+import { FolderOpen, ImageIcon, Upload, X } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import type { FilmFrameSource, FilmImageRef, FilmVideoMode } from "@/lib/film/types";
@@ -122,7 +122,7 @@ function FrameSlot({ theme, title, frame, filmShot, disabled, onSelect, onUpload
         <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border p-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
             <div className="flex items-center justify-between gap-1">
                 <span className="truncate text-[10px] tracking-[0.12em] uppercase" style={{ color: theme.node.muted }}>{title}</span>
-                {frame ? <button type="button" className="shrink-0 text-sm leading-none opacity-55 hover:opacity-100 disabled:opacity-30" disabled={disabled} onClick={onClear} aria-label={`清除${title}`}>×</button> : null}
+                {frame ? <button type="button" className="shrink-0 opacity-55 hover:opacity-100 disabled:opacity-30" disabled={disabled} onClick={onClear} aria-label={`清除${title}`}><X className="size-3.5" /></button> : null}
             </div>
             <button type="button" className="grid h-16 place-items-center overflow-hidden rounded-md border disabled:opacity-60" style={{ borderColor: theme.node.stroke, background: theme.node.panel }} disabled={disabled} onClick={frame ? undefined : onUpload} aria-label={frame ? title : `上传${title}`}>
                 {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : <span className="flex flex-col items-center gap-1" style={{ color: theme.node.muted }}><ImageIcon className="size-4" /><span className="text-[10px]">上传或选择</span></span>}

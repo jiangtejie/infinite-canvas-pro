@@ -1,5 +1,7 @@
 "use client";
 
+import { X } from "lucide-react";
+
 import type { CanvasNodeData } from "../../types";
 import { FilmShotEditor, type FilmShotEditorProps } from "./film-shot-editor";
 
@@ -19,7 +21,7 @@ export function FilmShotPanel({ theme, shot, sceneLabel, canCreateShot, onCreate
                     <div className="truncate text-sm font-semibold">镜头设置</div>
                     <div className="truncate text-xs" style={{ color: theme.node.muted }}>{sceneLabel}</div>
                 </div>
-                <button type="button" className="grid size-8 place-items-center rounded-lg text-base opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="收起镜头设置">×</button>
+                <button type="button" className="grid size-8 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="收起镜头设置"><X className="size-4" /></button>
             </div>
             {!shot ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">

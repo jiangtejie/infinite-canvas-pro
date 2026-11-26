@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { Input, InputNumber, Modal, Popover, Select } from "antd";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
@@ -298,7 +298,7 @@ function ContextEditor({ theme, context, onUpdate, onEditAsset, onClose }: { the
         <div className="flex w-[264px] flex-col gap-2 p-2" style={{ color: theme.node.text }}>
             <div className="flex items-center justify-between text-xs font-medium">
                 <span className="truncate">上下文 · {context.name}</span>
-                <button type="button" className="grid size-6 place-items-center opacity-55 hover:opacity-100" onClick={onClose} aria-label="关闭上下文编辑">×</button>
+                <button type="button" className="grid size-6 place-items-center opacity-55 hover:opacity-100" onClick={onClose} aria-label="关闭上下文编辑"><X className="size-3.5" /></button>
             </div>
             {context.role === "character" ? (
                 <>
@@ -325,7 +325,7 @@ function ContextPicker({ theme, contexts, onAdd, onCreateAsset, onClose }: { the
         <div className="flex w-[240px] flex-col gap-2 p-2" style={{ color: theme.node.text }}>
             <div className="flex items-center justify-between text-xs font-medium">
                 <span>添加上下文</span>
-                <button type="button" className="grid size-6 place-items-center opacity-55 hover:opacity-100" onClick={onClose} aria-label="关闭上下文选择">×</button>
+                <button type="button" className="grid size-6 place-items-center opacity-55 hover:opacity-100" onClick={onClose} aria-label="关闭上下文选择"><X className="size-3.5" /></button>
             </div>
             {contexts.length ? roles.map((role) => {
                 const items = contexts.filter((context) => context.role === role);
@@ -352,7 +352,7 @@ function ContextChip({ theme, context, onUpdate, onEditAsset, onRemove }: { them
             <Popover trigger="click" open={open} onOpenChange={setOpen} arrow={false} styles={{ content: { padding: 0, background: theme.node.panel } }} content={<ContextEditor theme={theme} context={context} onUpdate={onUpdate} onEditAsset={() => { setOpen(false); onEditAsset(); }} onClose={() => setOpen(false)} />}>
                 <button type="button">{FILM_CONTEXT_ROLE_LABELS[context.role]} · {context.name}{context.stateName ? ` · ${context.stateName}` : ""}{context.variantName ? ` · ${context.variantName}` : ""}</button>
             </Popover>
-            <button type="button" className="opacity-55 hover:opacity-100" onClick={() => { setOpen(false); onRemove(); }} aria-label={`移除${context.name}上下文`}>×</button>
+            <button type="button" className="opacity-55 hover:opacity-100" onClick={() => { setOpen(false); onRemove(); }} aria-label={`移除${context.name}上下文`}><X className="size-3" /></button>
         </span>
     );
 }
