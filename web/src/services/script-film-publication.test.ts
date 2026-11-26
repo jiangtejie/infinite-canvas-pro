@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import localforage from "localforage";
 
 import { fixtureDocument } from "@/test/script-fixtures";
 import { installScriptMemoryDriver } from "@/test/script-memory-driver";
@@ -8,7 +9,7 @@ import { summarizeScriptProject } from "@/app/(user)/script/utils/script-documen
 import { CanvasNodeType } from "@/app/(user)/canvas/types";
 
 const clearStorage = await installScriptMemoryDriver();
-const { findFilmProjectByPublication, publishScriptToFilm, previewScriptPublicationRefresh, applyScriptPublicationRefresh } = await import("./script-film-publication");
+const { findFilmProjectByPublication, importScriptPublicationForFilm, publishScriptToFilm, previewScriptPublicationRefresh, applyScriptPublicationRefresh } = await import("./script-film-publication");
 const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
 const { configureScriptAccount, useScriptStore } = await import("@/app/(user)/script/stores/use-script-store");
 const { useUserStore } = await import("@/stores/use-user-store");
@@ -91,6 +92,51 @@ test("failed publication can retry without creating a second film project", asyn
     const publication = await publishScriptToFilm({ projectId: document.id, episodeIds: failed.episodeIds, publicationId: failed.id });
     assert.equal(publication.status, "published");
     assert.equal(useCanvasStore.getState().projects.length, 1);
+});
+
+test("import binds a dedicated publication copy to the current film canvas", async () => {
+    const { document, locked, version } = await setup();
+    await localforage.setItem(`infinite-canvas:script:v2:project:account-1:${document.id}`, locked);
+    await localforage.setItem(`infinite-canvas:script:v2:version:account-1:${document.id}:${version.id}`, version);
+    const filmId = useCanvasStore.getState().createFilmProject("手动影视", { id: "film-import" });
+    const { publication, source, text } = await importScriptPublicationForFilm({ projectId: document.id, filmId });
+    assert.equal(publication.status, "published");
+    assert.equal(publication.filmProjectId, filmId);
+    assert.equal(useScriptStore.getState().documents[document.id].publications.length, 1);
+    assert.equal(source.projectId, document.id);
+    assert.equal(source.publicationId, publication.id);
+    assert.equal(source.hash, publication.sourceHash);
+    assert.match(text, /阿健推门进来/);
+    assert.equal(findFilmProjectByPublication(publication.id)?.id, filmId);
+});
+
+test("import keeps the original publication untouched and reuses the canvas copy", async () => {
+    const { document, locked, version } = await setup();
+    await localforage.setItem(`infinite-canvas:script:v2:project:account-1:${document.id}`, locked);
+    await localforage.setItem(`infinite-canvas:script:v2:version:account-1:${document.id}:${version.id}`, version);
+    const published = await publishScriptToFilm({ projectId: document.id, episodeIds: locked.episodes.map((episode) => episode.id) });
+    const originalFilmId = published.filmProjectId!;
+    const filmId = useCanvasStore.getState().createFilmProject("另一个影视", { id: "film-import" });
+
+    const first = await importScriptPublicationForFilm({ projectId: document.id, filmId });
+    assert.notEqual(first.publication.id, published.id);
+    assert.equal(first.publication.filmProjectId, filmId);
+    assert.equal(first.publication.sourceHash, published.sourceHash);
+
+    const second = await importScriptPublicationForFilm({ projectId: document.id, filmId });
+    assert.equal(second.publication.id, first.publication.id);
+    assert.equal(useScriptStore.getState().documents[document.id].publications.length, 2);
+
+    const original = useScriptStore.getState().documents[document.id].publications.find((item) => item.id === published.id)!;
+    assert.equal(original.filmProjectId, originalFilmId);
+    assert.equal(findFilmProjectByPublication(published.id)?.id, originalFilmId);
+});
+
+test("import rejects a script without locked episodes", async () => {
+    const { document } = await setup();
+    useScriptStore.setState({ documents: { [document.id]: fixtureDocument() } });
+    useCanvasStore.getState().createFilmProject("空影视", { id: "film-empty" });
+    await assert.rejects(importScriptPublicationForFilm({ projectId: document.id, filmId: "film-empty" }), /锁定/);
 });
 
 test("refresh preview resolves the current locked snapshot in the existing film project", async () => {

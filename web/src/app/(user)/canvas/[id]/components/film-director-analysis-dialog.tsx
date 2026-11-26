@@ -10,6 +10,7 @@ import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { FilmDirectorAnalysisProposal, FilmDirectorAnalysisSelection } from "../lib/film-director-analysis";
 import type { FilmProposalMode } from "../lib/film-structure-proposal";
 import { FilmAssetProposalTab } from "./film-asset-proposal-dialog";
+import { FilmProposalSceneBrowser } from "./film-proposal-scene-browser";
 import { FilmStructureProposalTab } from "./film-structure-proposal-dialog";
 
 type Props = {
@@ -60,12 +61,12 @@ export function FilmDirectorAnalysisDialog({ theme, proposal, onApply, onCancel 
     };
 
     return (
-        <Modal open onCancel={onCancel} footer={null} closable={false} centered width="min(980px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
-            <div className="flex max-h-[84vh] flex-col" style={{ color: theme.node.text }}>
+        <Modal open onCancel={onCancel} footer={null} closable={false} centered width="min(1180px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+            <div className="flex max-h-[88vh] flex-col" style={{ color: theme.node.text }}>
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">
                         <div className="text-base font-semibold">导演分析</div>
-                        <div className="mt-0.5 text-xs" style={{ color: theme.node.muted }}>结构、镜头与资产一次确认后写入画布；源 {proposal.sourceHash} · {proposal.totals.episodes} 集 {proposal.totals.scenes} 场 {proposal.totals.shots} 镜 · 约 {proposal.totals.duration}s</div>
+                        <div className="mt-0.5 text-xs" style={{ color: theme.node.muted }}>源 {proposal.sourceHash} · {proposal.totals.episodes} 集 {proposal.totals.scenes} 场 {proposal.totals.shots} 镜 · 约 {proposal.totals.duration}s</div>
                     </div>
                     <button type="button" className="grid size-8 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onCancel} aria-label="关闭导演分析"><X className="size-4" /></button>
                 </div>
@@ -78,6 +79,7 @@ export function FilmDirectorAnalysisDialog({ theme, proposal, onApply, onCancel 
                             </button>
                         );
                     })}
+                    <span className="ml-auto rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>现有 {proposal.structure.current.scenes} 场 {proposal.structure.current.shots} 镜</span>
                 </div>
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4">
                     {tab === "structure" ? (
@@ -94,28 +96,26 @@ export function FilmDirectorAnalysisDialog({ theme, proposal, onApply, onCancel 
                     ) : null}
                     {tab === "shots" ? (
                         <div className="flex flex-col gap-3">
-                            {selectedShots.length ? proposal.episodes.map((episode, episodeIndex) => {
-                                const scenes = episode.scenes.map((scene, sceneIndex) => {
-                                    const sceneKey = `${episodeIndex}:${sceneIndex}`;
-                                    const shots = selectedShots.filter((shot) => shot.sceneKey === sceneKey);
-                                    return shots.length ? (
-                                        <section key={sceneKey} className="flex flex-col gap-1.5">
-                                            <div className="text-[11px] font-medium" style={{ color: theme.node.muted }}>{scene.name || "未命名场次"} · {shots.length} 镜</div>
-                                            {shots.map((shot) => (
-                                                <div key={shot.id} className="rounded-lg border px-3 py-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
-                                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
-                                                        <span className="font-mono text-xs">{shot.shotNo || "未编号"}</span>
-                                                        <span style={{ color: theme.node.muted }}>{shot.shotType || "未设置景别"} · {shot.cameraMovement || "未设置运镜"} · {shot.duration}s</span>
-                                                    </div>
-                                                    <div className="mt-1 text-xs leading-5">{shot.description || "未填写画面描述"}</div>
-                                                    {shot.dialogue ? <div className="mt-1 text-[11px] leading-5" style={{ color: theme.node.muted }}>台词：{shot.dialogue}</div> : null}
-                                                </div>
-                                            ))}
-                                        </section>
-                                    ) : null;
-                                });
-                                return scenes.some(Boolean) ? <div key={episode.id} className="flex flex-col gap-2"><div className="text-[11px] font-medium tracking-[0.12em] uppercase" style={{ color: theme.node.muted }}>{episode.title || "未分集"}</div>{scenes}</div> : null;
-                            }) : <div className="py-10 text-center text-xs" style={{ color: theme.node.muted }}>没有勾选场次，镜头不会写入画布。</div>}
+                            {selectedScenes.length ? null : <div className="text-[11px]" style={{ color: theme.node.muted }}>没有勾选场次，镜头不会写入画布；仍可在左侧浏览提案。</div>}
+                            <FilmProposalSceneBrowser
+                                theme={theme}
+                                detailed
+                                selectedSceneKeys={selectedSceneKeys}
+                                onToggleScene={toggleScene}
+                                episodes={proposal.episodes.map((episode, episodeIndex) => ({
+                                    title: episode.title || "未分集",
+                                    scenes: episode.scenes.map((scene, sceneIndex) => {
+                                        const key = `${episodeIndex}:${sceneIndex}`;
+                                        const shots = proposal.shots.filter((shot) => shot.sceneKey === key);
+                                        return {
+                                            key,
+                                            name: scene.name || "未命名场次",
+                                            duration: shots.reduce((sum, shot) => sum + Math.max(1, shot.duration || 4), 0),
+                                            shots: shots.map((shot) => ({ ...shot, description: shot.description || shot.prompt || "未填写画面描述" })),
+                                        };
+                                    }),
+                                }))}
+                            />
                         </div>
                     ) : null}
                     {tab === "assets" ? (

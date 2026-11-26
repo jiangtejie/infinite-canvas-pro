@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { App, Drawer, Input } from "antd";
+import { FileUp } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
+import { normalizeScriptText, parseFilmScriptDocument, readFilmScriptFile } from "@/lib/film/film-script-import";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
@@ -21,6 +23,7 @@ import { patchFilmContextAssetNode, patchFilmSceneNode, patchFilmScriptNode, upd
 import { filmBeatFrameCount, updateFilmBeatFrame, updateFilmBeatPrompt, updateFilmBeatTitle } from "../[id]/lib/film-beat";
 import { FilmAssetSlotFields } from "../[id]/components/film-asset-slot-fields";
 import { FilmLibraryPickerDialog } from "../[id]/components/film-library-picker-dialog";
+import { FilmScriptSourcePickerDialog } from "../[id]/components/film-script-source-picker-dialog";
 import { FILM_CONTEXT_ROLE_LABELS, type FilmShotContextChip } from "../[id]/lib/film-studio-types";
 import { CanvasNodeType, type CanvasNodeData, type FilmSceneNodeData, type FilmScriptNodeData } from "../types";
 
@@ -29,6 +32,7 @@ type CanvasFilmInspectorProps = {
     node: CanvasNodeData | null;
     onClose: () => void;
     onChange: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
+    onImportScriptSource?: (nodeId: string, scriptProjectId: string) => Promise<void>;
     analysisProgress?: { stage: "structure" | "assets"; done: number; total: number } | null;
     onRunDirectorAnalysis?: (nodeId: string) => void;
     onUndoParse?: (nodeId: string) => void;
@@ -76,13 +80,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     );
 }
 
-export function CanvasFilmInspector({ open, node, onClose, onChange, analysisProgress, onRunDirectorAnalysis, onUndoParse, onApplyPublicationRefresh, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
+export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScriptSource, analysisProgress, onRunDirectorAnalysis, onUndoParse, onApplyPublicationRefresh, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const projectId = useParams<{ id: string }>()?.id || "";
     const router = useRouter();
     const { message } = App.useApp();
     const confirm = useConfirm();
     const [libraryOpen, setLibraryOpen] = useState(false);
+    const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+    const [scriptImporting, setScriptImporting] = useState(false);
+    const [scriptDragging, setScriptDragging] = useState(false);
+    const [scriptImportSummary, setScriptImportSummary] = useState("");
+    const scriptFileRef = useRef<HTMLInputElement>(null);
     const [refreshPreview, setRefreshPreview] = useState<ScriptFilmRefreshPreview | null>(null);
     const [refreshLoading, setRefreshLoading] = useState(false);
     const source = node?.metadata?.filmScript?.source;
@@ -97,6 +106,8 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
     const saveAsset = useFilmCastStore((state) => state.saveAsset);
     useEffect(() => {
         setRefreshPreview(null);
+        setScriptImportSummary("");
+        setSourcePickerOpen(false);
     }, [node?.id, source?.hash]);
     useEffect(() => {
         if (!sourceProjectId || !publicationId || sourceDocument) return;
@@ -109,6 +120,52 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
     const patchAsset = (patch: Partial<FilmAsset>) => onChange(node.id, (current) => patchFilmContextAssetNode(current, patch));
     const updateAsset = (updater: (asset: FilmAsset) => FilmAsset) => onChange(node.id, (current) => updateFilmContextAssetNode(current, updater));
     const script = node.metadata?.filmScript;
+    const importScriptFile = async (file?: File) => {
+        if (!file) return;
+        if ((script?.text || "").trim()) {
+            const ok = await confirm({
+                title: "覆盖当前剧本正文？",
+                description: "导入会替换现有正文；画布上已生成的场次、镜头与资产节点不受影响。",
+                confirmText: "覆盖导入",
+                tone: "warning",
+            });
+            if (!ok) return;
+        }
+        setScriptImporting(true);
+        try {
+            const { text, format } = await readFilmScriptFile(file);
+            const normalized = normalizeScriptText(text);
+            if (!normalized.trim()) {
+                message.warning("文件里没有可导入的文本");
+                return;
+            }
+            patchScript({ text: normalized });
+            const document = parseFilmScriptDocument(normalized, format);
+            const sceneCount = document.episodes.reduce((total, episode) => total + episode.scenes.length, 0);
+            setScriptImportSummary(`已从 ${file.name} 导入 · ${document.episodes.length} 集 ${sceneCount} 场`);
+            message.success("剧本正文已导入");
+        } catch (error) {
+            message.error(toErrorMessage(error, "文件解析失败"));
+        } finally {
+            setScriptImporting(false);
+        }
+    };
+    const summarizePastedScript = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+        const text = normalizeScriptText(event.clipboardData.getData("text"));
+        if (!text.trim()) return;
+        const document = parseFilmScriptDocument(text);
+        const sceneCount = document.episodes.reduce((total, episode) => total + episode.scenes.length, 0);
+        setScriptImportSummary(`粘贴内容解析为 ${document.episodes.length} 集 ${sceneCount} 场`);
+    };
+    const importScriptSource = async (projectId: string) => {
+        if (!onImportScriptSource) return;
+        try {
+            await onImportScriptSource(node.id, projectId);
+            setSourcePickerOpen(false);
+        } catch (error) {
+            message.error(toErrorMessage(error, "导入剧本来源失败"));
+        }
+    };
     const sourcePublication = sourceDocument?.publications.find((item) => item.id === publicationId);
     const publicationStale = Boolean(source && sourcePublication && isPublicationStale(sourceDocument, sourcePublication.episodeIds, source.hash));
     const scene = node.metadata?.filmScene;
@@ -209,7 +266,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
         <Drawer
             open={open}
             onClose={onClose}
-            size="min(520px, 96vw)"
+            size={node.type === CanvasNodeType.FilmScript ? "min(820px, 96vw)" : "min(520px, 96vw)"}
             zIndex={CANVAS_Z.popover}
             title={`${TITLES[node.type] || "影视节点"} · ${node.type === CanvasNodeType.FilmShot ? "概览" : "编辑"}`}
             styles={{
@@ -253,14 +310,35 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
                         </div>
                     ) : (
                         <>
-                            <Field label="剧本正文">
-                                <Input.TextArea
-                                    value={script?.text || ""}
-                                    autoSize={{ minRows: 12, maxRows: 24 }}
-                                    style={inputStyle}
-                                    onChange={(event) => patchScript({ text: event.target.value })}
-                                />
-                            </Field>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button type="button" className="inline-flex items-center rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={scriptImporting} onClick={() => scriptFileRef.current?.click()}>
+                                    <FileUp className="mr-1 size-3.5" />{scriptImporting ? "导入中…" : "导入文件"}
+                                </button>
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={scriptImporting} onClick={() => setSourcePickerOpen(true)}>从剧本工作台导入</button>
+                                <span className="text-[11px]" style={{ color: theme.node.muted }}>支持 docx / txt / md / fountain / fdx，也可把文件拖进正文。</span>
+                            </div>
+                            <input ref={scriptFileRef} hidden type="file" accept=".txt,.md,.docx,.fountain,.fdx" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void importScriptFile(file); }} />
+                            <div
+                                className="rounded-lg"
+                                style={scriptDragging ? { outline: `1px dashed ${theme.canvas.selectionStroke}`, outlineOffset: 3 } : undefined}
+                                onDragOver={(event) => { event.preventDefault(); setScriptDragging(true); }}
+                                onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setScriptDragging(false); }}
+                                onDrop={(event) => { event.preventDefault(); setScriptDragging(false); void importScriptFile(event.dataTransfer.files?.[0]); }}
+                            >
+                                <Field label="剧本正文">
+                                    <Input.TextArea
+                                        value={script?.text || ""}
+                                        autoSize={{ minRows: 16, maxRows: 32 }}
+                                        style={inputStyle}
+                                        onChange={(event) => patchScript({ text: event.target.value })}
+                                        onPaste={summarizePastedScript}
+                                    />
+                                </Field>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
+                                <span>{script?.text?.trim() ? `${script.text.length.toLocaleString()} 字` : "还没有正文"}</span>
+                                {scriptImportSummary ? <span>{scriptImportSummary}</span> : null}
+                            </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} disabled={Boolean(analysisProgress)} onClick={() => onRunDirectorAnalysis?.(node.id)}>
                                     {analysisProgress ? `导演分析中 · ${analysisProgress.stage === "structure" ? "拆解结构" : "提取资产"}${analysisProgress.total ? ` ${analysisProgress.done}/${analysisProgress.total}` : "…"}` : "导演分析"}
@@ -270,6 +348,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, analysisPro
                                 ) : null}
                             </div>
                             <div className="text-xs" style={{ color: theme.node.muted }}>AI 会先生成结构、镜头与资产提案，确认后一次写入画布；撤销会恢复最近一次分析前的节点和连线。</div>
+                            <FilmScriptSourcePickerDialog open={sourcePickerOpen} theme={theme} onClose={() => setSourcePickerOpen(false)} onPick={importScriptSource} />
                         </>
                     )
                 ) : null}

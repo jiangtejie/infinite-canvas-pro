@@ -8,7 +8,7 @@ import type { ScriptContentSnapshot, ScriptPublication, ScriptVersion } from "@/
 import { loadScriptProject, loadScriptVersions, useScriptStore } from "@/app/(user)/script/stores/use-script-store";
 import { useUserStore } from "@/stores/use-user-store";
 import { publicationSourceHash, resolvePublicationVersions } from "@/app/(user)/script/utils/script-publication";
-import { buildInitialScriptFilmGraph, compileScriptFilmPlan } from "@/app/(user)/script/utils/script-film-plan";
+import { buildInitialScriptFilmGraph, compileScriptFilmPlan, scriptFilmText } from "@/app/(user)/script/utils/script-film-plan";
 
 type PublishInput = { projectId: string; episodeIds: string[]; publicationId?: string };
 export type ScriptFilmRefreshPreview = {
@@ -25,7 +25,7 @@ function sameEpisodes(left: string[], right: string[]) {
     return left.length === right.length && left.every((id) => right.includes(id));
 }
 
-function publicationSnapshot(publication: ScriptPublication, versions: ScriptVersion[], episodeIds: string[]) {
+export function publicationSnapshot(publication: ScriptPublication, versions: ScriptVersion[], episodeIds: string[]) {
     const selected = publication.sourceVersionIds.map((id) => versions.find((version) => version.id === id));
     if (selected.some((version) => !version)) throw new Error("发布来源版本不可用，请重新锁定后再发布");
     const first = selected[0]!;
@@ -180,4 +180,46 @@ export async function publishScriptToFilm(input: PublishInput): Promise<ScriptPu
         }
         throw error;
     }
+}
+
+/** 把剧本工作台的锁定剧集接入已有影视画布：为当前画布生成专属发布副本，避免与其他画布共享同一条发布记录。 */
+export async function importScriptPublicationForFilm(input: { projectId: string; filmId: string }): Promise<{ publication: ScriptPublication; source: FilmScriptSource; text: string }> {
+    await loadScriptProject(input.projectId);
+    await loadScriptVersions(input.projectId);
+    const document = useScriptStore.getState().documents[input.projectId];
+    if (!document) throw new Error("剧本尚未加载");
+    const film = useCanvasStore.getState().projects.find((project) => project.id === input.filmId);
+    if (!film?.film) throw new Error("影视项目不存在");
+    const episodeIds = document.episodes
+        .filter((episode) => document.lockedVersionId || (episode.lockedVersionId && episode.lockedVersionHash))
+        .map((episode) => episode.id);
+    if (!episodeIds.length) throw new Error("该剧本还没有锁定剧集，请先在剧本工作台锁定后再导入");
+    const versions = useScriptStore.getState().versions[input.projectId] || [];
+    const resolved = resolvePublicationVersions(document, versions, episodeIds);
+    const sourceHash = publicationSourceHash(document, episodeIds);
+    if (!resolved.length || !sourceHash) throw new Error("锁定版本不可用，请重新锁定后再导入");
+    let publication = document.publications.find((item) => item.filmProjectId === input.filmId && sameEpisodes(item.episodeIds, episodeIds));
+    if (!publication) {
+        publication = {
+            id: nanoid(),
+            episodeIds,
+            sourceVersionIds: [...new Set(resolved.map((version) => version.id))],
+            sourceHash,
+            status: "published",
+            publishedAt: new Date().toISOString(),
+            filmProjectId: input.filmId,
+        };
+        await updatePublication(input.projectId, publication.id, publication);
+    }
+    const text = scriptFilmText(compileScriptFilmPlan(publicationSnapshot(publication, versions, episodeIds)));
+    useCanvasStore.getState().updateProject(input.filmId, { film: { ...film.film, scriptPublicationId: publication.id } });
+    const source: FilmScriptSource = {
+        projectId: input.projectId,
+        projectTitle: document.title,
+        publicationId: publication.id,
+        versionIds: publication.sourceVersionIds,
+        hash: publication.sourceHash,
+        publishedAt: publication.publishedAt || new Date().toISOString(),
+    };
+    return { publication, source, text };
 }

@@ -58,7 +58,7 @@ import { EMPTY_FILM_ASSET_PRODUCTION_PLAN, planFilmAssetProduction } from "./lib
 import { EMPTY_FILM_ASSET_VIEW, selectFilmAssetView } from "./lib/film-asset-view";
 import { EMPTY_FILM_PRODUCTION_PLAN, selectFilmProductionPlan } from "./lib/film-production-plan";
 import { createFilmShotGroup, removeFilmShotGroup, renameFilmShotGroup, selectFilmShotGroups } from "./lib/film-shot-groups";
-import { filmContextAsset, updateFilmContextAssetNode } from "./lib/film-node-patch";
+import { filmContextAsset, patchFilmScriptNode, updateFilmContextAssetNode } from "./lib/film-node-patch";
 import { getFilmQuickConnectActions, isLegacyFilmNodeType, type FilmCommandResult } from "./lib/film-node-registry";
 import { applyFilmVersionSelections, selectFilmVersionShots, type FilmVersionKind } from "./lib/film-version-room";
 import type { FilmContextNodeOption, FilmDirectorBoardModel, FilmProductionKind, FilmProductionOpenOptions, FilmShotBatchKind, FilmShotContextCreatableKind, FilmViewMode } from "./lib/film-studio-types";
@@ -115,7 +115,7 @@ import { invalidateComicPageCompositions } from "@/app/(user)/comic/utils/comic-
 import { applyComicPageReplacement, applyComicProjectUpdate } from "./lib/comic-canvas-projection";
 import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasFilmAssetQueue, type CanvasFilmShotQueue, type FilmContextEdgeData, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
-import { applyScriptPublicationRefresh } from "@/services/script-film-publication";
+import { applyScriptPublicationRefresh, importScriptPublicationForFilm } from "@/services/script-film-publication";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
 
 const FILM_CONTEXT_CREATE_ACTION = { character: "create-character", location: "create-location", prop: "create-prop" } as const;
@@ -2448,6 +2448,12 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         message.success("影视画布已刷新");
     }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
 
+    const importFilmScriptSource = useCallback(async (scriptNodeId: string, scriptProjectId: string) => {
+        const result = await importScriptPublicationForFilm({ projectId: scriptProjectId, filmId: projectId });
+        setNodes((prev) => prev.map((node) => node.id === scriptNodeId ? patchFilmScriptNode(node, { text: result.text, source: result.source }) : node));
+        message.success("已导入剧本来源，可在来源卡片预览并刷新");
+    }, [message, projectId, setNodes]);
+
     const runFilmConsistencyReview = useCallback(async () => {
         const latestProject = useCanvasStore.getState().projects.find((project) => project.id === projectId);
         if (!latestProject?.film) return;
@@ -3082,6 +3088,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             onChange={(nodeId, updater) => {
                 setNodes((prev) => prev.map((node) => (node.id === nodeId ? updater(node) : node)));
             }}
+            onImportScriptSource={importFilmScriptSource}
             analysisProgress={directorAnalysis?.scriptNodeId === filmInspectorNodeId ? directorAnalysis.progress : null}
             onRunDirectorAnalysis={(nodeId) => {
                 void runFilmDirectorAnalysis(nodeId);
