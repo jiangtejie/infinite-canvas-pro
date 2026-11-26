@@ -6,6 +6,8 @@ import { NODE_DEFAULT_SIZE } from "@/app/(user)/canvas/constants";
 import { scriptFilmText } from "@/app/(user)/script/utils/script-film-plan";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmSceneNodeData, type FilmScriptNodeData, type FilmScriptSource, type FilmShotNodeData } from "../../types";
 import { canvasConnection } from "./canvas-connection";
+import { placeFilmNodes } from "./film-layout";
+import { isFilmAnalysisSourceKey } from "./film-landing-plan";
 import type { FilmParseGraphResult } from "./film-script-parse";
 
 export type ScriptFilmRefreshPlan = {
@@ -19,9 +21,6 @@ export type ScriptFilmRefreshPlan = {
 type DesiredScene = { episode: FilmEpisode; scene: FilmScene };
 type RefreshResult = FilmParseGraphResult & { plan: ScriptFilmRefreshPlan };
 
-const COLUMN_GAP = 60;
-const SHOT_GAP = 32;
-const START_GAP = 120;
 const SHOT_SOURCE_FIELDS = ["shotNo", "shotType", "cameraMovement", "duration", "description", "dialogue", "audio", "negativePrompt", "performance", "soundDesign", "coverage", "composition", "lighting", "colorTone", "lens", "transition", "videoMode", "videoPrompt"] as const;
 
 function shotSourcePayload(shot: FilmShot): FilmShotNodeData {
@@ -58,7 +57,7 @@ function protectedShot(node: CanvasNodeData, connections: CanvasConnection[]) {
     return Boolean(
         shot.imageUrl || shot.videoUrl || shot.storageKey || shot.videoStorageKey
         || shot.firstFrame || shot.lastFrame || shot.imageVersions?.length || shot.videoVersions?.length
-        || shot.videoSegments?.length || shot.pendingTask || shot.locationId || shot.locationVariantId
+        || shot.videoSegments?.length || shot.pendingTask
         || node.metadata?.status !== "idle"
         || connections.some((edge) => edge.kind === "context" && edge.toNodeId === node.id)
         || scriptTextHash(shot.prompt || "") !== shot.scriptSourcePromptHash,
@@ -71,8 +70,8 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
     const prefix = `script:${source.publicationId}:`;
     const removedConnections = connections.filter((edge) => edge.id.startsWith(prefix));
     const baseConnections = connections.filter((edge) => !edge.id.startsWith(prefix));
-    const ownedScenes = nodes.filter((node) => node.type === CanvasNodeType.FilmScene && node.metadata?.filmScene?.scriptSourceKey);
-    const ownedShots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot && node.metadata?.filmShot?.scriptSourceKey);
+    const ownedScenes = nodes.filter((node) => node.type === CanvasNodeType.FilmScene && node.metadata?.filmScene?.scriptSourceKey && !isFilmAnalysisSourceKey(node.metadata.filmScene.scriptSourceKey));
+    const ownedShots = nodes.filter((node) => node.type === CanvasNodeType.FilmShot && node.metadata?.filmShot?.scriptSourceKey && !isFilmAnalysisSourceKey(node.metadata.filmShot.scriptSourceKey));
     const sceneByKey = new Map(ownedScenes.map((node) => [node.metadata!.filmScene!.scriptSourceKey!, node]));
     const shotByKey = new Map(ownedShots.map((node) => [node.metadata!.filmShot!.scriptSourceKey!, node]));
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -119,9 +118,6 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
     const sceneWidth = NODE_DEFAULT_SIZE[CanvasNodeType.FilmScene].width;
     const sceneHeight = NODE_DEFAULT_SIZE[CanvasNodeType.FilmScene].height;
     const shotHeight = NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].height;
-    const baseX = script.position.x + script.width + START_GAP;
-    const baseY = script.position.y;
-    let column = 0;
     let previousShotId = "";
 
     for (const { episode, scene } of desiredScenes) {
@@ -136,7 +132,7 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
             id: sceneId,
             type: CanvasNodeType.FilmScene,
             title: scene.name || "场次",
-            position: { x: baseX + column * (sceneWidth + COLUMN_GAP), y: baseY },
+            position: { x: 0, y: 0 },
             width: sceneWidth,
             height: sceneHeight,
             metadata: { status: "idle", filmScene: data },
@@ -147,7 +143,7 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
         replacements.set(sceneNode.id, sceneNode);
         nodeById.set(sceneNode.id, sceneNode);
 
-        for (const [shotIndex, shot] of scene.shots.entries()) {
+        for (const shot of scene.shots) {
             const existingShot = shotByKey.get(shot.id);
             const shotId = existingShot?.id ?? (nodeById.has(shot.id) ? `${prefix}${shot.id}` : shot.id);
             const sourceFields = shotSourcePayload(shot);
@@ -164,7 +160,7 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
                 id: shotId,
                 type: CanvasNodeType.FilmShot,
                 title: shot.shotNo || "镜头",
-                position: { x: baseX + column * (sceneWidth + COLUMN_GAP), y: baseY + sceneHeight + 40 + shotIndex * (shotHeight + SHOT_GAP) },
+                position: { x: 0, y: 0 },
                 width: NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].width,
                 height: shotHeight,
                 metadata: { status: "idle", filmShot: { ...sourceFields, scriptSourceKey: shot.id, scriptSourcePromptHash: scriptTextHash(prompt) } },
@@ -178,9 +174,10 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
             if (previousShotId) sourceConnections.push({ ...canvasConnection(previousShotId, shotNode.id, { kind: "sequence" }), id: `${prefix}${previousShotId}->${shotNode.id}` });
             previousShotId = shotNode.id;
         }
-        column += 1;
     }
 
+    const survivingNodes = nodes.filter((node) => !removedNodeIds.has(node.id));
+    const placedCreatedNodes = placeFilmNodes(survivingNodes, [...connections, ...sourceConnections], createdNodes);
     const detachedIds = new Set(detachedNodes.map((node) => node.id));
     const nextNodes = nodes.filter((node) => !removedNodeIds.has(node.id)).map((node) => {
         if (detachedIds.has(node.id)) {
@@ -198,7 +195,7 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
         id: nanoid(),
         createdAt: new Date().toISOString(),
         mode: "refresh" as const,
-        nodes: createdNodes,
+        nodes: placedCreatedNodes,
         connections: sourceConnections,
         removedNodes: nodes.filter((node) => removedNodeIds.has(node.id)),
         removedConnections,
@@ -218,9 +215,9 @@ function buildRefresh(nodes: CanvasNodeData[], connections: CanvasConnection[], 
         },
     };
     return {
-        nodes: [...nextNodes.map((node) => node.id === script.id ? parsedScript : node), ...createdNodes],
+        nodes: [...nextNodes.map((node) => node.id === script.id ? parsedScript : node), ...placedCreatedNodes],
         connections: [...baseConnections, ...sourceConnections],
-        scriptPatch: { parseSnapshots: parsedScript.metadata.filmScript!.parseSnapshots },
+        scriptPatch: { parseSnapshots: parsedScript.metadata!.filmScript!.parseSnapshots },
         shotCount: desiredScenes.reduce((total, { scene }) => total + scene.shots.length, 0),
         sceneCount: desiredScenes.length,
         removedNodeIds: [...removedNodeIds],

@@ -10,6 +10,8 @@ export type FilmAssetSuggestion = {
     aliases: string[];
     description: string;
     visualPrompt: string;
+    /** 提案里显式选择新建，即使母版库存在同名条目也不复用。 */
+    forceNew?: boolean;
 };
 
 export const FILM_ASSET_SUGGESTION_KINDS: FilmAssetSuggestionKind[] = ["character", "location", "prop", "costume"];

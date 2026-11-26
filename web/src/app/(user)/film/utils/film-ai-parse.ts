@@ -7,6 +7,9 @@ import type { FilmEpisode, FilmScene, FilmStructurePlan } from "@/lib/film/types
 import type { DirectorStyle } from "@/lib/film/director-styles";
 import { filmShotTypeCodeFromLabel } from "./film-shot-types";
 import { structurePlanPromptContext } from "./film-ai-structure";
+import { splitFilmScriptIntoChunks } from "./film-ai-chunks";
+
+export { splitFilmScriptIntoChunks as splitScriptIntoChunks } from "./film-ai-chunks";
 
 export type FilmAiShotRow = {
     episode?: string;
@@ -47,11 +50,13 @@ export type FilmParsePacing = "fast" | "normal" | "slow";
 
 export type FilmParseOptions = {
     pacing?: FilmParsePacing;
+    shotDensity?: "sparse" | "normal" | "dense";
     targetDuration?: number;
     /** 结构代理生成的场次计划；有值时视觉代理按计划生成镜头。 */
     structurePlan?: FilmStructurePlan;
     /** 导演风格语法；用于约束景别/运镜/光线并补齐 prompt。 */
     directorStyle?: DirectorStyle;
+    signal?: AbortSignal;
 };
 
 const MAX_AI_SHOTS = 500;
@@ -90,9 +95,10 @@ const BASE_PROMPT = `你是一名专业的影视分镜师。把用户提供的�
 const STRICT_RETRY_HINT = `\n【重要】上一次输出无法解析。这一次只输出一个 JSON 数组，第一个字符是 [，最后一个字符是 ]，不要 Markdown，不要任何解释。`;
 
 export async function requestFilmAiStoryboard(config: AiConfig, script: string, options: FilmParseOptions = {}, onProgress?: (done: number, total: number) => void): Promise<FilmEpisode[]> {
-    const chunks = splitScriptIntoChunks(script, MAX_CHUNK_CHARS);
+    const chunks = splitFilmScriptIntoChunks(script, MAX_CHUNK_CHARS);
     const merged: FilmEpisode[] = [];
     for (let index = 0; index < chunks.length; index++) {
+        options.signal?.throwIfAborted();
         const episodes = await requestChunk(config, chunks[index], options, index, chunks.length);
         mergeFilmEpisodes(merged, episodes);
         onProgress?.(index + 1, chunks.length);
@@ -107,8 +113,9 @@ async function requestChunk(config: AiConfig, chunk: string, options: FilmParseO
     const partHint = total > 1 ? `【这是剧本第 ${index + 1}/${total} 段，只拆这一段的镜头，保持整体风格与编号连续】\n` : "";
     const messages: Array<{ role: "user"; content: string }> = [{ role: "user", content: `${partHint}【剧本】\n${chunk}` }];
     try {
-        return await requestOnce(config, systemPrompt, messages);
+        return await requestOnce(config, systemPrompt, messages, options.signal);
     } catch (error) {
+        if (options.signal?.aborted) throw error;
         if (isCanvasAgentContextLimitError(error) && chunk.length > MIN_CONTEXT_RETRY_CHARS) {
             const [left, right] = splitChunkInHalf(chunk);
             const leftEpisodes = await requestChunk(config, left, options, index, total);
@@ -118,7 +125,7 @@ async function requestChunk(config: AiConfig, chunk: string, options: FilmParseO
         }
         if (!isCanvasAgentContextLimitError(error)) {
             try {
-                return await requestOnce(config, `${systemPrompt}${STRICT_RETRY_HINT}`, messages);
+                return await requestOnce(config, `${systemPrompt}${STRICT_RETRY_HINT}`, messages, options.signal);
             } catch {
                 throw error;
             }
@@ -127,8 +134,8 @@ async function requestChunk(config: AiConfig, chunk: string, options: FilmParseO
     }
 }
 
-async function requestOnce(config: AiConfig, systemPrompt: string, messages: Array<{ role: "user"; content: string }>): Promise<FilmEpisode[]> {
-    const turn = await requestCanvasAgentTurn({ config, systemPrompt, messages, tools: [], toolMode: "prompt-json" });
+async function requestOnce(config: AiConfig, systemPrompt: string, messages: Array<{ role: "user"; content: string }>, signal?: AbortSignal): Promise<FilmEpisode[]> {
+    const turn = await requestCanvasAgentTurn({ config, systemPrompt, messages, tools: [], toolMode: "prompt-json", signal });
     const episodes = filmAiRowsToEpisodes(parseFilmAiShotRows(turn.content));
     if (!episodes.length) throw new Error("AI 返回的分镜为空");
     return episodes;
@@ -141,6 +148,11 @@ function buildSystemPrompt(options: FilmParseOptions) {
             ? "慢节奏：平均每镜 6-10 秒，允许长镜头和缓慢运镜。"
             : "常规：平均每镜 4-6 秒。";
     const duration = options.targetDuration ? `\n【时长目标】所有镜头 duration 相加尽量接近 ${options.targetDuration} 秒，允许 ±20% 误差。` : "";
+    const density = options.shotDensity === "dense"
+        ? "\n【镜头密度】密集：每场增加切分点，重要动作与情绪变化都单独成镜。"
+        : options.shotDensity === "sparse"
+            ? "\n【镜头密度】稀疏：每场镜头更少，优先保留叙事关键信息，允许更长镜头。"
+            : "\n【镜头密度】常规：按叙事信息点拆分镜头。";
     const style = options.directorStyle;
     const styleHint = style ? `\n【导演风格语法】${JSON.stringify({
         name: style.name,
@@ -154,7 +166,7 @@ function buildSystemPrompt(options: FilmParseOptions) {
     })}\n要求：景别、运镜、构图、光线、色彩必须服从这套语法；视觉风格由后续统一编译器追加，不要写进 imagePrompt。` : "";
     const structure = structurePlanPromptContext(options.structurePlan);
     const structureHint = structure ? `\n【场次结构计划】${structure}\n要求：只把结构计划里的 beats 可视化，不增加新的叙事信息；每场至少覆盖计划里的 coverage 类型；镜头 coverage 字段填写 建立/反应/细节/关系/过渡。` : "";
-    return `${BASE_PROMPT}\n【节奏要求】${pacing}${duration}${styleHint}${structureHint}`;
+    return `${BASE_PROMPT}\n【节奏要求】${pacing}${duration}${density}${styleHint}${structureHint}`;
 }
 
 export function parseFilmAiShotRows(content: string): FilmAiShotRow[] {
@@ -249,53 +261,6 @@ function normalizeSoundDesign(value: FilmAiShotRow["soundDesign"]) {
         dialogueTone: (value.dialogueTone || "").trim(),
     };
     return soundDesign.ambience || soundDesign.sfx || soundDesign.music || soundDesign.dialogueTone ? soundDesign : undefined;
-}
-
-/** 长剧本按集/场标题切块，块内尽量保留完整场次。 */
-export function splitScriptIntoChunks(script: string, maxChars = MAX_CHUNK_CHARS): string[] {
-    const lines = (script || "").split(/\r?\n/).map((line) => line.trimEnd());
-    const blocks: string[] = [];
-    let current: string[] = [];
-    for (const line of lines) {
-        if (/^第\s*[0-9零一二三四五六七八九十百]+\s*[集场]|^EP(?:ISODE)?\s*\d+|^场景\s*\d+|^\d{1,2}[-－]\d{1,2}\s/.test(line.trim()) && current.length) {
-            blocks.push(current.join("\n"));
-            current = [line];
-        } else {
-            current.push(line);
-        }
-    }
-    if (current.length) blocks.push(current.join("\n"));
-
-    const chunks: string[] = [];
-    let buffer = "";
-    for (const block of blocks) {
-        if (block.length > maxChars) {
-            if (buffer) {
-                chunks.push(buffer);
-                buffer = "";
-            }
-            const subLines = block.split(/\r?\n/);
-            let piece = "";
-            for (const line of subLines) {
-                if ((piece + "\n" + line).length > maxChars) {
-                    if (piece) chunks.push(piece);
-                    piece = line;
-                } else {
-                    piece = piece ? `${piece}\n${line}` : line;
-                }
-            }
-            if (piece) chunks.push(piece);
-            continue;
-        }
-        if ((buffer + "\n\n" + block).length > maxChars) {
-            if (buffer) chunks.push(buffer);
-            buffer = block;
-        } else {
-            buffer = buffer ? `${buffer}\n\n${block}` : block;
-        }
-    }
-    if (buffer) chunks.push(buffer);
-    return chunks.length ? chunks : [script];
 }
 
 export function mergeFilmEpisodes(target: FilmEpisode[], source: FilmEpisode[]) {

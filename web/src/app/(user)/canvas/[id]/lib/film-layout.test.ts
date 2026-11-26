@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FilmAsset } from "@/lib/film/types";
+import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type Position } from "../../types";
-import { arrangeFilmDirectorBoard, buildFilmBoardRelations, FILM_LAYOUT, orderFilmShots } from "./film-layout";
+import { arrangeFilmDirectorBoard, buildFilmBoardRelations, FILM_LAYOUT, orderFilmShots, placeFilmNodes } from "./film-layout";
+
+const TEST_SHOT_HEIGHT = 240;
 
 const node = (id: string, type: CanvasNodeType, metadata: CanvasNodeData["metadata"] = {}, position: Position = { x: 0, y: 0 }): CanvasNodeData => ({
     id,
@@ -69,7 +72,7 @@ test("appends disconnected shots by position instead of dropping them", () => {
     );
 });
 
-test("orders scenes into stable columns by episode and position", () => {
+test("orders scenes into stable columns by current position", () => {
     const arranged = arrangeFilmDirectorBoard([
         scene("scene-b", "ep-2", "B", { x: 0, y: 900 }),
         scene("scene-a2", "ep-1", "A2", { x: 0, y: 500 }),
@@ -97,8 +100,29 @@ test("orders shots by global sequence inside columns even when scenes interleave
     // 全片顺序 1 → 3 → 2：场次列内仍按 sequence 自上而下排列。
     assert.deepEqual(positionOf(arranged, "shot-1"), { x: 0, y: FILM_LAYOUT.sceneHeight });
     assert.deepEqual(positionOf(arranged, "shot-3"), { x: FILM_LAYOUT.columnWidth, y: FILM_LAYOUT.sceneHeight });
-    assert.deepEqual(positionOf(arranged, "shot-2"), { x: 0, y: FILM_LAYOUT.sceneHeight + FILM_LAYOUT.rowHeight });
+    assert.deepEqual(positionOf(arranged, "shot-2"), { x: 0, y: FILM_LAYOUT.sceneHeight + TEST_SHOT_HEIGHT + FILM_LAYOUT.shotGap });
     assert.ok(positionOf(arranged, "shot-2").y > positionOf(arranged, "shot-1").y);
+});
+
+test("stacks default-size shots without overlapping after arrange", () => {
+    const size = NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot];
+    const defaultShot = (id: string): CanvasNodeData => ({ ...shot(id), width: size.width, height: size.height });
+    const arranged = arrangeFilmDirectorBoard([
+        scene("scene-1", "ep-1", "A"),
+        defaultShot("shot-1"),
+        defaultShot("shot-2"),
+        defaultShot("shot-3"),
+    ], [
+        composition("scene-1", "shot-1"),
+        composition("scene-1", "shot-2"),
+        composition("scene-1", "shot-3"),
+        sequence("shot-1", "shot-2"),
+        sequence("shot-2", "shot-3"),
+    ]);
+    const positions = ["shot-1", "shot-2", "shot-3"].map((id) => positionOf(arranged, id));
+    positions.slice(1).forEach((position, index) => {
+        assert.ok(position.y >= positions[index].y + size.height, "adjacent shots must not overlap");
+    });
 });
 
 test("keeps script and context nodes in a context band outside the shot columns", () => {
@@ -132,7 +156,7 @@ test("keeps beat nodes beside their context target shot", () => {
     const target = positionOf(arranged, "shot-2");
     const beatPosition = positionOf(arranged, "beat-1");
     assert.equal(beatPosition.x, target.x + FILM_LAYOUT.beatOffsetX);
-    assert.ok(Math.abs(beatPosition.y - target.y) < FILM_LAYOUT.rowHeight);
+    assert.ok(Math.abs(beatPosition.y - target.y) < TEST_SHOT_HEIGHT + FILM_LAYOUT.shotGap);
     assert.equal(connections.filter((edge) => edge.kind === "context").length, 1);
     assert.equal(connections.find((edge) => edge.id === "beat-1->shot-2")?.toNodeId, "shot-2");
 });
@@ -156,6 +180,38 @@ test("appends unassigned shots after the last scene column", () => {
     ], [composition("scene-1", "shot-1"), sequence("shot-1", "loose")]);
     assert.deepEqual(positionOf(arranged, "shot-1"), { x: 0, y: FILM_LAYOUT.sceneHeight });
     assert.deepEqual(positionOf(arranged, "loose"), { x: FILM_LAYOUT.columnWidth, y: 0 });
+});
+
+test("places appended nodes on the same grid as a full arrangement", () => {
+    const connections: CanvasConnection[] = [composition("scene-1", "shot-1"), composition("scene-2", "shot-2")];
+    const base = arrangeFilmDirectorBoard([
+        scene("scene-1", "ep-1", "A"),
+        scene("scene-2", "ep-2", "B"),
+        shot("shot-1"),
+        shot("shot-2"),
+        script("script-1"),
+        assetNode("char-1", "character"),
+    ], connections);
+    const newScene = scene("scene-3", "ep-3", "C");
+    const newShot = shot("shot-3");
+    const newAsset = assetNode("char-2", "character");
+    const allConnections = [...connections, composition("scene-3", "shot-3")];
+    const frozen = JSON.stringify(base);
+    const placed = placeFilmNodes(base, allConnections, [newScene, newShot, newAsset]);
+    assert.equal(JSON.stringify(base), frozen, "placing must not move existing nodes");
+    const fullyArranged = arrangeFilmDirectorBoard([...base, ...placed], allConnections);
+    ["scene-3", "shot-3", "char-2"].forEach((id) => assert.deepEqual(positionOf(placed, id), positionOf(fullyArranged, id), `${id} must match a full arrange`));
+});
+
+test("keeps shots of appended scenes inside the new scene column", () => {
+    const connections: CanvasConnection[] = [composition("scene-1", "shot-1")];
+    const base = arrangeFilmDirectorBoard([scene("scene-1", "ep-1", "A"), shot("shot-1")], connections);
+    const newScene = scene("scene-2", "ep-2", "B");
+    const newShots = [shot("shot-2"), shot("shot-3")];
+    const placed = placeFilmNodes(base, [...connections, composition("scene-2", "shot-2"), composition("scene-2", "shot-3"), sequence("shot-2", "shot-3")], [newScene, ...newShots]);
+    const scenePosition = positionOf(placed, "scene-2");
+    assert.equal(scenePosition.x, positionOf(base, "scene-1").x + FILM_LAYOUT.columnWidth);
+    newShots.forEach((item) => assert.equal(positionOf(placed, item.id).x, scenePosition.x));
 });
 
 test("leaves generic nodes untouched and does not mutate input positions", () => {

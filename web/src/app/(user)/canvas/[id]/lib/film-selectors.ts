@@ -124,6 +124,7 @@ function shotContextChip(edge: Extract<CanvasConnection, { kind: "context" }>, n
         edgeId: edge.id,
         role,
         name: asset?.name || node.metadata?.filmBeat?.title || node.title,
+        source: edge.data.source,
         stateId: edge.data.stateId,
         stateName: states.find((state) => state.id === edge.data.stateId)?.name,
         variantId: edge.data.variantId,

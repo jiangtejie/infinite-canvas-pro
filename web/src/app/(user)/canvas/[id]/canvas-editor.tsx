@@ -53,7 +53,10 @@ import { selectActiveFilmShot, selectFilmSceneEntries, selectFilmShotContexts, s
 import { selectFilmShotContextLens } from "./lib/film-context-lens";
 import { EMPTY_FILM_CONTEXT_CENTER, selectFilmContextCenter } from "./lib/film-context-center";
 import { filmAssetBoundShotNumbers } from "./lib/film-library-usage";
-import { applyFilmDirectorAnalysis, requestFilmDirectorAnalysis, type FilmDirectorAnalysisProposal, type FilmDirectorAnalysisSelection, type FilmDirectorAnalysisStage } from "./lib/film-director-analysis";
+import { applyFilmDirectorAnalysis, buildFilmDirectorAnalysis, FilmAnalysisAbortedError, requestFilmDirectorAnalysis, type FilmDirectorAnalysisProposal, type FilmDirectorAnalysisSelection } from "./lib/film-director-analysis";
+import { buildFilmAnalysisLandingGraph, planFilmAppendLanding, type FilmAnalysisLandingPlan } from "./lib/film-landing-plan";
+import { applyFilmAnalysisSession, cancelFilmAnalysisSession, createFilmAnalysisSession, failFilmAnalysisSession, filmAnalysisDraftFromProposal, isFilmAnalysisExpired, patchFilmAnalysisSession, recoverFilmAnalysisNodes, type FilmScriptAction } from "./lib/film-analysis-session";
+import { applyFilmAnalysisDraftCommand, type FilmAnalysisDraftCommand } from "./lib/film-analysis-draft";
 import { EMPTY_FILM_ASSET_PRODUCTION_PLAN, planFilmAssetProduction } from "./lib/film-asset-production";
 import { EMPTY_FILM_ASSET_VIEW, selectFilmAssetView } from "./lib/film-asset-view";
 import { EMPTY_FILM_PRODUCTION_PLAN, selectFilmProductionPlan } from "./lib/film-production-plan";
@@ -62,6 +65,7 @@ import { filmContextAsset, patchFilmScriptNode, updateFilmContextAssetNode } fro
 import { getFilmQuickConnectActions, isLegacyFilmNodeType, type FilmCommandResult } from "./lib/film-node-registry";
 import { applyFilmVersionSelections, selectFilmVersionShots, type FilmVersionKind } from "./lib/film-version-room";
 import type { FilmContextNodeOption, FilmDirectorBoardModel, FilmProductionKind, FilmProductionOpenOptions, FilmShotBatchKind, FilmShotContextCreatableKind, FilmViewMode } from "./lib/film-studio-types";
+import { scriptTextHash } from "@/lib/film/film-script-import";
 import { applyNodeConfigPatch, audioExtension, buildImportedVideoNode, getGenerationCount, getNextDirectorOutputY, imageExtension, imageMetadata } from "./lib/canvas-node-builders";
 import { buildGenerationConfig } from "./lib/canvas-generation-config";
 import { cloneCanvasNodes } from "./lib/canvas-clone";
@@ -100,8 +104,18 @@ import { FullscreenPreview } from "./components/fullscreen-preview";
 import { CanvasFilmInspector } from "../components/canvas-film-inspector";
 import { isFilmCanvasNodeType } from "../utils/film-mode";
 import { createFilmAsset, importFilmAsset } from "./lib/film-asset-factory";
-import { applyFilmLibraryEntry } from "@/app/(user)/film/utils/film-library";
+import { applyFilmLibraryEntry, findFilmLibraryEntry } from "@/app/(user)/film/utils/film-library";
 import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
+import type { FilmAssetSuggestionKind } from "@/lib/film/film-asset-suggestions";
+import { normalizeFilmAssetSuggestionName } from "@/lib/film/film-asset-suggestions";
+import type { FilmAssetLibrary, FilmAssetProjectKind } from "./lib/film-script-assets";
+import { loadScriptProject, useScriptStore } from "@/app/(user)/script/stores/use-script-store";
+import { scriptProjectFromText } from "@/app/(user)/script/utils/script-import";
+import { requestFilmSceneStoryboard, upsertFilmAnalysisScene } from "@/app/(user)/film/utils/film-ai-scenes";
+import { scriptSceneExcerpt } from "@/app/(user)/film/utils/film-ai-structure";
+import { useFilmAnalysisPresetStore } from "@/stores/use-film-analysis-preset-store";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { FilmLibrarySaveDialog, type FilmLibrarySaveCandidate } from "./components/film-library-save-dialog";
 import { type CanvasAlignKind } from "../components/canvas-toolbar";
 import { CanvasRefreshShell } from "./components/canvas-refresh-shell";
 import { CanvasComicBookOverlay } from "../components/canvas-comic-book-overlay";
@@ -113,12 +127,45 @@ import { enterCanvasZen, exitCanvasZen } from "../utils/canvas-zen";
 import { isCanvasReferenceNode } from "../utils/canvas-resource-references";
 import { invalidateComicPageCompositions } from "@/app/(user)/comic/utils/comic-project";
 import { applyComicPageReplacement, applyComicProjectUpdate } from "./lib/comic-canvas-projection";
-import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasFilmAssetQueue, type CanvasFilmShotQueue, type FilmContextEdgeData, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
+import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantImage, type CanvasAssistantReference, type CanvasAssistantSession, type CanvasConnection, type CanvasFilmAssetQueue, type CanvasFilmShotQueue, type FilmAnalysisSession, type FilmAnalysisSessionDraft, type FilmContextEdgeData, type PendingConnectionCreate, type CanvasDirectorCapture, type CanvasDirectorPanorama, type CanvasDirectorVideo, type CanvasNodeData, type CanvasPendingAgentRequest, type ConnectionHandle, type InsertAssetPayload, type Position } from "../types";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
 import { applyScriptPublicationRefresh, importScriptPublicationForFilm } from "@/services/script-film-publication";
 import { isStorageNotConfiguredError } from "@/services/storage-errors";
 
 const FILM_CONTEXT_CREATE_ACTION = { character: "create-character", location: "create-location", prop: "create-prop" } as const;
+
+function currentFilmAssetLibrary(): FilmAssetLibrary {
+    const store = useFilmCastStore.getState();
+    return { character: store.characters, location: store.locations, prop: store.props, costume: store.costumes, style: store.styles };
+}
+
+function filmProjectAssetKind(node: CanvasNodeData): FilmAssetProjectKind | null {
+    if (node.type === CanvasNodeType.FilmCharacter) return "character";
+    if (node.type === CanvasNodeType.FilmLocation) return "location";
+    if (node.type === CanvasNodeType.FilmProp) return "prop";
+    return null;
+}
+
+function knownFilmAssets(library: FilmAssetLibrary, nodes: CanvasNodeData[], rules: NonNullable<CanvasProject["film"]>["assetAliases"] = []) {
+    const entries: Array<{ kind: FilmAssetSuggestionKind; name: string; aliases: string[] }> = [
+        ...library.character.map((asset) => ({ kind: "character" as const, name: asset.name, aliases: asset.aliases })),
+        ...library.location.map((asset) => ({ kind: "location" as const, name: asset.name, aliases: asset.aliases })),
+        ...library.prop.map((asset) => ({ kind: "prop" as const, name: asset.name, aliases: asset.aliases })),
+        ...library.costume.map((asset) => ({ kind: "costume" as const, name: asset.name, aliases: asset.aliases })),
+    ];
+    const nodeKind: Partial<Record<CanvasNodeType, FilmAssetSuggestionKind>> = {
+        [CanvasNodeType.FilmCharacter]: "character",
+        [CanvasNodeType.FilmLocation]: "location",
+        [CanvasNodeType.FilmProp]: "prop",
+    };
+    nodes.forEach((node) => {
+        const kind = nodeKind[node.type];
+        const asset = kind ? filmContextAsset(node) : undefined;
+        if (kind && asset) entries.push({ kind, name: asset.name, aliases: asset.aliases });
+    });
+    rules.forEach((rule) => entries.push({ kind: rule.kind, name: rule.name, aliases: rule.aliases }));
+    return entries;
+}
 
 export default function CanvasEditor({ studio = false }: { studio?: boolean }) {
     const params = useParams<{ id: string }>();
@@ -135,6 +182,7 @@ export default function CanvasEditor({ studio = false }: { studio?: boolean }) {
 
 function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: boolean }) {
     const { message } = App.useApp();
+    const confirm = useConfirm();
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
     const assetInsertPositionRef = useRef<Position | null>(null);
@@ -187,11 +235,24 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     }, [connections, filmInspectorNode, nodes]);
     const [studioView, setStudioView] = useState<FilmViewMode>("board");
     const [shotFocusOpen, setShotFocusOpen] = useState(false);
-    const [directorAnalysis, setDirectorAnalysis] = useState<{
+    const [analysisDialog, setAnalysisDialog] = useState<{
         scriptNodeId: string;
-        progress: { stage: FilmDirectorAnalysisStage; done: number; total: number } | null;
-        proposal: FilmDirectorAnalysisProposal | null;
+        proposal: FilmDirectorAnalysisProposal;
+        expired: boolean;
+        plans?: Record<"merge" | "append" | "replace", FilmAnalysisLandingPlan>;
     } | null>(null);
+    const analysisControllersRef = useRef(new Map<string, AbortController>());
+    const analysisDraftRef = useRef<FilmAnalysisSessionDraft | null>(null);
+    const analysisDraftPendingRef = useRef<{ scriptNodeId: string; draft: FilmAnalysisSessionDraft } | null>(null);
+    const analysisDraftTimerRef = useRef<number | null>(null);
+    const transferScriptRef = useRef(false);
+    const [librarySaveCandidates, setLibrarySaveCandidates] = useState<FilmLibrarySaveCandidate[] | null>(null);
+    const [retryingSceneKey, setRetryingSceneKey] = useState<string | null>(null);
+    useEffect(() => () => {
+        analysisControllersRef.current.forEach((controller) => controller.abort());
+        analysisControllersRef.current.clear();
+        if (analysisDraftTimerRef.current) window.clearTimeout(analysisDraftTimerRef.current);
+    }, []);
     const [productionOpen, setProductionOpen] = useState(false);
     const [productionAssetIds, setProductionAssetIds] = useState<string[] | undefined>();
     const [productionShotIds, setProductionShotIds] = useState<string[] | undefined>();
@@ -255,7 +316,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const filmSummaryOptions = useMemo(() => ({
         costumes: filmCostumes,
         videoMaxReferences: filmVideoReferenceLimit(effectiveConfig.videoModel || effectiveConfig.model),
-    }), [effectiveConfig.model, effectiveConfig.videoModel, filmCostumes]);
+        aspect: currentProject?.film?.aspect,
+    }), [currentProject?.film?.aspect, effectiveConfig.model, effectiveConfig.videoModel, filmCostumes]);
     const filmMediaPreviewNode = filmMediaPreviewId ? nodes.find((node) => node.id === filmMediaPreviewId) ?? null : null;
     const filmMediaPreviewShot = filmMediaPreviewNode?.metadata?.filmShot;
     const filmMediaPreviewIsVideo = Boolean(filmMediaPreviewShot?.videoUrl || filmMediaPreviewShot?.videoStorageKey);
@@ -473,7 +535,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
                     return ensureImagePreview(`canvas-node:${projectId}:${node.id}`, content, storageKey, source, true);
                 }),
             );
-            const restoredNodes = await hydrateCanvasImages(resetNodes);
+            const restoredNodes = recoverFilmAnalysisNodes(await hydrateCanvasImages(resetNodes));
             const restoredConnections = project.connections;
             for (const node of restoredNodes) {
                 const id = node.metadata?.clientTaskId;
@@ -2307,6 +2369,102 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         window.setTimeout(() => focusNode(nodeId), 80);
     }, [focusNode]);
 
+    const undoFilmScriptParse = useCallback((scriptNodeId: string) => {
+        const scriptNode = nodesRef.current.find((node) => node.id === scriptNodeId);
+        if (!scriptNode) return;
+        const result = undoFilmParseGraph(scriptNode, nodesRef.current, connectionsRef.current);
+        if (!result) return;
+        setNodes(result.nodes);
+        setConnections(result.connections);
+        nodesRef.current = result.nodes;
+        connectionsRef.current = result.connections;
+        message.success(scriptNode.metadata?.filmScript?.parseSnapshots?.at(-1)?.mode === "refresh" ? "已撤销上次来源刷新" : "已撤销上次导演分析");
+    }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
+
+    const patchScriptAnalysis = useCallback((scriptNodeId: string, updater: (session: FilmAnalysisSession | undefined) => FilmAnalysisSession | undefined) => {
+        setNodes((prev) => prev.map((node) => {
+            if (node.id !== scriptNodeId || node.type !== CanvasNodeType.FilmScript) return node;
+            const session = node.metadata?.filmScript?.analysis;
+            const next = updater(session);
+            return next === session ? node : patchFilmScriptNode(node, { analysis: next });
+        }));
+    }, [setNodes]);
+
+    const persistAnalysisDraft = useCallback((pending: { scriptNodeId: string; draft: FilmAnalysisSessionDraft }) => {
+        patchScriptAnalysis(pending.scriptNodeId, (current) => current ? patchFilmAnalysisSession(current, { draft: pending.draft, status: "ready" }) : current);
+    }, [patchScriptAnalysis]);
+
+    const flushAnalysisDraft = useCallback(() => {
+        if (analysisDraftTimerRef.current) {
+            window.clearTimeout(analysisDraftTimerRef.current);
+            analysisDraftTimerRef.current = null;
+        }
+        const pending = analysisDraftPendingRef.current;
+        analysisDraftPendingRef.current = null;
+        if (pending) persistAnalysisDraft(pending);
+    }, [persistAnalysisDraft]);
+
+    const openFilmAnalysis = useCallback((scriptNodeId: string) => {
+        const scriptNode = nodesRef.current.find((node) => node.id === scriptNodeId && node.type === CanvasNodeType.FilmScript);
+        const session = scriptNode?.metadata?.filmScript?.analysis;
+        if (!scriptNode || !session?.draft) {
+            message.info("还没有可继续确认的导演分析提案");
+            return;
+        }
+        const proposal = buildFilmDirectorAnalysis(session.draft.episodes, session.draft.suggestions, scriptNode, nodesRef.current, connectionsRef.current, currentProject?.film, currentFilmAssetLibrary(), session.draft.structurePlan ?? session.structurePlan);
+        session.warnings?.forEach((warning) => proposal.conflicts.push({ level: "warning", message: warning }));
+        if (session.sceneErrors && Object.keys(session.sceneErrors).length) {
+            proposal.sceneErrors = session.sceneErrors;
+            proposal.conflicts.push({ level: "warning", message: `${Object.keys(session.sceneErrors).length} 场分镜失败，可在镜头页单独重做。` });
+        }
+        analysisDraftRef.current = session.draft;
+        if (analysisDraftTimerRef.current) {
+            window.clearTimeout(analysisDraftTimerRef.current);
+            analysisDraftTimerRef.current = null;
+        }
+        analysisDraftPendingRef.current = null;
+        const nodes = nodesRef.current;
+        const connections = connectionsRef.current;
+        const plans = {
+            merge: buildFilmAnalysisLandingGraph(session.draft.episodes, scriptNode, nodes, connections, "merge").plan,
+            replace: buildFilmAnalysisLandingGraph(session.draft.episodes, scriptNode, nodes, connections, "replace").plan,
+            append: planFilmAppendLanding(nodes, session.draft.episodes),
+        };
+        setAnalysisDialog({ scriptNodeId, proposal, expired: isFilmAnalysisExpired(session, scriptNode.metadata?.filmScript?.text || ""), plans });
+    }, [connectionsRef, currentProject, message, nodesRef]);
+
+    const closeAnalysisDialog = useCallback(() => {
+        flushAnalysisDraft();
+        analysisDraftRef.current = null;
+        setAnalysisDialog(null);
+    }, [flushAnalysisDraft]);
+
+    const editFilmAnalysisDraft = useCallback((command: FilmAnalysisDraftCommand) => {
+        if (!analysisDialog) return;
+        const scriptNode = nodesRef.current.find((node) => node.id === analysisDialog.scriptNodeId && node.type === CanvasNodeType.FilmScript);
+        const session = scriptNode?.metadata?.filmScript?.analysis;
+        const base = analysisDraftRef.current ?? session?.draft;
+        if (!scriptNode || !session?.draft || !base) return;
+        const nextDraft = applyFilmAnalysisDraftCommand(base, command);
+        if (nextDraft === base) return;
+        analysisDraftRef.current = nextDraft;
+        const proposal = buildFilmDirectorAnalysis(nextDraft.episodes, nextDraft.suggestions, scriptNode, nodesRef.current, connectionsRef.current, currentProject?.film, currentFilmAssetLibrary(), nextDraft.structurePlan ?? session.structurePlan);
+        session.warnings?.forEach((warning) => proposal.conflicts.push({ level: "warning", message: warning }));
+        if (session.sceneErrors && Object.keys(session.sceneErrors).length) {
+            proposal.sceneErrors = session.sceneErrors;
+            proposal.conflicts.push({ level: "warning", message: `${Object.keys(session.sceneErrors).length} 场分镜失败，可在镜头页单独重做。` });
+        }
+        setAnalysisDialog((prev) => prev && prev.scriptNodeId === scriptNode.id ? { ...prev, proposal } : prev);
+        analysisDraftPendingRef.current = { scriptNodeId: scriptNode.id, draft: nextDraft };
+        if (analysisDraftTimerRef.current) window.clearTimeout(analysisDraftTimerRef.current);
+        analysisDraftTimerRef.current = window.setTimeout(() => {
+            analysisDraftTimerRef.current = null;
+            const pending = analysisDraftPendingRef.current;
+            analysisDraftPendingRef.current = null;
+            if (pending) persistAnalysisDraft(pending);
+        }, 400);
+    }, [analysisDialog, connectionsRef, currentProject, nodesRef, persistAnalysisDraft]);
+
     const runFilmDirectorAnalysis = useCallback(async (scriptNodeId: string) => {
         const scriptNode = nodesRef.current.find((node) => node.id === scriptNodeId && node.type === CanvasNodeType.FilmScript);
         const text = scriptNode?.metadata?.filmScript?.text || "";
@@ -2314,49 +2472,332 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             message.warning("先在剧本节点填写正文");
             return;
         }
+        if (analysisControllersRef.current.has(scriptNodeId)) return;
         const config = resolveModelConfig("text");
         if (!config) return;
-        setDirectorAnalysis({ scriptNodeId, progress: { stage: "structure", done: 0, total: 0 }, proposal: null });
+        const controller = new AbortController();
+        analysisControllersRef.current.set(scriptNodeId, controller);
+        const presetOptions = useFilmAnalysisPresetStore.getState().options;
+        const analysisOptions = {
+            ...presetOptions,
+            targetDuration: presetOptions.targetDuration ?? currentProject?.film?.targetDuration,
+            directorStyleId: presetOptions.directorStyleId ?? currentProject?.film?.directorStyleId,
+        };
+        const started = createFilmAnalysisSession(scriptTextHash(text), analysisOptions);
+        patchScriptAnalysis(scriptNodeId, () => started);
+        const library = currentFilmAssetLibrary();
+        let seedCharacters: Array<{ name: string; description?: string }> | undefined;
+        const source = scriptNode.metadata?.filmScript?.source;
+        if (source?.projectId) {
+            try {
+                if (!useScriptStore.getState().documents[source.projectId]) await loadScriptProject(source.projectId);
+                const document = useScriptStore.getState().documents[source.projectId];
+                seedCharacters = document?.characters.filter((character) => character.name.trim()).map((character) => ({
+                    name: character.name.trim(),
+                    description: [character.role, character.description].filter(Boolean).join("："),
+                }));
+            } catch {
+                seedCharacters = undefined;
+            }
+        }
         try {
             const proposal = await requestFilmDirectorAnalysis(config, scriptNode, {
-                targetDuration: currentProject?.film?.targetDuration,
-                directorStyle: directorStyleFor(currentProject?.film?.directorStyleId),
+                pacing: analysisOptions.pacing,
+                shotDensity: analysisOptions.shotDensity,
+                targetDuration: analysisOptions.targetDuration,
+                directorStyle: directorStyleFor(analysisOptions.directorStyleId),
+                extractAssets: analysisOptions.extractAssets !== false,
                 film: currentProject?.film,
                 nodes: nodesRef.current,
                 connections: connectionsRef.current,
-                onProgress: (stage, done, total) => setDirectorAnalysis((prev) => prev && prev.scriptNodeId === scriptNodeId ? { ...prev, progress: { stage, done, total } } : prev),
+                library,
+                knownAssets: knownFilmAssets(library, nodesRef.current, currentProject?.film?.assetAliases),
+                seedCharacters,
+                signal: controller.signal,
+                onStructure: (plan) => patchScriptAnalysis(scriptNodeId, (session) => session?.id === started.id ? patchFilmAnalysisSession(session, { structurePlan: plan, progress: { stage: "shots", done: 0, total: plan.scenes.length } }) : session),
+                onProgress: (stage, done, total) => patchScriptAnalysis(scriptNodeId, (session) => session?.id === started.id ? patchFilmAnalysisSession(session, { progress: { stage, done, total } }) : session),
             });
             if (!proposal.totals.scenes) {
+                patchScriptAnalysis(scriptNodeId, (session) => session?.id === started.id ? failFilmAnalysisSession(session, "AI 没有拆出有效场次") : session);
                 message.warning("AI 没有拆出有效场次");
-                setDirectorAnalysis(null);
                 return;
             }
-            setFilmInspectorNodeId(null);
-            setDirectorAnalysis({ scriptNodeId, progress: null, proposal });
+            const warnings = proposal.conflicts.filter((conflict) => conflict.message.startsWith("资产提取")).map((conflict) => conflict.message);
+            patchScriptAnalysis(scriptNodeId, (session) => session?.id === started.id ? patchFilmAnalysisSession(session, {
+                status: "ready",
+                draft: filmAnalysisDraftFromProposal(proposal),
+                progress: undefined,
+                error: undefined,
+                warnings,
+            }) : session);
+            const toastKey = `film-analysis-ready-${started.id}`;
+            message.success({
+                key: toastKey,
+                duration: 8,
+                content: (
+                    <span className="inline-flex items-center gap-3">
+                        <span>导演分析已就绪 · {proposal.totals.scenes} 场 {proposal.totals.shots} 镜</span>
+                        <button type="button" className="shrink-0 underline underline-offset-2" onClick={() => { message.destroy(toastKey); openFilmAnalysis(scriptNodeId); }}>打开</button>
+                    </span>
+                ),
+            });
         } catch (error) {
-            message.error(toErrorMessage(error, "导演分析失败"));
-            setDirectorAnalysis(null);
+            if (controller.signal.aborted) {
+                const partial = error instanceof FilmAnalysisAbortedError ? error.proposal : undefined;
+                patchScriptAnalysis(scriptNodeId, (session) => {
+                    if (session?.id !== started.id) return session;
+                    const cancelled = cancelFilmAnalysisSession(session, partial ? filmAnalysisDraftFromProposal(partial) : undefined);
+                    return partial ? patchFilmAnalysisSession(cancelled, { warnings: ["资产提取已中止，继续确认后可单独重新分析。"] }) : cancelled;
+                });
+                message.info(partial ? "导演分析已中止，已完成的结构可继续确认" : "导演分析已中止");
+                return;
+            }
+            const errorText = toErrorMessage(error, "导演分析失败");
+            patchScriptAnalysis(scriptNodeId, (session) => session?.id === started.id ? failFilmAnalysisSession(session, errorText) : session);
+            message.error(errorText);
+        } finally {
+            if (analysisControllersRef.current.get(scriptNodeId) === controller) analysisControllersRef.current.delete(scriptNodeId);
         }
-    }, [connectionsRef, currentProject, message, nodesRef, resolveModelConfig]);
+    }, [connectionsRef, currentProject, message, nodesRef, openFilmAnalysis, patchScriptAnalysis, resolveModelConfig]);
+
+    const retryFilmAnalysisScene = useCallback(async (structureSceneKey: string) => {
+        const scriptNodeId = analysisDialog?.scriptNodeId;
+        const scriptNode = scriptNodeId ? nodesRef.current.find((node) => node.id === scriptNodeId && node.type === CanvasNodeType.FilmScript) : undefined;
+        const session = scriptNode?.metadata?.filmScript?.analysis;
+        const plan = session?.structurePlan ?? session?.draft?.structurePlan;
+        const planScene = plan?.scenes.find((scene) => `${scene.episodeTitle}::${scene.sceneName}` === structureSceneKey);
+        if (!scriptNodeId || !scriptNode || !session?.draft || !plan || !planScene) {
+            message.warning("缺少可重做的场次结构，请重新分析");
+            return;
+        }
+        if (retryingSceneKey || analysisControllersRef.current.has(scriptNodeId)) return;
+        const config = resolveModelConfig("text");
+        if (!config) return;
+        const controller = new AbortController();
+        analysisControllersRef.current.set(scriptNodeId, controller);
+        setRetryingSceneKey(structureSceneKey);
+        try {
+            const scene = await requestFilmSceneStoryboard(config, planScene, scriptSceneExcerpt(scriptNode.metadata?.filmScript?.text || "", planScene), {
+                pacing: session.options.pacing,
+                shotDensity: session.options.shotDensity,
+                targetDuration: session.options.targetDuration,
+                directorStyle: directorStyleFor(session.options.directorStyleId),
+                signal: controller.signal,
+            });
+            const nextEpisodes = upsertFilmAnalysisScene(session.draft.episodes, plan, planScene, scene);
+            const nextDraft = { ...session.draft, episodes: nextEpisodes };
+            const nextErrors = { ...(session.sceneErrors ?? {}) };
+            delete nextErrors[structureSceneKey];
+            analysisDraftRef.current = nextDraft;
+            if (analysisDraftTimerRef.current) {
+                window.clearTimeout(analysisDraftTimerRef.current);
+                analysisDraftTimerRef.current = null;
+            }
+            analysisDraftPendingRef.current = null;
+            patchScriptAnalysis(scriptNodeId, (current) => current?.id === session.id ? patchFilmAnalysisSession(current, { draft: nextDraft, sceneErrors: Object.keys(nextErrors).length ? nextErrors : undefined, status: "ready" }) : current);
+            const proposal = buildFilmDirectorAnalysis(nextEpisodes, nextDraft.suggestions, scriptNode, nodesRef.current, connectionsRef.current, currentProject?.film, currentFilmAssetLibrary(), plan);
+            proposal.sceneErrors = Object.keys(nextErrors).length ? nextErrors : undefined;
+            session.warnings?.forEach((warning) => proposal.conflicts.push({ level: "warning", message: warning }));
+            if (Object.keys(nextErrors).length) proposal.conflicts.push({ level: "warning", message: `${Object.keys(nextErrors).length} 场分镜失败，可继续单独重做。` });
+            setAnalysisDialog((prev) => prev && prev.scriptNodeId === scriptNodeId ? { ...prev, proposal } : prev);
+            message.success("已重新分镜本场");
+        } catch (error) {
+            if (controller.signal.aborted) {
+                message.info("已中止本场重做");
+                return;
+            }
+            const errorText = toErrorMessage(error, "本场重新分镜失败");
+            patchScriptAnalysis(scriptNodeId, (current) => current?.id === session.id ? patchFilmAnalysisSession(current, { sceneErrors: { ...(current.sceneErrors ?? {}), [structureSceneKey]: errorText } }) : current);
+            setAnalysisDialog((prev) => prev ? { ...prev, proposal: { ...prev.proposal, sceneErrors: { ...(prev.proposal.sceneErrors ?? {}), [structureSceneKey]: errorText } } } : prev);
+            message.error(errorText);
+        } finally {
+            if (analysisControllersRef.current.get(scriptNodeId) === controller) analysisControllersRef.current.delete(scriptNodeId);
+            setRetryingSceneKey(null);
+        }
+    }, [analysisDialog, connectionsRef, currentProject, message, nodesRef, patchScriptAnalysis, resolveModelConfig, retryingSceneKey]);
+
+    const syncFilmAnalysisAliases = useCallback(async (updates: Array<{ kind: FilmAssetSuggestionKind; libraryAssetId: string; name: string; aliases: string[] }>) => {
+        const ok = await confirm({
+            title: "同步别名到母版库？",
+            description: `将把 ${updates.length} 项资产的新叫法合并进母版库别名；之后其他项目的导演分析会按这些别名复用同一资产。`,
+            confirmText: "同步别名",
+            stacked: true,
+        });
+        if (!ok) return;
+        updates.forEach((update) => useFilmCastStore.getState().updateAsset(update.kind, update.libraryAssetId, { aliases: update.aliases }));
+        const latest = useCanvasStore.getState().projects.find((project) => project.id === projectId);
+        if (latest?.film) {
+            const rules = [...(latest.film.assetAliases ?? [])];
+            updates.forEach((update) => {
+                const name = normalizeFilmAssetSuggestionName(update.name);
+                const index = rules.findIndex((rule) => rule.kind === update.kind && normalizeFilmAssetSuggestionName(rule.name) === name);
+                if (index >= 0) rules[index] = { ...rules[index], aliases: [...new Set([...rules[index].aliases, ...update.aliases])] };
+                else rules.push({ kind: update.kind, name: update.name, aliases: update.aliases });
+            });
+            updateProject(projectId, { film: { ...latest.film, assetAliases: rules } });
+        }
+        message.success("已同步别名到母版库");
+    }, [confirm, message, projectId, updateProject]);
 
     const applyDirectorAnalysis = useCallback((selection: FilmDirectorAnalysisSelection) => {
-        if (!directorAnalysis?.proposal) return;
-        const result = applyFilmDirectorAnalysis(nodesRef.current, connectionsRef.current, directorAnalysis.proposal, selection);
+        if (!analysisDialog) return;
+        if (analysisDraftTimerRef.current) {
+            window.clearTimeout(analysisDraftTimerRef.current);
+            analysisDraftTimerRef.current = null;
+        }
+        analysisDraftPendingRef.current = null;
+        analysisDraftRef.current = null;
+        const result = applyFilmDirectorAnalysis(nodesRef.current, connectionsRef.current, analysisDialog.proposal, selection);
         if ("error" in result) {
             message.warning(result.error);
             return;
         }
-        setNodes(result.nodes);
+        const summary = {
+            scenes: result.sceneCount,
+            shots: result.shotCount,
+            assets: result.createdAssetNodes.length,
+            appliedAt: new Date().toISOString(),
+            mode: selection.mode,
+        };
+        const nextNodes = result.nodes.map((node) => {
+            if (node.id !== result.nodeId || node.type !== CanvasNodeType.FilmScript) return node;
+            const session = node.metadata?.filmScript?.analysis;
+            return session ? patchFilmScriptNode(node, { analysis: applyFilmAnalysisSession(session, summary) }) : node;
+        });
+        setNodes(nextNodes);
         setConnections(result.connections);
-        setDirectorAnalysis(null);
-        if (result.createdAssetNodes.length) {
-            setStudioView("board");
-            window.setTimeout(() => fitNodesToView(result.createdAssetNodes), 80);
+        setAnalysisDialog(null);
+        setStudioView("board");
+        const createdIds = result.createdNodes.map((node) => node.id);
+        const previousSelection = new Set(selectedNodeIdsRef.current);
+        selectMany(createdIds);
+        window.setTimeout(() => fitNodesToView(result.createdNodes), 80);
+        window.setTimeout(() => {
+            const current = selectedNodeIdsRef.current;
+            if (current.size === createdIds.length && createdIds.every((id) => current.has(id))) selectMany(previousSelection);
+        }, 3000);
+        const toastKey = `film-analysis-${result.nodeId}-${Date.now()}`;
+        const selectedAssetKeys = new Set(selection.assetKeys);
+        const aliasUpdates = analysisDialog.proposal.assets.items.flatMap((item) => {
+            if (!item.libraryAsset || !selectedAssetKeys.has(item.key)) return [];
+            const existingNames = new Set([item.libraryAsset.name, ...item.libraryAsset.aliases].map(normalizeFilmAssetSuggestionName));
+            const extra = item.aliases.filter((alias) => alias.trim() && !existingNames.has(normalizeFilmAssetSuggestionName(alias)));
+            const renamed = normalizeFilmAssetSuggestionName(item.name) !== normalizeFilmAssetSuggestionName(item.libraryAsset.name) ? [item.name] : [];
+            if (!extra.length && !renamed.length) return [];
+            return [{
+                kind: item.kind,
+                libraryAssetId: item.libraryAsset.id,
+                name: item.libraryAsset.name,
+                aliases: [...new Set([...item.libraryAsset.aliases, ...extra, ...renamed])],
+            }];
+        });
+        if (aliasUpdates.length) void syncFilmAnalysisAliases(aliasUpdates);        const ruleUpdates = analysisDialog.proposal.assets.items
+            .filter((item) => item.kind !== "costume" && selectedAssetKeys.has(item.key) && item.aliases.length)
+            .map((item) => ({ kind: item.kind, name: item.name, aliases: item.aliases }));
+        if (ruleUpdates.length) {
+            const latest = useCanvasStore.getState().projects.find((project) => project.id === projectId);
+            if (latest?.film) {
+                const rules = [...(latest.film.assetAliases ?? [])];
+                ruleUpdates.forEach((update) => {
+                    const name = normalizeFilmAssetSuggestionName(update.name);
+                    const index = rules.findIndex((rule) => rule.kind === update.kind && normalizeFilmAssetSuggestionName(rule.name) === name);
+                    if (index >= 0) rules[index] = { ...rules[index], aliases: [...new Set([...rules[index].aliases, ...update.aliases])] };
+                    else rules.push({ kind: update.kind, name: update.name, aliases: update.aliases });
+                });
+                updateProject(projectId, { film: { ...latest.film, assetAliases: rules } });
+            }
         }
-        message.success(`已写入 ${result.sceneCount} 场 / ${result.shotCount} 镜${result.createdAssetNodes.length ? `，新建 ${result.createdAssetNodes.length} 项资产` : ""}${result.boundCount ? `，关联 ${result.boundCount} 处提及` : ""}`);
-    }, [connectionsRef, directorAnalysis, fitNodesToView, message, nodesRef, setConnections, setNodes]);
+        const candidates = result.createdAssetNodes.flatMap((node) => {
+            const kind = filmProjectAssetKind(node);
+            const asset = filmContextAsset(node);
+            return kind && asset ? [{ nodeId: node.id, kind, asset }] : [];
+        });
+        if (candidates.length) setLibrarySaveCandidates(candidates);
+        message.success({
+            key: toastKey,
+            duration: 6,
+            content: (
+                <span className="inline-flex items-center gap-3">
+                    <span>已写入 {result.sceneCount} 场 / {result.shotCount} 镜{result.createdAssetNodes.length ? `，新建 ${result.createdAssetNodes.length} 项资产` : ""}{result.boundCount ? `，关联 ${result.boundCount} 处提及` : ""}</span>
+                    <button type="button" className="shrink-0 underline underline-offset-2" onClick={() => { message.destroy(toastKey); clearSelection(); undoFilmScriptParse(result.nodeId); }}>撤销</button>
+                </span>
+            ),
+        });
+    }, [analysisDialog, clearSelection, connectionsRef, fitNodesToView, message, nodesRef, projectId, selectMany, selectedNodeIdsRef, setConnections, setNodes, syncFilmAnalysisAliases, undoFilmScriptParse, updateProject]);
 
-    const cancelDirectorAnalysis = useCallback(() => setDirectorAnalysis(null), []);
+    const saveFilmLibraryCandidates = useCallback((selected: FilmLibrarySaveCandidate[]) => {
+        const patched = selected.flatMap(({ nodeId, kind, asset }) => {
+            useFilmCastStore.getState().saveAsset(kind, asset);
+            const state = useFilmCastStore.getState();
+            const list = kind === "character" ? state.characters : kind === "location" ? state.locations : state.props;
+            const saved = findFilmLibraryEntry(list, asset);
+            return saved ? [{ nodeId, libraryAssetId: saved.id }] : [];
+        });
+        if (patched.length) {
+            setNodes((prev) => prev.map((node) => {
+                const hit = patched.find((item) => item.nodeId === node.id);
+                return hit ? updateFilmContextAssetNode(node, (asset) => ({ ...asset, sourceLibraryAssetId: hit.libraryAssetId })) : node;
+            }));
+        }
+        setLibrarySaveCandidates(null);
+        message.success(`已存入母版库 ${patched.length} 项`);
+    }, [message, setNodes]);
+
+    const importFilmScriptSource = useCallback(async (scriptNodeId: string, scriptProjectId: string) => {
+        const result = await importScriptPublicationForFilm({ projectId: scriptProjectId, filmId: projectId });
+        const nextNodes = nodesRef.current.map((node) => node.id === scriptNodeId ? patchFilmScriptNode(node, { text: result.text, source: result.source }) : node);
+        nodesRef.current = nextNodes;
+        setNodes(nextNodes);
+        updateProject(projectId, { nodes: nextNodes });
+        message.success("已导入剧本来源，可在来源卡片预览并刷新");
+        return { projectId: scriptProjectId, publicationId: result.source.publicationId };
+    }, [message, nodesRef, projectId, setNodes, updateProject]);
+
+    const transferFilmScriptToProject = useCallback(async (scriptNodeId: string) => {
+        const scriptNode = nodesRef.current.find((node) => node.id === scriptNodeId && node.type === CanvasNodeType.FilmScript);
+        const text = scriptNode?.metadata?.filmScript?.text || "";
+        if (!scriptNode || !text.trim()) {
+            message.warning("先在剧本节点填写正文");
+            return;
+        }
+        if (transferScriptRef.current) return;
+        transferScriptRef.current = true;
+        try {
+            const document = scriptProjectFromText(text, `${currentProject?.title || "画布剧本"} 剧本`);
+            const projectId = await useScriptStore.getState().importProject(document);
+            await useScriptStore.getState().lockVersion(projectId, { scope: "project", label: "画布剧本转存" });
+            const imported = await importFilmScriptSource(scriptNodeId, projectId);
+            if (imported) message.success("已转存为剧本项目并发布回当前画布");
+        } catch (error) {
+            message.error(toErrorMessage(error, "转存剧本项目失败"));
+        } finally {
+            transferScriptRef.current = false;
+        }
+    }, [currentProject, importFilmScriptSource, message, nodesRef]);
+
+    const handleFilmScriptAction = useCallback((scriptNodeId: string, action: FilmScriptAction) => {
+        if (action === "analyze") {
+            void runFilmDirectorAnalysis(scriptNodeId);
+            return;
+        }
+        if (action === "cancel") {
+            analysisControllersRef.current.get(scriptNodeId)?.abort();
+            return;
+        }
+        if (action === "open") {
+            openFilmAnalysis(scriptNodeId);
+            return;
+        }
+        if (action === "undo") {
+            undoFilmScriptParse(scriptNodeId);
+            return;
+        }
+        if (action === "transfer") {
+            void transferFilmScriptToProject(scriptNodeId);
+            return;
+        }
+        setFilmInspectorNodeId(scriptNodeId);
+    }, [openFilmAnalysis, runFilmDirectorAnalysis, transferFilmScriptToProject, undoFilmScriptParse]);
 
     const openFilmShotVersions = useCallback((shotId: string, kind: FilmVersionKind) => {
         const shot = selectFilmVersionShots(nodesRef.current, connectionsRef.current, kind, { minVersions: 1 }).find((item) => item.shotId === shotId);
@@ -2425,18 +2866,6 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
     const closeVersionRoom = useCallback(() => setVersionRoom(null), []);
 
-    const undoFilmScriptParse = useCallback((scriptNodeId: string) => {
-        const scriptNode = nodesRef.current.find((node) => node.id === scriptNodeId);
-        if (!scriptNode) return;
-        const result = undoFilmParseGraph(scriptNode, nodesRef.current, connectionsRef.current);
-        if (!result) return;
-        setNodes(result.nodes);
-        setConnections(result.connections);
-        nodesRef.current = result.nodes;
-        connectionsRef.current = result.connections;
-        message.success(scriptNode.metadata?.filmScript?.parseSnapshots?.at(-1)?.mode === "refresh" ? "已撤销上次来源刷新" : "已撤销上次导演分析");
-    }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
-
     const refreshFilmPublication = useCallback(async (scriptProjectId: string, publicationId: string, expectedHash: string) => {
         const publication = await applyScriptPublicationRefresh(scriptProjectId, publicationId, expectedHash);
         const film = useCanvasStore.getState().projects.find((project) => project.id === publication.filmProjectId);
@@ -2447,12 +2876,6 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         connectionsRef.current = film.connections;
         message.success("影视画布已刷新");
     }, [connectionsRef, message, nodesRef, setConnections, setNodes]);
-
-    const importFilmScriptSource = useCallback(async (scriptNodeId: string, scriptProjectId: string) => {
-        const result = await importScriptPublicationForFilm({ projectId: scriptProjectId, filmId: projectId });
-        setNodes((prev) => prev.map((node) => node.id === scriptNodeId ? patchFilmScriptNode(node, { text: result.text, source: result.source }) : node));
-        message.success("已导入剧本来源，可在来源卡片预览并刷新");
-    }, [message, projectId, setNodes]);
 
     const runFilmConsistencyReview = useCallback(async () => {
         const latestProject = useCanvasStore.getState().projects.find((project) => project.id === projectId);
@@ -2986,6 +3409,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             viewFilmShotMedia,
             openFilmShotFocus,
             openFilmScript,
+            onFilmScriptAction: handleFilmScriptAction,
             editFilmAsset,
             createFilmShot,
             updateFilmBeat,
@@ -3089,11 +3513,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
                 setNodes((prev) => prev.map((node) => (node.id === nodeId ? updater(node) : node)));
             }}
             onImportScriptSource={importFilmScriptSource}
-            analysisProgress={directorAnalysis?.scriptNodeId === filmInspectorNodeId ? directorAnalysis.progress : null}
-            onRunDirectorAnalysis={(nodeId) => {
-                void runFilmDirectorAnalysis(nodeId);
-            }}
-            onUndoParse={undoFilmScriptParse}
+            hasSourceScenes={nodes.some((node) => node.type === CanvasNodeType.FilmScene && Boolean(node.metadata?.filmScene?.scriptSourceKey))}
+            onScriptAction={handleFilmScriptAction}
             onApplyPublicationRefresh={refreshFilmPublication}
             boundShotNumbers={filmInspectorBoundShots}
             onImportLibraryAsset={importFilmLibraryAsset}
@@ -3106,13 +3527,28 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             onOpenShotFocus={openFilmShotFocus}
             onLocateShot={locateFilmShotInBoard}
         />
-        {directorAnalysis?.proposal ? (
+        {analysisDialog ? (
             <FilmDirectorAnalysisDialog
-                key={`${directorAnalysis.scriptNodeId}:${directorAnalysis.proposal.sourceHash}`}
+                key={`${analysisDialog.scriptNodeId}:${analysisDialog.proposal.sourceHash}`}
                 theme={theme}
-                proposal={directorAnalysis.proposal}
+                proposal={analysisDialog.proposal}
+                expired={analysisDialog.expired}
+                plans={analysisDialog.plans}
+                targetDuration={currentProject?.film?.targetDuration}
+                onRetryScene={(sceneKey) => void retryFilmAnalysisScene(sceneKey)}
+                retryingSceneKey={retryingSceneKey}
+                onEdit={editFilmAnalysisDraft}
                 onApply={applyDirectorAnalysis}
-                onCancel={cancelDirectorAnalysis}
+                onCancel={closeAnalysisDialog}
+            />
+        ) : null}
+        {librarySaveCandidates ? (
+            <FilmLibrarySaveDialog
+                key={librarySaveCandidates.map((item) => item.nodeId).join(":")}
+                theme={theme}
+                assets={librarySaveCandidates}
+                onClose={() => setLibrarySaveCandidates(null)}
+                onSave={saveFilmLibraryCandidates}
             />
         ) : null}
         {filmMediaPreviewNode && filmMediaPreviewSrc ? (

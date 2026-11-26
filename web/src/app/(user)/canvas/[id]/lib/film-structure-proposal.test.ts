@@ -42,7 +42,7 @@ const currentConnections: CanvasConnection[] = [];
 test("summarizes structure totals, current graph and target duration deviation", () => {
     const proposal = buildFilmStructureProposal(proposalEpisodes, currentNodes, currentConnections, { aspect: "16:9", targetDuration: 15 } as never);
     assert.deepEqual(proposal.totals, { episodes: 2, scenes: 3, shots: 4, duration: 24 });
-    assert.deepEqual(proposal.current, { scenes: 1, shots: 2 });
+    assert.deepEqual(proposal.current, { scenes: 1, shots: 2, mediaShots: 0 });
     assert.deepEqual(proposal.sceneKeys, ["0:0", "0:1", "1:0"]);
     assert.ok(proposal.issues.some((issue) => issue.message.includes("替换将删除现有 1 场 2 镜")));
     assert.ok(proposal.issues.some((issue) => issue.message.includes("目标时长")));

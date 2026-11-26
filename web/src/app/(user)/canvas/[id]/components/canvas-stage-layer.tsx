@@ -153,6 +153,7 @@ export type CanvasStageModel = {
     viewFilmShotMedia?: (node: CanvasNodeData) => void;
     openFilmShotFocus?: (shotId: string) => void;
     openFilmScript?: () => void;
+    onFilmScriptAction?: (nodeId: string, action: import("../lib/film-analysis-session").FilmScriptAction) => void;
     editFilmAsset?: (nodeId: string) => void;
     createFilmShot?: (sceneId: string) => void;
     updateFilmBeat?: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
@@ -597,6 +598,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                             onViewFilmMedia={model.viewFilmShotMedia}
                             onFocusFilmShot={model.openFilmShotFocus}
                             onOpenFilmScript={model.openFilmScript}
+                            onFilmScriptAction={model.onFilmScriptAction}
                             onEditFilmAsset={model.editFilmAsset}
                             onCreateFilmShot={model.createFilmShot}
                             onUpdateFilmBeat={model.updateFilmBeat}

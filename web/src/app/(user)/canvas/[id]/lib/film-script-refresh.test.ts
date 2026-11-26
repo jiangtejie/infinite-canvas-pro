@@ -60,6 +60,35 @@ test("refresh protects deleted shots with media, custom prompts and context bind
     assert.equal(result.nodes.find((node) => node.id === "scene-1")?.metadata?.filmScene?.scriptSourceKey, undefined);
 });
 
+test("refresh ignores AI analysis nodes even when their keys are source-like", () => {
+    const { project } = publishedGraph();
+    const edited = structuredClone(project);
+    const aiScene: CanvasNodeData = {
+        id: "ai-scene",
+        type: CanvasNodeType.FilmScene,
+        title: "AI 场次",
+        position: { x: 900, y: 0 },
+        width: 360,
+        height: 360,
+        metadata: { filmScene: { episodeId: "ai", episodeTitle: "AI", name: "AI 场次", location: "", time: "", mood: "", scriptSourceKey: "ai:ai::ai场次" } },
+    };
+    const aiShot: CanvasNodeData = {
+        id: "ai-shot",
+        type: CanvasNodeType.FilmShot,
+        title: "AI 镜头",
+        position: { x: 900, y: 300 },
+        width: 420,
+        height: 420,
+        metadata: { filmShot: { shotNo: "99", shotType: "中景", cameraMovement: "固定", duration: 4, description: "", dialogue: "", audio: "", prompt: "", scriptSourceKey: "ai:ai::ai场次#0" } },
+    };
+    edited.nodes.push(aiScene, aiShot);
+    edited.connections.push({ id: "ai-composition", fromNodeId: "ai-scene", toNodeId: "ai-shot", kind: "composition" });
+    const result = applyScriptFilmRefresh(edited.nodes, edited.connections, withoutSceneOne(), source);
+    assert.ok(result.nodes.some((node) => node.id === "ai-scene"));
+    assert.ok(result.nodes.some((node) => node.id === "ai-shot"));
+    assert.ok(result.connections.some((edge) => edge.id === "ai-composition"));
+});
+
 test("refresh keeps stable ids, adds new source nodes and preserves manual edges", () => {
     const { project } = publishedGraph();
     const manual: CanvasConnection = { id: "manual-composition", fromNodeId: "scene-1", toNodeId: "scene-1:0", kind: "composition" };

@@ -20,8 +20,10 @@ import { applyFilmLibraryEntry, filmLibraryEntryIsNewer, findFilmLibraryEntry } 
 import { CANVAS_Z } from "../[id]/lib/canvas-layer";
 import { canvasStatusColors } from "../lib/canvas-palette";
 import { patchFilmContextAssetNode, patchFilmSceneNode, patchFilmScriptNode, updateFilmContextAssetNode } from "../[id]/lib/film-node-patch";
+import { isFilmAnalysisExpired, type FilmScriptAction } from "../[id]/lib/film-analysis-session";
 import { filmBeatFrameCount, updateFilmBeatFrame, updateFilmBeatPrompt, updateFilmBeatTitle } from "../[id]/lib/film-beat";
 import { FilmAssetSlotFields } from "../[id]/components/film-asset-slot-fields";
+import { FilmAnalysisPresetBar } from "../[id]/components/film-analysis-preset-bar";
 import { FilmLibraryPickerDialog } from "../[id]/components/film-library-picker-dialog";
 import { FilmScriptSourcePickerDialog } from "../[id]/components/film-script-source-picker-dialog";
 import { FILM_CONTEXT_ROLE_LABELS, type FilmShotContextChip } from "../[id]/lib/film-studio-types";
@@ -32,10 +34,9 @@ type CanvasFilmInspectorProps = {
     node: CanvasNodeData | null;
     onClose: () => void;
     onChange: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
-    onImportScriptSource?: (nodeId: string, scriptProjectId: string) => Promise<void>;
-    analysisProgress?: { stage: "structure" | "assets"; done: number; total: number } | null;
-    onRunDirectorAnalysis?: (nodeId: string) => void;
-    onUndoParse?: (nodeId: string) => void;
+    onImportScriptSource?: (nodeId: string, scriptProjectId: string) => Promise<{ projectId: string; publicationId: string } | void>;
+    hasSourceScenes?: boolean;
+    onScriptAction?: (nodeId: string, action: FilmScriptAction) => void;
     onApplyPublicationRefresh?: (projectId: string, publicationId: string, expectedHash: string) => Promise<void>;
     boundShotNumbers?: string[];
     onImportLibraryAsset?: (kind: FilmAssetKind, entry: FilmAsset) => void;
@@ -80,7 +81,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     );
 }
 
-export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScriptSource, analysisProgress, onRunDirectorAnalysis, onUndoParse, onApplyPublicationRefresh, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
+export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScriptSource, hasSourceScenes = false, onScriptAction, onApplyPublicationRefresh, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const projectId = useParams<{ id: string }>()?.id || "";
     const router = useRouter();
@@ -105,7 +106,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
     const styles = useFilmCastStore((state) => state.styles);
     const saveAsset = useFilmCastStore((state) => state.saveAsset);
     useEffect(() => {
-        setRefreshPreview(null);
+        setRefreshPreview((current) => current && source?.hash && current.source.hash === source.hash ? current : null);
         setScriptImportSummary("");
         setSourcePickerOpen(false);
     }, [node?.id, source?.hash]);
@@ -120,6 +121,12 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
     const patchAsset = (patch: Partial<FilmAsset>) => onChange(node.id, (current) => patchFilmContextAssetNode(current, patch));
     const updateAsset = (updater: (asset: FilmAsset) => FilmAsset) => onChange(node.id, (current) => updateFilmContextAssetNode(current, updater));
     const script = node.metadata?.filmScript;
+    const analysis = script?.analysis;
+    const analysisExpired = isFilmAnalysisExpired(analysis, script?.text || "");
+    const analysisRunning = analysis?.status === "running";
+    const analysisReady = Boolean(analysis?.draft) && (analysis?.status === "ready" || analysis?.status === "structure-ready" || analysis?.status === "cancelled");
+    const analysisStage = analysis?.progress?.stage === "structure" ? "拆解结构" : analysis?.progress?.stage === "assets" ? "提取资产" : "逐场分镜";
+    const emitScriptAction = (action: FilmScriptAction) => onScriptAction?.(node.id, action);
     const importScriptFile = async (file?: File) => {
         if (!file) return;
         if ((script?.text || "").trim()) {
@@ -160,14 +167,21 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
     const importScriptSource = async (projectId: string) => {
         if (!onImportScriptSource) return;
         try {
-            await onImportScriptSource(node.id, projectId);
+            const imported = await onImportScriptSource(node.id, projectId);
             setSourcePickerOpen(false);
+            if (imported && !hasSourceScenes) {
+                try {
+                    setRefreshPreview(await previewScriptPublicationRefresh(imported.projectId, imported.publicationId));
+                } catch (error) {
+                    message.error(toErrorMessage(error, "落图预览失败"));
+                }
+            }
         } catch (error) {
             message.error(toErrorMessage(error, "导入剧本来源失败"));
         }
     };
     const sourcePublication = sourceDocument?.publications.find((item) => item.id === publicationId);
-    const publicationStale = Boolean(source && sourcePublication && isPublicationStale(sourceDocument, sourcePublication.episodeIds, source.hash));
+    const publicationStale = Boolean(sourceDocument && sourcePublication && source && isPublicationStale(sourceDocument, sourcePublication.episodeIds, source.hash));
     const scene = node.metadata?.filmScene;
     const shot = node.metadata?.filmShot;
     const beat = node.metadata?.filmBeat;
@@ -262,6 +276,30 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
         }
     };
 
+    const renderAnalysisActions = () => (
+        <div className="flex flex-wrap items-center gap-2">
+            {analysisRunning ? (
+                <>
+                    <span className="text-[11px]" style={{ color: theme.node.muted }}>导演分析中 · {analysisStage}{analysis?.progress?.total ? ` ${analysis.progress.done}/${analysis.progress.total}` : "…"}</span>
+                    <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} onClick={() => emitScriptAction("cancel")}>中止</button>
+                </>
+            ) : analysisReady ? (
+                <>
+                    <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} onClick={() => emitScriptAction("open")}>继续确认{analysisExpired ? "（已过期）" : ""}</button>
+                    <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} onClick={() => emitScriptAction("analyze")}>重新分析</button>
+                </>
+            ) : (
+                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} disabled={!script?.text?.trim()} onClick={() => emitScriptAction("analyze")}>{analysis ? "重新分析" : "导演分析"}</button>
+            )}
+            {analysis?.status === "failed" && analysis.error ? <span className="text-[11px]" style={{ color: canvasStatusColors.error }}>{analysis.error}</span> : null}
+            {(script?.parseSnapshots?.length ?? 0) > 0 ? (
+                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} disabled={refreshLoading} onClick={() => emitScriptAction("undo")}>
+                    {script?.parseSnapshots?.at(-1)?.mode === "refresh" ? "撤销上次来源刷新" : "撤销上次导演分析"}
+                </button>
+            ) : null}
+        </div>
+    );
+
     return (
         <Drawer
             open={open}
@@ -287,14 +325,25 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                             <div className="text-sm" style={{ color: theme.node.text }}>{source.projectTitle}</div>
                             <div className="text-[11px]" style={{ color: theme.node.muted }}>发布于 {formatTime(source.publishedAt)}</div>
                             <div className="break-all font-mono text-[10px]" style={{ color: theme.node.muted }}>{source.hash}</div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <button type="button" className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} onClick={() => router.push(`/script/${source.projectId}`)}>打开来源剧本</button>
                                 <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={refreshLoading} onClick={() => void previewPublicationRefresh()}>预览并刷新</button>
                             </div>
+                            <details className="rounded-lg border px-2.5 py-2" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
+                                <summary className="cursor-pointer text-[11px]" style={{ color: theme.node.text }}>剧本正文 · {(script?.text || "").length.toLocaleString()} 字</summary>
+                                <div className="thin-scrollbar mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-[11px] leading-5" style={{ color: theme.node.muted }}>{script?.text?.trim() || "来源剧本还没有正文"}</div>
+                            </details>
+                            <FilmAnalysisPresetBar theme={theme} scriptNodeId={node.id} lastOptions={analysis?.options} />
+                            {renderAnalysisActions()}
                             {refreshPreview ? (
                                 <div className="flex flex-col gap-2 border-t pt-3 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>
-                                    <span>新增 {refreshPreview.plan.added.length} · 更新 {refreshPreview.plan.updated.length} · 保留 {refreshPreview.plan.kept.length}</span>
-                                    <span>删除 {refreshPreview.plan.removed.length} · 受保护 {refreshPreview.plan.protected.length}</span>
+                                    <span className="flex flex-wrap gap-x-2 gap-y-1">
+                                        <span style={{ color: canvasStatusColors.success }}>新增 {refreshPreview.plan.added.length}</span>
+                                        <span style={{ color: theme.canvas.selectionStroke }}>更新 {refreshPreview.plan.updated.length}</span>
+                                        <span style={{ color: theme.node.muted }}>保留 {refreshPreview.plan.kept.length}</span>
+                                        <span style={{ color: canvasStatusColors.loading }}>受保护 {refreshPreview.plan.protected.length}</span>
+                                        <span style={{ color: canvasStatusColors.error }}>删除 {refreshPreview.plan.removed.length}</span>
+                                    </span>
                                     <div className="flex flex-wrap gap-2">
                                         <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text, background: theme.canvas.selectionSoft }} disabled={refreshLoading || !onApplyPublicationRefresh} onClick={() => void confirmPublicationRefresh()}>确认刷新</button>
                                         <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} disabled={refreshLoading} onClick={() => setRefreshPreview(null)}>取消预览</button>
@@ -302,11 +351,6 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                                 </div>
                             ) : null}
                             <div className="text-[11px] leading-5" style={{ color: theme.node.muted }}>刷新只更新剧本派生节点；人工节点、提示词、媒体、任务与绑定会保留。</div>
-                            {(script?.parseSnapshots?.length ?? 0) > 0 ? (
-                                <button type="button" className="self-start rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.panel }} disabled={refreshLoading} onClick={() => onUndoParse?.(node.id)}>
-                                    {script?.parseSnapshots?.at(-1)?.mode === "refresh" ? "撤销上次来源刷新" : "撤销上次导演分析"}
-                                </button>
-                            ) : null}
                         </div>
                     ) : (
                         <>
@@ -315,6 +359,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                                     <FileUp className="mr-1 size-3.5" />{scriptImporting ? "导入中…" : "导入文件"}
                                 </button>
                                 <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={scriptImporting} onClick={() => setSourcePickerOpen(true)}>从剧本工作台导入</button>
+                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={scriptImporting || !script?.text?.trim()} onClick={() => emitScriptAction("transfer")}>转存为剧本项目</button>
                                 <span className="text-[11px]" style={{ color: theme.node.muted }}>支持 docx / txt / md / fountain / fdx，也可把文件拖进正文。</span>
                             </div>
                             <input ref={scriptFileRef} hidden type="file" accept=".txt,.md,.docx,.fountain,.fdx" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void importScriptFile(file); }} />
@@ -339,15 +384,9 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                                 <span>{script?.text?.trim() ? `${script.text.length.toLocaleString()} 字` : "还没有正文"}</span>
                                 {scriptImportSummary ? <span>{scriptImportSummary}</span> : null}
                             </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.canvas.selectionStroke, background: theme.canvas.selectionSoft, color: theme.node.text }} disabled={Boolean(analysisProgress)} onClick={() => onRunDirectorAnalysis?.(node.id)}>
-                                    {analysisProgress ? `导演分析中 · ${analysisProgress.stage === "structure" ? "拆解结构" : "提取资产"}${analysisProgress.total ? ` ${analysisProgress.done}/${analysisProgress.total}` : "…"}` : "导演分析"}
-                                </button>
-                                {(script?.parseSnapshots?.length ?? 0) > 0 ? (
-                                    <button type="button" className="rounded-full border px-3 py-1.5 text-xs disabled:opacity-40" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} disabled={Boolean(analysisProgress)} onClick={() => onUndoParse?.(node.id)}>撤销上次导演分析</button>
-                                ) : null}
-                            </div>
-                            <div className="text-xs" style={{ color: theme.node.muted }}>AI 会先生成结构、镜头与资产提案，确认后一次写入画布；撤销会恢复最近一次分析前的节点和连线。</div>
+                            <FilmAnalysisPresetBar theme={theme} scriptNodeId={node.id} lastOptions={analysis?.options} />
+                            {renderAnalysisActions()}
+                            <div className="text-xs" style={{ color: theme.node.muted }}>AI 会先生成结构、镜头与资产提案，确认后一次写入画布；关闭抽屉不会丢失提案，撤销会恢复最近一次分析前的节点和连线。</div>
                             <FilmScriptSourcePickerDialog open={sourcePickerOpen} theme={theme} onClose={() => setSourcePickerOpen(false)} onPick={importScriptSource} />
                         </>
                     )

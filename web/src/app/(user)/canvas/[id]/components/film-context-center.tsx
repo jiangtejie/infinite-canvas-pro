@@ -5,17 +5,28 @@ import { AlertTriangle, Box, Crosshair, Library, MapPin, Palette, Plus, RefreshC
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
-import type { FilmAssetKind } from "@/lib/film/types";
+import type { FilmAsset, FilmAssetKind } from "@/lib/film/types";
 import { FilmAssetThumbnail } from "@/app/(user)/film/components/film-asset-thumbnail";
+import { filmLibraryEntryIsNewer, findFilmLibraryEntry } from "@/app/(user)/film/utils/film-library";
+import { useFilmCastStore } from "@/stores/use-film-cast-store";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { FilmContextCenterRole } from "../lib/film-context-center";
-import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
+import { FILM_CONTEXT_ROLE_LABELS, type FilmDirectorBoardModel } from "../lib/film-studio-types";
 import { FilmLibraryPickerDialog } from "./film-library-picker-dialog";
 
 const ROLE_ORDER: FilmContextCenterRole[] = ["character", "location", "prop", "style"];
 const ROLE_ICONS = { character: UserRound, location: MapPin, prop: Box, style: Palette } as const;
 const CREATE_KINDS: Array<Exclude<FilmAssetKind, "costume">> = ["character", "location", "prop"];
 const IMPORT_KINDS: Array<Exclude<FilmAssetKind, "costume">> = ["character", "location", "prop"];
+
+/** 卡片本身点击进入检查器存库；这里只提示库状态。 */
+function LibraryBadge({ card, library, theme }: { card: { asset: FilmAsset; sourceLibraryAssetId?: string }; library: FilmAsset[]; theme: CanvasTheme }) {
+    const entry = findFilmLibraryEntry(library, card.asset);
+    if (!entry) return <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}>未存库</span>;
+    if (filmLibraryEntryIsNewer(entry, card.asset)) return <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}>库有更新</span>;
+    if (card.asset.updatedAt > entry.updatedAt) return <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>更新库</span>;
+    return <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>母版库</span>;
+}
 
 type PickerState = { mode: "import"; kind: FilmAssetKind } | { mode: "replace"; nodeId: string; kind: FilmAssetKind; name: string };
 
@@ -25,7 +36,19 @@ export function FilmContextCenter({ theme, model }: { theme: CanvasTheme; model:
     const [importOpen, setImportOpen] = useState(false);
     const [picker, setPicker] = useState<PickerState | null>(null);
     const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [aiOpen, setAiOpen] = useState(false);
+    const characters = useFilmCastStore((state) => state.characters);
+    const locations = useFilmCastStore((state) => state.locations);
+    const props = useFilmCastStore((state) => state.props);
+    const styles = useFilmCastStore((state) => state.styles);
+    const libraries = { character: characters, location: locations, prop: props, style: styles };
     const view = model.contextCenter;
+    const shotById = new Map(model.shots.map((entry) => [entry.shot.id, entry]));
+    const pendingAi = Object.entries(model.contextsByShot).flatMap(([shotId, chips]) => chips.filter((chip) => chip.source === "ai").map((chip) => ({ shotId, chip })));
+    const shotLabel = (shotId: string) => {
+        const entry = shotById.get(shotId);
+        return entry ? `${entry.shot.metadata?.filmShot?.shotNo || entry.shot.title || "镜头"} · ${entry.sceneLabel}` : "镜头";
+    };
     const cards = view.groups[tab];
     const createKinds: FilmAssetKind[] = view.groups.style.length ? CREATE_KINDS : [...CREATE_KINDS, "style"];
     const importKinds: FilmAssetKind[] = view.groups.style.length ? IMPORT_KINDS : [...IMPORT_KINDS, "style"];
@@ -43,6 +66,7 @@ export function FilmContextCenter({ theme, model }: { theme: CanvasTheme; model:
                 {[`${view.totals.assets} 项`, `就绪 ${view.totals.ready}`, `缺参考 ${view.totals.missing}`, `未使用 ${view.totals.unused}`].map((label) => (
                     <span key={label} className="rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{label}</span>
                 ))}
+                {pendingAi.length ? <button type="button" className="rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }} onClick={() => setAiOpen((value) => !value)}>AI 待确认 {pendingAi.length}</button> : null}
                 <span className="ml-auto flex flex-wrap items-center gap-1">
                     <button type="button" className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.text, background: theme.node.fill }} onClick={() => model.onOpenProduction(selected.size ? { assetIds: [...selected], kind: "asset" } : { kind: "asset" })}><Sparkles className="size-3" />{selected.size ? `制作选中 ${selected.size}` : "制作中心"}</button>
                     <div className="relative">
@@ -63,6 +87,21 @@ export function FilmContextCenter({ theme, model }: { theme: CanvasTheme; model:
                     </div>
                 </span>
             </div>
+            {aiOpen && pendingAi.length ? (
+                <div className="mx-4 mt-2 flex flex-col gap-1 rounded-lg border px-2.5 py-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+                    <div className="flex items-center justify-between gap-2 text-[11px]" style={{ color: theme.node.muted }}>
+                        <span>AI 关联待确认 · {pendingAi.length}</span>
+                        <button type="button" className="rounded-full border px-2 py-0.5" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text }} onClick={() => pendingAi.forEach(({ chip }) => model.onUpdateContext(chip.edgeId, { source: "manual" }))}>全部接受</button>
+                    </div>
+                    {pendingAi.map(({ shotId, chip }) => (
+                        <div key={chip.edgeId} className="flex flex-wrap items-center gap-2 text-[11px]" style={{ color: theme.node.text }}>
+                            <span className="min-w-0 flex-1 truncate">{FILM_CONTEXT_ROLE_LABELS[chip.role]} · {chip.name} → {shotLabel(shotId)}</span>
+                            <button type="button" className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.canvas.selectionStroke, color: theme.node.text }} onClick={() => model.onUpdateContext(chip.edgeId, { source: "manual" })}>接受</button>
+                            <button type="button" className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => model.onRemoveContext(chip.edgeId)}>移除</button>
+                        </div>
+                    ))}
+                </div>
+            ) : null}
             {view.issues.length ? (
                 <div className="flex flex-col gap-1 px-4 pt-2.5">
                     {view.issues.map((issue) => (
@@ -94,7 +133,7 @@ export function FilmContextCenter({ theme, model }: { theme: CanvasTheme; model:
                                             <span className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
                                                 <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: card.pending ? canvasStatusColors.loading : card.ready ? theme.node.stroke : canvasStatusColors.error, color: card.pending ? canvasStatusColors.loading : card.ready ? theme.node.muted : canvasStatusColors.error }}>{card.pending ? "生成中" : card.ready ? "参考就绪" : "缺参考"}</span>
                                                 {!card.impactedShots.length ? <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>未使用</span> : null}
-                                                {card.sourceLibraryAssetId ? <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>母版库</span> : null}
+                                                <LibraryBadge card={card} library={libraries[card.role]} theme={theme} />
                                                 {card.costumeRefs.length ? <span className="rounded-full border px-1.5 py-0.5" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>服装引用 {card.costumeRefs.length}</span> : null}
                                             </span>
                                         </span>

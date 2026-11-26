@@ -22,15 +22,37 @@ const ASSET_PROMPT = `你是影视项目的制片统筹与美术指导。通读�
 
 const STRICT_RETRY_HINT = `\n【重要】上一次输出无法解析。这一次只输出一个 JSON 数组，第一个字符是 [，最后一个字符是 ]，不要 Markdown，不要任何解释。`;
 
+export type FilmAssetExtractionContext = {
+    knownAssets?: Array<{ kind: string; name: string; aliases: string[] }>;
+    seedCharacters?: Array<{ name: string; aliases?: string[]; description?: string }>;
+};
+
+const MAX_KNOWN_ASSETS = 80;
+
+function buildAssetPrompt(context?: FilmAssetExtractionContext) {
+    const known = (context?.knownAssets ?? []).filter((item) => item.name.trim()).slice(0, MAX_KNOWN_ASSETS);
+    const seeds = (context?.seedCharacters ?? []).filter((item) => item.name.trim());
+    const sections = [ASSET_PROMPT];
+    if (known.length) sections.push(`【已知资产表】${JSON.stringify(known.map(({ kind, name, aliases }) => ({ kind, name, aliases })))}
+要求：新资产如与表中名称或别名相同，必须沿用表中的名称与类别，并把新的叫法并入 aliases；不要为同一资产创建近义新条目。`);
+    if (seeds.length) sections.push(`【已确认人物】${JSON.stringify(seeds.map(({ name, aliases, description }) => ({ name, aliases: aliases ?? [], description: description ?? "" })))}
+这些人物来自剧本工作台，必须沿用名称；不要重复输出人物条目，只补充场景、道具与服装；如需记录人物别称，写入已知资产表中该人物的 aliases。`);
+    return sections.join("\n");
+}
+
 export async function requestFilmAiAssetExtraction(
     config: AiConfig,
     script: string,
     onProgress?: (done: number, total: number) => void,
+    signal?: AbortSignal,
+    context?: FilmAssetExtractionContext,
 ): Promise<FilmAssetSuggestion[]> {
     const chunks = splitScriptIntoChunks(script, MAX_CHUNK_CHARS);
+    const prompt = buildAssetPrompt(context);
     const merged: FilmAssetSuggestion[] = [];
     for (let index = 0; index < chunks.length; index++) {
-        const suggestions = await requestChunk(config, chunks[index], index, chunks.length);
+        signal?.throwIfAborted();
+        const suggestions = await requestChunk(config, chunks[index], index, chunks.length, prompt, signal);
         mergeFilmAssetSuggestions(merged, suggestions);
         onProgress?.(index + 1, chunks.length);
     }
@@ -38,19 +60,20 @@ export async function requestFilmAiAssetExtraction(
     return merged;
 }
 
-async function requestChunk(config: AiConfig, chunk: string, index: number, total: number): Promise<FilmAssetSuggestion[]> {
+async function requestChunk(config: AiConfig, chunk: string, index: number, total: number, prompt: string, signal?: AbortSignal): Promise<FilmAssetSuggestion[]> {
     try {
-        return await requestOnce(config, ASSET_PROMPT, chunk, index, total);
+        return await requestOnce(config, prompt, chunk, index, total, signal);
     } catch (error) {
+        if (signal?.aborted) throw error;
         if (isCanvasAgentContextLimitError(error) && chunk.length > MIN_CONTEXT_RETRY_CHARS) {
             const [left, right] = splitTextInHalf(chunk);
-            const suggestions = await requestChunk(config, left, index, total);
-            mergeFilmAssetSuggestions(suggestions, await requestChunk(config, right, index, total));
+            const suggestions = await requestChunk(config, left, index, total, prompt, signal);
+            mergeFilmAssetSuggestions(suggestions, await requestChunk(config, right, index, total, prompt, signal));
             return suggestions;
         }
         if (!isCanvasAgentContextLimitError(error)) {
             try {
-                return await requestOnce(config, `${ASSET_PROMPT}${STRICT_RETRY_HINT}`, chunk, index, total);
+                return await requestOnce(config, `${prompt}${STRICT_RETRY_HINT}`, chunk, index, total, signal);
             } catch {
                 throw error;
             }
@@ -59,7 +82,7 @@ async function requestChunk(config: AiConfig, chunk: string, index: number, tota
     }
 }
 
-async function requestOnce(config: AiConfig, systemPrompt: string, chunk: string, index: number, total: number) {
+async function requestOnce(config: AiConfig, systemPrompt: string, chunk: string, index: number, total: number, signal?: AbortSignal) {
     const partHint = total > 1 ? `【这是剧本第 ${index + 1}/${total} 段，只提取这一段出现的资产；跨段的同一资产用同一名称】\n` : "";
     const turn = await requestCanvasAgentTurn({
         config,
@@ -67,6 +90,7 @@ async function requestOnce(config: AiConfig, systemPrompt: string, chunk: string
         messages: [{ role: "user", content: `${partHint}【剧本】\n${chunk}` }],
         tools: [],
         toolMode: "prompt-json",
+        signal,
     });
     return parseFilmAssetSuggestionRows(turn.content);
 }

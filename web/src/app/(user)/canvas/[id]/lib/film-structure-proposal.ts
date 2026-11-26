@@ -1,7 +1,7 @@
 import type { FilmEpisode } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasConnection, type CanvasFilmMeta, type CanvasNodeData } from "../../types";
 
-export type FilmProposalMode = "overwrite" | "append";
+export type FilmProposalMode = "merge" | "append" | "replace";
 
 export type FilmProposalIssue = { level: "error" | "warning" | "info"; message: string };
 
@@ -21,7 +21,7 @@ export type FilmStructureProposal = {
     episodes: FilmProposalEpisode[];
     sceneKeys: string[];
     totals: { episodes: number; scenes: number; shots: number; duration: number };
-    current: { scenes: number; shots: number };
+    current: { scenes: number; shots: number; mediaShots: number };
     issues: FilmProposalIssue[];
 };
 
@@ -61,13 +61,18 @@ export function buildFilmStructureProposal(
             };
         }),
     }));
+    const shotNodes = nodes.filter((node) => node.type === CanvasNodeType.FilmShot);
     const current = {
         scenes: nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length,
-        shots: nodes.filter((node) => node.type === CanvasNodeType.FilmShot).length,
+        shots: shotNodes.length,
+        mediaShots: shotNodes.filter((node) => {
+            const shot = node.metadata?.filmShot;
+            return Boolean(shot && (shot.imageUrl || shot.videoUrl || shot.storageKey || shot.videoStorageKey || shot.imageVersions?.length || shot.videoVersions?.length));
+        }).length,
     };
     const issues: FilmProposalIssue[] = [];
     if (!scenes || !shots) issues.push({ level: "error", message: "提案中没有可写入的场次或镜头" });
-    if (current.scenes || current.shots) issues.push({ level: "warning", message: `替换将删除现有 ${current.scenes} 场 ${current.shots} 镜，仅勾选的提案场次会写入画布。` });
+    if (current.scenes || current.shots) issues.push({ level: "warning", message: `替换将删除现有 ${current.scenes} 场 ${current.shots} 镜${current.mediaShots ? `（其中 ${current.mediaShots} 镜已有媒体）` : ""}，仅勾选的提案场次会写入画布。` });
     if (missingDescriptions) issues.push({ level: "warning", message: `${missingDescriptions} 镜缺画面描述，写入后需要补充才能生成。` });
     if (duplicateScenes) issues.push({ level: "warning", message: `${duplicateScenes} 个场次存在重复镜号，请应用后核对。` });
     if (film?.targetDuration && duration) {

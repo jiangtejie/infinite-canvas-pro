@@ -97,6 +97,18 @@ test("rejects invalid source and target endpoints before creating an edge", () =
     }), { error: "上下文目标必须是镜头节点" });
 });
 
+test("accepts an AI context edge by switching its source to manual", () => {
+    const ai: CanvasConnection[] = [{
+        id: "character-1->shot-1",
+        fromNodeId: "character-1",
+        toNodeId: "shot-1",
+        kind: "context",
+        data: { role: "character", source: "ai" },
+    }];
+    const accepted = updateFilmContextEdge(ai, "character-1->shot-1", { source: "manual" });
+    assert.deepEqual(accepted[0].kind === "context" ? accepted[0].data : null, { role: "character", source: "manual" });
+});
+
 test("updates and removes only context edges while preserving other edge kinds", () => {
     const original: CanvasConnection[] = [
         {

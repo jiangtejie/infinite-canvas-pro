@@ -27,6 +27,8 @@ export function ConnectionPath({
     const [hovered, setHovered] = useState(false);
     // 策划 → 文案/配图是编排结构边，和素材图 → 配图的数据输入边区分线型。
     const structural = from.metadata?.remixRole === "plan";
+    // AI 建立的上下文关系待确认，虚线并加 AI 标识，接受后转为人工实线。
+    const pendingAi = connection.kind === "context" && connection.data.source === "ai";
     const startX = from.position.x + from.width;
     const startY = from.position.y + from.height / 2;
     const endX = to.position.x;
@@ -61,11 +63,12 @@ export function ConnectionPath({
                 stroke={active ? theme.node.activeStroke : theme.node.muted}
                 strokeWidth={structural ? (active ? 2.5 : hovered ? 2 : 1.6) : active ? 3 : hovered ? 2.6 : 2}
                 strokeOpacity={structural ? (active ? 0.8 : hovered ? 0.78 : 0.55) : active ? 1 : hovered ? 1 : 0.82}
-                strokeDasharray={structural ? "6 5" : undefined}
+                strokeDasharray={pendingAi ? "5 4" : structural ? "6 5" : undefined}
                 strokeLinecap={structural ? "round" : undefined}
                 fill="none"
                 style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : hovered ? `drop-shadow(0 0 5px ${theme.node.activeStroke}40)` : undefined, pointerEvents: "none" }}
             />
+            {pendingAi ? <text x={(startX + endX) / 2} y={(startY + endY) / 2 - 8} textAnchor="middle" fontSize="10" fill={theme.node.muted} style={{ pointerEvents: "none" }}>AI</text> : null}
             {active || flowing ? (
                 <>
                     <circle cx={startX} cy={startY} r={3} fill={theme.node.activeStroke} opacity={0.9} style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }} />

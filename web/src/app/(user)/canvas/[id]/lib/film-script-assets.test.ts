@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FilmAssetSuggestion } from "@/lib/film/film-asset-suggestions";
-import type { FilmEpisode, FilmShot } from "@/lib/film/types";
+import type { FilmAsset, FilmEpisode, FilmShot } from "@/lib/film/types";
 import { CanvasNodeType, type CanvasNodeData } from "../../types";
 import { createFilmAsset } from "./film-asset-factory";
-import { buildFilmScriptAssetProposal, createFilmScriptAssetNode, findFilmScriptAssetNode } from "./film-script-assets";
+import { buildFilmScriptAssetProposal, createFilmScriptAssetNode, createFilmScriptAssetNodeFromLibrary, findFilmScriptAssetNode, type FilmAssetLibrary } from "./film-script-assets";
 
 const scriptNode = (): CanvasNodeData => ({
     id: "script",
@@ -75,7 +75,7 @@ test("builds the asset proposal against dedicated nodes and proposed shots", () 
     assert.deepEqual(proposal.items[1].mentionShotIds, ["a1", "a2"]);
     assert.deepEqual(proposal.items[2].mentionShotIds, ["a1"]);
     assert.deepEqual(proposal.items[3].mentionShotIds, []);
-    assert.deepEqual(proposal.totals, { assets: 4, existing: 1, mentions: 2, byKind: { character: 1, location: 1, prop: 1, costume: 1 } });
+    assert.deepEqual(proposal.totals, { assets: 4, existing: 1, library: 0, mentions: 2, byKind: { character: 1, location: 1, prop: 1, costume: 1 } });
 });
 
 test("creates dedicated context nodes instead of generic film assets", () => {
@@ -94,4 +94,62 @@ test("finds an existing node by same category and alias but ignores costumes", (
     assert.equal(findFilmScriptAssetNode(nodes, suggestion("location", "旧城咖啡馆"))?.id, "loc-old");
     assert.equal(findFilmScriptAssetNode(nodes, suggestion("character", "旧城咖啡馆")), undefined);
     assert.equal(findFilmScriptAssetNode(nodes, suggestion("costume", "沈迟")), undefined);
+});
+
+test("aliases from an accepted merge resolve both names to the same canvas asset", () => {
+    const nodes = [scriptNode(), projectAssetNode("char-1", "character", "小王", ["王队长"])];
+    const proposal = buildFilmScriptAssetProposal([suggestion("character", "小王"), suggestion("character", "王队长")], nodes, []);
+    assert.equal(proposal.items[0].existingNodeId, "char-1");
+    assert.equal(proposal.items[1].existingNodeId, "char-1");
+    assert.equal(proposal.totals.existing, 2);
+});
+
+const libraryEntry = (kind: "character" | "location" | "prop" | "costume", name: string, aliases: string[] = []): FilmAsset => ({
+    ...createFilmAsset(kind, 1),
+    name,
+    aliases,
+});
+
+const emptyLibrary = (): FilmAssetLibrary => ({ character: [], location: [], prop: [], costume: [], style: [] });
+
+test("matches a library asset by name or alias before creating a new one", () => {
+    const library = emptyLibrary();
+    library.character = [libraryEntry("character", "沈迟", ["老沈"])];
+    const proposal = buildFilmScriptAssetProposal([suggestion("character", "老沈")], [], [], library);
+    const item = proposal.items[0];
+    assert.equal(item.match, "library");
+    assert.equal(item.libraryAsset?.name, "沈迟");
+    assert.equal(proposal.totals.library, 1);
+    assert.equal(proposal.totals.existing, 0);
+});
+
+test("canvas assets keep priority over library matches", () => {
+    const library = emptyLibrary();
+    library.character = [libraryEntry("character", "沈迟")];
+    const nodes = [scriptNode(), projectAssetNode("char-old", "character", "沈迟")];
+    const proposal = buildFilmScriptAssetProposal([suggestion("character", "沈迟")], nodes, [], library);
+    assert.equal(proposal.items[0].match, "canvas");
+    assert.equal(proposal.items[0].existingNodeId, "char-old");
+    assert.equal(proposal.totals.library, 0);
+});
+
+test("cross-category same names surface a warning instead of silently creating", () => {
+    const library = emptyLibrary();
+    library.prop = [libraryEntry("prop", "钥匙")];
+    const proposal = buildFilmScriptAssetProposal([suggestion("costume", "钥匙")], [], [], library);
+    assert.equal(proposal.items[0].match, "new");
+    assert.ok(proposal.items[0].categoryConflict?.includes("道具"));
+    assert.ok(proposal.items[0].categoryConflict?.includes("服装"));
+});
+
+test("library copies keep reference images and record the library source", () => {
+    const entry = libraryEntry("character", "沈迟");
+    entry.concept.images = [{ id: "concept-1", url: "https://example.com/concept.png" }];
+    const applied = createFilmScriptAssetNodeFromLibrary("character", suggestion("character", "沈迟", ["老沈"]), entry, { x: 0, y: 0 });
+    const asset = applied.metadata?.filmCharacter?.asset;
+    assert.ok(asset);
+    assert.equal(asset.sourceLibraryAssetId, entry.id);
+    assert.deepEqual(asset.concept.images.map((image) => image.url), ["https://example.com/concept.png"]);
+    assert.ok(asset.aliases.includes("老沈"));
+    assert.notEqual(asset.id, entry.id);
 });

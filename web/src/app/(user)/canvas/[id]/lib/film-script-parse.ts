@@ -4,7 +4,7 @@ import type { FilmEpisode, FilmShot } from "@/lib/film/types";
 import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmParseSnapshot, type FilmScriptNodeData, type FilmShotNodeData } from "../../types";
 import { canvasConnection } from "./canvas-connection";
-import { orderFilmShots } from "./film-layout";
+import { orderFilmShots, placeFilmNodes } from "./film-layout";
 
 export type FilmParseGraphResult = {
     nodes: CanvasNodeData[];
@@ -14,10 +14,6 @@ export type FilmParseGraphResult = {
     sceneCount: number;
     removedNodeIds: string[];
 };
-
-const COLUMN_GAP = 60;
-const SHOT_GAP = 32;
-const START_GAP = 120;
 
 export function buildFilmParseGraph(
     episodes: FilmEpisode[],
@@ -30,12 +26,9 @@ export function buildFilmParseGraph(
     const removedNodeIds = new Set(removableNodes.map((node) => node.id));
     const removedConnections = connections.filter((edge) => removedNodeIds.has(edge.fromNodeId) || removedNodeIds.has(edge.toNodeId));
     const removedConnectionIds = new Set(removedConnections.map((edge) => edge.id));
-    const appendScenes = mode === "append" ? nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length : 0;
     const sceneWidth = NODE_DEFAULT_SIZE[CanvasNodeType.FilmScene].width;
     const sceneHeight = NODE_DEFAULT_SIZE[CanvasNodeType.FilmScene].height;
     const shotHeight = NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].height;
-    const baseX = scriptNode.position.x + scriptNode.width + START_GAP + appendScenes * (sceneWidth + COLUMN_GAP);
-    const baseY = scriptNode.position.y;
 
     const createdNodes: CanvasNodeData[] = [];
     const createdConnections: CanvasConnection[] = [];
@@ -52,7 +45,7 @@ export function buildFilmParseGraph(
                 id: sceneId,
                 type: CanvasNodeType.FilmScene,
                 title: scene.name || "场次",
-                position: { x: baseX + sceneColumn * (sceneWidth + COLUMN_GAP), y: baseY },
+                position: { x: 0, y: 0 },
                 width: sceneWidth,
                 height: sceneHeight,
                 metadata: {
@@ -67,13 +60,13 @@ export function buildFilmParseGraph(
                     },
                 },
             });
-            for (const [shotIndex, shot] of scene.shots.entries()) {
+            for (const shot of scene.shots) {
                 const shotId = nanoid();
                 createdNodes.push({
                     id: shotId,
                     type: CanvasNodeType.FilmShot,
                     title: shot.shotNo || "镜头",
-                    position: { x: baseX + sceneColumn * (sceneWidth + COLUMN_GAP), y: baseY + sceneHeight + 40 + shotIndex * (shotHeight + SHOT_GAP) },
+                    position: { x: 0, y: 0 },
                     width: NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].width,
                     height: shotHeight,
                     metadata: { status: "idle", filmShot: shotPayload(shot) },
@@ -87,11 +80,13 @@ export function buildFilmParseGraph(
         }
     }
 
+    const remainingNodes = nodes.filter((node) => !removedNodeIds.has(node.id));
+    const placedNodes = placeFilmNodes(remainingNodes, [...connections, ...createdConnections], createdNodes);
     const snapshot: FilmParseSnapshot = {
         id: nanoid(),
         createdAt: new Date().toISOString(),
         mode,
-        nodes: createdNodes,
+        nodes: placedNodes,
         connections: createdConnections,
         removedNodes: removableNodes,
         removedConnections,
@@ -103,7 +98,7 @@ export function buildFilmParseGraph(
         metadata: { ...scriptNode.metadata, filmScript: { ...scriptNode.metadata?.filmScript, ...scriptPatch } as FilmScriptNodeData },
     };
     return {
-        nodes: [...nodes.filter((node) => !removedNodeIds.has(node.id)).map((node) => node.id === scriptNode.id ? parsedScriptNode : node), ...createdNodes],
+        nodes: [...remainingNodes.map((node) => node.id === scriptNode.id ? parsedScriptNode : node), ...placedNodes],
         connections: [...connections.filter((edge) => !removedConnectionIds.has(edge.id)), ...createdConnections],
         scriptPatch,
         shotCount,

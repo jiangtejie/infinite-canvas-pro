@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { canvasStatusColors } from "../../lib/canvas-palette";
 import { buildFilmBoardRelations, FILM_LAYOUT } from "../lib/film-layout";
 
 type BoardRect = {
@@ -19,7 +20,16 @@ type BoardColumn = BoardRect & {
     label: string;
     shotCount: number;
     unassigned: boolean;
+    time?: string;
+    mood?: string;
 };
+
+function sceneMoodColor(mood: string) {
+    if (/紧张|危险|压迫|冲突|惊/.test(mood)) return canvasStatusColors.error;
+    if (/温|暖|甜|希望|柔和/.test(mood)) return canvasStatusColors.loading;
+    if (/平静|安静|日常|舒缓/.test(mood)) return canvasStatusColors.success;
+    return "rgba(148,163,184,.7)";
+}
 
 const CONTEXT_TYPES = new Set<CanvasNodeType>([
     CanvasNodeType.FilmScript,
@@ -59,6 +69,8 @@ function buildBoardLayout(nodes: CanvasNodeData[], connections: CanvasConnection
             label: sceneLabel(scene),
             shotCount: sceneShots.length,
             unassigned: false,
+            time: scene.metadata?.filmScene?.time,
+            mood: scene.metadata?.filmScene?.mood,
             left: scene.position.x - COLUMN_PADDING,
             top,
             width: FILM_LAYOUT.columnWidth,
@@ -125,6 +137,8 @@ export function FilmDirectorLayout({ nodes, connections }: { nodes: CanvasNodeDa
                 <div key={`${column.id}-label`} className="absolute flex items-center gap-2 whitespace-nowrap text-[11px] font-medium tracking-[0.08em]" style={labelStyle(column)}>
                     <span className="inline-block size-1.5 rounded-full" style={{ background: column.unassigned ? theme.node.faint : theme.node.activeStroke }} />
                     {column.label}
+                    {column.time ? <span className="text-[9px] font-normal opacity-60">{column.time}</span> : null}
+                    {column.mood ? <span className="inline-block h-1 w-8 rounded-full" style={{ background: sceneMoodColor(column.mood) }} title={column.mood} /> : null}
                     <span className="font-mono tabular-nums opacity-60">{column.shotCount} 镜</span>
                 </div>
             ))}

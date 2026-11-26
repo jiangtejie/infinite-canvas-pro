@@ -63,6 +63,7 @@ type CanvasNodeProps = {
     onViewFilmMedia?: (node: CanvasNodeData) => void;
     onFocusFilmShot?: (shotId: string) => void;
     onOpenFilmScript?: () => void;
+    onFilmScriptAction?: (nodeId: string, action: import("../[id]/lib/film-analysis-session").FilmScriptAction) => void;
     onEditFilmAsset?: (nodeId: string) => void;
     onCreateFilmShot?: (sceneId: string) => void;
     onUpdateFilmBeat?: (nodeId: string, updater: (node: CanvasNodeData) => CanvasNodeData) => void;
@@ -120,6 +121,7 @@ type NodeContentRendererProps = {
     onViewFilmMedia?: CanvasNodeProps["onViewFilmMedia"];
     onFocusFilmShot?: CanvasNodeProps["onFocusFilmShot"];
     onOpenFilmScript?: CanvasNodeProps["onOpenFilmScript"];
+    onFilmScriptAction?: CanvasNodeProps["onFilmScriptAction"];
     onEditFilmAsset?: CanvasNodeProps["onEditFilmAsset"];
     onCreateFilmShot?: CanvasNodeProps["onCreateFilmShot"];
     onUpdateFilmBeat?: CanvasNodeProps["onUpdateFilmBeat"];
@@ -163,6 +165,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     onViewFilmMedia,
     onFocusFilmShot,
     onOpenFilmScript,
+    onFilmScriptAction,
     onEditFilmAsset,
     onCreateFilmShot,
     onUpdateFilmBeat,
@@ -530,6 +533,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                             onViewFilmMedia={onViewFilmMedia}
                             onFocusFilmShot={onFocusFilmShot}
                             onOpenFilmScript={onOpenFilmScript}
+                            onFilmScriptAction={onFilmScriptAction}
                             onEditFilmAsset={onEditFilmAsset}
                             onCreateFilmShot={onCreateFilmShot}
                             onUpdateFilmBeat={onUpdateFilmBeat}
@@ -606,7 +610,7 @@ function NodeContent(props: NodeContentRendererProps) {
     if (isLegacyFilmNodeType(props.node.type)) return <LegacyFilmNodeContent node={props.node} theme={props.theme} />;
     if (props.node.type === CanvasNodeType.ComicPage) return <ComicPageNodeCard node={props.node} theme={props.theme} />;
     if (isFilmNodeType(props.node.type)) {
-        return <FilmNodeCardDispatcher node={props.node} nodes={props.filmNodes || [props.node]} connections={props.filmConnections || []} theme={props.theme} onTitleChange={props.onTitleChange} onGenerateImage={props.onGenerateFilmImage} onGenerateVideo={props.onGenerateFilmVideo} onOpenVersions={props.onOpenFilmVersions} onFocusShot={props.onFocusFilmShot} onOpenScript={props.onOpenFilmScript} onEditAsset={props.onEditFilmAsset} onCreateShot={props.onCreateFilmShot} onViewMedia={props.onViewFilmMedia} onUpdateBeat={props.onUpdateFilmBeat} onDecomposeBeat={props.onDecomposeFilmBeat} onGenerateBeatPreview={props.onGenerateFilmBeatPreview} onStopBeatTask={props.onStopFilmBeatTask} onLocateBeatShots={props.onLocateFilmBeatShots} summaryOptions={props.filmSummaryOptions} />;
+        return <FilmNodeCardDispatcher node={props.node} nodes={props.filmNodes || [props.node]} connections={props.filmConnections || []} theme={props.theme} onTitleChange={props.onTitleChange} onGenerateImage={props.onGenerateFilmImage} onGenerateVideo={props.onGenerateFilmVideo} onOpenVersions={props.onOpenFilmVersions} onFocusShot={props.onFocusFilmShot} onOpenScript={props.onOpenFilmScript} onScriptAction={props.onFilmScriptAction} onEditAsset={props.onEditFilmAsset} onCreateShot={props.onCreateFilmShot} onViewMedia={props.onViewFilmMedia} onUpdateBeat={props.onUpdateFilmBeat} onDecomposeBeat={props.onDecomposeFilmBeat} onGenerateBeatPreview={props.onGenerateFilmBeatPreview} onStopBeatTask={props.onStopFilmBeatTask} onLocateBeatShots={props.onLocateFilmBeatShots} summaryOptions={props.filmSummaryOptions} />;
     }
     const isPlanNode = props.node.metadata?.remixRole === "plan";
     const isMaterialText = props.node.metadata?.sourceMaterialRole === "text" || props.node.id.endsWith("-material-text");

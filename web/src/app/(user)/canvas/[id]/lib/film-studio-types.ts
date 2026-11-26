@@ -33,6 +33,7 @@ export type FilmShotContextChip = {
     edgeId: string;
     role: FilmContextRole;
     name: string;
+    source?: "manual" | "ai";
     stateId?: string;
     stateName?: string;
     variantId?: string;

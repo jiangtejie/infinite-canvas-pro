@@ -1,9 +1,10 @@
 import type { FilmAsset, FilmMediaVersion } from "@/lib/film/types";
+import { parseFilmScriptDocument, scriptTextHash } from "@/lib/film/film-script-import";
 import { FILM_IMAGE_REFERENCE_LIMIT } from "@/app/(user)/film/utils/film-shot-generation";
 import { filmVideoMode } from "./film-shot-video-frames";
 import { buildFilmShotGenerationFromGraph } from "./film-shot-generation-context";
 import { FILM_CONTEXT_ROLE_LABELS } from "./film-studio-types";
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmAnalysisSession } from "../../types";
 import type { FilmNodeType } from "./film-graph-types";
 import { FILM_NODE_REGISTRY, FILM_NODE_TYPE_BY_CANVAS_TYPE } from "./film-node-registry";
 
@@ -13,6 +14,7 @@ export type FilmNodeMedia = "none" | "image" | "video" | "image+video";
 export type FilmNodeSummaryOptions = {
     costumes?: FilmAsset[];
     videoMaxReferences?: number;
+    aspect?: import("@/lib/film/types").FilmAspect;
 };
 
 export type FilmNodeSummary = {
@@ -35,6 +37,19 @@ export type FilmNodeSummary = {
     needsRefresh?: boolean;
     status?: NonNullable<CanvasNodeData["metadata"]>["status"];
     progress?: number;
+    pendingContextCount?: number;
+    script?: {
+        words: number;
+        episodes: number;
+        scenes: number;
+        hasSource: boolean;
+        analysisStatus?: FilmAnalysisSession["status"];
+        analysisExpired: boolean;
+        analysisError?: string;
+        analysisProgress?: FilmAnalysisSession["progress"];
+        hasDraft: boolean;
+        canUndo: boolean;
+    };
 };
 
 function assetFor(node: CanvasNodeData): FilmAsset | undefined {
@@ -114,6 +129,7 @@ function summarizeShot(node: CanvasNodeData, nodes: CanvasNodeData[], connection
     const media: FilmNodeMedia = hasImage && hasVideo ? "image+video" : hasImage ? "image" : hasVideo ? "video" : "none";
     const unrecorded = versions.some((version) => !version.generationContext);
     const refreshState: FilmNodeRefreshState = pendingGeneration ? "pending" : stale ? "stale" : unrecorded || !versions.length ? "unrecorded" : "current";
+    const pendingContextCount = connections.filter((edge) => edge.kind === "context" && edge.toNodeId === node.id && edge.data.source === "ai").length;
     return {
         type: "filmShot",
         label: FILM_NODE_REGISTRY.filmShot.label,
@@ -134,6 +150,7 @@ function summarizeShot(node: CanvasNodeData, nodes: CanvasNodeData[], connection
         needsRefresh: stale,
         status: node.metadata?.status,
         progress: node.metadata?.progress,
+        ...(pendingContextCount ? { pendingContextCount } : {}),
     };
 }
 
@@ -144,10 +161,28 @@ export function summarizeFilmNode(node: CanvasNodeData, nodes: CanvasNodeData[],
 
     const metadata = node.metadata;
     let description = "";
+    let scriptSummary: FilmNodeSummary["script"];
     switch (type) {
-        case "filmScript":
-            description = metadata?.filmScript?.text?.trim().replace(/\s+/g, " ") || "";
+        case "filmScript": {
+            const script = metadata?.filmScript;
+            const text = script?.text || "";
+            const document = parseFilmScriptDocument(text);
+            const analysis = script?.analysis;
+            description = text.trim().replace(/\s+/g, " ");
+            scriptSummary = {
+                words: text.replace(/\s+/g, "").length,
+                episodes: document.episodes.length,
+                scenes: document.episodes.reduce((total, episode) => total + episode.scenes.length, 0),
+                hasSource: Boolean(script?.source),
+                analysisStatus: analysis?.status,
+                analysisExpired: Boolean(analysis?.draft && analysis.sourceHash !== scriptTextHash(text)),
+                analysisError: analysis?.error,
+                analysisProgress: analysis?.progress,
+                hasDraft: Boolean(analysis?.draft),
+                canUndo: Boolean(script?.parseSnapshots?.length),
+            };
             break;
+        }
         case "filmScene": {
             const scene = metadata?.filmScene;
             description = [scene?.location, scene?.time, scene?.mood].filter(Boolean).join(" / ");
@@ -172,5 +207,6 @@ export function summarizeFilmNode(node: CanvasNodeData, nodes: CanvasNodeData[],
         description,
         status: metadata?.status,
         progress: metadata?.progress,
+        ...(scriptSummary ? { script: scriptSummary } : {}),
     };
 }

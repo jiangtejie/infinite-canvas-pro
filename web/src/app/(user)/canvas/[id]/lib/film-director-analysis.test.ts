@@ -7,6 +7,7 @@ import { scriptTextHash } from "@/lib/film/film-script-import";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData, type FilmContextRole, type FilmParseSnapshot, type FilmShotNodeData } from "../../types";
 import { createFilmAsset } from "./film-asset-factory";
 import { applyFilmDirectorAnalysis, buildFilmDirectorAnalysis } from "./film-director-analysis";
+import { arrangeFilmDirectorBoard, FILM_LAYOUT } from "./film-layout";
 import { undoFilmParseGraph } from "./film-script-parse";
 
 const scriptNode = (parseSnapshots: FilmParseSnapshot[] = []): CanvasNodeData => ({
@@ -86,9 +87,9 @@ const suggestions = (): FilmAssetSuggestion[] => [
 const allSceneKeys = ["0:0", "0:1"];
 const allAssetKeys = suggestions().map((item) => item.key);
 
-const apply = (nodes: CanvasNodeData[], connections: CanvasConnection[], proposal: ReturnType<typeof buildFilmDirectorAnalysis>, selection: Partial<{ mode: "overwrite" | "append"; sceneKeys: string[]; assetKeys: string[]; bindMentions: boolean }> = {}) => {
+const apply = (nodes: CanvasNodeData[], connections: CanvasConnection[], proposal: ReturnType<typeof buildFilmDirectorAnalysis>, selection: Partial<{ mode: "merge" | "append" | "replace"; sceneKeys: string[]; assetKeys: string[]; bindMentions: boolean }> = {}) => {
     const result = applyFilmDirectorAnalysis(nodes, connections, proposal, {
-        mode: selection.mode ?? "overwrite",
+        mode: selection.mode ?? "replace",
         sceneKeys: selection.sceneKeys ?? allSceneKeys,
         assetKeys: selection.assetKeys ?? allAssetKeys,
         bindMentions: selection.bindMentions ?? true,
@@ -124,6 +125,68 @@ test("applies only the selected scenes and keeps one atomic snapshot", () => {
     assert.equal(result.connections.filter((edge) => edge.kind === "sequence").length, 1);
     assert.equal(result.connections.filter((edge) => edge.kind === "derived" && edge.data.source === "script-analysis").length, 1);
     assert.equal(result.createdNodes.length, 3);
+});
+
+test("lands analysis with the director board layout and moves assets into the context band", () => {
+    const nodes = [scriptNode()];
+    const proposal = buildFilmDirectorAnalysis(episodes(), suggestions(), nodes[0], nodes, []);
+    const applied = apply(nodes, [], proposal, { assetKeys: allAssetKeys, bindMentions: false });
+    const { result } = applied;
+    const expected = new Map(arrangeFilmDirectorBoard(result.nodes, result.connections).map((node) => [node.id, node.position]));
+    result.createdNodes.forEach((node) => assert.deepEqual(node.position, expected.get(node.id), `${node.title} must land on the director board grid`));
+    assert.ok(result.createdAssetNodes.length > 0);
+    result.createdAssetNodes.forEach((node) => assert.ok(node.position.x < 0, "assets must sit in the left context band"));
+    assert.ok(result.nodes.find((node) => node.id === "script")!.position.x < 0, "script stays in the context band");
+});
+
+test("appends new scene columns to the right of existing columns", () => {
+    const nodes = [scriptNode(), sceneNode("old-scene", "旧场"), shotNode("old-shot", "旧镜头")];
+    const connections: CanvasConnection[] = [{ id: "old-edge", fromNodeId: "old-scene", toNodeId: "old-shot", kind: "composition" }];
+    const proposal = buildFilmDirectorAnalysis(episodes(), suggestions(), nodes[0], nodes, connections);
+    const applied = apply(nodes, connections, proposal, { mode: "append", assetKeys: [], bindMentions: false });
+    const { result } = applied;
+    const oldScene = result.nodes.find((node) => node.id === "old-scene")!;
+    const newScenes = result.createdNodes.filter((node) => node.type === CanvasNodeType.FilmScene);
+    assert.equal(newScenes.length, 2);
+    newScenes.forEach((scene) => assert.ok(scene.position.x >= oldScene.position.x + FILM_LAYOUT.columnWidth));
+    const snapshot = result.nodes.find((node) => node.id === "script")!.metadata?.filmScript?.parseSnapshots.at(-1);
+    assert.ok(snapshot?.updatedNodes?.some((node) => node.id === "old-scene"), "moved existing nodes must be restorable");
+});
+
+test("merges a second analysis without duplicating scenes or overwriting protected media", () => {
+    const nodes = [scriptNode()];
+    const proposal = buildFilmDirectorAnalysis(episodes(), suggestions(), nodes[0], nodes, []);
+    const first = apply(nodes, [], proposal, { mode: "merge", assetKeys: [], bindMentions: false }).result;
+    const mediaShot = first.createdNodes.find((node) => node.type === CanvasNodeType.FilmShot && node.metadata?.filmShot?.description === "沈迟把钥匙放在桌上")!;
+    const withMedia = first.nodes.map((node) => node.id === mediaShot.id ? { ...node, metadata: { ...node.metadata, filmShot: { ...node.metadata?.filmShot!, imageUrl: "https://example.com/storyboard.png" } } } : node);
+    const script = withMedia.find((node) => node.id === "script")!;
+    const secondProposal = buildFilmDirectorAnalysis(episodes(), suggestions(), script, withMedia, first.connections);
+    const second = apply(withMedia, first.connections, secondProposal, { mode: "merge", assetKeys: [], bindMentions: false }).result;
+    assert.equal(second.nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length, 2);
+    assert.equal(second.nodes.filter((node) => node.type === CanvasNodeType.FilmShot).length, 3);
+    assert.equal(second.nodes.find((node) => node.id === mediaShot.id)?.metadata?.filmShot?.imageUrl, "https://example.com/storyboard.png");
+    assert.equal(second.createdNodes.filter((node) => node.type === CanvasNodeType.FilmShot || node.type === CanvasNodeType.FilmScene).length, 0);
+    assert.deepEqual(second.landing?.added, []);
+    assert.equal(second.landing?.protected.length, 1);
+    assert.equal(second.landing?.updated.filter((item) => item.key.includes("#")).length, 2);
+    const snapshot = second.nodes.find((node) => node.id === "script")!.metadata?.filmScript?.parseSnapshots.at(-1);
+    assert.equal(snapshot?.mode, "merge");
+    assert.ok(snapshot?.updatedNodes?.length);
+});
+
+test("merge keeps unmatched AI scenes and replace removes them", () => {
+    const nodes = [scriptNode()];
+    const proposal = buildFilmDirectorAnalysis(episodes(), suggestions(), nodes[0], nodes, []);
+    const first = apply(nodes, [], proposal, { mode: "merge", assetKeys: [], bindMentions: false }).result;
+    const script = first.nodes.find((node) => node.id === "script")!;
+    const secondProposal = buildFilmDirectorAnalysis(episodes(), suggestions(), script, first.nodes, first.connections);
+    const merged = apply(first.nodes, first.connections, secondProposal, { mode: "merge", sceneKeys: ["0:0"], assetKeys: [], bindMentions: false }).result;
+    assert.equal(merged.nodes.filter((node) => node.type === CanvasNodeType.FilmScene).length, 2);
+    assert.ok(merged.landing?.kept.some((item) => item.key.includes("仓库")));
+
+    const replaced = apply(first.nodes, first.connections, secondProposal, { mode: "replace", assetKeys: [], bindMentions: false }).result;
+    assert.equal(replaced.landing?.removed.length, 5);
+    assert.ok(replaced.nodes.every((node) => node.id !== first.createdNodes.find((item) => item.type === CanvasNodeType.FilmScene)?.id));
 });
 
 test("does not duplicate existing same-category assets and never creates costumes", () => {
@@ -182,11 +245,11 @@ test("rejects an empty selection without mutating the graph", () => {
     const proposal = buildFilmDirectorAnalysis(episodes(), suggestions(), nodes[0], nodes, connections);
     const beforeNodes = structuredClone(nodes);
     const beforeConnections = structuredClone(connections);
-    const empty = applyFilmDirectorAnalysis(nodes, connections, proposal, { mode: "overwrite", sceneKeys: [], assetKeys: allAssetKeys, bindMentions: true });
+    const empty = applyFilmDirectorAnalysis(nodes, connections, proposal, { mode: "replace", sceneKeys: [], assetKeys: allAssetKeys, bindMentions: true });
     assert.ok("error" in empty);
     assert.deepEqual(nodes, beforeNodes);
     assert.deepEqual(connections, beforeConnections);
-    const missingScript = applyFilmDirectorAnalysis([sceneNode("old-scene", "旧场")], [], proposal, { mode: "overwrite", sceneKeys: allSceneKeys, assetKeys: [], bindMentions: false });
+    const missingScript = applyFilmDirectorAnalysis([sceneNode("old-scene", "旧场")], [], proposal, { mode: "replace", sceneKeys: allSceneKeys, assetKeys: [], bindMentions: false });
     assert.ok("error" in missingScript);
 });
 
@@ -215,6 +278,8 @@ test("snapshot records exactly the created and removed nodes and edges and undo 
     const undone = undoFilmParseGraph(script, result.nodes, result.connections);
     assert.ok(undone);
     assert.deepEqual(undone.nodes.map((node) => node.id).sort(), nodes.map((node) => node.id).sort());
+    assert.deepEqual(undone.nodes.find((node) => node.id === existing.id)?.position, { x: 0, y: 0 });
+    assert.deepEqual(undone.nodes.find((node) => node.id === "script")?.position, { x: 100, y: 100 });
     assert.deepEqual(undone.connections.map((edge) => edge.id).sort(), connections.map((edge) => edge.id).sort());
     assert.deepEqual(undone.scriptPatch.parseSnapshots, []);
 });
@@ -249,6 +314,25 @@ test("recomputes mentions against the final graph including existing shots", () 
     const applied = apply(nodes, connections, proposal, { mode: "append", assetKeys: ["character:沈迟"], bindMentions: true });
     const { result } = applied;
     assert.ok(result.connections.some((edge) => edge.kind === "context" && edge.fromNodeId === existing.id && edge.toNodeId === "old-shot" && edge.data.source === "ai" && edge.data.role === "character"));
+});
+
+test("counts shots with media when warning about replacement", () => {
+    const mediaShot = shotNode("old-shot", "旧镜头");
+    mediaShot.metadata!.filmShot!.imageUrl = "https://example.com/storyboard.png";
+    const nodes = [scriptNode(), sceneNode("old-scene", "旧场"), mediaShot];
+    const proposal = buildFilmDirectorAnalysis(episodes(), suggestions(), nodes[0], nodes, []);
+    assert.equal(proposal.structure.current.mediaShots, 1);
+    assert.ok(proposal.structure.issues.some((issue) => issue.message.includes("1 镜已有媒体")));
+});
+
+test("does not auto-bind single-character asset names", () => {
+    const nodes = [scriptNode()];
+    const single = [{ key: "character:阿", kind: "character" as const, name: "阿", aliases: [], description: "", visualPrompt: "" }];
+    const proposal = buildFilmDirectorAnalysis(episodes(), single, nodes[0], nodes, []);
+    const applied = apply(nodes, [], proposal, { mode: "merge", assetKeys: ["character:阿"], bindMentions: true });
+    const assetNode = applied.result.createdAssetNodes.find((node) => node.title === "阿")!;
+    assert.ok(assetNode);
+    assert.equal(applied.result.connections.filter((edge) => edge.kind === "context" && edge.fromNodeId === assetNode.id).length, 0);
 });
 
 test("projects a source hash and marks costume suggestions as non-project assets", () => {

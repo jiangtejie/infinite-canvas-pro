@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FilmAsset, FilmGenerationContext } from "@/lib/film/types";
+import { scriptTextHash } from "@/lib/film/film-script-import";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
+import { createFilmAnalysisSession, patchFilmAnalysisSession } from "./film-analysis-session";
 import { buildFilmShotGenerationFromGraph } from "./film-shot-generation-context";
 import { summarizeFilmNode } from "./film-node-summary";
 
@@ -165,4 +167,45 @@ test("script, scene, context and beat summaries use their specialized payloads",
     assert.equal(summarizeFilmNode(sceneNode, [sceneNode], []).description, "天台 / 深夜 / 压迫");
     assert.equal(summarizeFilmNode(characterNode, [characterNode], []).description, "沈迟设定");
     assert.equal(summarizeFilmNode(beat, [beat], []).description, "突然回头");
+});
+
+const SCRIPT_TEXT = `第1集
+1-1 内景 咖啡馆 日
+阿健推门进来，雨水顺着衣角滴落。
+1-2 外景 街道 夜
+阿健走出咖啡馆。`;
+
+const scriptNode = (text = SCRIPT_TEXT, analysis?: ReturnType<typeof createFilmAnalysisSession>, snapshots = 0): CanvasNodeData => ({
+    id: "script",
+    type: CanvasNodeType.FilmScript,
+    title: "剧本",
+    position: { x: 0, y: 0 },
+    width: 520,
+    height: 380,
+    metadata: {
+        filmScript: {
+            text,
+            parseSnapshots: Array.from({ length: snapshots }, (_, index) => ({ id: `s${index}`, createdAt: "", mode: "overwrite" as const, nodes: [], connections: [] })),
+            ...(analysis ? { analysis } : {}),
+        },
+    },
+});
+
+test("script summary derives words, estimated episodes/scenes and draft state", () => {
+    const summary = summarizeFilmNode(scriptNode(), [], []);
+    assert.equal(summary.script?.words, SCRIPT_TEXT.replace(/\s+/g, "").length);
+    assert.equal(summary.script?.episodes, 1);
+    assert.equal(summary.script?.scenes, 2);
+    assert.equal(summary.script?.hasSource, false);
+    assert.equal(summary.script?.canUndo, false);
+
+    const draft = { episodes: [], suggestions: [] };
+    const ready = patchFilmAnalysisSession(createFilmAnalysisSession(scriptTextHash(SCRIPT_TEXT)), { status: "ready", draft });
+    const readySummary = summarizeFilmNode(scriptNode(SCRIPT_TEXT, ready, 2), [], []);
+    assert.equal(readySummary.script?.analysisStatus, "ready");
+    assert.equal(readySummary.script?.hasDraft, true);
+    assert.equal(readySummary.script?.analysisExpired, false);
+    assert.equal(readySummary.script?.canUndo, true);
+    const expired = summarizeFilmNode(scriptNode(`${SCRIPT_TEXT}\n阿健回头。`, ready), [], []);
+    assert.equal(expired.script?.analysisExpired, true);
 });

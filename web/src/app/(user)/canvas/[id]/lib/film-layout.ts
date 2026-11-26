@@ -1,10 +1,11 @@
+import { NODE_DEFAULT_SIZE } from "../../constants";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 
 export const FILM_LAYOUT = {
     /** 场次列宽：留给镜头链与右侧动作节拍通道。 */
     columnWidth: 1080,
-    rowHeight: 400,
     sceneHeight: 280,
+    shotGap: 40,
     /** 上下文带位于所有场次列左侧，不遮挡主链。 */
     contextX: -880,
     contextRowHeight: 480,
@@ -13,8 +14,16 @@ export const FILM_LAYOUT = {
     beatRowHeight: 460,
 } as const;
 
+function shotHeight(node: CanvasNodeData) {
+    return node.height || NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].height;
+}
+
 function byPosition(a: CanvasNodeData, b: CanvasNodeData) {
     return a.position.y - b.position.y || a.position.x - b.position.x || a.id.localeCompare(b.id);
+}
+
+function byColumn(a: CanvasNodeData, b: CanvasNodeData) {
+    return a.position.x - b.position.x || a.position.y - b.position.y || a.id.localeCompare(b.id);
 }
 
 /** 按全片 sequence 链排序；分叉/断链按位置确定性兜底，保证所有镜头可见。 */
@@ -73,12 +82,6 @@ export function buildFilmBoardRelations(nodes: CanvasNodeData[], connections: Ca
     return relations;
 }
 
-function byScene(a: CanvasNodeData, b: CanvasNodeData) {
-    const left = a.metadata?.filmScene?.episodeId || "";
-    const right = b.metadata?.filmScene?.episodeId || "";
-    return left.localeCompare(right) || byPosition(a, b);
-}
-
 const CONTEXT_RANK: Partial<Record<CanvasNodeType, number>> = {
     [CanvasNodeType.FilmScript]: 0,
     [CanvasNodeType.FilmStyle]: 1,
@@ -100,14 +103,91 @@ function contextName(node: CanvasNodeData) {
         || "";
 }
 
+function groupShots(nodes: CanvasNodeData[], relations: FilmBoardRelations) {
+    const groups = new Map<string, CanvasNodeData[]>();
+    nodes.filter((node) => node.type === CanvasNodeType.FilmShot).forEach((shot) => {
+        const owner = relations.ownerByShot.get(shot.id);
+        if (owner) groups.set(owner, [...(groups.get(owner) || []), shot]);
+    });
+    return groups;
+}
+
+/** 增量放置：只给本次新增节点定位，已有节点保持原位；规则与整板布局一致。 */
+export function placeFilmNodes(nodes: CanvasNodeData[], connections: CanvasConnection[], createdNodes: CanvasNodeData[]): CanvasNodeData[] {
+    if (!createdNodes.length) return createdNodes;
+    const positions = new Map<string, { x: number; y: number }>();
+    const relations = buildFilmBoardRelations([...nodes, ...createdNodes], connections);
+    const sceneById = new Map([...nodes, ...createdNodes].filter((node) => node.type === CanvasNodeType.FilmScene).map((node) => [node.id, node] as const));
+    const existingScenes = nodes.filter((node) => node.type === CanvasNodeType.FilmScene).slice().sort(byColumn);
+    const rightmostSceneX = existingScenes.length ? Math.max(...existingScenes.map((node) => node.position.x)) : -FILM_LAYOUT.columnWidth;
+    let columnX = rightmostSceneX + FILM_LAYOUT.columnWidth;
+    createdNodes.filter((node) => node.type === CanvasNodeType.FilmScene).forEach((scene) => {
+        positions.set(scene.id, { x: columnX, y: 0 });
+        columnX += FILM_LAYOUT.columnWidth;
+    });
+
+    const existingShotsByScene = groupShots(nodes, relations);
+    groupShots(createdNodes, relations).forEach((shots, sceneId) => {
+        const assigned = positions.get(sceneId);
+        const scene = sceneById.get(sceneId);
+        const sceneX = assigned?.x ?? scene?.position.x ?? 0;
+        const sceneY = assigned?.y ?? scene?.position.y ?? 0;
+        const existing = (existingShotsByScene.get(sceneId) ?? []).slice().sort(byPosition);
+        let y = existing.length
+            ? Math.max(...existing.map((shot) => shot.position.y + shotHeight(shot))) + FILM_LAYOUT.shotGap
+            : sceneY + FILM_LAYOUT.sceneHeight;
+        shots.forEach((shot) => {
+            positions.set(shot.id, { x: sceneX, y });
+            y += shotHeight(shot) + FILM_LAYOUT.shotGap;
+        });
+    });
+
+    const looseCreated = createdNodes.filter((node) => node.type === CanvasNodeType.FilmShot && !relations.ownerByShot.has(node.id));
+    if (looseCreated.length) {
+        const looseExisting = nodes.filter((node) => node.type === CanvasNodeType.FilmShot && !relations.ownerByShot.has(node.id)).slice().sort(byPosition);
+        let y = looseExisting.length ? Math.max(...looseExisting.map((shot) => shot.position.y + shotHeight(shot))) + FILM_LAYOUT.shotGap : 0;
+        const x = rightmostSceneX + FILM_LAYOUT.columnWidth;
+        looseCreated.forEach((shot) => {
+            positions.set(shot.id, { x, y });
+            y += shotHeight(shot) + FILM_LAYOUT.shotGap;
+        });
+    }
+
+    const existingContexts = nodes.filter((node) => contextRank(node) !== Number.MAX_SAFE_INTEGER);
+    let bandY = existingContexts.length ? Math.max(...existingContexts.map((node) => node.position.y)) + FILM_LAYOUT.contextRowHeight : 0;
+    const placeInBand = (node: CanvasNodeData) => {
+        positions.set(node.id, { x: FILM_LAYOUT.contextX, y: bandY });
+        bandY += FILM_LAYOUT.contextRowHeight;
+    };
+    createdNodes.filter((node) => contextRank(node) !== Number.MAX_SAFE_INTEGER).forEach(placeInBand);
+
+    const beatRow = new Map<string, number>();
+    createdNodes.filter((node) => node.type === CanvasNodeType.FilmBeat).forEach((beat) => {
+        const target = relations.beatTargetByBeat.get(beat.id);
+        const targetPosition = target ? positions.get(target) ?? nodes.find((node) => node.id === target)?.position : undefined;
+        if (!target || !targetPosition) {
+            placeInBand(beat);
+            return;
+        }
+        const index = beatRow.get(target) ?? 0;
+        beatRow.set(target, index + 1);
+        positions.set(beat.id, { x: targetPosition.x + FILM_LAYOUT.beatOffsetX, y: targetPosition.y + index * FILM_LAYOUT.beatRowHeight });
+    });
+
+    return createdNodes.map((node) => {
+        const next = positions.get(node.id);
+        return next ? { ...node, position: next } : node;
+    });
+}
+
 /**
- * 导演板布局：场次按集与位置分列，镜头按全片 sequence 落在所属场次列内，
+ * 导演板布局：场次按当前列位置稳定分列，镜头按全片 sequence 落在所属场次列内，
  * 剧本/风格/角色/场景/道具进入左侧上下文带，动作节拍贴近其目标镜头。
  * 只返回节点位置，边数据保持原样，不产生持久化派生布局。
  */
 export function arrangeFilmDirectorBoard(nodes: CanvasNodeData[], connections: CanvasConnection[]): CanvasNodeData[] {
     const positions = new Map<string, { x: number; y: number }>();
-    const scenes = nodes.filter((node) => node.type === CanvasNodeType.FilmScene).slice().sort(byScene);
+    const scenes = nodes.filter((node) => node.type === CanvasNodeType.FilmScene).slice().sort(byColumn);
     const sceneColumn = new Map(scenes.map((scene, index) => [scene.id, index] as const));
     scenes.forEach((scene, index) => positions.set(scene.id, { x: index * FILM_LAYOUT.columnWidth, y: 0 }));
 
@@ -122,9 +202,17 @@ export function arrangeFilmDirectorBoard(nodes: CanvasNodeData[], connections: C
     });
     columnShots.forEach((items, sceneId) => {
         const x = (sceneColumn.get(sceneId) ?? 0) * FILM_LAYOUT.columnWidth;
-        items.forEach((shot, index) => positions.set(shot.id, { x, y: FILM_LAYOUT.sceneHeight + index * FILM_LAYOUT.rowHeight }));
+        let y = FILM_LAYOUT.sceneHeight;
+        items.forEach((shot) => {
+            positions.set(shot.id, { x, y });
+            y += shotHeight(shot) + FILM_LAYOUT.shotGap;
+        });
     });
-    looseShots.forEach((shot, index) => positions.set(shot.id, { x: scenes.length * FILM_LAYOUT.columnWidth, y: index * FILM_LAYOUT.rowHeight }));
+    let looseY = 0;
+    looseShots.forEach((shot) => {
+        positions.set(shot.id, { x: scenes.length * FILM_LAYOUT.columnWidth, y: looseY });
+        looseY += shotHeight(shot) + FILM_LAYOUT.shotGap;
+    });
 
     const contexts = nodes
         .filter((node) => contextRank(node) !== Number.MAX_SAFE_INTEGER)

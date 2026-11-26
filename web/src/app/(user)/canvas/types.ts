@@ -1,7 +1,9 @@
 import type { InsertAssetPayload } from "@/lib/asset-picker";
+import type { FilmAssetSuggestion, FilmAssetSuggestionKind } from "@/lib/film/film-asset-suggestions";
 import type {
     FilmAspect,
     FilmConsistencyReview,
+    FilmEpisode,
     FilmShot,
     FilmShotGroup,
     FilmStructurePlan,
@@ -148,6 +150,12 @@ export type CanvasFilmShotQueue = {
     remainingShotIds: string[];
 };
 
+export type CanvasFilmAssetAliasRule = {
+    kind: FilmAssetSuggestionKind;
+    name: string;
+    aliases: string[];
+};
+
 export type CanvasFilmMeta = {
     aspect: FilmAspect;
     stylePresetId: FilmStylePresetId;
@@ -158,12 +166,14 @@ export type CanvasFilmMeta = {
     shotGroups?: FilmShotGroup[];
     assetQueue?: CanvasFilmAssetQueue;
     shotQueue?: CanvasFilmShotQueue;
+    /** 项目级资产名归并：再次分析时作为已知资产表输入。 */
+    assetAliases?: CanvasFilmAssetAliasRule[];
 };
 
 export type FilmParseSnapshot = {
     id: string;
     createdAt: string;
-    mode: "overwrite" | "append" | "refresh";
+    mode: "overwrite" | "append" | "refresh" | "merge";
     nodes: CanvasNodeData[];
     connections: CanvasConnection[];
     removedNodes?: CanvasNodeData[];
@@ -181,11 +191,48 @@ export type FilmScriptSource = {
     publishedAt: string;
 };
 
+export type FilmAnalysisStatus = "running" | "structure-ready" | "ready" | "applied" | "failed" | "cancelled";
+export type FilmAnalysisStage = "structure" | "shots" | "assets";
+export type FilmLandingMode = "merge" | "append" | "replace";
+
+export type FilmAnalysisOptions = {
+    pacing?: "fast" | "normal" | "slow";
+    shotDensity?: "sparse" | "normal" | "dense";
+    targetDuration?: number;
+    directorStyleId?: string;
+    extractAssets?: boolean;
+};
+
+export type FilmAnalysisSessionDraft = {
+    episodes: FilmEpisode[];
+    suggestions: FilmAssetSuggestion[];
+    structurePlan?: FilmStructurePlan;
+};
+
+export type FilmAnalysisSession = {
+    id: string;
+    status: FilmAnalysisStatus;
+    /** 发起分析时的正文指纹，用于过期判断。 */
+    sourceHash: string;
+    options: FilmAnalysisOptions;
+    progress?: { stage: FilmAnalysisStage; done: number; total: number };
+    structurePlan?: FilmStructurePlan;
+    draft?: FilmAnalysisSessionDraft;
+    /** 单场失败原因，可单场重试。 */
+    sceneErrors?: Record<string, string>;
+    summary?: { scenes: number; shots: number; assets: number; appliedAt: string; mode: FilmLandingMode };
+    warnings?: string[];
+    error?: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export type FilmScriptNodeData = {
     text: string;
     source?: FilmScriptSource;
     parseSnapshots: FilmParseSnapshot[];
     structurePlan?: FilmStructurePlan;
+    analysis?: FilmAnalysisSession;
 };
 
 export type FilmSceneNodeData = {
