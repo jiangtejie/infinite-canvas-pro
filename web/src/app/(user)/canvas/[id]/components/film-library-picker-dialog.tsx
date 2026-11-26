@@ -45,7 +45,7 @@ export function FilmLibraryPickerDialog({ open, theme, kind, currentAssetName, o
     const usage = selected ? usageIndex.get(selected.id) || EMPTY_FILM_LIBRARY_USAGE : null;
     const inputStyle = { background: theme.node.fill, color: theme.node.text, borderColor: theme.node.stroke };
     return (
-        <Modal open={open} onCancel={onClose} footer={null} closable={false} centered width="min(900px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open={open} onCancel={onClose} footer={null} closable={false} centered width="min(1100px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex flex-col" style={{ color: theme.node.text }}>
                 <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">

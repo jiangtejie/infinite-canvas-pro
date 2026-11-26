@@ -29,7 +29,7 @@ export function FilmLibrarySaveDialog({ theme, assets, onClose, onSave }: Props)
     });
     const chosen = assets.filter((item) => selected.has(item.nodeId));
     return (
-        <Modal open onCancel={onClose} footer={null} closable={false} centered width="min(560px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open onCancel={onClose} footer={null} closable={false} centered width="min(760px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex max-h-[80vh] flex-col" style={{ color: theme.node.text }}>
                 <div className="border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="text-base font-semibold">存入母版库</div>

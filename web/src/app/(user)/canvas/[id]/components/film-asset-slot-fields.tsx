@@ -4,7 +4,7 @@ import { Input } from "antd";
 import { Trash2 } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
-import type { FilmAsset, FilmAssetKind, FilmCharacterProfile, FilmCharacterState, FilmLocationVariant } from "@/lib/film/types";
+import type { FilmAsset, FilmAssetKind, FilmCharacterProfile, FilmCharacterState, FilmImageRef, FilmLocationVariant } from "@/lib/film/types";
 import { createCharacterState, ensureCharacterProfile } from "@/app/(user)/film/utils/film-character";
 import { appendSlotImage, createFilmImageSlot } from "@/app/(user)/film/utils/film-image-slot";
 import { FilmReferenceBoardPanel } from "./film-reference-board-panel";
@@ -18,9 +18,10 @@ type FilmAssetSlotFieldsProps = {
     projectId: string;
     onChange: (patch: Partial<FilmAsset>) => void;
     onChangeAsset: (updater: (asset: FilmAsset) => FilmAsset) => void;
+    onPreviewImage?: (image: FilmImageRef) => void;
 };
 
-export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onChange, onChangeAsset }: FilmAssetSlotFieldsProps) {
+export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onChange, onChangeAsset, onPreviewImage }: FilmAssetSlotFieldsProps) {
     const profile = ensureCharacterProfile(asset);
     const variants = asset.location?.variants ?? [];
     const patchProfile = (patch: Partial<FilmCharacterProfile>) => onChange({ character: { ...profile, ...patch } });
@@ -30,9 +31,9 @@ export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onC
 
     return (
         <div className="flex flex-col gap-3">
-            {kind !== "character" ? <SlotEditor theme={theme} title={kind === "style" ? "风格参考" : "概念图"} slot={asset.concept} nextLabel={kind === "style" ? "风格参考" : "概念图"} onChange={(concept) => onChange({ concept })} /> : null}
+            {kind !== "character" ? <SlotEditor theme={theme} title={kind === "style" ? "风格参考" : "概念图"} slot={asset.concept} nextLabel={kind === "style" ? "风格参考" : "概念图"} onChange={(concept) => onChange({ concept })} onPreview={onPreviewImage} /> : null}
             {kind === "location" || kind === "prop" || kind === "costume" ? (
-                <SlotEditor theme={theme} title="设定图（角度 / 细节）" slot={asset.views ?? createFilmImageSlot()} onChange={(views) => onChange({ views })} />
+                <SlotEditor theme={theme} title="设定图（角度 / 细节）" slot={asset.views ?? createFilmImageSlot()} onChange={(views) => onChange({ views })} onPreview={onPreviewImage} />
             ) : null}
             {kind === "character" ? (
                 <>
@@ -52,6 +53,7 @@ export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onC
                             };
                         })}
                         onPendingTask={(pendingTask) => onChangeAsset((current) => ({ ...current, pendingTask: pendingTask ?? undefined }))}
+                        onPreviewImage={onPreviewImage}
                     />
                     <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] tracking-[0.12em] uppercase" style={{ color: theme.node.muted }}>造型状态 · {profile.states.length}</span>
@@ -63,7 +65,7 @@ export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onC
                                 <Input size="small" value={state.name} style={inputStyle} onChange={(event) => patchState(state.id, { name: event.target.value })} />
                                 <button type="button" className="grid size-7 shrink-0 place-items-center rounded border" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => patchProfile({ states: profile.states.filter((item) => item.id !== state.id) })} aria-label={`删除造型 ${state.name}`}><Trash2 className="size-3.5" /></button>
                             </div>
-                            <SlotEditor theme={theme} title="造型参考" slot={state.look} nextLabel={state.name} onChange={(look) => patchState(state.id, { look })} />
+                            <SlotEditor theme={theme} title="造型参考" slot={state.look} nextLabel={state.name} onChange={(look) => patchState(state.id, { look })} onPreview={onPreviewImage} />
                         </div>
                     ))}
                 </>
@@ -80,7 +82,7 @@ export function FilmAssetSlotFields({ theme, kind, asset, nodeId, projectId, onC
                                 <Input size="small" value={variant.name} style={inputStyle} onChange={(event) => patchVariants(variants.map((item) => item.id === variant.id ? { ...item, name: event.target.value } : item))} />
                                 <button type="button" className="grid size-7 shrink-0 place-items-center rounded border" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => patchVariants(variants.filter((item) => item.id !== variant.id))} aria-label={`删除变体 ${variant.name}`}><Trash2 className="size-3.5" /></button>
                             </div>
-                            <SlotEditor theme={theme} title="变体概念图" slot={variant.concept} nextLabel={variant.name} onChange={(concept) => patchVariants(variants.map((item) => item.id === variant.id ? { ...item, concept } : item))} />
+                            <SlotEditor theme={theme} title="变体概念图" slot={variant.concept} nextLabel={variant.name} onChange={(concept) => patchVariants(variants.map((item) => item.id === variant.id ? { ...item, concept } : item))} onPreview={onPreviewImage} />
                         </div>
                     ))}
                 </>

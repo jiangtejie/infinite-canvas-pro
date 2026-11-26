@@ -22,9 +22,10 @@ type Props = {
     onChangeBoard: (board: FilmImageSlot) => void;
     onGenerated: (image: FilmImageRef, templateId: string) => void;
     onPendingTask: (task: FilmAssetTask | null) => void;
+    onPreviewImage?: (image: FilmImageRef) => void;
 };
 
-export function FilmReferenceBoardPanel({ theme, asset, nodeId, projectId, onChangeTemplate, onChangeBoard, onGenerated, onPendingTask }: Props) {
+export function FilmReferenceBoardPanel({ theme, asset, nodeId, projectId, onChangeTemplate, onChangeBoard, onGenerated, onPendingTask, onPreviewImage }: Props) {
     const { message } = App.useApp();
     const [showPrompt, setShowPrompt] = useState(false);
     const profile = ensureCharacterProfile(asset);
@@ -59,7 +60,7 @@ export function FilmReferenceBoardPanel({ theme, asset, nodeId, projectId, onCha
             </div>
             {showPrompt ? <div className="thin-scrollbar max-h-40 overflow-y-auto whitespace-pre-wrap rounded-md border px-2 py-1.5 text-[10px] leading-4" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>{preview.prompt}</div> : null}
             {error ? <div className="text-[10px]" style={{ color: canvasStatusColors.error }}>{error}</div> : null}
-            <SlotEditor theme={theme} title="参考板版本" slot={board} nextLabel={preview.template.name} onChange={onChangeBoard} />
+            <SlotEditor theme={theme} title="参考板版本" slot={board} nextLabel={preview.template.name} onChange={onChangeBoard} onPreview={onPreviewImage} />
             <div className="text-[10px] leading-4" style={{ color: theme.node.muted }}>镜头生成以当前参考板为角色身份参考；造型状态可额外提供变化参考。</div>
         </section>
     );

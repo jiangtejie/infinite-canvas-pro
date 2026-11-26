@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { App } from "antd";
-import { FolderOpen, Lock, Star, Trash2, Unlock, Upload } from "lucide-react";
+import { FolderOpen, Lock, Maximize2, Star, Trash2, Unlock, Upload } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import type { FilmImageRef, FilmImageSlot } from "@/lib/film/types";
@@ -11,7 +11,7 @@ import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/a
 import { uploadImage } from "@/services/image-storage";
 import { activeSlotImage, appendSlotImage, FILM_IMAGE_SLOT_LIMIT, removeSlotImage, selectSlotImage, updateSlotImage } from "@/app/(user)/film/utils/film-image-slot";
 
-export function SlotEditor({ theme, title, slot, nextLabel, onChange }: { theme: CanvasTheme; title: string; slot: FilmImageSlot; nextLabel?: string; onChange: (slot: FilmImageSlot) => void }) {
+export function SlotEditor({ theme, title, slot, nextLabel, onChange, onPreview }: { theme: CanvasTheme; title: string; slot: FilmImageSlot; nextLabel?: string; onChange: (slot: FilmImageSlot) => void; onPreview?: (image: FilmImageRef) => void }) {
     const { message } = App.useApp();
     const uploadRef = useRef<HTMLInputElement>(null);
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -64,12 +64,28 @@ export function SlotEditor({ theme, title, slot, nextLabel, onChange }: { theme:
             {slot.images.length ? (
                 <div className="grid grid-cols-4 gap-1.5">
                     {slot.images.map((image, index) => (
-                        <button key={image.id} type="button" className="relative h-14 overflow-hidden rounded-md border" style={{ borderColor: active?.id === image.id ? theme.canvas.selectionStroke : theme.node.stroke, background: theme.node.panel }} onClick={() => onChange(selectSlotImage(slot, image.id))} aria-pressed={active?.id === image.id} title={image.label || `版本 ${index + 1}`}>
+                        <div
+                            key={image.id}
+                            role="button"
+                            tabIndex={0}
+                            className="group relative h-20 cursor-pointer overflow-hidden rounded-md border"
+                            style={{ borderColor: active?.id === image.id ? theme.canvas.selectionStroke : theme.node.stroke, background: theme.node.panel }}
+                            onClick={() => onChange(selectSlotImage(slot, image.id))}
+                            onDoubleClick={() => onPreview?.(image)}
+                            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onChange(selectSlotImage(slot, image.id)); } }}
+                            aria-pressed={active?.id === image.id}
+                            title={image.label || `版本 ${index + 1}`}
+                        >
                             <SlotThumb theme={theme} url={image.url} storageKey={image.storageKey} />
                             <span className="absolute left-0.5 top-0.5 rounded bg-black/55 px-1 text-[8px] text-white">v{index + 1}</span>
                             {image.rating ? <span className="absolute right-0.5 top-0.5 rounded bg-black/55 px-1 text-[8px] text-amber-300">{"★".repeat(image.rating)}</span> : null}
                             {image.label ? <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-[8px] text-white">{image.label}</span> : null}
-                        </button>
+                            {onPreview ? (
+                                <button type="button" className="absolute bottom-0.5 right-0.5 grid size-6 place-items-center rounded bg-black/60 text-white opacity-80 transition hover:opacity-100" aria-label={`预览${title}`} onClick={(event) => { event.stopPropagation(); onPreview(image); }}>
+                                    <Maximize2 className="size-3" />
+                                </button>
+                            ) : null}
+                        </div>
                     ))}
                 </div>
             ) : <span className="text-[10px]" style={{ color: theme.node.muted }}>还没有图片，可以上传、从素材选择或由后续生成写入。</span>}

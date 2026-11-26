@@ -138,7 +138,7 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
     };
 
     return (
-        <Modal open onCancel={running ? () => undefined : onClose} footer={null} closable={false} centered width="min(1040px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+        <Modal open onCancel={running ? () => undefined : onClose} footer={null} closable={false} centered width="min(1200px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
             <div className="flex flex-col" style={{ color: theme.node.text }}>
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">

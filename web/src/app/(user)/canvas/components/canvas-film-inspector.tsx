@@ -4,8 +4,11 @@ import { useEffect, useRef, useState, type ClipboardEvent, type ReactNode } from
 import { useParams, useRouter } from "next/navigation";
 import { App, Drawer, Input } from "antd";
 import { FileUp } from "lucide-react";
+import { saveAs } from "file-saver";
 
 import { canvasThemes } from "@/lib/canvas-theme";
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
+import type { FilmImageRef } from "@/lib/film/types";
 import { normalizeScriptText, parseFilmScriptDocument, readFilmScriptFile } from "@/lib/film/film-script-import";
 import { FILM_ASSET_KIND_LABELS } from "@/lib/film/film-asset-kinds";
 import { errorMessage as toErrorMessage } from "@/lib/utils";
@@ -23,6 +26,7 @@ import { patchFilmContextAssetNode, patchFilmSceneNode, patchFilmScriptNode, upd
 import { isFilmAnalysisExpired, type FilmScriptAction } from "../[id]/lib/film-analysis-session";
 import { filmBeatFrameCount, updateFilmBeatFrame, updateFilmBeatPrompt, updateFilmBeatTitle } from "../[id]/lib/film-beat";
 import { FilmAssetSlotFields } from "../[id]/components/film-asset-slot-fields";
+import { FullscreenPreview } from "../[id]/components/fullscreen-preview";
 import { FilmAnalysisPresetBar } from "../[id]/components/film-analysis-preset-bar";
 import { FilmLibraryPickerDialog } from "../[id]/components/film-library-picker-dialog";
 import { FilmScriptSourcePickerDialog } from "../[id]/components/film-script-source-picker-dialog";
@@ -81,6 +85,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     );
 }
 
+function FilmAssetImagePreview({ image, onClose }: { image: FilmImageRef; onClose: () => void }) {
+    const src = useResolvedMediaSrc(image.url, image.storageKey, "image");
+    if (!src) return null;
+    return <FullscreenPreview src={src} alt={image.label || "资产图片"} onDownload={() => saveAs(src, `${(image.label || "asset").replace(/[\\/:*?"<>|]+/g, "-")}.png`)} onClose={onClose} />;
+}
+
 export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScriptSource, hasSourceScenes = false, onScriptAction, onApplyPublicationRefresh, boundShotNumbers = [], onImportLibraryAsset, onStopAssetTask, shotContexts = [], shotPrevious, shotNext, onOpenShotFocus, onLocateShot }: CanvasFilmInspectorProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const projectId = useParams<{ id: string }>()?.id || "";
@@ -95,6 +105,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
     const scriptFileRef = useRef<HTMLInputElement>(null);
     const [refreshPreview, setRefreshPreview] = useState<ScriptFilmRefreshPreview | null>(null);
     const [refreshLoading, setRefreshLoading] = useState(false);
+    const [previewImage, setPreviewImage] = useState<FilmImageRef | null>(null);
     const source = node?.metadata?.filmScript?.source;
     const sourceProjectId = source?.projectId || "";
     const publicationId = source?.publicationId || "";
@@ -109,6 +120,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
         setRefreshPreview((current) => current && source?.hash && current.source.hash === source.hash ? current : null);
         setScriptImportSummary("");
         setSourcePickerOpen(false);
+        setPreviewImage(null);
     }, [node?.id, source?.hash]);
     useEffect(() => {
         if (!sourceProjectId || !publicationId || sourceDocument) return;
@@ -301,10 +313,11 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
     );
 
     return (
+        <>
         <Drawer
             open={open}
             onClose={onClose}
-            size={node.type === CanvasNodeType.FilmScript ? "min(820px, 96vw)" : "min(520px, 96vw)"}
+            size={node.type === CanvasNodeType.FilmScript ? "min(1120px, 96vw)" : "min(960px, 96vw)"}
             zIndex={CANVAS_Z.popover}
             title={`${TITLES[node.type] || "影视节点"} · ${node.type === CanvasNodeType.FilmShot ? "概览" : "编辑"}`}
             styles={{
@@ -514,7 +527,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                             </div>
                         ) : null}
                         {assetNode.asset.status === "failed" && assetNode.asset.errorMessage && !assetNode.asset.pendingTask ? <div className="rounded-lg border px-3 py-2 text-xs leading-5" style={{ borderColor: canvasStatusColors.error, color: canvasStatusColors.error }}>{assetNode.asset.errorMessage}</div> : null}
-                        <FilmAssetSlotFields theme={theme} kind={assetNode.kind} asset={assetNode.asset} nodeId={node.id} projectId={projectId} onChange={patchAsset} onChangeAsset={updateAsset} />
+                        <FilmAssetSlotFields theme={theme} kind={assetNode.kind} asset={assetNode.asset} nodeId={node.id} projectId={projectId} onChange={patchAsset} onChangeAsset={updateAsset} onPreviewImage={setPreviewImage} />
                         <FilmLibraryPickerDialog
                             open={libraryOpen}
                             theme={theme}
@@ -534,5 +547,7 @@ export function CanvasFilmInspector({ open, node, onClose, onChange, onImportScr
                 ) : null}
             </div>
         </Drawer>
+        {previewImage ? <FilmAssetImagePreview key={`${previewImage.id}:${previewImage.url}`} image={previewImage} onClose={() => setPreviewImage(null)} /> : null}
+        </>
     );
 }
