@@ -21,6 +21,7 @@ import type { FilmNodeSummaryOptions } from "../[id]/lib/film-node-summary";
 import type { FilmVersionKind } from "../[id]/lib/film-version-room";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
+import { stopCanvasZoomWheel } from "../utils/scroll-wheel-guard";
 
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 const FLOATING_PANEL_MIN_ZOOM = 0.4;
@@ -961,12 +962,14 @@ function AudioNodeContent({ node, theme }: NodeContentRendererProps) {
             </div>
         );
     return (
-        <div className="flex h-full w-full flex-col justify-center gap-3 px-4" style={{ background: theme.node.fill, color: theme.node.text }}>
-            <div className="flex min-w-0 items-center gap-2 text-sm opacity-70">
-                <Music2 className="size-4 shrink-0" />
-                <span className="truncate">{node.title || "音频"}</span>
+        <div className="thin-scrollbar flex h-full w-full flex-col overflow-y-auto px-4" onWheel={stopCanvasZoomWheel} style={{ background: theme.node.fill, color: theme.node.text }}>
+            <div className="m-auto flex w-full flex-col gap-3">
+                <div className="flex min-w-0 items-center gap-2 text-sm opacity-70">
+                    <Music2 className="size-4 shrink-0" />
+                    <span className="truncate">{node.title || "音频"}</span>
+                </div>
+                <audio src={node.metadata.content} controls className="w-full" data-canvas-no-zoom onPointerDown={(event) => event.stopPropagation()} />
             </div>
-            <audio src={node.metadata.content} controls className="w-full" data-canvas-no-zoom onPointerDown={(event) => event.stopPropagation()} />
         </div>
     );
 }

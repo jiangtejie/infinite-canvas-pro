@@ -10,6 +10,7 @@ import { sourceRemixActionVisible } from "../[id]/lib/canvas-remix-actions";
 import type { SourceRemixHistoryEntry } from "../[id]/lib/canvas-source-remix";
 import { NODE_DEFAULT_SIZE } from "../constants";
 import { CanvasNodeType, type CanvasNodeData } from "../types";
+import { stopCanvasZoomWheel } from "../utils/scroll-wheel-guard";
 
 type CanvasSourceNodeCardProps = {
     node: CanvasNodeData;
@@ -83,7 +84,7 @@ export function CanvasSourceNodeCard({ node, expandedNeedsSync, onPreviewSize, o
     }
 
     return (
-        <div className="flex h-full w-full flex-col gap-1.5 overflow-hidden p-4 text-left" style={{ color: theme.node.text }}>
+        <div className="thin-scrollbar flex h-full w-full flex-col gap-1.5 overflow-y-auto p-4 text-left" onWheel={stopCanvasZoomWheel} style={{ color: theme.node.text }}>
             <div className="flex min-w-0 items-start gap-2">
                 <Link2 className="mt-0.5 size-4 shrink-0" style={{ color: theme.node.muted }} />
                 <div className="min-w-0 flex-1">
@@ -114,7 +115,7 @@ export function CanvasSourceNodeCard({ node, expandedNeedsSync, onPreviewSize, o
 
             {previewUrls.length ? (
                 <div
-                    className="relative min-h-0 flex-1 overflow-hidden rounded-lg outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="relative min-h-[96px] flex-1 overflow-hidden rounded-lg outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                     style={{ background: theme.toolbar.activeBg, outlineColor: theme.node.activeStroke }}
                     role="group"
                     tabIndex={0}

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clapperboard, Film, Loader2, Square, Video, X } from "lucide-react";
+import { AlertTriangle, Check, Clapperboard, Crosshair, Film, Loader2, Square, Video, X } from "lucide-react";
 import { Modal } from "antd";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { FilmAssetThumbnail } from "@/app/(user)/film/components/film-asset-thumbnail";
+import { useResolvedMediaSrc } from "@/hooks/use-resolved-media-src";
 import type { FilmAssetProductionState } from "../lib/film-asset-production";
-import type { FilmProductionKind, FilmProductionPlan, FilmProductionPlanItem } from "../lib/film-production-plan";
+import type { FilmProductionKind, FilmProductionPlan, FilmProductionPlanItem, FilmProductionAssetItem, FilmProductionShotItem } from "../lib/film-production-plan";
 import type { FilmShotBatchKind, FilmShotBatchState } from "../lib/film-studio-types";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 
@@ -21,6 +22,10 @@ const TABS: Array<{ value: ProductionTab; label: string }> = [
     { value: "failed", label: "失败" },
     { value: "completed", label: "已完成" },
 ];
+
+type ProductionGroup = { target: "asset" | "shot"; label: string; items: FilmProductionPlanItem[] };
+
+const groupKeyOf = (group: ProductionGroup) => `${group.target}:${group.items[0]?.groupId ?? ""}`;
 
 export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initialAssetIds, initialShotIds, initialKind, onKindChange, onStartAssets, onStopAssets, onStartShots, onStopShots, onLocate, onClose }: {
     theme: CanvasTheme;
@@ -39,6 +44,7 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
     onClose: () => void;
 }) {
     const [tab, setTab] = useState<ProductionTab>(() => initialAssetIds?.length ? "assets" : initialShotIds?.length ? "shots" : initialKind === "asset" ? "assets" : initialKind ? "shots" : "all");
+    const [groupFilter, setGroupFilter] = useState<string | null>(null);
     const [selectedAssets, setSelectedAssets] = useState<Set<string>>(() => new Set(plan.selected.assetIds));
     const [selectedShots, setSelectedShots] = useState<Set<string>>(() => new Set(plan.selected.shotIds));
     const planRef = useRef(plan);
@@ -99,8 +105,8 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
         if (tab === "completed") return plan.completed;
         return all;
     }, [plan.assets, plan.completed, plan.failures, plan.shots, tab]);
-    const groups = useMemo(() => {
-        const map = new Map<string, { target: "asset" | "shot"; label: string; items: FilmProductionPlanItem[] }>();
+    const groups = useMemo<ProductionGroup[]>(() => {
+        const map = new Map<string, ProductionGroup>();
         activeItems.forEach((item) => {
             const key = `${item.target}:${item.groupId}`;
             const current = map.get(key);
@@ -109,10 +115,13 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
         });
         return [...map.values()];
     }, [activeItems]);
+    const activeGroupKey = groupFilter && groups.some((group) => groupKeyOf(group) === groupFilter) ? groupFilter : null;
+    const visibleGroups = activeGroupKey ? groups.filter((group) => groupKeyOf(group) === activeGroupKey) : groups;
     const selectedStartableAssets = plan.assets.filter((item) => selectedAssets.has(item.id) && item.canStart).map((item) => item.id);
     const selectedStartableShots = plan.shots.filter((item) => selectedShots.has(item.id) && item.canStart).map((item) => item.id);
     const selectableItems = activeItems.filter((item) => item.canStart && (tab === "failed" || item.status !== "done"));
     const allSelectable = selectableItems.length > 0 && selectableItems.every((item) => item.target === "asset" ? selectedAssets.has(item.id) : selectedShots.has(item.id));
+    const tabCount = (value: ProductionTab) => value === "all" ? plan.assets.length + plan.shots.length : value === "assets" ? plan.assets.length : value === "shots" ? plan.shots.length : value === "failed" ? plan.failures.length : plan.completed.length;
 
     const toggle = (item: FilmProductionPlanItem) => {
         if (running || !item.canStart) return;
@@ -136,10 +145,14 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
         if (target.kind === "asset") onStartAssets(target.ids);
         else onStartShots(target.ids, target.kind);
     };
+    const changeTab = (value: ProductionTab) => {
+        setTab(value);
+        setGroupFilter(null);
+    };
 
     return (
-        <Modal open onCancel={running ? () => undefined : onClose} footer={null} closable={false} centered width="min(1200px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
-            <div className="flex flex-col" style={{ color: theme.node.text }}>
+        <Modal open onCancel={running ? () => undefined : onClose} footer={null} closable={false} centered width="min(1360px, 96vw)" mask={{ closable: false }} destroyOnHidden styles={{ body: { padding: 0, background: theme.node.panel, border: `1px solid ${theme.node.stroke}`, borderRadius: 16, overflow: "hidden" } }}>
+            <div className="flex max-h-[90vh] flex-col" style={{ color: theme.node.text }}>
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: theme.node.stroke }}>
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 text-base font-semibold"><Clapperboard className="size-4" style={{ color: theme.canvas.selectionStroke }} />制作中心</div>
@@ -152,58 +165,69 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
                         {running ? null : <button type="button" className="grid size-8 place-items-center rounded-lg opacity-55 transition hover:opacity-100" onClick={onClose} aria-label="关闭制作中心"><X className="size-4" /></button>}
                     </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 border-b px-5 py-2.5" style={{ borderColor: theme.node.stroke }}>
-                    <div className="flex flex-wrap items-center gap-1">
-                        {TABS.map((entry) => {
-                            const count = entry.value === "all" ? plan.assets.length + plan.shots.length : entry.value === "assets" ? plan.assets.length : entry.value === "shots" ? plan.shots.length : entry.value === "failed" ? plan.failures.length : plan.completed.length;
-                            return <button key={entry.value} type="button" className="rounded-full border px-2.5 py-1 text-[11px]" style={{ borderColor: tab === entry.value ? theme.canvas.selectionStroke : theme.node.stroke, background: tab === entry.value ? theme.canvas.selectionSoft : undefined, color: tab === entry.value ? theme.node.text : theme.node.muted }} onClick={() => setTab(entry.value)}>{entry.label} {count}</button>;
-                        })}
-                    </div>
-                    <span className="ml-auto flex flex-wrap items-center gap-1 text-[10px]" style={{ color: theme.node.muted }}>
-                        {plan.queue.assetRemaining || plan.queue.shotRemaining ? <span className="rounded-full border px-2 py-0.5" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}>续跑：资产 {plan.queue.assetRemaining} · 镜头 {plan.queue.shotRemaining}</span> : null}
-                        {plan.warnings ? <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}><AlertTriangle className="size-2.5" />编译警告 {plan.warnings}</span> : null}
-                        <span className="rounded-full border px-2 py-0.5" style={{ borderColor: theme.node.stroke }}>选中资产 {selectedAssets.size} · 镜头 {selectedShots.size}</span>
-                        <button type="button" className="rounded-full border px-2 py-0.5 disabled:opacity-40" style={{ borderColor: theme.node.stroke }} disabled={running || !selectableItems.length} onClick={toggleAll}>{allSelectable ? "取消全选" : "全选可执行"}</button>
-                        <button type="button" className="rounded-full border px-2 py-0.5" style={{ borderColor: theme.node.stroke }} disabled={running} onClick={() => { setSelectedAssets(new Set()); setSelectedShots(new Set()); }}>清空</button>
-                    </span>
+                <div className="flex gap-1 overflow-x-auto border-b px-4 py-2 md:hidden" style={{ borderColor: theme.node.stroke }}>
+                    {TABS.map((entry) => <button key={entry.value} type="button" className="shrink-0 rounded-full border px-2.5 py-1 text-[11px]" style={{ borderColor: tab === entry.value ? theme.canvas.selectionStroke : theme.node.stroke, background: tab === entry.value ? theme.canvas.selectionSoft : undefined, color: tab === entry.value ? theme.node.text : theme.node.muted }} onClick={() => changeTab(entry.value)}>{entry.label} {tabCount(entry.value)}</button>)}
                 </div>
-                <div className="thin-scrollbar flex max-h-[60vh] min-h-[220px] flex-col gap-4 overflow-y-auto px-5 py-4">
-                    {groups.map((group) => (
-                        <section key={`${group.target}:${group.items[0]?.groupId}`} className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2 text-[11px]" style={{ color: theme.node.muted }}>
-                                <span className="font-medium tracking-[0.12em] uppercase">{group.label}</span>
-                                <span>{group.items.length} 项</span>
-                                <span>· 已完成 {group.items.filter((item) => item.status === "done").length}</span>
-                                <button type="button" className="ml-auto rounded-full border px-2 py-0.5 text-[10px] disabled:opacity-40" style={{ borderColor: theme.node.stroke }} disabled={running} onClick={() => selectGroup(group.items)}>选本组</button>
-                            </div>
-                            {group.items.map((item) => {
-                                const checked = item.target === "asset" ? selectedAssets.has(item.id) : selectedShots.has(item.id);
-                                const current = item.target === "asset"
-                                    ? assetState.running && assetState.currentNodeId === item.id
-                                    : shotBatch.running && shotBatch.currentShotId === item.id;
-                                return (
-                                    <div key={`${item.target}:${item.id}`} className="flex items-start gap-2 rounded-lg border px-3 py-2" style={{ borderColor: checked || current ? theme.canvas.selectionStroke : theme.node.stroke, background: checked ? theme.canvas.selectionSoft : theme.node.fill }}>
-                                        <input type="checkbox" className="mt-1" checked={checked} disabled={running || !item.canStart} onChange={() => toggle(item)} aria-label={`选择${item.target === "asset" ? "资产" : "镜头"} ${item.title}`} />
-                                        {item.target === "asset" ? <FilmAssetThumbnail asset={item.asset} className="h-9 w-9 shrink-0 rounded-md" /> : null}
-                                        <span className="flex min-w-0 flex-1 flex-col gap-1">
-                                            <span className="flex flex-wrap items-center gap-1.5">
-                                                <span className="truncate text-xs font-medium">{item.title}</span>
-                                                <StatusBadge theme={theme} status={item.status} />
-                                                {item.reason && item.status !== "done" ? <span className="truncate text-[10px]" style={{ color: item.status === "failed" ? canvasStatusColors.error : theme.node.muted }}>{item.reason}</span> : null}
-                                            </span>
-                                            <span className="flex flex-wrap items-center gap-2 text-[10px]" style={{ color: theme.node.muted }}>
-                                                <span className="truncate">{item.subtitle}</span>
-                                                {!item.canStart && item.status !== "done" ? <span>不可执行</span> : null}
-                                            </span>
-                                        </span>
-                                        {current ? <Loader2 className="mt-0.5 size-3.5 shrink-0 animate-spin" style={{ color: theme.canvas.selectionStroke }} /> : null}
-                                        <button type="button" className="rounded border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }} onClick={() => onLocate(item.target, item.id)}>定位</button>
-                                    </div>
-                                );
+                <div className="flex min-h-0 flex-1">
+                    <aside className="thin-scrollbar hidden w-52 shrink-0 flex-col gap-4 overflow-y-auto border-r p-3 md:flex" style={{ borderColor: theme.node.stroke }}>
+                        <div className="flex flex-col gap-0.5">
+                            {TABS.map((entry) => (
+                                <button key={entry.value} type="button" className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs" style={{ background: tab === entry.value ? theme.canvas.selectionSoft : undefined, color: tab === entry.value ? theme.node.text : theme.node.muted }} onClick={() => changeTab(entry.value)}>
+                                    <span>{entry.label}</span>
+                                    <span className="font-mono text-[10px]">{tabCount(entry.value)}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            <span className="px-2.5 text-[10px] font-medium tracking-[0.12em] uppercase" style={{ color: theme.node.muted }}>分组</span>
+                            {groups.map((group) => {
+                                const key = groupKeyOf(group);
+                                const active = key === activeGroupKey;
+                                return <button key={key} type="button" className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px]" style={{ background: active ? theme.canvas.selectionSoft : undefined, color: active ? theme.node.text : theme.node.muted }} onClick={() => setGroupFilter(active ? null : key)}>
+                                    <span className="truncate">{group.label}</span>
+                                    <span className="shrink-0 font-mono text-[10px]">{group.items.length}</span>
+                                </button>;
                             })}
-                        </section>
-                    ))}
-                    {!activeItems.length ? <div className="grid min-h-[170px] place-items-center text-sm" style={{ color: theme.node.muted }}>{emptyLabel(tab)}</div> : null}
+                            {!groups.length ? <span className="px-2.5 text-[10px]" style={{ color: theme.node.muted }}>当前视图没有分组</span> : null}
+                        </div>
+                    </aside>
+                    <main className="flex min-h-0 flex-1 flex-col">
+                        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2" style={{ borderColor: theme.node.stroke }}>
+                            {plan.queue.assetRemaining || plan.queue.shotRemaining ? <span className="rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}>续跑：资产 {plan.queue.assetRemaining} · 镜头 {plan.queue.shotRemaining}</span> : null}
+                            {plan.warnings ? <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}><AlertTriangle className="size-2.5" />编译警告 {plan.warnings}</span> : null}
+                            <span className="ml-auto flex flex-wrap items-center gap-1 text-[10px]" style={{ color: theme.node.muted }}>
+                                <span className="rounded-full border px-2 py-0.5" style={{ borderColor: theme.node.stroke }}>选中资产 {selectedAssets.size} · 镜头 {selectedShots.size}</span>
+                                <button type="button" className="rounded-full border px-2 py-0.5 disabled:opacity-40" style={{ borderColor: theme.node.stroke }} disabled={running || !selectableItems.length} onClick={toggleAll}>{allSelectable ? "取消全选" : "全选可执行"}</button>
+                                <button type="button" className="rounded-full border px-2 py-0.5" style={{ borderColor: theme.node.stroke }} disabled={running} onClick={() => { setSelectedAssets(new Set()); setSelectedShots(new Set()); }}>清空</button>
+                            </span>
+                        </div>
+                        <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                            <div className="flex flex-col gap-5">
+                                {visibleGroups.map((group) => (
+                                    <section key={groupKeyOf(group)} className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 text-[11px]" style={{ color: theme.node.muted }}>
+                                            <span className="font-medium tracking-[0.12em] uppercase">{group.label}</span>
+                                            <span>{group.items.length} 项</span>
+                                            <span>· 已完成 {group.items.filter((item) => item.status === "done").length}</span>
+                                            <button type="button" className="ml-auto rounded-full border px-2 py-0.5 text-[10px] disabled:opacity-40" style={{ borderColor: theme.node.stroke }} disabled={running} onClick={() => selectGroup(group.items)}>选本组</button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                                            {group.items.map((item) => {
+                                                const checked = item.target === "asset" ? selectedAssets.has(item.id) : selectedShots.has(item.id);
+                                                const current = item.target === "asset"
+                                                    ? assetState.running && assetState.currentNodeId === item.id
+                                                    : shotBatch.running && shotBatch.currentShotId === item.id;
+                                                return item.target === "asset"
+                                                    ? <ProductionAssetCard key={`asset:${item.id}`} theme={theme} item={item} checked={checked} running={running} current={current} onToggle={toggle} onLocate={() => onLocate(item.target, item.id)} />
+                                                    : <ProductionShotCard key={`shot:${item.id}`} theme={theme} item={item} checked={checked} running={running} current={current} onToggle={toggle} onLocate={() => onLocate(item.target, item.id)} />;
+                                            })}
+                                        </div>
+                                    </section>
+                                ))}
+                                {!visibleGroups.length ? <div className="grid min-h-[200px] place-items-center text-sm" style={{ color: theme.node.muted }}>{emptyLabel(tab)}</div> : null}
+                            </div>
+                        </div>
+                    </main>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3" style={{ borderColor: theme.node.stroke }}>
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -224,12 +248,62 @@ export function FilmProductionCenter({ theme, plan, assetState, shotBatch, initi
     );
 }
 
-function StatusBadge({ theme, status }: { theme: CanvasTheme; status: FilmProductionPlanItem["status"] }) {
-    if (status === "done") return <span className="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: canvasStatusColors.success }}><CheckCircle2 className="size-2.5" />已完成</span>;
-    if (status === "failed") return <span className="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px]" style={{ borderColor: canvasStatusColors.error, color: canvasStatusColors.error }}><AlertTriangle className="size-2.5" />失败</span>;
-    if (status === "busy") return <span className="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px]" style={{ borderColor: canvasStatusColors.loading, color: canvasStatusColors.loading }}><Loader2 className="size-2.5 animate-spin" />生成中</span>;
-    if (status === "blocked") return <span className="rounded-full border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.muted }}>不可执行</span>;
-    return <span className="rounded-full border px-1.5 py-0.5 text-[10px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }}>可执行</span>;
+function ProductionAssetCard({ theme, item, checked, running, current, onToggle, onLocate }: { theme: CanvasTheme; item: FilmProductionAssetItem; checked: boolean; running: boolean; current: boolean; onToggle: (item: FilmProductionPlanItem) => void; onLocate: () => void }) {
+    const disabled = running || !item.canStart;
+    return (
+        <div role="button" tabIndex={disabled ? -1 : 0} aria-pressed={checked} aria-label={`选择资产 ${item.title}`} className={`group flex min-w-0 flex-col overflow-hidden rounded-xl border text-left transition ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`} style={{ borderColor: checked ? theme.canvas.selectionStroke : theme.node.stroke, background: theme.node.fill }} onClick={() => !disabled && onToggle(item)} onKeyDown={(event) => { if (!disabled && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onToggle(item); } }}>
+            <span className="relative block aspect-square w-full overflow-hidden" style={{ background: theme.node.panel }}>
+                <FilmAssetThumbnail asset={item.asset} className="absolute inset-0 h-full w-full" />
+                <CardSelection checked={checked} theme={theme} />
+                <button type="button" className="absolute right-2 top-2 grid size-7 place-items-center rounded-full opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100" style={{ background: "rgba(0,0,0,0.42)", color: "#fff" }} onClick={(event) => { event.stopPropagation(); onLocate(); }} aria-label={`定位 ${item.title}`}><Crosshair className="size-3.5" /></button>
+                {current ? <span className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.35)" }}><Loader2 className="size-5 animate-spin text-white" /></span> : null}
+            </span>
+            <span className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
+                <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate text-xs font-medium">{item.title}</span>
+                    <StatusText theme={theme} status={item.status} />
+                </span>
+                <span className="truncate text-[10px]" style={{ color: theme.node.muted }}>{item.subtitle}</span>
+                {item.reason && item.status !== "done" ? <span className="truncate text-[10px]" style={{ color: item.status === "failed" ? canvasStatusColors.error : theme.node.muted }}>{item.reason}</span> : null}
+            </span>
+        </div>
+    );
+}
+
+function ProductionShotCard({ theme, item, checked, running, current, onToggle, onLocate }: { theme: CanvasTheme; item: FilmProductionShotItem; checked: boolean; running: boolean; current: boolean; onToggle: (item: FilmProductionPlanItem) => void; onLocate: () => void }) {
+    const disabled = running || !item.canStart;
+    const mediaSrc = useResolvedMediaSrc(item.media?.url, item.media?.storageKey, item.kind === "video" ? "media" : "image");
+    return (
+        <div role="button" tabIndex={disabled ? -1 : 0} aria-pressed={checked} aria-label={`选择镜头 ${item.title}`} className={`group flex min-w-0 flex-col overflow-hidden rounded-xl border text-left transition ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`} style={{ borderColor: checked ? theme.canvas.selectionStroke : theme.node.stroke, background: theme.node.fill }} onClick={() => !disabled && onToggle(item)} onKeyDown={(event) => { if (!disabled && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onToggle(item); } }}>
+            <span className="relative block aspect-video w-full overflow-hidden" style={{ background: theme.node.panel }}>
+                {mediaSrc ? (item.kind === "video"
+                    ? <video src={mediaSrc} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" />
+                    : <img src={mediaSrc} alt={item.title} className="absolute inset-0 h-full w-full object-cover" />)
+                    : <span className="absolute inset-0 grid place-items-center text-[10px]" style={{ color: theme.node.placeholder }}>{item.kind === "video" ? "无视频" : "无分镜图"}</span>}
+                <CardSelection checked={checked} theme={theme} />
+                <button type="button" className="absolute right-2 top-2 grid size-7 place-items-center rounded-full opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100" style={{ background: "rgba(0,0,0,0.42)", color: "#fff" }} onClick={(event) => { event.stopPropagation(); onLocate(); }} aria-label={`定位镜头 ${item.title}`}><Crosshair className="size-3.5" /></button>
+                {current ? <span className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.35)" }}><Loader2 className="size-5 animate-spin text-white" /></span> : null}
+                <span className="absolute bottom-1.5 left-2 rounded px-1 py-0.5 font-mono text-[10px]" style={{ background: "rgba(0,0,0,0.45)", color: "#fff" }}>{item.title}</span>
+            </span>
+            <span className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
+                <span className="flex min-w-0 items-center gap-1.5">
+                    <StatusText theme={theme} status={item.status} />
+                    {item.reason && item.status !== "done" ? <span className="ml-auto truncate text-[10px]" style={{ color: item.status === "failed" ? canvasStatusColors.error : theme.node.muted }}>{item.reason}</span> : null}
+                </span>
+                <span className="truncate text-[10px]" style={{ color: theme.node.muted }}>{item.subtitle}</span>
+            </span>
+        </div>
+    );
+}
+
+function CardSelection({ checked, theme }: { checked: boolean; theme: CanvasTheme }) {
+    return <span className="absolute left-2 top-2 grid size-5 place-items-center rounded-full border transition" style={{ borderColor: checked ? theme.canvas.selectionStroke : "rgba(255,255,255,0.65)", background: checked ? theme.canvas.selectionStroke : "rgba(0,0,0,0.32)" }}>{checked ? <Check className="size-3 text-white" /> : null}</span>;
+}
+
+function StatusText({ theme, status }: { theme: CanvasTheme; status: FilmProductionPlanItem["status"] }) {
+    const color = status === "done" ? canvasStatusColors.success : status === "failed" ? canvasStatusColors.error : status === "busy" ? canvasStatusColors.loading : status === "blocked" ? theme.node.muted : theme.node.text;
+    const label = status === "done" ? "已完成" : status === "failed" ? "失败" : status === "busy" ? "生成中" : status === "blocked" ? "不可执行" : "可执行";
+    return <span className="inline-flex shrink-0 items-center gap-1 text-[10px]" style={{ color }}>{status === "busy" ? <Loader2 className="size-2.5 animate-spin" /> : <span className="size-1.5 rounded-full" style={{ background: color }} />}{label}</span>;
 }
 
 function ProgressRow({ theme, label, current, total, title, completed, failed, progress, onStop }: { theme: CanvasTheme; label: string; current: number; total: number; title: string; completed: number; failed: number; progress: number; onStop: () => void }) {

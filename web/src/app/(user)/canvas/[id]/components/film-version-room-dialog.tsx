@@ -77,18 +77,19 @@ export function FilmVersionRoomDialog({ theme, mode, kind, shots, activeShotId, 
                     <>
                         <div className="thin-scrollbar max-h-[68vh] overflow-y-auto px-5 py-4">
                             {shots.length ? (
-                                <div className="flex flex-col gap-3">
+                                <div className="grid gap-3 lg:grid-cols-2">
                                     {shots.map((shot) => {
                                         const currentIndex = shot.versions.findIndex((version) => version.id === shot.currentVersionId);
+                                        const pickedIndex = picks[shot.shotId] ? shot.versions.findIndex((version) => version.id === picks[shot.shotId]) : -1;
                                         return (
-                                            <section key={shot.shotId} className="rounded-lg border p-2.5" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
-                                                <div className="mb-2 flex items-center gap-2 text-[11px]">
+                                            <section key={shot.shotId} className="flex flex-col gap-2 rounded-lg border p-3" style={{ borderColor: picks[shot.shotId] ? theme.canvas.selectionStroke : theme.node.stroke, background: theme.node.fill }}>
+                                                <div className="flex flex-wrap items-center gap-2 text-[11px]">
                                                     <span className="font-mono tabular-nums" style={{ color: theme.node.text }}>#{shot.shotNo}</span>
                                                     <span style={{ color: theme.node.muted }}>{shot.versions.length} 个版本</span>
                                                     {currentIndex >= 0 ? <span style={{ color: theme.node.muted }}>当前 v{currentIndex + 1}</span> : null}
-                                                    <span className="ml-auto text-[10px]" style={{ color: theme.node.muted }}>{picks[shot.shotId] ? `已选 v${shot.versions.findIndex((version) => version.id === picks[shot.shotId]) + 1}` : "点击缩略图选择最佳"}</span>
+                                                    <span className="ml-auto text-[10px]" style={{ color: pickedIndex >= 0 ? theme.canvas.selectionStroke : theme.node.muted }}>{pickedIndex >= 0 ? `已选 v${pickedIndex + 1}` : "点击缩略图选择最佳"}</span>
                                                 </div>
-                                                <div className="thin-scrollbar flex gap-2 overflow-x-auto pb-1">
+                                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                                                     {shot.versions.map((version, index) => (
                                                         <VersionThumb key={version.id} theme={theme} kind={kind} version={version} index={index} current={version.id === shot.currentVersionId} picked={picks[shot.shotId] === version.id} onClick={() => onPick(shot.shotId, version.id)} />
                                                     ))}
@@ -168,7 +169,7 @@ function VersionPane({ theme, kind, version, versions, selectedId, onSelect, cur
 function VersionThumb({ theme, kind, version, index, current, picked, onClick }: { theme: CanvasTheme; kind: FilmVersionKind; version: FilmMediaVersion; index: number; current: boolean; picked: boolean; onClick: () => void }) {
     const src = useResolvedMediaSrc(version.url, version.storageKey, kind === "video" ? "media" : undefined);
     return (
-        <button type="button" className="relative w-32 shrink-0 overflow-hidden rounded-md border text-left" style={{ borderColor: picked ? theme.canvas.selectionStroke : theme.node.stroke, background: theme.canvas.background }} onClick={onClick} aria-pressed={picked}>
+        <button type="button" className="relative w-full overflow-hidden rounded-md border text-left" style={{ borderColor: picked ? theme.canvas.selectionStroke : theme.node.stroke, background: theme.canvas.background }} onClick={onClick} aria-pressed={picked}>
             <span className="relative grid aspect-video place-items-center">
                 {src ? (kind === "image" ? <img src={src} alt="" className="h-full w-full object-cover" /> : <video src={src} muted preload="metadata" className="h-full w-full object-cover" />) : <span className="text-[10px]" style={{ color: theme.node.muted }}>不可用</span>}
                 {kind === "video" ? <Play className="absolute size-5 text-white/85" /> : null}

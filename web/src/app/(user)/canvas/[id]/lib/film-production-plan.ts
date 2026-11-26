@@ -27,7 +27,12 @@ export type FilmProductionItem = {
 };
 
 export type FilmProductionAssetItem = FilmProductionItem & { target: "asset"; kind: "asset"; role: FilmContextCenterRole; asset: FilmAsset };
-export type FilmProductionShotItem = FilmProductionItem & { target: "shot"; kind: FilmShotBatchKind };
+export type FilmProductionShotItem = FilmProductionItem & {
+    target: "shot";
+    kind: FilmShotBatchKind;
+    /** 当前生成类型对应的媒体，用于制作中心缩略图。 */
+    media?: { url?: string; storageKey?: string };
+};
 export type FilmProductionPlanItem = FilmProductionAssetItem | FilmProductionShotItem;
 
 export type FilmProductionPlan = {
@@ -95,6 +100,7 @@ export function selectFilmProductionPlan(nodes: CanvasNodeData[], connections: C
     });
 
     const entries = selectFilmShotEntries(nodes, connections);
+    const shotById = new Map(entries.map((entry) => [entry.shot.id, entry.shot]));
     const shotPlan = planFilmShotProduction(entries, shotKind);
     const batch = planFilmShotBatch(nodes, connections, shotPlan.items.map((item) => item.shotId), shotKind, {
         maxReferences: shotKind === "image" ? options.imageMaxReferences ?? FILM_IMAGE_REFERENCE_LIMIT : options.videoMaxReferences ?? 8,
@@ -114,6 +120,7 @@ export function selectFilmProductionPlan(nodes: CanvasNodeData[], connections: C
                     : item.hasMedia
                         ? "done"
                         : "ready";
+        const payload = shotById.get(item.shotId)?.metadata?.filmShot;
         return {
             id: item.shotId,
             target: "shot",
@@ -126,6 +133,9 @@ export function selectFilmProductionPlan(nodes: CanvasNodeData[], connections: C
             canStart: readyIds.has(item.shotId),
             reason: item.status === "busy" ? "生成中" : skip ? skip.message : item.status === "failed" ? item.error || "上次生成失败" : item.hasMedia ? "已生成" : "",
             selected: shotSelection.has(item.shotId),
+            media: shotKind === "image"
+                ? { url: payload?.imageUrl, storageKey: payload?.storageKey }
+                : { url: payload?.videoUrl, storageKey: payload?.videoStorageKey },
         };
     });
 

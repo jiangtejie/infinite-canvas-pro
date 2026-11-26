@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import { canvasStatusColors } from "../../lib/canvas-palette";
 import type { CanvasNodeData } from "../../types";
+import { stopCanvasZoomWheel } from "../../utils/scroll-wheel-guard";
 import type { FilmNodeSummary } from "../lib/film-node-summary";
 
 export type FilmNodeShellAction = {
@@ -82,7 +83,7 @@ export function FilmNodeShell({ node, theme, summary, onTitleChange, actions = [
                     {collapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}
                 </button>
             </header>
-            {!collapsed ? <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto" onWheel={(event) => { const el = event.currentTarget; if (el.scrollHeight <= el.clientHeight + 1) return; const atTop = el.scrollTop <= 0; const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1; if ((event.deltaY < 0 && !atTop) || (event.deltaY > 0 && !atBottom)) event.stopPropagation(); }}>{children}</div> : (
+            {!collapsed ? <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto" onWheel={stopCanvasZoomWheel}>{children}</div> : (
                 <div className="min-h-0 flex-1 overflow-hidden px-3 py-2 text-xs" style={{ color: theme.node.muted }}>
                     <div className="line-clamp-2 break-words">{summary.description || "暂无摘要"}</div>
                 </div>

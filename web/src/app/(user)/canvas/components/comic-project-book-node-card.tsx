@@ -9,6 +9,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasComicMeta } from "../[id]/lib/comic-graph-types";
 import type { CanvasNodeData } from "../types";
 import { resolveComicPageSlots } from "../utils/comic-book-state";
+import { stopCanvasZoomWheel } from "../utils/scroll-wheel-guard";
 
 const STAGE_LABELS = { concept: "企划", cast: "设定", script: "剧本", layout: "页布局", review: "审稿" } as const;
 
@@ -42,7 +43,7 @@ export function ComicProjectBookNodeCard({ node, nodes, comic, onOpenWorkbench, 
 
     return (
         <div className="flex h-full w-full flex-col overflow-hidden text-left" style={{ color: theme.node.text }}>
-            <div className="flex min-h-0 flex-1 gap-2.5 p-3">
+            <div className="thin-scrollbar flex min-h-0 flex-1 gap-2.5 overflow-y-auto p-3" onWheel={stopCanvasZoomWheel}>
                 <div className="relative min-h-0 w-[46%] shrink-0 overflow-hidden rounded-xl border" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke }}>
                     {cover?.kind === "available" ? <ComicPageThumb node={cover.page} /> : <div className="flex size-full flex-col items-center justify-center gap-2" style={{ color: theme.node.muted }}><BookOpen className="size-8 opacity-60" /><span className="text-[11px]">还没有页面</span></div>}
                     <span className="absolute left-2 top-2 rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: theme.toolbar.panel, color: theme.node.text }}>封面</span>
@@ -80,7 +81,7 @@ export function ComicProjectBookNodeCard({ node, nodes, comic, onOpenWorkbench, 
                     </div>
                 </div>
             </div>
-            <div className="flex items-center gap-2 px-3 pb-3">
+            <div className="flex shrink-0 items-center gap-2 px-3 pb-3">
                 <button type="button" className="flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 truncate rounded-lg border px-2 text-[11px] font-medium" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke, color: theme.node.text }} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={(event) => { event.stopPropagation(); primary.action(); }}><ArrowUpRight className="size-3.5 shrink-0" />{primary.label}</button>
                 {validPages.length ? <button type="button" aria-label="直接贴字" className="grid size-8 shrink-0 place-items-center rounded-lg border" style={{ background: theme.toolbar.itemHover, borderColor: theme.node.stroke, color: theme.node.text }} onPointerDown={stopPointer} onMouseDown={stopPointer} onClick={(event) => { event.stopPropagation(); onEnterLettering(); }}><Captions className="size-3.5" /></button> : null}
             </div>
