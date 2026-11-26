@@ -45,6 +45,7 @@ export function buildFilmCanvasProject(title: string, context: FilmCanvasProject
         autoTitlePending: false,
         backgroundMode: "lines",
         showImageInfo: false,
+        showConnections: true,
         viewport: context.viewport,
         sidePanel: context.sidePanel,
         agentPanel: context.agentPanel,

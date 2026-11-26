@@ -408,6 +408,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     const setShortcutsOpen = useCanvasUiStore((state) => state.setShortcutsOpen);
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
     const [showImageInfo, setShowImageInfo] = useState(false);
+    const [showConnections, setShowConnections] = useState(true);
     const [sidePanel, setSidePanel] = useState(() => DEFAULT_CANVAS_SIDE_PANEL);
     const [projectLoaded, setProjectLoaded] = useState(false);
 
@@ -556,6 +557,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             setAgentConfig(project.agentConfig || null);
             setBackgroundMode(project.backgroundMode);
             setShowImageInfo(project.showImageInfo || false);
+            setShowConnections(project.showConnections !== false);
             didInitialCenterRef.current = restoredNodes.length > 0 || project.viewport.x !== 0 || project.viewport.y !== 0 || project.viewport.k !== 1;
             setViewport(project.viewport);
             setSidePanel(project.sidePanel || DEFAULT_CANVAS_SIDE_PANEL);
@@ -590,8 +592,8 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
     useEffect(() => {
         if (!projectLoaded || historyPausedRef.current) return;
-        updateProject(projectId, { nodes, connections, chatSessions, activeChatId, agentConfig, backgroundMode, showImageInfo });
-    }, [activeChatId, agentConfig, backgroundMode, chatSessions, connections, historyPausedRef, nodes, projectId, projectLoaded, showImageInfo, updateProject]);
+        updateProject(projectId, { nodes, connections, chatSessions, activeChatId, agentConfig, backgroundMode, showImageInfo, showConnections });
+    }, [activeChatId, agentConfig, backgroundMode, chatSessions, connections, historyPausedRef, nodes, projectId, projectLoaded, showImageInfo, showConnections, updateProject]);
 
     useEffect(() => {
         if (!hasLoadingTimedNodes) return;
@@ -3385,7 +3387,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         stage: {
             theme, nodes, selectedNodeIds, selectedImageCount, focusNode,
             addSelectedComicPages, handleUploadRequest, selectOnly,
-            containerRef, viewport, canvasTool, backgroundMode,
+            containerRef, viewport, canvasTool, backgroundMode, showConnections,
             alignmentGuides, focusAnimationRef, viewportRef, setViewport,
             setContextMenu, referencePickerNodeId, handleCanvasPointerDown, deselectCanvas,
             setNodeCreatePosition, screenToCanvas, preventCanvasContextMenu, handleDrop,
@@ -3438,7 +3440,11 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             theme, nodes, selectedNodeIds, sidePanel,
             historyState, handleUploadRequest, undoCanvas, redoCanvas,
             viewport, canvasTool, backgroundMode, setViewport,
-            setContextMenu, showImageInfo, closeOverlay, handleRetryNode,
+            setContextMenu, showImageInfo, showConnections,
+            onShowConnectionsChange: (show) => {
+                setShowConnections(show);
+                if (!show) setSelectedConnectionId(null);
+            }, closeOverlay, handleRetryNode,
             openOverlay, togglePromptOverlay, createNode, setAssetPickerTab,
             setAssetPickerOpen, openDirectorNode, directorPanoramasByNodeId, colorTheme,
             handleDirectorProjectChange, handleDirectorPanoramaRemoved, handleDirectorCapturesSent, handleDirectorVideoSent,

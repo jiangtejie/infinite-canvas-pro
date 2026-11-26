@@ -27,6 +27,7 @@ export function buildImportedCanvasProject(
         pendingAgentRequest: source.pendingAgentRequest,
         backgroundMode: source.backgroundMode || "lines",
         showImageInfo: source.showImageInfo || false,
+        showConnections: source.showConnections !== false,
         viewport: source.viewport || context.viewport,
         sidePanel: source.sidePanel || context.sidePanel,
         agentPanel: source.agentPanel || context.agentPanel,

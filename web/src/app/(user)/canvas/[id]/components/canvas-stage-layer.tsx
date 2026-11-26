@@ -97,6 +97,7 @@ export type CanvasStageModel = {
     openingBatchIds: Set<string>;
     batchMotionById: Map<string, { x: number; y: number; index: number; }>;
     showImageInfo: boolean;
+    showConnections: boolean;
     mentionReferencesByNodeId: Map<string, CanvasResourceReference[]>;
     canvasNow: number;
     configInputsById: Map<string, NodeGenerationInput[]>;
@@ -221,6 +222,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         openingBatchIds,
         batchMotionById,
         showImageInfo,
+        showConnections,
         mentionReferencesByNodeId,
         canvasNow,
         configInputsById,
@@ -526,7 +528,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 >
                     {model.backgroundLayer}
                     <svg className="absolute left-0 top-0 h-[10000px] w-[10000px] overflow-visible" style={{ pointerEvents: "none", transform: "translateZ(0)", zIndex: 6 }}>
-                        {connections
+                        {showConnections ? connections
                             .filter((connection) => {
                                 const from = nodeById.get(connection.fromNodeId);
                                 const to = nodeById.get(connection.toNodeId);
@@ -560,7 +562,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         }}
                                     />
                                 );
-                            })}
+                            }) : null}
                         {connectingParams ? <ActiveConnectionPath node={nodeById.get(connectingParams.nodeId)} handle={connectingParams} mouseWorld={mouseWorld} target={connectionTargetNodeId ? nodeById.get(connectionTargetNodeId) : undefined} /> : null}
                     </svg>
 

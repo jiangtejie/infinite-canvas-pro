@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch, Tooltip } from "antd";
-import { AlignCenterHorizontal, BookOpen, CircleDot, Copy, Ellipsis, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Plus, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
+import { AlignCenterHorizontal, BookOpen, CircleDot, Copy, Ellipsis, Eye, EyeOff, FolderOpen, Globe2, Grid2x2, Group, Hand, Image as ImageIcon, Images, Info, Layers3, Library, Link2, LoaderCircle, Moon, MousePointer2, Music2, Palette, Plus, Redo2, Send, Settings2, Square, Sun, Trash2, Type, Undo2, Ungroup, Upload, Video } from "lucide-react";
 
 import { CANVAS_SHORTCUT_LABELS } from "../utils/canvas-shortcuts";
 
@@ -28,6 +28,8 @@ export function CanvasToolbar({
     canRedo,
     backgroundMode,
     showImageInfo,
+    showConnections,
+    onShowConnectionsChange,
     onAddImage,
     onAddVideo,
     onAddAudio,
@@ -65,6 +67,8 @@ export function CanvasToolbar({
     canRedo: boolean;
     backgroundMode: CanvasBackgroundMode;
     showImageInfo: boolean;
+    showConnections: boolean;
+    onShowConnectionsChange: (show: boolean) => void;
     onAddImage: () => void;
     onAddVideo: () => void;
     onAddAudio: () => void;
@@ -205,6 +209,9 @@ export function CanvasToolbar({
                         </Tooltip>
                     </>
                 ) : null}
+                <Tooltip title={showConnections ? "隐藏连线（只影响显示，不删除连线）" : "显示连线"} placement="top">
+                    <Button type="text" aria-label={showConnections ? "隐藏连线" : "显示连线"} aria-pressed={showConnections} className="!size-10 !min-w-10 !p-0" style={{ color: theme.toolbar.item, opacity: showConnections ? 1 : 0.5 }} icon={showConnections ? <Eye className="size-4.5" /> : <EyeOff className="size-4.5" />} onClick={() => onShowConnectionsChange(!showConnections)} />
+                </Tooltip>
                 <Button data-canvas-dock-trigger type="text" aria-label="画布外观" aria-haspopup="dialog" aria-expanded={openMenu === "appearance"} className="!size-10 !min-w-10 !p-0" style={openMenu === "appearance" ? activeStyle : { color: theme.toolbar.item }} icon={<Palette className="size-4.5" />} onClick={(event) => toggleMenu("appearance", event)} />
                 {selectedCount > 0 || selectedHasGroup ? <>
                     <Divider theme={theme} />

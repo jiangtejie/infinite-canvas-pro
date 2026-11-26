@@ -39,6 +39,8 @@ export type CanvasProject = {
     pendingAgentRequest?: CanvasPendingAgentRequest;
     backgroundMode: CanvasBackgroundMode;
     showImageInfo: boolean;
+    /** 画布是否显示节点连线；只影响显示，不删除连线数据。 */
+    showConnections: boolean;
     viewport: ViewportTransform;
     sidePanel: CanvasSidePanelState;
     agentPanel: CanvasSidePanelState;
@@ -59,7 +61,7 @@ type CanvasStore = {
     openProject: (id: string) => CanvasProject | null;
     renameProject: (id: string, title: string) => void;
     deleteProjects: (ids: string[]) => void;
-    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest" | "domain" | "film" | "comic">>) => void;
+    updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "agentConfig" | "autoTitlePending" | "backgroundMode" | "showImageInfo" | "showConnections" | "viewport" | "sidePanel" | "agentPanel" | "pendingAgentRequest" | "domain" | "film" | "comic">>) => void;
     syncWithRemote: (token: string, syncEnabled: boolean) => Promise<void>;
     setSyncEnabled: (enabled: boolean) => void;
     retrySave: () => void;
@@ -315,6 +317,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     pendingAgentRequest: options?.pendingAgentRequest,
                     backgroundMode: "lines",
                     showImageInfo: false,
+                    showConnections: true,
                     viewport: initialViewport,
                     sidePanel: DEFAULT_CANVAS_SIDE_PANEL,
                     agentPanel: options?.pendingAgentRequest ? { ...DEFAULT_CANVAS_AGENT_PANEL, open: true } : DEFAULT_CANVAS_AGENT_PANEL,

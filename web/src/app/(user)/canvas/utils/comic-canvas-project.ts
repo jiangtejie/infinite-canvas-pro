@@ -43,6 +43,7 @@ export function buildComicCanvasProject(title: string, context: ComicCanvasProje
         autoTitlePending: false,
         backgroundMode: "lines",
         showImageInfo: false,
+        showConnections: true,
         viewport: context.viewport,
         sidePanel: context.sidePanel,
         agentPanel: context.agentPanel,

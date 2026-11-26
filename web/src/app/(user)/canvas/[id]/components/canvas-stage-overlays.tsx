@@ -43,6 +43,8 @@ export type CanvasStageOverlaysModel = {
     setViewport: Dispatch<SetStateAction<ViewportTransform>>;
     setContextMenu: Dispatch<SetStateAction<ContextMenuState | null>>;
     showImageInfo: boolean;
+    showConnections: boolean;
+    onShowConnectionsChange: (show: boolean) => void;
     closeOverlay: () => void;
     handleRetryNode: (node: CanvasNodeData) => Promise<void>;
     openOverlay: (overlay: CanvasOverlay) => void;
@@ -170,6 +172,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
         setCanvasTool,
         setBackgroundMode,
         setShowImageInfo,
+        showConnections,
+        onShowConnectionsChange,
         isMiniMapOpen,
         size,
         setZoomScale,
@@ -266,6 +270,8 @@ export function CanvasStageOverlays({ model }: { model: CanvasStageOverlaysModel
                     canRedo={historyState.canRedo}
                     backgroundMode={backgroundMode}
                     showImageInfo={showImageInfo}
+                    showConnections={showConnections}
+                    onShowConnectionsChange={onShowConnectionsChange}
                     onAddImage={() => createNode(CanvasNodeType.Image)}
                     onAddVideo={() => createNode(CanvasNodeType.Video)}
                     onAddAudio={() => createNode(CanvasNodeType.Audio)}
