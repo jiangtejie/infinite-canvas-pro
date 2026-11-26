@@ -1,11 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Select } from "antd";
-import { ArrowUpRight, ChevronDown, ChevronUp, Clapperboard, Search } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronUp, Clapperboard, Search, Settings2 } from "lucide-react";
 
 import type { CanvasTheme } from "@/lib/canvas-theme";
-import { useFilmViewState, useFilmViewStore, type FilmViewState } from "@/app/(user)/canvas/stores/use-film-view-store";
+import { useFilmViewState, useFilmViewStore, type FilmTableColumn, type FilmViewState } from "@/app/(user)/canvas/stores/use-film-view-store";
 import { patchFilmShotNode } from "../lib/film-node-patch";
 import type { FilmShotNodeData } from "../../types";
 import type { FilmDirectorBoardModel } from "../lib/film-studio-types";
@@ -15,8 +15,19 @@ import { FilmShotMediaBadges } from "./film-shot-media-badges";
 import { FilmShotProfessionalFields } from "./film-shot-professional-fields";
 import { FilmShotSelectionBar } from "./film-shot-selection-bar";
 
-const COLUMNS = "36px 64px 118px 92px 112px 56px minmax(190px,1.6fr) minmax(150px,1.2fr) minmax(110px,0.9fr) minmax(90px,0.65fr) minmax(100px,0.7fr) minmax(100px,0.7fr) minmax(100px,0.7fr) 92px 78px 76px";
-const TABLE_MIN_WIDTH = 1564;
+type OptionalColumnSpec = { key: FilmTableColumn; label: string; width: string };
+const OPTIONAL_COLUMNS: OptionalColumnSpec[] = [
+    { key: "dialogue", label: "台词", width: "minmax(150px,1.1fr)" },
+    { key: "characters", label: "角色", width: "minmax(110px,0.85fr)" },
+    { key: "props", label: "道具", width: "minmax(90px,0.6fr)" },
+    { key: "location", label: "场景", width: "minmax(100px,0.65fr)" },
+    { key: "imageNotes", label: "影像", width: "minmax(110px,0.7fr)" },
+    { key: "soundNotes", label: "声音", width: "minmax(110px,0.7fr)" },
+    { key: "transition", label: "转场", width: "100px" },
+];
+const BASE_COLUMNS = ["36px", "64px", "64px", "92px", "112px", "56px", "minmax(240px,1.8fr)"];
+const ACTION_COLUMN = "140px";
+const BASE_HEADERS = ["镜号", "场次", "景别", "运镜", "时长", "画面描述"];
 const STATUS_OPTIONS: Array<{ value: FilmShotMediaFilter; label: string }> = [
     { value: "all", label: "全部状态" },
     { value: "none", label: "未生成" },
@@ -35,6 +46,13 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
     const status = viewState.tableStatus;
     const query = viewState.tableQuery;
     const expandedShotId = viewState.expandedShotId;
+    const tableExtraColumns = viewState.tableExtraColumns;
+    const visibleOptionalColumns = OPTIONAL_COLUMNS.filter((column) => tableExtraColumns.includes(column.key));
+    const columnWidths = [...BASE_COLUMNS, ...visibleOptionalColumns.map((column) => column.width), ACTION_COLUMN];
+    const gridTemplateColumns = columnWidths.join(" ");
+    const tableMinWidth = columnWidths.reduce((sum, width) => sum + columnMinWidth(width), 0);
+    const [columnsOpen, setColumnsOpen] = useState(false);
+    const columnsMenuRef = useRef<HTMLDivElement>(null);
     const selected = useMemo(() => {
         const valid = new Set(model.shots.map((entry) => entry.shot.id));
         return new Set([...viewState.selectedShotIds].filter((id) => valid.has(id)));
@@ -65,6 +83,19 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
     });
     const changeFilter = (patch: Partial<Pick<FilmViewState, "tableSceneId" | "tableStatus" | "tableQuery">>) => updateView(model.projectId, (current) => ({ ...current, ...patch, selectedShotIds: new Set() }));
     const clearSelection = () => updateView(model.projectId, (current) => ({ ...current, selectedShotIds: new Set() }));
+    const toggleColumn = (key: FilmTableColumn) => updateView(model.projectId, (current) => ({
+        ...current,
+        tableExtraColumns: current.tableExtraColumns.includes(key) ? current.tableExtraColumns.filter((column) => column !== key) : [...current.tableExtraColumns, key],
+    }));
+
+    useEffect(() => {
+        if (!columnsOpen) return;
+        const closeOnOutsidePointer = (event: PointerEvent) => {
+            if (!columnsMenuRef.current?.contains(event.target as Node)) setColumnsOpen(false);
+        };
+        document.addEventListener("pointerdown", closeOnOutsidePointer);
+        return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    }, [columnsOpen]);
 
     useEffect(() => {
         if (selectAllRef.current) selectAllRef.current.indeterminate = selected.size > 0 && !allSelected;
@@ -85,16 +116,34 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                     </div>
                     <Select size="small" variant="borderless" className="w-[140px]" value={sceneId} options={sceneOptions} onChange={(value) => changeFilter({ tableSceneId: value })} aria-label="筛选场次" />
                     <Select size="small" variant="borderless" className="w-[120px]" value={status} options={STATUS_OPTIONS} onChange={(value) => changeFilter({ tableStatus: value })} aria-label="筛选状态" />
+                    <div className="relative">
+                        <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: theme.node.stroke, color: theme.node.text }} onClick={() => setColumnsOpen((value) => !value)} aria-expanded={columnsOpen} aria-label="列设置">
+                            <Settings2 className="size-3" />列{visibleOptionalColumns.length ? ` ${visibleOptionalColumns.length}` : ""}
+                        </button>
+                        {columnsOpen ? (
+                            <div ref={columnsMenuRef} className="absolute right-0 top-8 z-30 w-44 rounded-lg border p-1 shadow-xl" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
+                                <div className="px-2 py-1 text-[10px]" style={{ color: theme.node.muted }}>可选列（核心 8 列常显）</div>
+                                {OPTIONAL_COLUMNS.map((column) => (
+                                    <label key={column.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-[11px]" style={{ color: theme.node.text }}>
+                                        <input type="checkbox" checked={tableExtraColumns.includes(column.key)} onChange={() => toggleColumn(column.key)} />
+                                        {column.label}
+                                    </label>
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
                 </div>
             </div>
             {model.shots.length ? (
                 <div className="thin-scrollbar min-h-0 flex-1 overflow-auto">
-                    <div style={{ minWidth: TABLE_MIN_WIDTH, "--film-row-hover": theme.node.fill } as CSSProperties}>
-                        <div className="sticky top-0 z-10 grid border-b text-[11px] font-medium" style={{ gridTemplateColumns: COLUMNS, borderColor: theme.node.stroke, background: theme.node.panel, color: theme.node.muted }}>
+                    <div style={{ minWidth: tableMinWidth, "--film-row-hover": theme.node.fill } as CSSProperties}>
+                        <div className="sticky top-0 z-10 grid border-b text-[11px] font-medium" style={{ gridTemplateColumns, borderColor: theme.node.stroke, background: theme.node.panel, color: theme.node.muted }}>
                             <div className="grid place-items-center px-2 py-2">
                                 <input ref={selectAllRef} type="checkbox" className="size-4" checked={allSelected} onChange={toggleAll} aria-label="全选镜头" />
                             </div>
-                            {["镜号", "场次", "景别", "运镜", "时长", "画面描述", "台词", "角色", "道具", "场景", "影像", "声音", "转场", "媒体", "操作"].map((label) => <div key={label} className="px-2 py-2">{label}</div>)}
+                            {BASE_HEADERS.map((label) => <div key={label} className="px-2 py-2">{label}</div>)}
+                            {visibleOptionalColumns.map((column) => <div key={column.key} className="px-2 py-2">{column.label}</div>)}
+                            <div className="px-2 py-2 text-right">媒体与操作</div>
                         </div>
                         {filteredShots.length ? filteredShots.map((entry) => {
                             const payload = entry.shot.metadata?.filmShot;
@@ -113,7 +162,7 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                         role="button"
                                         tabIndex={0}
                                         className="grid cursor-default items-center border-b text-xs transition-colors hover:bg-[var(--film-row-hover)]"
-                                        style={{ gridTemplateColumns: COLUMNS, borderColor: theme.node.stroke, background: active ? theme.canvas.selectionSoft : undefined, color: theme.node.text }}
+                                        style={{ gridTemplateColumns, borderColor: theme.node.stroke, background: active ? theme.canvas.selectionSoft : undefined, color: theme.node.text }}
                                         onClick={() => model.onSelectShot(entry.shot.id)}
                                         onDoubleClick={(event) => {
                                             if ((event.target as HTMLElement).closest("input, textarea, select, button, label")) return;
@@ -128,31 +177,24 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                             <input type="checkbox" className="size-4" checked={selected.has(entry.shot.id)} onChange={() => toggleSelected(entry.shot.id)} onClick={(event) => event.stopPropagation()} aria-label={`选择镜头 ${payload?.shotNo || entry.shot.title}`} />
                                         </div>
                                         <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.shotNo || ""} onChange={(event) => update(entry.shot.id, { shotNo: event.target.value })} aria-label="镜号" /></div>
-                                        <div className="min-w-0 px-2 py-1.5">
-                                            <div className="truncate">{entry.sceneLabel}</div>
-                                            {entry.episodeTitle ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>{entry.episodeTitle}</div> : null}
-                                        </div>
+                                        <div className="min-w-0 px-2 py-1.5"><div className="truncate font-mono text-[11px]" title={entry.sceneLabel} style={{ color: theme.node.muted }}>{shortSceneLabel(entry.sceneLabel)}</div></div>
                                         <div className="px-2 py-1.5">
                                             <FilmShotTypeControl variant="table" value={payload?.shotType} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { shotType: value })} ariaLabel="景别" />
                                         </div>
                                         <div className="px-2 py-1.5"><FilmCameraMovementControl variant="table" value={payload?.cameraMovement} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { cameraMovement: value })} ariaLabel="运镜" /></div>
                                         <div className="px-2 py-1.5"><input type="number" min={1} max={60} className="w-12 bg-transparent px-0.5 py-0.5 outline-none tabular-nums" style={{ color: theme.node.text }} value={payload?.duration ?? 4} onChange={(event) => update(entry.shot.id, { duration: Number(event.target.value) || 1 })} aria-label="时长" /></div>
                                         <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.description || ""} onChange={(event) => update(entry.shot.id, { description: event.target.value })} aria-label="描述" /></div>
-                                        <div className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.dialogue || ""} onChange={(event) => update(entry.shot.id, { dialogue: event.target.value })} aria-label="台词" /></div>
-                                        <div className="min-w-0 px-2 py-1.5">
-                                            <div className="truncate" title={characters.join("、")} style={{ color: characters.length ? theme.node.text : theme.node.muted }}>{characters.join("、") || "—"}</div>
-                                            {emotion ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>情绪 · {emotion}</div> : null}
-                                        </div>
-                                        <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={props.join("、")} style={{ color: props.length ? theme.node.text : theme.node.muted }}>{props.join("、") || "—"}</div></div>
-                                        <div className="min-w-0 px-2 py-1.5">
-                                            <div className="truncate" title={locationContext?.name || ""} style={{ color: locationContext?.name ? theme.node.text : theme.node.muted }}>{locationContext?.name || "—"}</div>
-                                            {locationContext?.variantName ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>{locationContext.variantName}</div> : null}
-                                        </div>
-                                        <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={imageNotes} style={{ color: imageNotes ? theme.node.text : theme.node.muted }}>{imageNotes || "—"}</div></div>
-                                        <div className="min-w-0 px-2 py-1.5"><div className="truncate" title={soundNotes} style={{ color: soundNotes ? theme.node.text : theme.node.muted }}>{soundNotes || "—"}</div></div>
-                                        <div className="px-2 py-1.5"><FilmTransitionControl variant="table" value={payload?.transition} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { transition: value })} ariaLabel="转场" /></div>
-                                        <div className="px-2 py-1.5"><FilmShotMediaBadges theme={theme} shot={entry.shot} compact /></div>
-                                        <div className="flex justify-end gap-1 px-2 py-1.5">
+                                        {visibleOptionalColumns.map((column) => {
+                                            if (column.key === "dialogue") return <div key={column.key} className="px-2 py-1.5"><input className="w-full bg-transparent px-0.5 py-0.5 outline-none" style={{ color: theme.node.text }} value={payload?.dialogue || ""} onChange={(event) => update(entry.shot.id, { dialogue: event.target.value })} aria-label="台词" /></div>;
+                                            if (column.key === "characters") return <div key={column.key} className="min-w-0 px-2 py-1.5"><div className="truncate" title={characters.join("、")} style={{ color: characters.length ? theme.node.text : theme.node.muted }}>{characters.join("、") || "—"}</div>{emotion ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>情绪 · {emotion}</div> : null}</div>;
+                                            if (column.key === "props") return <div key={column.key} className="min-w-0 px-2 py-1.5"><div className="truncate" title={props.join("、")} style={{ color: props.length ? theme.node.text : theme.node.muted }}>{props.join("、") || "—"}</div></div>;
+                                            if (column.key === "location") return <div key={column.key} className="min-w-0 px-2 py-1.5"><div className="truncate" title={locationContext?.name || ""} style={{ color: locationContext?.name ? theme.node.text : theme.node.muted }}>{locationContext?.name || "—"}</div>{locationContext?.variantName ? <div className="truncate text-[10px]" style={{ color: theme.node.muted }}>{locationContext.variantName}</div> : null}</div>;
+                                            if (column.key === "imageNotes") return <div key={column.key} className="min-w-0 px-2 py-1.5"><div className="truncate" title={imageNotes} style={{ color: imageNotes ? theme.node.text : theme.node.muted }}>{imageNotes || "—"}</div></div>;
+                                            if (column.key === "soundNotes") return <div key={column.key} className="min-w-0 px-2 py-1.5"><div className="truncate" title={soundNotes} style={{ color: soundNotes ? theme.node.text : theme.node.muted }}>{soundNotes || "—"}</div></div>;
+                                            return <div key={column.key} className="px-2 py-1.5"><FilmTransitionControl variant="table" value={payload?.transition} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { transition: value })} ariaLabel="转场" /></div>;
+                                        })}
+                                        <div className="flex items-center justify-end gap-1.5 px-2 py-1.5">
+                                            <FilmShotMediaBadges theme={theme} shot={entry.shot} compact />
                                             <button type="button" className="grid size-6 place-items-center rounded border" style={{ borderColor: isExpanded ? theme.canvas.selectionStroke : theme.node.stroke, color: isExpanded ? theme.node.text : theme.node.muted }} onClick={(event) => { event.stopPropagation(); toggleExpanded(entry.shot.id); }} aria-label={isExpanded ? "收起专业详情" : "展开专业详情"} title={isExpanded ? "收起专业详情" : "展开专业详情"} aria-expanded={isExpanded}>
                                                 {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
                                             </button>
@@ -161,7 +203,21 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
                                             </button>
                                         </div>
                                     </div>
-                                    {isExpanded ? <FilmShotProfessionalFields theme={theme} payload={payload} onUpdate={(patch) => update(entry.shot.id, patch)} onClose={() => toggleExpanded(entry.shot.id)} /> : null}
+                                    {isExpanded ? (
+                                        <>
+                                            <div className="grid gap-3 border-b px-4 py-3 md:grid-cols-2" style={{ borderColor: theme.node.stroke, background: theme.node.fill }}>
+                                                <label className="flex flex-col gap-1">
+                                                    <span className="text-[11px]" style={{ color: theme.node.muted }}>台词</span>
+                                                    <textarea rows={2} className="thin-scrollbar w-full resize-y rounded-md border bg-transparent px-2 py-1 text-xs leading-5 outline-none" style={{ borderColor: theme.node.stroke, color: theme.node.text }} value={payload?.dialogue || ""} onChange={(event) => update(entry.shot.id, { dialogue: event.target.value })} aria-label="台词" />
+                                                </label>
+                                                <label className="flex flex-col gap-1">
+                                                    <span className="text-[11px]" style={{ color: theme.node.muted }}>转场</span>
+                                                    <FilmTransitionControl variant="table" value={payload?.transition} style={{ color: theme.node.text }} onChange={(value) => update(entry.shot.id, { transition: value })} ariaLabel="转场" />
+                                                </label>
+                                            </div>
+                                            <FilmShotProfessionalFields theme={theme} payload={payload} onUpdate={(patch) => update(entry.shot.id, patch)} onClose={() => toggleExpanded(entry.shot.id)} />
+                                        </>
+                                    ) : null}
                                 </Fragment>
                             );
                         }) : (
@@ -178,5 +234,16 @@ export function FilmShotTableView({ theme, model }: { theme: CanvasTheme; model:
             <FilmShotSelectionBar theme={theme} count={selected.size} running={model.shotBatch.running} onOpenProduction={() => model.onOpenProduction({ shotIds: [...selected] })} onSaveGroup={() => model.onSaveShotGroup([...selected])} onClear={clearSelection} />
         </div>
     );
+}
+
+function columnMinWidth(width: string) {
+    const match = width.match(/(\d+)px/);
+    return match ? Number(match[1]) : 100;
+}
+
+/** 场次列只保留 “1-1” 短编号；完整场名由 title 提供。 */
+function shortSceneLabel(label: string) {
+    const match = label.match(/(\d+\s*[-－]\s*\d+)/);
+    return match ? match[1].replace(/\s*[-－]\s*/, "-") : label;
 }
 

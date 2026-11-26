@@ -2,10 +2,14 @@ import { create } from "zustand";
 
 import type { FilmShotMediaFilter } from "../[id]/lib/film-shot-views";
 
+export type FilmTableColumn = "dialogue" | "characters" | "props" | "location" | "imageNotes" | "soundNotes" | "transition";
+
 export type FilmViewState = {
     tableSceneId: string;
     tableStatus: FilmShotMediaFilter;
     tableQuery: string;
+    /** 镜头表在核心 8 列之外额外显示的列。 */
+    tableExtraColumns: FilmTableColumn[];
     boardColumns: 4 | 9;
     selectedShotIds: Set<string>;
     expandedShotId: string | null;
@@ -18,6 +22,7 @@ const EMPTY_FILM_VIEW_STATE: FilmViewState = {
     tableSceneId: "all",
     tableStatus: "all",
     tableQuery: "",
+    tableExtraColumns: [],
     boardColumns: 4,
     selectedShotIds: new Set(),
     expandedShotId: null,
