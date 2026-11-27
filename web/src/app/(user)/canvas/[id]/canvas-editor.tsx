@@ -38,7 +38,7 @@ import { NODE_STATUS_LOADING, NODE_STATUS_SUCCESS, VIDEO_NODE_MAX_HEIGHT, VIDEO_
 import { fitCanvasMediaNode, resetInterruptedGeneration } from "./lib/canvas-task-updates";
 import { normalizeConnection } from "./lib/canvas-connections";
 import { canAddFilmConnection } from "./lib/film-connections";
-import { arrangeFilmDirectorBoard } from "./lib/film-layout";
+import { arrangeFilmDirectorBoard, placeFilmNodes } from "./lib/film-layout";
 import { appendFilmShot } from "./lib/film-shot-create";
 import { addFilmContextEdge, removeFilmContextEdge, updateFilmContextEdge } from "./lib/film-context-edges";
 import { moveFilmShotAcrossScenes } from "./lib/film-shot-reorder";
@@ -886,7 +886,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
                 selectOnly(existing.id);
                 return;
             }
-            const node = createCanvasNode(CanvasNodeType.FilmStyle, getCanvasCenter());
+            const node = placeFilmNodes(nodesRef.current, connectionsRef.current, [createCanvasNode(CanvasNodeType.FilmStyle, getCanvasCenter())])[0];
             setNodes((prev) => [...prev, node]);
             selectOnly(node.id);
             setSelectedConnectionId(null);
@@ -904,7 +904,9 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             message.warning(result.error);
             return;
         }
-        setNodes(result.nodes);
+        const createdNode = result.nodes.find((node) => node.id === result.nodeId);
+        const placedNode = createdNode ? placeFilmNodes(nodesRef.current, connectionsRef.current, [createdNode])[0] : null;
+        setNodes(placedNode ? result.nodes.map((node) => node.id === placedNode.id ? placedNode : node) : result.nodes);
         setConnections(result.connections);
         selectOnly(result.nodeId);
         setSelectedConnectionId(null);
@@ -922,8 +924,6 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         }
         const imported = importFilmAsset([], entry)[0];
         if (!imported) return;
-        const source = filmInspectorNode;
-        const target = source ? { x: source.position.x + 260, y: source.position.y } : getCanvasCenter();
         const nodeType = kind === "character" ? CanvasNodeType.FilmCharacter
             : kind === "location" ? CanvasNodeType.FilmLocation
                 : kind === "prop" ? CanvasNodeType.FilmProp
@@ -932,12 +932,12 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             : kind === "location" ? { filmLocation: { asset: imported } }
                 : kind === "prop" ? { filmProp: { asset: imported } }
                     : { filmStyle: { asset: imported } };
-        const node = createCanvasNode(nodeType, target, metadata);
+        const node = placeFilmNodes(nodesRef.current, connectionsRef.current, [createCanvasNode(nodeType, getCanvasCenter(), metadata)])[0];
         setNodes((prev) => [...prev, node]);
         selectOnly(node.id);
         setSelectedConnectionId(null);
         setFilmInspectorNodeId(node.id);
-    }, [filmInspectorNode, getCanvasCenter, message, nodesRef, selectOnly, setFilmInspectorNodeId, setSelectedConnectionId, setNodes]);
+    }, [getCanvasCenter, message, nodesRef, connectionsRef, selectOnly, setFilmInspectorNodeId, setSelectedConnectionId, setNodes]);
 
     const updateFilmAsset = useCallback((nodeId: string, updater: (asset: FilmAsset) => FilmAsset) => {
         setNodes((prev) => prev.map((node) => node.id === nodeId ? updateFilmContextAssetNode(node, updater) : node));
@@ -2335,8 +2335,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
     const closeFilmShotFocus = useCallback(() => setShotFocusOpen(false), []);
 
-    const createFilmShotAsset = useCallback((shotId: string, kind: FilmShotContextCreatableKind) => {
-        const role = kind;
+    const createFilmShotAsset = useCallback((shotId: string, kind: FilmShotContextCreatableKind) => {        const role = kind;
         const contextNodeType = {
             character: CanvasNodeType.FilmCharacter,
             location: CanvasNodeType.FilmLocation,
@@ -2348,9 +2347,9 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             prop: "filmProp",
         }[role];
         const count = nodesRef.current.filter((node) => node.type === contextNodeType).length;
-        const node = createCanvasNode(contextNodeType, getCanvasCenter(), {
+        const node = placeFilmNodes(nodesRef.current, connectionsRef.current, [createCanvasNode(contextNodeType, getCanvasCenter(), {
             [contextKey]: { asset: createFilmAsset(kind, count + 1) },
-        });
+        })])[0];
         const result = addFilmContextEdge([...nodesRef.current, node], connectionsRef.current, node.id, shotId, { role, source: "manual" });
         if ("error" in result) {
             message.warning(result.error);
@@ -2677,7 +2676,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         const createdIds = result.createdNodes.map((node) => node.id);
         const previousSelection = new Set(selectedNodeIdsRef.current);
         selectMany(createdIds);
-        window.setTimeout(() => fitNodesToView(result.createdNodes), 80);
+        window.setTimeout(() => fitNodesToView(nextNodes), 80);
         window.setTimeout(() => {
             const current = selectedNodeIdsRef.current;
             if (current.size === createdIds.length && createdIds.every((id) => current.has(id))) selectMany(previousSelection);

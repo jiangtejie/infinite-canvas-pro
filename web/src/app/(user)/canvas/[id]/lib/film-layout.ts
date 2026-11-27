@@ -6,6 +6,10 @@ export const FILM_LAYOUT = {
     columnWidth: 1080,
     sceneHeight: 280,
     shotGap: 40,
+    /** 单场镜头超过该数量时，列内按左右两列排布，避免一条超长竖链。 */
+    shotGridThreshold: 6,
+    /** 两列镜头之间的水平间距。 */
+    shotColumnGap: 60,
     /** 上下文带位于所有场次列左侧，不遮挡主链。 */
     contextX: -880,
     contextRowHeight: 480,
@@ -14,8 +18,41 @@ export const FILM_LAYOUT = {
     beatRowHeight: 460,
 } as const;
 
-function shotHeight(node: CanvasNodeData) {
+export function shotHeight(node: CanvasNodeData) {
     return node.height || NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].height;
+}
+
+function shotWidth(node: CanvasNodeData) {
+    return node.width || NODE_DEFAULT_SIZE[CanvasNodeType.FilmShot].width;
+}
+
+/**
+ * 场次列内镜头位置：默认单列向下；两列时按列优先（左列前半、右列后半），
+ * 全片 sequence 只会跨列一次，减少连线回折。
+ */
+export function layoutSceneShotColumns(sceneX: number, sceneY: number, shots: CanvasNodeData[], twoColumn: boolean): Map<string, { x: number; y: number }> {
+    const positions = new Map<string, { x: number; y: number }>();
+    if (!twoColumn || shots.length < 2) {
+        let y = sceneY + FILM_LAYOUT.sceneHeight;
+        shots.forEach((shot) => {
+            positions.set(shot.id, { x: sceneX, y });
+            y += shotHeight(shot) + FILM_LAYOUT.shotGap;
+        });
+        return positions;
+    }
+    const leftCount = Math.ceil(shots.length / 2);
+    const columnOffset = Math.max(...shots.map(shotWidth)) + FILM_LAYOUT.shotColumnGap;
+    [0, 1].forEach((column) => {
+        const start = column === 0 ? 0 : leftCount;
+        const end = column === 0 ? leftCount : shots.length;
+        let y = sceneY + FILM_LAYOUT.sceneHeight;
+        for (let index = start; index < end; index += 1) {
+            const shot = shots[index];
+            positions.set(shot.id, { x: sceneX + column * columnOffset, y });
+            y += shotHeight(shot) + FILM_LAYOUT.shotGap;
+        }
+    });
+    return positions;
 }
 
 function byPosition(a: CanvasNodeData, b: CanvasNodeData) {
@@ -132,13 +169,12 @@ export function placeFilmNodes(nodes: CanvasNodeData[], connections: CanvasConne
         const scene = sceneById.get(sceneId);
         const sceneX = assigned?.x ?? scene?.position.x ?? 0;
         const sceneY = assigned?.y ?? scene?.position.y ?? 0;
-        const existing = (existingShotsByScene.get(sceneId) ?? []).slice().sort(byPosition);
-        let y = existing.length
-            ? Math.max(...existing.map((shot) => shot.position.y + shotHeight(shot))) + FILM_LAYOUT.shotGap
-            : sceneY + FILM_LAYOUT.sceneHeight;
-        shots.forEach((shot) => {
-            positions.set(shot.id, { x: sceneX, y });
-            y += shotHeight(shot) + FILM_LAYOUT.shotGap;
+        const existing = orderFilmShots(existingShotsByScene.get(sceneId) ?? [], connections);
+        const existingTwoColumn = existing.some((shot) => Math.abs(shot.position.x - sceneX) > 1);
+        const twoColumn = existing.length ? existingTwoColumn : shots.length > FILM_LAYOUT.shotGridThreshold;
+        const createdIds = new Set(shots.map((shot) => shot.id));
+        layoutSceneShotColumns(sceneX, sceneY, [...existing, ...shots], twoColumn).forEach((position, shotId) => {
+            if (createdIds.has(shotId)) positions.set(shotId, position);
         });
     });
 
@@ -202,11 +238,7 @@ export function arrangeFilmDirectorBoard(nodes: CanvasNodeData[], connections: C
     });
     columnShots.forEach((items, sceneId) => {
         const x = (sceneColumn.get(sceneId) ?? 0) * FILM_LAYOUT.columnWidth;
-        let y = FILM_LAYOUT.sceneHeight;
-        items.forEach((shot) => {
-            positions.set(shot.id, { x, y });
-            y += shotHeight(shot) + FILM_LAYOUT.shotGap;
-        });
+        layoutSceneShotColumns(x, 0, items, items.length > FILM_LAYOUT.shotGridThreshold).forEach((position, shotId) => positions.set(shotId, position));
     });
     let looseY = 0;
     looseShots.forEach((shot) => {

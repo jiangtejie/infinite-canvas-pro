@@ -1,6 +1,6 @@
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
 import { createCanvasNode } from "./canvas-node-factory";
-import { orderFilmShots } from "./film-layout";
+import { layoutSceneShotColumns, orderFilmShots } from "./film-layout";
 import { moveFilmShotAcrossScenes } from "./film-shot-reorder";
 
 export type FilmShotCreateResult = {
@@ -28,7 +28,7 @@ export function appendFilmShot(
     const shotNo = String(shots.length + 1).padStart(2, "0");
     const shot = createCanvasNode(CanvasNodeType.FilmShot, {
         x: scene.position.x,
-        y: last ? last.position.y + 380 : scene.position.y + scene.height + 60,
+        y: scene.position.y + scene.height + 60,
     }, {
         filmShot: {
             shotNo,
@@ -41,6 +41,9 @@ export function appendFilmShot(
             prompt: "",
         },
     }, options.nodeId);
-    const moved = moveFilmShotAcrossScenes([...nodes, shot], connections, shot.id, sceneId, last?.id ?? null, true);
+    const existingTwoColumn = sceneShots.some((item) => Math.abs(item.position.x - scene.position.x) > 1);
+    const layout = layoutSceneShotColumns(scene.position.x, scene.position.y, [...sceneShots, shot], existingTwoColumn);
+    const positioned = { ...shot, position: layout.get(shot.id) ?? shot.position };
+    const moved = moveFilmShotAcrossScenes([...nodes, positioned], connections, shot.id, sceneId, last?.id ?? null, true);
     return moved ? { ...moved, shotId: shot.id } : null;
 }

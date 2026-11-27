@@ -182,6 +182,41 @@ test("appends unassigned shots after the last scene column", () => {
     assert.deepEqual(positionOf(arranged, "loose"), { x: FILM_LAYOUT.columnWidth, y: 0 });
 });
 
+test("splits a long scene into two shot columns without overlap", () => {
+    const shots = Array.from({ length: 7 }, (_, index) => shot(`shot-${index + 1}`));
+    const connections: CanvasConnection[] = [
+        ...shots.map((item) => composition("scene-1", item.id)),
+        ...shots.slice(1).map((item, index) => sequence(shots[index].id, item.id)),
+    ];
+    const arranged = arrangeFilmDirectorBoard([scene("scene-1", "ep-1", "A"), ...shots], connections);
+    const positions = shots.map((item) => positionOf(arranged, item.id));
+    const columnOffset = 360 + FILM_LAYOUT.shotColumnGap;
+    positions.slice(0, 4).forEach((position) => assert.equal(position.x, 0, "left column keeps first half"));
+    positions.slice(4).forEach((position) => assert.equal(position.x, columnOffset, "right column holds the rest"));
+    assert.deepEqual(positions[4], { x: columnOffset, y: FILM_LAYOUT.sceneHeight }, "right column restarts at the scene top");
+    for (let index = 1; index < 4; index += 1) {
+        assert.ok(positions[index].y >= positions[index - 1].y + TEST_SHOT_HEIGHT, "left column shots must not overlap");
+    }
+    for (let index = 5; index < positions.length; index += 1) {
+        assert.ok(positions[index].y >= positions[index - 1].y + TEST_SHOT_HEIGHT, "right column shots must not overlap");
+    }
+});
+
+test("places appended shots into the two-column grid after arrange", () => {
+    const baseShots = Array.from({ length: 7 }, (_, index) => shot(`shot-${index + 1}`));
+    const connections: CanvasConnection[] = [
+        ...baseShots.map((item) => composition("scene-1", item.id)),
+        ...baseShots.slice(1).map((item, index) => sequence(baseShots[index].id, item.id)),
+    ];
+    const base = arrangeFilmDirectorBoard([scene("scene-1", "ep-1", "A"), ...baseShots], connections);
+    const extra = shot("shot-8");
+    const allConnections = [...connections, composition("scene-1", "shot-8"), sequence("shot-7", "shot-8")];
+    const placed = placeFilmNodes(base, allConnections, [extra]);
+    const fullyArranged = arrangeFilmDirectorBoard([...base, ...placed], allConnections);
+    assert.deepEqual(positionOf(placed, "shot-8"), positionOf(fullyArranged, "shot-8"));
+    assert.equal(positionOf(placed, "shot-8").x, 360 + FILM_LAYOUT.shotColumnGap);
+});
+
 test("places appended nodes on the same grid as a full arrangement", () => {
     const connections: CanvasConnection[] = [composition("scene-1", "shot-1"), composition("scene-2", "shot-2")];
     const base = arrangeFilmDirectorBoard([
