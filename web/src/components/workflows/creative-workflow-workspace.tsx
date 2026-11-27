@@ -935,7 +935,7 @@ export function CreativeWorkflowWorkspace({
                 ) : null}
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <SearchField value={query} onChange={setQuery} placeholder="搜索名称、分类、描述" className="lg:max-w-sm" />
+                    <SearchField value={query} onChange={setQuery} placeholder="搜索名称、分类、描述" />
                     <Select
                         className="w-32 shrink-0"
                         aria-label="工作流分类"

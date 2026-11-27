@@ -72,7 +72,6 @@ export default function FilmPage() {
                             setPage(1);
                         }}
                         placeholder="搜索影视项目"
-                        className="lg:max-w-sm"
                         trailing={<span className="shrink-0 font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{filteredProjects.length} / {projects.length}</span>}
                     />
                 ) : null}
