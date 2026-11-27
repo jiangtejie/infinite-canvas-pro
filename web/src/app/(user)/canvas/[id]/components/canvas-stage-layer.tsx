@@ -1,12 +1,12 @@
 "use client";
 
 import type { Dispatch, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode, RefObject, SetStateAction } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { type CanvasBackgroundMode, type CanvasTheme } from "@/lib/canvas-theme";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { NODE_STATUS_LOADING } from "../lib/canvas-node-constants";
 import { getInputSummary } from "../lib/canvas-node-builders";
-import { isConnectionFlowing, isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
+import { isConnectionFlowing } from "../lib/canvas-graph";
 import { sourceExpansionNeedsSync } from "../lib/canvas-source-plan";
 import { collectCollapsedRemixNodeIds, collectSourceRemixHistory, sourceRemixNeedsSync } from "../lib/canvas-source-remix";
 import type { CanvasPublishInputs } from "../lib/canvas-publish";
@@ -65,6 +65,7 @@ export type CanvasStageModel = {
     alignmentGuides: CanvasAlignmentGuides;
     focusAnimationRef: RefObject<number | null>;
     viewportRef: RefObject<ViewportTransform>;
+    subscribeViewport: (listener: (viewport: ViewportTransform) => void) => () => void;
     setViewport: Dispatch<SetStateAction<ViewportTransform>>;
     setContextMenu: Dispatch<SetStateAction<ContextMenuState | null>>;
     referencePickerNodeId: string | null;
@@ -75,6 +76,8 @@ export type CanvasStageModel = {
     preventCanvasContextMenu: (event: ReactMouseEvent) => void;
     handleDrop: (event: ReactDragEvent<HTMLDivElement>) => void;
     connections: CanvasConnection[];
+    /** 已按视口裁切的连线；每帧只重算这个列表，不改写节点树。 */
+    visibleConnections: CanvasConnection[];
     nodeById: Map<string, CanvasNodeData>;
     selectedConnectionId: string | null;
     relatedHighlight: { nodeIds: Set<string>; connectionIds: Set<string>; };
@@ -190,6 +193,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         alignmentGuides,
         focusAnimationRef,
         viewportRef,
+        subscribeViewport,
         setViewport,
         setContextMenu,
         referencePickerNodeId,
@@ -200,6 +204,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         preventCanvasContextMenu,
         handleDrop,
         connections,
+        visibleConnections,
         nodeById,
         selectedConnectionId,
         relatedHighlight,
@@ -274,7 +279,7 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
     // 单选聚焦时淡出无关节点/连线；参考选择、连线中、框选中保持全亮以免干扰操作。
     const focusDim = selectionFocus && !referencePickerNodeId && !connectingParams && !selectionBox ? selectionFocus : null;
     const [revealedRemixRunId, setRevealedRemixRunId] = useState<string | null>(null);
-    const collapsedRemixNodeIds = collectCollapsedRemixNodeIds(nodes, revealedRemixRunId);
+    const collapsedRemixNodeIds = useMemo(() => collectCollapsedRemixNodeIds(nodes, revealedRemixRunId), [nodes, revealedRemixRunId]);
 
     // 缩放动画期间节点内容沿用上一档比例，停止约 120ms 后统一刷新，避免每帧全量重渲染；浮层节点单独用实时比例。
     const [contentScale, setContentScale] = useState(viewport.k);
@@ -460,6 +465,30 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
         )
     ), [nodes, comic, onOpenComicWorkbench, selectedImageCount, openOverlay, focusNode, addSelectedComicPages, generateRemixRun, handleRemixWithAgent, openRemixWorkbench, openRemixPublish, handleNodeResize, publishInputsById, runningNodeId, configInputsById, handleConfigNodeChange, togglePromptOverlay, nodesRef, handleGenerateNode, videoFrameOptionsByNodeId, videoResourceOptionsByNodeId]);
 
+    // 视口回调保持稳定引用：InfiniteCanvas 的滚轮监听与订阅都依赖它。
+    const handleViewportChange = useCallback((next: ViewportTransform) => {
+        if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
+        focusAnimationRef.current = null;
+        viewportRef.current = next;
+        setViewport(next);
+        setContextMenu(null);
+    }, [focusAnimationRef, setContextMenu, setViewport, viewportRef]);
+
+    // 连线回调保持稳定引用，平移/缩放时 ConnectionPath 的 memo 才不会失效。
+    const selectConnection = useCallback((connectionId: string) => {
+        setSelectedConnectionId(connectionId);
+        clearSelection();
+        setToolbarNodeId(null);
+        setContextMenu(null);
+    }, [clearSelection, setContextMenu, setSelectedConnectionId, setToolbarNodeId]);
+
+    const openConnectionMenu = useCallback((event: ReactMouseEvent, connectionId: string) => {
+        setSelectedConnectionId(connectionId);
+        clearSelection();
+        setToolbarNodeId(null);
+        setContextMenu({ type: "connection", x: event.clientX, y: event.clientY, connectionId });
+    }, [clearSelection, setContextMenu, setSelectedConnectionId, setToolbarNodeId]);
+
     const handleNodeHoverStart = useCallback((nodeId: string) => {
         if (nodeDraggingRef.current) return;
         setHoveredNodeId(nodeId);
@@ -504,16 +533,12 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 <InfiniteCanvas
                     containerRef={containerRef}
                     viewport={viewport}
+                    viewportRef={viewportRef}
+                    subscribeViewport={subscribeViewport}
                     tool={canvasTool}
                     backgroundMode={backgroundMode}
                     alignmentGuides={alignmentGuides}
-                    onViewportChange={(next) => {
-                        if (focusAnimationRef.current) cancelAnimationFrame(focusAnimationRef.current);
-                        focusAnimationRef.current = null;
-                        viewportRef.current = next;
-                        setViewport(next);
-                        setContextMenu(null);
-                    }}
+                    onViewportChange={handleViewportChange}
                     onCanvasMouseDown={(event) => {
                         if (!referencePickerNodeId) handleCanvasPointerDown(event);
                     }}
@@ -528,12 +553,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                 >
                     {model.backgroundLayer}
                     <svg className="absolute left-0 top-0 h-[10000px] w-[10000px] overflow-visible" style={{ pointerEvents: "none", transform: "translateZ(0)", zIndex: 6 }}>
-                        {showConnections ? connections
-                            .filter((connection) => {
-                                const from = nodeById.get(connection.fromNodeId);
-                                const to = nodeById.get(connection.toNodeId);
-                                return Boolean(from && to && !collapsedRemixNodeIds.has(connection.fromNodeId) && !collapsedRemixNodeIds.has(connection.toNodeId) && !isHiddenBatchConnectionEndpoint(from, nodes) && !isHiddenBatchConnectionEndpoint(to, nodes));
-                            })
+                        {showConnections ? visibleConnections
+                            .filter((connection) => !collapsedRemixNodeIds.has(connection.fromNodeId) && !collapsedRemixNodeIds.has(connection.toNodeId))
                             .map((connection) => {
                                 const from = nodeById.get(connection.fromNodeId);
                                 const to = nodeById.get(connection.toNodeId);
@@ -548,18 +569,8 @@ export function CanvasStageLayer({ model }: { model: CanvasStageModel }) {
                                         active={selectedConnectionId === connection.id || relatedHighlight.connectionIds.has(connection.id)}
                                         dimmed={focusDim ? !focusDim.connectionIds.has(connection.id) : false}
                                         flowing={isConnectionFlowing(from, to)}
-                                        onSelect={() => {
-                                            setSelectedConnectionId(connection.id);
-                                            clearSelection();
-                                            setToolbarNodeId(null);
-                                            setContextMenu(null);
-                                        }}
-                                        onContextMenu={(event) => {
-                                            setSelectedConnectionId(connection.id);
-                                            clearSelection();
-                                            setToolbarNodeId(null);
-                                            setContextMenu({ type: "connection", x: event.clientX, y: event.clientY, connectionId: connection.id });
-                                        }}
+                                        onSelect={selectConnection}
+                                        onContextMenu={openConnectionMenu}
                                     />
                                 );
                             }) : null}

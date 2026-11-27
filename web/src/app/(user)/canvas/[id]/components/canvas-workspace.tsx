@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { CanvasTopBar } from "./canvas-top-bar";
 import { CanvasSidePanel } from "../../components/canvas-side-panel";
@@ -68,6 +68,9 @@ export type ComicStudioModel = {
     onChangeProject: (project: CanvasProject) => void;
 };
 
+/** 侧栏行数随节点增长，平移/缩放时不该跟着页面一起重渲染。 */
+const MemoCanvasSidePanel = memo(CanvasSidePanel);
+
 export type CanvasWorkspaceModel = {
     shell: CanvasShellModel;
     stage: CanvasStageModel;
@@ -126,6 +129,21 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
     const batchCurrentNode = filmStudio?.shotBatch.currentShotId ? nodes.find((node) => node.id === filmStudio.shotBatch.currentShotId) : undefined;
     const batchCurrentProgress = batchCurrentNode?.metadata?.progress ?? 0;
     const zenMode = useCanvasUiStore((state) => state.zenMode);
+    // 回调保持稳定引用，侧栏（行数 = 节点数）才能在每帧平移时跳过重渲染。
+    const handleSidePanelWidthChange = useCallback((width: number) => {
+        setSidePanel((current) => ({ ...current, width }));
+    }, [setSidePanel]);
+    const handleSidePanelClose = useCallback(() => {
+        setSidePanel((current) => ({ ...current, open: false }));
+    }, [setSidePanel]);
+    const handleAssetDragStart = useCallback((payload: InsertAssetPayload) => {
+        draggedAssetPayloadRef.current = payload;
+    }, [draggedAssetPayloadRef]);
+    const handleAssetDragEnd = useCallback(() => {
+        window.setTimeout(() => {
+            draggedAssetPayloadRef.current = null;
+        }, 0);
+    }, [draggedAssetPayloadRef]);
     useEffect(() => {
         // 浏览器 Esc/界面退出全屏时同步退出 Zen，避免「Zen 但非全屏」的悬空状态。
         const syncFullscreen = () => {
@@ -148,23 +166,17 @@ export function CanvasWorkspace({ model }: { model: CanvasWorkspaceModel }) {
             }}
         >
             {!domainActive ? (
-            <CanvasSidePanel
+            <MemoCanvasSidePanel
                 nodes={nodes}
                 selectedNodeIds={selectedNodeIds}
                 open={sidePanel.open && !zenMode}
                 width={sidePanel.width}
-                onWidthChange={(width) => setSidePanel((current) => ({ ...current, width }))}
+                onWidthChange={handleSidePanelWidthChange}
                 onFocusNode={focusNode}
-                onAssetDragStart={(payload) => {
-                    draggedAssetPayloadRef.current = payload;
-                }}
-                onAssetDragEnd={() => {
-                    window.setTimeout(() => {
-                        draggedAssetPayloadRef.current = null;
-                    }, 0);
-                }}
+                onAssetDragStart={handleAssetDragStart}
+                onAssetDragEnd={handleAssetDragEnd}
                 onInsertAsset={handleAssetInsert}
-                onClose={() => setSidePanel((current) => ({ ...current, open: false }))}
+                onClose={handleSidePanelClose}
             />
             ) : null}
             <section className="relative min-w-0 flex-1 overflow-hidden">

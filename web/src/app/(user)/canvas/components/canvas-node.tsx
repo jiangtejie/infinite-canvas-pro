@@ -10,7 +10,7 @@ import { ChevronRight, Image as ImageIcon, Maximize2, Music2, Pause, Play, Plus,
 import { canvasThemes } from "@/lib/canvas-theme";
 import { pickImageSource } from "@/lib/image-thumbnail";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
-import { getImagePreviewRevision, previewUrlFor, subscribeImagePreviews } from "@/services/image-storage";
+import { previewUrlFor, subscribeImagePreview } from "@/services/image-storage";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
 import { ComicPageNodeCard } from "./comic-page-node-card";
@@ -20,6 +20,8 @@ import { isFilmNodeType, isLegacyFilmNodeType } from "../[id]/lib/film-node-regi
 import type { FilmNodeSummaryOptions } from "../[id]/lib/film-node-summary";
 import type { FilmVersionKind } from "../[id]/lib/film-version-room";
 import { isCanvasImageNodeType } from "../utils/canvas-panorama";
+import { useCanvasThumbnail } from "../utils/canvas-thumbnails";
+import { applyLiveResize, clearLiveResize, liveDragPosition, liveNodeSize, registerCanvasNodeElement } from "../utils/canvas-live-drag";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 import { stopCanvasZoomWheel } from "../utils/scroll-wheel-guard";
 
@@ -206,6 +208,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(data.title || "");
     const isGroup = data.type === CanvasNodeType.Group;
+    const livePosition = liveDragPosition(data.id);
+    const liveSize = liveNodeSize(data.id);
     const hasImageContent = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.content);
     const hasVideoContent = data.type === CanvasNodeType.Video && Boolean(data.metadata?.content);
     const hasAudioContent = data.type === CanvasNodeType.Audio && Boolean(data.metadata?.content);
@@ -213,12 +217,25 @@ export const CanvasNode = React.memo(function CanvasNode({
     const isBatchChild = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.batchRootId);
     const isActive = isConnectionTarget || isSelected || isFocusRelated;
     const imageBorderColor = isActive ? theme.canvas.selectionStroke : isRelated && !isBatchChild ? theme.node.muted : "transparent";
+    const rootRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const resizePointerIdRef = useRef<number | null>(null);
-    const resizeRef = useRef({
+    const resizeRef = useRef<{
+        isResizing: boolean;
+        corner: ResizeCorner;
+        startX: number;
+        startY: number;
+        startLeft: number;
+        startTop: number;
+        startWidth: number;
+        startHeight: number;
+        keepRatio: boolean;
+        ratio: number;
+        pending: { x: number; y: number; width: number; height: number } | null;
+    }>({
         isResizing: false,
-        corner: "bottom-right" as ResizeCorner,
+        corner: "bottom-right",
         startX: 0,
         startY: 0,
         startLeft: 0,
@@ -227,6 +244,7 @@ export const CanvasNode = React.memo(function CanvasNode({
         startHeight: 0,
         keepRatio: false,
         ratio: 1,
+        pending: null,
     });
 
     useLayoutEffect(() => {
@@ -234,6 +252,11 @@ export const CanvasNode = React.memo(function CanvasNode({
         const naturalHeight = data.metadata?.naturalHeight;
         if ((data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Video) && data.metadata?.clientTaskId && !data.metadata?.isBatchRoot && !data.metadata?.batchRootId && naturalWidth && naturalHeight) resizeRef.current.ratio = naturalWidth / naturalHeight;
     }, [data.type, data.metadata?.clientTaskId, data.metadata?.isBatchRoot, data.metadata?.batchRootId, data.metadata?.naturalWidth, data.metadata?.naturalHeight]);
+
+    useEffect(() => {
+        registerCanvasNodeElement(data.id, rootRef.current);
+        return () => registerCanvasNodeElement(data.id, null);
+    }, [data.id]);
 
     useEffect(() => {
         setTitleDraft(data.title || "");
@@ -326,22 +349,33 @@ export const CanvasNode = React.memo(function CanvasNode({
                 }
             }
 
-            onResize(data.id, width, height, {
+            const box = {
                 x: fromLeft ? startRight - width : resizeRef.current.startLeft,
                 y: fromTop ? startBottom - height : resizeRef.current.startTop,
-            });
+                width,
+                height,
+            };
+            // 拉伸期间只改 DOM，松手才提交一次 setNodes。
+            resizeRef.current.pending = box;
+            applyLiveResize(data.id, box);
         },
-        [data.id, onResize, scale],
+        [data.id, scale],
     );
 
     const handleResizeUp = useCallback(function handleResizeEnd(event?: PointerEvent) {
         if (event && resizePointerIdRef.current != null && event.pointerId !== resizePointerIdRef.current) return;
+        const pending = resizeRef.current.pending;
         resizeRef.current.isResizing = false;
+        resizeRef.current.pending = null;
         resizePointerIdRef.current = null;
         window.removeEventListener("pointermove", handleResizeMove);
         window.removeEventListener("pointerup", handleResizeEnd);
         window.removeEventListener("pointercancel", handleResizeEnd);
-    }, [handleResizeMove]);
+        if (!pending) return;
+        // 先让 React 拿到新尺寸，再清掉直写的值，避免这一帧回弹。
+        onResize(data.id, pending.width, pending.height, { x: pending.x, y: pending.y });
+        clearLiveResize(data.id);
+    }, [data.id, handleResizeMove, onResize]);
 
     const handleResizePointerDown = (event: React.PointerEvent, corner: ResizeCorner) => {
         event.stopPropagation();
@@ -357,6 +391,7 @@ export const CanvasNode = React.memo(function CanvasNode({
             startHeight: data.height,
             keepRatio: (isCanvasImageNodeType(data.type) && !data.metadata?.freeResize) || data.type === CanvasNodeType.Video,
             ratio: (data.metadata?.naturalWidth || data.width) / (data.metadata?.naturalHeight || data.height || 1),
+            pending: null,
         };
         resizePointerIdRef.current = event.pointerId;
         window.addEventListener("pointermove", handleResizeMove);
@@ -374,6 +409,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 
     return (
         <div
+            ref={rootRef}
             data-node-id={data.id}
             tabIndex={referenceSelectionState ? -1 : 0}
             role="group"
@@ -388,9 +424,10 @@ export const CanvasNode = React.memo(function CanvasNode({
             }}
             className={`node-element canvas-selection-focus absolute flex select-none flex-col transition-shadow duration-200 ${isGroup ? "z-[5]" : isSelected ? "z-50" : "z-10"} ${referenceSelectionState === "available" ? "cursor-pointer" : referenceSelectionState ? "cursor-not-allowed" : ""}`}
             style={{
-                transform: `translate(${data.position.x}px, ${data.position.y}px)`,
-                width: data.width,
-                height: data.height,
+                // 拖拽期间读实时位置：万一中途重渲染，节点也不会被弹回提交前的位置。
+                transform: `translate(${livePosition?.x ?? data.position.x}px, ${livePosition?.y ?? data.position.y}px)`,
+                width: liveSize?.width ?? data.width,
+                height: liveSize?.height ?? data.height,
                 opacity: dimmed ? 0.3 : 1,
                 transition: "box-shadow 200ms ease, opacity 200ms ease",
                 contain: "layout style",
@@ -888,7 +925,7 @@ function EmptyImageContent({ node, theme, isBatchRoot, batchCount, batchExpanded
     return content;
 }
 
-function VideoNodeContent({ node, theme, isSelected, onViewImage, onResize }: NodeContentRendererProps) {
+function VideoNodeContent({ node, scale, theme, isSelected, onViewImage, onResize }: NodeContentRendererProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [mediaDurationMs, setMediaDurationMs] = useState(0);
@@ -910,6 +947,14 @@ function VideoNodeContent({ node, theme, isSelected, onViewImage, onResize }: No
             <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
                 <Video className="size-7 opacity-35" />
                 <span className="text-sm">空视频节点</span>
+            </div>
+        );
+    // 远景不挂真实 <video>：解码器数量有限，屏幕上不足 96px 时只保留占位。
+    if (!isSelected && Math.max(node.width, node.height) * scale < 96)
+        return (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-3xl bg-black/85" style={{ color: theme.node.placeholder }}>
+                <Video className="size-6 opacity-40" />
+                <span className="text-xs opacity-60">视频</span>
             </div>
         );
     const controlStyle = { background: theme.toolbar.panel, color: theme.toolbar.item };
@@ -1008,10 +1053,15 @@ function ImageContent({
     const previewSource = `${node.metadata?.primaryImageId || ""}:${node.metadata?.imageTaskResultId || ""}:${storageKey || content}`;
     const hasNaturalSize = Boolean(node.metadata?.naturalWidth && node.metadata?.naturalHeight);
 
-    useSyncExternalStore(subscribeImagePreviews, getImagePreviewRevision, getImagePreviewRevision);
+    const subscribePreview = useCallback((listener: () => void) => subscribeImagePreview(previewKey, listener), [previewKey]);
+    const readPreview = useCallback(() => (hasNaturalSize ? previewUrlFor(previewKey, previewSource) : undefined), [hasNaturalSize, previewKey, previewSource]);
+    const previewUrl = useSyncExternalStore(subscribePreview, readPreview, readPreview);
+    const screenLongEdge = Math.max(node.width, node.height) * scale;
+    // 屏幕上只需要几百像素时不碰原图：优先 768 档预览，本地图再退回会话缩略图。
+    const thumbnailUrl = useCanvasThumbnail(`${previewKey}:${previewSource}`, content, previewUrl || screenLongEdge >= 768 ? 0 : 384);
 
-    const imageSource = pickImageSource({
-        previewUrl: hasNaturalSize ? previewUrlFor(previewKey, previewSource) : undefined,
+    const imageSource = (previewUrl && screenLongEdge <= 768 ? previewUrl : "") || thumbnailUrl || pickImageSource({
+        previewUrl,
         originalUrl: content,
         naturalWidth: node.metadata?.naturalWidth,
         naturalHeight: node.metadata?.naturalHeight,
@@ -1023,10 +1073,14 @@ function ImageContent({
     return (
         <BatchFrame batchCount={isBatchRoot ? batchCount : 0} batchExpanded={batchExpanded} batchOpening={batchOpening} batchRecovering={batchRecovering} onToggleBatch={onToggleBatch}>
             <div className="h-full w-full overflow-hidden rounded-3xl">
-                {media ?? (
+                {media ?? (screenLongEdge < 32 ? (
+                    // 屏幕上不足 32px 时连缩略图都不解码，直接给色块。
+                    <div className="h-full w-full rounded-3xl" style={{ background: theme.node.fill }} />
+                ) : (
                     <img
                         src={imageSource}
                         alt={node.title}
+                        decoding="async"
                         draggable={false}
                         onLoad={(event) => {
                             const image = event.currentTarget;
@@ -1035,7 +1089,7 @@ function ImageContent({
                         onDragStart={(event) => event.preventDefault()}
                         className={`pointer-events-none block h-full w-full select-none ${node.metadata?.freeResize ? "object-fill" : "object-contain"}`}
                     />
-                )}
+                ))}
             </div>
             {isBatchRoot ? (
                 <button

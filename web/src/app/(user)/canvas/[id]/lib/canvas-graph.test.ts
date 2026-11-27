@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../../types";
-import { buildAngleLabel, buildAnglePrompt, findRetrySourceNode, isAudioFile, isConnectionFlowing, isHiddenBatchChild, isHiddenBatchConnectionEndpoint, isNodeFlowActive, sourceNodeReferenceImages } from "./canvas-graph";
+import { buildAngleLabel, buildAnglePrompt, findRetrySourceNode, indexCanvasNodes, isAudioFile, isConnectionFlowing, isHiddenBatchChild, isHiddenBatchConnectionEndpoint, isNodeFlowActive, sourceNodeReferenceImages } from "./canvas-graph";
 
 const node = (id: string, type: CanvasNodeType, patch: Partial<CanvasNodeData> = {}): CanvasNodeData => ({
     id,
@@ -45,11 +45,12 @@ test("audio file detection accepts mime types and mp3/wav names", () => {
 test("batch children are hidden only when the root is collapsed", () => {
     const root = node("root", CanvasNodeType.Image, { metadata: { isBatchRoot: true, imageBatchExpanded: false } });
     const child = node("child", CanvasNodeType.Image, { metadata: { batchRootId: "root" } });
-    assert.equal(isHiddenBatchChild(child, [root, child]), true);
-    assert.equal(isHiddenBatchChild(child, [root, child], new Set(["root"])), false);
-    assert.equal(isHiddenBatchChild(child, [node("root", CanvasNodeType.Image, { metadata: { imageBatchExpanded: true } }), child]), false);
-    assert.equal(isHiddenBatchChild(node("plain", CanvasNodeType.Image), [root]), false);
-    assert.equal(isHiddenBatchConnectionEndpoint(child, [root, child]), true);
+    const rootById = indexCanvasNodes([root, child]);
+    assert.equal(isHiddenBatchChild(child, rootById), true);
+    assert.equal(isHiddenBatchChild(child, rootById, new Set(["root"])), false);
+    assert.equal(isHiddenBatchChild(child, indexCanvasNodes([node("root", CanvasNodeType.Image, { metadata: { imageBatchExpanded: true } }), child])), false);
+    assert.equal(isHiddenBatchChild(node("plain", CanvasNodeType.Image), rootById), false);
+    assert.equal(isHiddenBatchConnectionEndpoint(child, rootById), true);
 });
 
 test("angle labels describe direction, pitch and lens", () => {

@@ -69,6 +69,7 @@ description: 当前项目后续值得处理的事项
 - 【配置】`repository.GetSettings()` 仍是每次全量反序列化（渠道里带工作流 JSON 时体积更大）；做通用缓存要先解决 `normalizeSettings` 原地修改切片和 `WorkflowJSON map[string]any` 深拷贝的问题，目前只对存储段做了 30 秒窄缓存。
 - 【安全】`/api/proxy-image` 仍可匿名调用（已限制只透传图片、补 nosniff、限制 32MB），如需进一步收敛可改签名 URL 或登录态；用户本地渠道只挡链路本地与云平台 metadata，DNS rebinding 未防。
 - 【画布】`mentionReferencesByNodeId` 仍给每个节点新建数组，`React.memo(CanvasNode)` 实际不生效；`labelResourceNodes` 空输入未返回共享常量。
+- 【画布性能 P2】视口、拖拽、拉伸均已改为直写 DOM（见 [pending-test.md](pending-test.md)）；剩余：①非拖拽的节点批量更新仍会重渲染全部可见节点，卡在 `renderNodeContent` 捕获的 `handleGenerateNode` / `handleConfigNodeChange` 等回调不稳定（直接做比较器会用到旧配置），需先把生成/配置回调改成调用时取最新配置；②大画布平移时的挂载/卸载抖动（分区块挂载 + 迟滞）；③整图 objectURL 按 storageKey 常驻内存，尚未回收；④影视导演板模式下 `filmNodes` 仍把整图数组传给每个节点。按 200/500/1000 三档节点的帧时间 p95 验收后再定优先级。
 
 ## 结构与工程
 

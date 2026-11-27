@@ -3,6 +3,37 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## 画布性能收尾：拉伸直写与缩略图回收
+
+- 节点拉伸改为直写：拖边角时只改该节点自身的 `transform` / `width` / `height`（`canvas-live-drag` 新增 `applyLiveResize`），松手才 `onResize` 提交一次；中途出现其它重渲染也不会回弹（节点 render 会读实时宽高）。取消/失焦由 `handleResizeUp` 统一收尾。
+- 未做（已尝试并回退）：让不依赖其它节点的节点跳过别人的更新。比较器方案会冻结 `renderNodeContent` 里捕获的 `handleGenerateNode` 等回调，用户改完模型设置后点节点上的「生成」仍会用旧配置，属于静默错误，因此回退；正确做法是先让生成/配置类回调从 store 或事件时读取最新配置，再谈节点级的重渲染豁免。
+- `mentionReferencesByNodeId` 在无引用时复用同一个空数组，避免每次 `nodes` 变化都给全量节点新建数组。
+- 会话内缩略图缓存加上限（320 张）：超出时按插入顺序回收，正在被节点订阅（显示中）的条目跳过，不会出现裂图。
+- 验证：`tsc --noEmit` 0 error、`eslint . --max-warnings=0` 0 warning、`bun test src/app/(user)/canvas` 582 pass。
+- 未实测：拖角拉伸的手感与帧率；图片节点按比例 / 自由变形的边界；缩略图超过 320 张后的回收行为（需要真实大图项目才能压到上限）。
+
+## 画布性能 P1：视口直写与拖拽直写
+
+- 视口改为「ref 为准 + React 节流快照」：`useCanvasViewport` 新增 `subscribeViewport`，世界层与网格在订阅回调里直接写 `transform` / `background-size` / `background-position`，平移与滚轮缩放不再逐帧重渲染整页；React state 只在首个变化与之后每 80ms 提交一次，供节点裁切、缩放控件、小地图、参考线使用。
+- 视口回调 `handleViewportChange` 改成稳定引用，滚轮/触摸监听不再每次渲染重新绑定；`--canvas-inverse-scale` 与网格亮度也改为直写，创建菜单打开时读到的仍是当前值。
+- 节点裁切边距改为屏幕常量（节点 `max(280, min(1600, 360/k))`、连线 `max(400, min(1800, 520/k))`），配合 80ms 提交，快速平移时屏幕前沿不会露出空白。
+- 节点拖拽改为直接改 DOM：新增 `utils/canvas-live-drag.ts`，拖拽帧只写被拖节点的 `transform` 与受影响连线的 `d`（含端点圆点与 AI 标记），松手才 `setNodes` 提交；节点/连线各自用 ref 注册。拖拽期间不再产生 `nodes` 变化，O(N·C) 派生索引、缩略图预热与自动保存都不再逐帧重跑；拖拽被中断（失焦/pointercancel）会把 DOM 还原到提交前的位置。
+- 连线几何抽成 `connectionAnchors`，组件渲染与拖拽直写共用同一套端点与曲率计算，避免两处漂移。
+- 行为变化：拖拽中的位置不再进入 state，小地图、侧栏与自动保存要等松手后一次性更新；对齐参考线只在吸附目标变化时更新（位置本身静止）。
+- 验证：`tsc --noEmit` 0 error、`eslint . --max-warnings=0` 0 warning、`bun test src/app/(user)/canvas` 582 pass。
+- 未实测：真实平移/缩放/拖拽帧率与手感（未做 Profiler，隐藏帧 rAF 暂停无法测）；80ms 节流在低帧率设备上的观感；多选/分组节点的吸附与拖入组；触屏拖拽与双指缩放；小地图在快速平移时的跟随。
+
+## 画布性能：索引化可见性判断与按需加载
+
+- 可见性判断改为一次建索引：新增 `indexCanvasNodes`（`id → 节点` 的 Map），`isHiddenBatchChild` / `isHiddenBatchConnectionEndpoint` 从「逐节点 `nodes.find`」改成查表。此前 `visibleNodes` 过滤里每个节点都要找一次根节点，平移/缩放每帧是 O(N²)；框选命中、连线拖拽目标、全屏适配与选中适配同样改为查表。
+- 连线层先按视口裁切再渲染：`useCanvasDerived` 新增 `visibleConnections`，按两端节点包围盒加贝塞尔外扩量保守判断；`ConnectionPath` 加 `memo`，选中与右键回调改为稳定引用（`(connectionId) => void`）。平移时连线不再逐帧重渲染，屏幕外连线不再挂载。
+- 图片节点增加会话内缩略图：屏幕长边 < 768px 且没有 768 档预览时按 384 档生成（新增 `utils/canvas-thumbnails.ts`，并发 3、按 key 订阅、失败回退原图），远景不再为整屏节点解码原图；屏幕长边 < 32px 时直接给色块、不挂 `<img>`；`<img>` 补 `decoding="async"`。
+- 预览订阅从全局改为按 key：`image-storage` 新增 `subscribeImagePreview(key, listener)`，一张预览就绪只重渲染对应节点，不再刷新整屏图片节点；全局 `subscribeImagePreviews` 保留给侧栏等整表场景。
+- 视频节点屏幕上不足 96px 且未选中时不再挂载 `<video>`，只显示占位，避免大量解码器常驻。
+- 侧栏 `CanvasSidePanel` 加 `memo` 并稳定其回调：平移/缩放时不再逐帧重建 N 行节点列表；`collectCollapsedRemixNodeIds` 改为 `useMemo`，不再每帧重算。
+- 验证：`tsc --noEmit` 0 error、`eslint . --max-warnings=0` 0 warning、`bun test canvas-graph.test.ts` 6 pass（批量可见性用例已同步改成索引签名）；按约定未执行 `next build`。
+- 未实测：真实平移/拖拽帧率（未做 Profiler，内置浏览器隐藏帧 rAF 暂停）；远程图片缩略图经 `/api/proxy-image` 的拉取与 CORS；缩略图与原图在近景/远景切换时的视觉差异；大量视频节点下的占位观感。
+
 ## UI 布局硬伤修复
 
 - 生图工作台移动端：悬浮「工作流」入口在 `lg` 以下隐藏，改为提示词区的快捷动作按钮，不再压住「开始生成」；桌面端保留悬浮入口与拖拽。

@@ -33,10 +33,15 @@ export function isAudioFile(file: File) {
     return file.type.startsWith("audio/") || /\.(mp3|wav)$/i.test(file.name);
 }
 
-export function isHiddenBatchChild(node: CanvasNodeData, nodes: CanvasNodeData[], collapsingBatchIds?: Set<string>) {
+/** 一次 O(N) 建索引：可见性判断在每帧里跑，不能再逐节点 find 退化成 O(N²)。 */
+export function indexCanvasNodes(nodes: CanvasNodeData[]) {
+    return new Map(nodes.map((node) => [node.id, node] as const));
+}
+
+export function isHiddenBatchChild(node: CanvasNodeData, nodeById: Map<string, CanvasNodeData>, collapsingBatchIds?: Set<string>) {
     const rootId = node.metadata?.batchRootId;
     if (!rootId) return false;
-    const root = nodes.find((item) => item.id === rootId);
+    const root = nodeById.get(rootId);
     if (root && collapsingBatchIds?.has(rootId)) return false;
     return Boolean(root && !root.metadata?.imageBatchExpanded);
 }
@@ -55,10 +60,10 @@ export function isConnectionFlowing(from: CanvasNodeData, to: CanvasNodeData) {
     return isNodeFlowActive(to) || (from.type === CanvasNodeType.Source && isNodeFlowActive(from));
 }
 
-export function isHiddenBatchConnectionEndpoint(node: CanvasNodeData, nodes: CanvasNodeData[]) {
+export function isHiddenBatchConnectionEndpoint(node: CanvasNodeData, nodeById: Map<string, CanvasNodeData>) {
     const rootId = node.metadata?.batchRootId;
     if (!rootId) return false;
-    const root = nodes.find((item) => item.id === rootId);
+    const root = nodeById.get(rootId);
     return Boolean(root && !root.metadata?.imageBatchExpanded);
 }
 

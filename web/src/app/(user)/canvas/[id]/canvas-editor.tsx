@@ -72,7 +72,7 @@ import { cloneCanvasNodes } from "./lib/canvas-clone";
 import { hydrateCanvasImages } from "./lib/canvas-media-hydrate";
 import { createCanvasNode } from "./lib/canvas-node-factory";
 import { syncAssistantReferences } from "./lib/canvas-assistant-references";
-import { isAudioFile, isHiddenBatchChild } from "./lib/canvas-graph";
+import { indexCanvasNodes, isAudioFile, isHiddenBatchChild } from "./lib/canvas-graph";
 import { useCanvasViewport } from "./hooks/use-canvas-viewport";
 import { useCanvasSelection } from "./hooks/use-canvas-selection";
 import type { CanvasNodeTaskRun } from "./hooks/use-canvas-tasks";
@@ -404,7 +404,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         setIsMiniMapOpen,
     } = useCanvasUiState();
     const closeContextMenu = useCallback(() => setContextMenu(null), [setContextMenu]);
-    const { viewport, setViewport, viewportRef, focusAnimationRef, screenToCanvas, fitNodesToView, setZoomScale } = useCanvasViewport({ containerRef, size, onBeforeChange: closeContextMenu });
+    const { viewport, setViewport, viewportRef, subscribeViewport, focusAnimationRef, screenToCanvas, fitNodesToView, setZoomScale } = useCanvasViewport({ containerRef, size, onBeforeChange: closeContextMenu });
     const setShortcutsOpen = useCanvasUiStore((state) => state.setShortcutsOpen);
     const [backgroundMode, setBackgroundMode] = useState<CanvasBackgroundMode>("lines");
     const [showImageInfo, setShowImageInfo] = useState(false);
@@ -761,6 +761,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
         handleKeyboardConnect,
     } = useCanvasPointer({
         nodesRef,
+        connectionsRef,
         selectedNodeIdsRef,
         setNodes,
         viewportRef,
@@ -823,7 +824,7 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
     );
 
     const {
-        visibleNodes, nodeById, toolbarNode, infoNode, cropNode, audioTrimNode,
+        visibleNodes, visibleConnections, nodeById, toolbarNode, infoNode, cropNode, audioTrimNode,
         maskEditNode, splitNode, upscaleNode, denoiseNode, angleNode, contextMenuNode, previewNode,
         comicNode, openDirectorNode, selectedImageNodes, selectedImageCount, canCreateComic,
         activeNodeId, canGenerateFromContextMenu,
@@ -1297,12 +1298,16 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
 
 
     const fitAllNodes = useCallback(() => {
-        fitNodesToView(nodesRef.current.filter((node) => !isHiddenBatchChild(node, nodesRef.current)));
+        const nodes = nodesRef.current;
+        const nodeById = indexCanvasNodes(nodes);
+        fitNodesToView(nodes.filter((node) => !isHiddenBatchChild(node, nodeById)));
     }, [fitNodesToView]);
 
     const fitSelectedNodes = useCallback(() => {
-        const selected = nodesRef.current.filter((node) => selectedNodeIdsRef.current.has(node.id)).map((node) =>
-            isHiddenBatchChild(node, nodesRef.current) ? nodesRef.current.find((root) => root.id === node.metadata?.batchRootId) || node : node);
+        const nodes = nodesRef.current;
+        const nodeById = indexCanvasNodes(nodes);
+        const selected = nodes.filter((node) => selectedNodeIdsRef.current.has(node.id)).map((node) =>
+            isHiddenBatchChild(node, nodeById) ? nodeById.get(node.metadata?.batchRootId || "") || node : node);
         if (selected.length) fitNodesToView(selected);
     }, [fitNodesToView, selectedNodeIdsRef]);
 
@@ -3387,10 +3392,10 @@ function InfiniteCanvasPage({ projectId, studio }: { projectId: string; studio: 
             theme, nodes, selectedNodeIds, selectedImageCount, focusNode,
             addSelectedComicPages, handleUploadRequest, selectOnly,
             containerRef, viewport, canvasTool, backgroundMode, showConnections,
-            alignmentGuides, focusAnimationRef, viewportRef, setViewport,
+            alignmentGuides, focusAnimationRef, viewportRef, subscribeViewport, setViewport,
             setContextMenu, referencePickerNodeId, handleCanvasPointerDown, deselectCanvas,
             setNodeCreatePosition, screenToCanvas, preventCanvasContextMenu, handleDrop,
-            connections, nodeById, selectedConnectionId, relatedHighlight, selectionFocus,
+            connections, visibleConnections, nodeById, selectedConnectionId, relatedHighlight, selectionFocus,
             setSelectedConnectionId, clearSelection, setToolbarNodeId, connectingParams,
             mouseWorld, connectionTargetNodeId, visibleNodes, activeNodeId,
             referenceConnectedNodeIds, dialogNodeId, selectionBox, batchChildCountById,

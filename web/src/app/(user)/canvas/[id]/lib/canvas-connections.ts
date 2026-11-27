@@ -12,6 +12,16 @@ export function getConnectionTargetAnchor(node: CanvasNodeData, current: Connect
     };
 }
 
+/** 连线几何：组件渲染与拖拽直写共用，避免两处算出不同的路径。 */
+export function connectionAnchors(from: Pick<CanvasNodeData, "position" | "width" | "height">, to: Pick<CanvasNodeData, "position" | "width" | "height">) {
+    const startX = from.position.x + from.width;
+    const startY = from.position.y + from.height / 2;
+    const endX = to.position.x;
+    const endY = to.position.y + to.height / 2;
+    const curvature = Math.max(Math.abs(endX - startX) * 0.5, 50);
+    return { startX, startY, endX, endY, pathD: `M ${startX} ${startY} C ${startX + curvature} ${startY}, ${endX - curvature} ${endY}, ${endX} ${endY}` };
+}
+
 /** 发布节点只接受文本/图片作为上游，且自身不能作为连线来源。 */
 export function isPublishUpstreamNode(node: CanvasNodeData) {
     return node.type === CanvasNodeType.Text || isCanvasImageNodeType(node.type);

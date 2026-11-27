@@ -9,8 +9,11 @@ import { CanvasNodeType, type CanvasConnection, type CanvasDirectorPanorama, typ
 import { expandComicBookPageRelations } from "../../utils/comic-book-relations";
 import { isCanvasImageNodeType } from "../../utils/canvas-panorama";
 import { buildNodeMentionReferences, isCanvasReferenceNode } from "../../utils/canvas-resource-references";
-import { isHiddenBatchChild } from "../lib/canvas-graph";
+import { indexCanvasNodes, isHiddenBatchChild, isHiddenBatchConnectionEndpoint } from "../lib/canvas-graph";
 import { collectPublishInputs } from "../lib/canvas-publish";
+
+/** 无引用节点的共享空数组。 */
+const EMPTY_MENTION_REFERENCES: ReturnType<typeof buildNodeMentionReferences> = [];
 
 type CanvasDerivedOptions = {
     nodes: CanvasNodeData[];
@@ -42,8 +45,20 @@ export function useCanvasDerived({
     activeOverlay,
     contextMenu,
 }: CanvasDerivedOptions) {
+    const nodeById = useMemo(() => indexCanvasNodes(nodes), [nodes]);
+
+    // 批量折叠子节点的隐藏判断每帧都要问一次，先算成集合，避免逐节点 find。
+    const hiddenBatchChildIds = useMemo(() => {
+        const hidden = new Set<string>();
+        nodes.forEach((node) => {
+            if (isHiddenBatchChild(node, nodeById, collapsingBatchIds)) hidden.add(node.id);
+        });
+        return hidden;
+    }, [collapsingBatchIds, nodeById, nodes]);
+
     const visibleNodes = useMemo(() => {
-        const padding = 280;
+        // 视口状态按 80ms 节流提交，裁切边距改成屏幕常量，快速平移时才不会露出空白。
+        const padding = Math.max(280, Math.min(1600, 360 / viewport.k));
         const width = size.width;
         const height = size.height;
         const viewLeft = -viewport.x / viewport.k - padding;
@@ -51,10 +66,29 @@ export function useCanvasDerived({
         const viewRight = viewLeft + width / viewport.k + padding * 2;
         const viewBottom = viewTop + height / viewport.k + padding * 2;
 
-        return nodes.filter((node) => !isHiddenBatchChild(node, nodes, collapsingBatchIds) && node.position.x + node.width > viewLeft && node.position.x < viewRight && node.position.y + node.height > viewTop && node.position.y < viewBottom);
-    }, [collapsingBatchIds, nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
+        return nodes.filter((node) => !hiddenBatchChildIds.has(node.id) && node.position.x + node.width > viewLeft && node.position.x < viewRight && node.position.y + node.height > viewTop && node.position.y < viewBottom);
+    }, [hiddenBatchChildIds, nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
 
-    const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+    // 连线同样按视口裁切：贝塞尔控制点最多外扩 curvature，按包围盒保守判断即可。
+    const visibleConnections = useMemo(() => {
+        const padding = Math.max(400, Math.min(1800, 520 / viewport.k));
+        const viewLeft = -viewport.x / viewport.k - padding;
+        const viewTop = -viewport.y / viewport.k - padding;
+        const viewRight = viewLeft + size.width / viewport.k + padding * 2;
+        const viewBottom = viewTop + size.height / viewport.k + padding * 2;
+        return connections.filter((connection) => {
+            const from = nodeById.get(connection.fromNodeId);
+            const to = nodeById.get(connection.toNodeId);
+            if (!from || !to) return false;
+            if (isHiddenBatchConnectionEndpoint(from, nodeById) || isHiddenBatchConnectionEndpoint(to, nodeById)) return false;
+            const startX = from.position.x + from.width;
+            const startY = from.position.y + from.height / 2;
+            const endX = to.position.x;
+            const endY = to.position.y + to.height / 2;
+            const bulge = Math.max(Math.abs(endX - startX) * 0.5, 50);
+            return Math.max(startX, endX) + bulge > viewLeft && Math.min(startX, endX) - bulge < viewRight && Math.max(startY, endY) > viewTop && Math.min(startY, endY) < viewBottom;
+        });
+    }, [connections, nodeById, size.height, size.width, viewport.k, viewport.x, viewport.y]);
     const connectionsByTargetNodeId = useMemo(() => {
         const map = new Map<string, CanvasConnection[]>();
         connections.forEach((connection) => {
@@ -208,7 +242,11 @@ export function useCanvasDerived({
 
     const mentionReferencesByNodeId = useMemo(() => {
         const map = new Map<string, ReturnType<typeof buildNodeMentionReferences>>();
-        nodes.forEach((node) => map.set(node.id, buildNodeMentionReferences(node, nodes, connections)));
+        nodes.forEach((node) => {
+            const references = buildNodeMentionReferences(node, nodes, connections);
+            // 没有引用时复用同一个空数组，节点 memo 才不会被新数组击穿。
+            map.set(node.id, references.length ? references : EMPTY_MENTION_REFERENCES);
+        });
         return map;
     }, [connections, nodes]);
 
@@ -263,6 +301,7 @@ export function useCanvasDerived({
 
     return {
         visibleNodes,
+        visibleConnections,
         nodeById,
         toolbarNode,
         overlayNode,

@@ -1,10 +1,12 @@
-import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import { memo, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import type { CanvasConnection, CanvasNodeData, ConnectionHandle, Position } from "../types";
+import { connectionAnchors } from "../[id]/lib/canvas-connections";
+import { registerCanvasConnectionElement } from "../utils/canvas-live-drag";
 
-export function ConnectionPath({
+export const ConnectionPath = memo(function ConnectionPath({
     connection,
     from,
     to,
@@ -20,8 +22,8 @@ export function ConnectionPath({
     active: boolean;
     dimmed?: boolean;
     flowing?: boolean;
-    onSelect: () => void;
-    onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
+    onSelect: (connectionId: string) => void;
+    onContextMenu?: (event: ReactMouseEvent<SVGPathElement>, connectionId: string) => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [hovered, setHovered] = useState(false);
@@ -29,16 +31,16 @@ export function ConnectionPath({
     const structural = from.metadata?.remixRole === "plan";
     // AI 建立的上下文关系待确认，虚线并加 AI 标识，接受后转为人工实线。
     const pendingAi = connection.kind === "context" && connection.data.source === "ai";
-    const startX = from.position.x + from.width;
-    const startY = from.position.y + from.height / 2;
-    const endX = to.position.x;
-    const endY = to.position.y + to.height / 2;
-    const dx = Math.abs(endX - startX);
-    const curvature = Math.max(dx * 0.5, 50);
-    const pathD = `M ${startX} ${startY} C ${startX + curvature} ${startY}, ${endX - curvature} ${endY}, ${endX} ${endY}`;
+    const { startX, startY, endX, endY, pathD } = connectionAnchors(from, to);
+    const groupRef = useRef<SVGGElement>(null);
+    // 拖拽节点时直接改这些 path 的 d，避免整块连线层跟着重渲染。
+    useEffect(() => {
+        registerCanvasConnectionElement(connection.id, groupRef.current);
+        return () => registerCanvasConnectionElement(connection.id, null);
+    }, [connection.id]);
 
     return (
-        <g opacity={dimmed ? 0.22 : 1} style={{ transition: "opacity 200ms ease" }}>
+        <g ref={groupRef} opacity={dimmed ? 0.22 : 1} style={{ transition: "opacity 200ms ease" }}>
             <path
                 data-connection-id={connection.id}
                 d={pathD}
@@ -50,12 +52,12 @@ export function ConnectionPath({
                 onPointerLeave={() => setHovered(false)}
                 onClick={(event) => {
                     event.stopPropagation();
-                    onSelect();
+                    onSelect(connection.id);
                 }}
                 onContextMenu={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    onContextMenu?.(event);
+                    onContextMenu?.(event, connection.id);
                 }}
             />
             <path
@@ -68,11 +70,11 @@ export function ConnectionPath({
                 fill="none"
                 style={{ filter: active ? `drop-shadow(0 0 8px ${theme.node.activeStroke}66)` : hovered ? `drop-shadow(0 0 5px ${theme.node.activeStroke}40)` : undefined, pointerEvents: "none" }}
             />
-            {pendingAi ? <text x={(startX + endX) / 2} y={(startY + endY) / 2 - 8} textAnchor="middle" fontSize="10" fill={theme.node.muted} style={{ pointerEvents: "none" }}>AI</text> : null}
+            {pendingAi ? <text data-anchor="mid" x={(startX + endX) / 2} y={(startY + endY) / 2 - 8} textAnchor="middle" fontSize="10" fill={theme.node.muted} style={{ pointerEvents: "none" }}>AI</text> : null}
             {active || flowing ? (
                 <>
-                    <circle cx={startX} cy={startY} r={3} fill={theme.node.activeStroke} opacity={0.9} style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }} />
-                    <circle cx={endX} cy={endY} r={3} fill={theme.node.activeStroke} opacity={0.9} style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }} />
+                    <circle data-anchor="start" cx={startX} cy={startY} r={3} fill={theme.node.activeStroke} opacity={0.9} style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }} />
+                    <circle data-anchor="end" cx={endX} cy={endY} r={3} fill={theme.node.activeStroke} opacity={0.9} style={{ filter: `drop-shadow(0 0 4px ${theme.node.activeStroke})`, pointerEvents: "none" }} />
                 </>
             ) : null}
             {flowing && !structural ? (
@@ -100,7 +102,7 @@ export function ConnectionPath({
             ) : null}
         </g>
     );
-}
+});
 
 export function ActiveConnectionPath({ node, handle, mouseWorld, target }: { node?: CanvasNodeData; handle: ConnectionHandle; mouseWorld: Position; target?: CanvasNodeData }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];

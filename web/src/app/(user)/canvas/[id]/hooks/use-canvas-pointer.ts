@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
-import { getConnectionTargetAnchor, normalizeConnection } from "../lib/canvas-connections";
-import { isHiddenBatchChild } from "../lib/canvas-graph";
+import { connectionAnchors, getConnectionTargetAnchor, normalizeConnection } from "../lib/canvas-connections";
+import { indexCanvasNodes, isHiddenBatchChild } from "../lib/canvas-graph";
 import { calculateCanvasAlignment, createCanvasAlignmentContext, type CanvasAlignmentContext, type CanvasAlignmentGuides } from "../../utils/canvas-alignment";
 import { findContainingGroupId, findGroupDropTarget, snapNodesIntoGroup } from "../../utils/canvas-group";
-import type { CanvasNodeData, ConnectionHandle, ContextMenuState, PendingConnectionCreate, Position, SelectionBox, ViewportTransform } from "../../types";
+import type { CanvasConnection, CanvasNodeData, ConnectionHandle, ContextMenuState, PendingConnectionCreate, Position, SelectionBox, ViewportTransform } from "../../types";
+import { applyLiveDrag, clearLiveDrag } from "../../utils/canvas-live-drag";
 
 const CONNECTION_HANDLE_HIT_RADIUS = 40;
 const CONNECTION_NODE_HIT_PADDING = 32;
@@ -18,6 +19,7 @@ type ConnectionDropTarget = {
 
 type UseCanvasPointerOptions = {
     nodesRef: MutableRefObject<CanvasNodeData[]>;
+    connectionsRef: MutableRefObject<CanvasConnection[]>;
     selectedNodeIdsRef: MutableRefObject<Set<string>>;
     setNodes: Dispatch<SetStateAction<CanvasNodeData[]>>;
     viewportRef: MutableRefObject<ViewportTransform>;
@@ -43,6 +45,7 @@ type UseCanvasPointerOptions = {
  */
 export function useCanvasPointer({
     nodesRef,
+    connectionsRef,
     selectedNodeIdsRef,
     setNodes,
     viewportRef,
@@ -94,6 +97,34 @@ export function useCanvasPointer({
         initialSelectedNodes: [],
     });
 
+    /** 拖拽帧只算「节点新位置 + 受影响连线的 d」，交给 live-drag 直接写 DOM，不触发 React 渲染。 */
+    const buildDragFrame = useCallback((positions: Map<string, Position>) => {
+        const paths = new Map<string, ReturnType<typeof connectionAnchors>>();
+        const needed = new Set<string>();
+        const touching: CanvasConnection[] = [];
+        for (const connection of connectionsRef.current) {
+            if (!positions.has(connection.fromNodeId) && !positions.has(connection.toNodeId)) continue;
+            touching.push(connection);
+            needed.add(connection.fromNodeId);
+            needed.add(connection.toNodeId);
+        }
+        if (!touching.length) return { positions, paths };
+        const touchedNodes = new Map<string, CanvasNodeData>();
+        for (const node of nodesRef.current) {
+            if (needed.has(node.id)) touchedNodes.set(node.id, node);
+        }
+        for (const connection of touching) {
+            const from = touchedNodes.get(connection.fromNodeId);
+            const to = touchedNodes.get(connection.toNodeId);
+            if (!from || !to) continue;
+            paths.set(connection.id, connectionAnchors(
+                { position: positions.get(from.id) ?? from.position, width: from.width, height: from.height },
+                { position: positions.get(to.id) ?? to.position, width: to.width, height: to.height },
+            ));
+        }
+        return { positions, paths };
+    }, [connectionsRef, nodesRef]);
+
     const setConnecting = useCallback((next: ConnectionHandle | null) => {
         connectingParamsRef.current = next;
         setConnectingParams(next);
@@ -129,8 +160,9 @@ export function useCanvasPointer({
             let bestNodeId: string | null = null;
             let bestPriority = Number.POSITIVE_INFINITY;
 
+            const nodeById = indexCanvasNodes(nodesRef.current);
             [...nodesRef.current]
-                .filter((node) => !isHiddenBatchChild(node, nodesRef.current))
+                .filter((node) => !isHiddenBatchChild(node, nodeById))
                 .reverse()
                 .forEach((node) => {
                     const anchor = getConnectionTargetAnchor(node, current);
@@ -236,8 +268,9 @@ export function useCanvasPointer({
                 initialSelectedNodes: currentNodes.filter((node) => dragIds.has(node.id)).map((node) => ({ id: node.id, x: node.position.x, y: node.position.y })),
             };
             activePointerIdRef.current = event.pointerId;
+            const nodeById = indexCanvasNodes(currentNodes);
             alignmentContextRef.current = createCanvasAlignmentContext(
-                currentNodes.filter((node) => !isHiddenBatchChild(node, currentNodes)),
+                currentNodes.filter((node) => !isHiddenBatchChild(node, nodeById)),
                 dragIds,
             );
             historyPausedRef.current = true;
@@ -278,6 +311,7 @@ export function useCanvasPointer({
         setIsNodeDragging(false);
         if (dragRef.current.hasMoved && clientX != null && clientY != null) {
             const movedIds = new Set(initialPositions.map((item) => item.id));
+            clearLiveDrag();
             setNodes((prev) => {
                 const moved = prev.map((node) => {
                     const initial = initialPositions.find((item) => item.id === node.id);
@@ -293,6 +327,14 @@ export function useCanvasPointer({
             });
         }
 
+        if (dragRef.current.hasMoved && (clientX == null || clientY == null)) {
+            // 拖拽被中断（失焦/指针取消）：把 DOM 还原到提交前的位置。
+            const originals = new Map(initialPositions.map((item) => [item.id, { x: item.x, y: item.y }]));
+            const frame = buildDragFrame(originals);
+            applyLiveDrag(frame.positions, frame.paths);
+            clearLiveDrag();
+        }
+
         dragRef.current.isDraggingNode = false;
         dragRef.current.hasMoved = false;
         dragRef.current.clickedGroupId = null;
@@ -301,7 +343,7 @@ export function useCanvasPointer({
         setDropTargetGroupId(null);
         setAlignmentGuides({});
         if (wasClick && clickedNodeId) onNodeClicked(clickedNodeId);
-    }, [historyPausedRef, nodeDraggingRef, onNodeClicked, setNodes, viewportRef]);
+    }, [buildDragFrame, historyPausedRef, nodeDraggingRef, onNodeClicked, setNodes, viewportRef]);
 
     const handleGlobalPointerMove = useCallback(
         (event: PointerEvent) => {
@@ -326,9 +368,11 @@ export function useCanvasPointer({
                 const { x: dx, y: dy } = aligned.offset;
                 const nextGuides = dragRef.current.hasMoved ? aligned.guides : {};
                 const movedIds = new Set(initialPositions.map((item) => item.id));
+                const positions = new Map<string, Position>();
+                initialPositions.forEach((item) => positions.set(item.id, { x: item.x + dx, y: item.y + dy }));
                 const previewNodes = nodesRef.current.map((node) => {
-                    const initial = initialPositions.find((item) => item.id === node.id);
-                    return initial ? { ...node, position: { x: initial.x + dx, y: initial.y + dy } } : node;
+                    const point = positions.get(node.id);
+                    return point ? { ...node, position: point } : node;
                 });
                 setDropTargetGroupId(findGroupDropTarget(movedIds, previewNodes)?.id || null);
 
@@ -339,12 +383,8 @@ export function useCanvasPointer({
                             ? current
                             : nextGuides,
                     );
-                    setNodes((prev) =>
-                        prev.map((node) => {
-                            const initial = initialPositions.find((item) => item.id === node.id);
-                            return initial ? { ...node, position: { x: initial.x + dx, y: initial.y + dy } } : node;
-                        }),
-                    );
+                    const frame = buildDragFrame(positions);
+                    applyLiveDrag(frame.positions, frame.paths);
                     rafRef.current = null;
                 });
                 return;
@@ -365,8 +405,9 @@ export function useCanvasPointer({
                 const rectH = Math.abs(world.y - currentSelection.startWorldY);
                 const nextSelected = new Set<string>(currentSelection.additive ? currentSelection.initialSelectedNodeIds : []);
 
+                const nodeById = indexCanvasNodes(nodesRef.current);
                 nodesRef.current
-                    .filter((node) => !isHiddenBatchChild(node, nodesRef.current))
+                    .filter((node) => !isHiddenBatchChild(node, nodeById))
                     .forEach((node) => {
                         const intersects = rectX < node.position.x + node.width && rectX + rectW > node.position.x && rectY < node.position.y + node.height && rectY + rectH > node.position.y;
 
@@ -393,7 +434,7 @@ export function useCanvasPointer({
                 setMouseWorld(screenToCanvas(event.clientX, event.clientY));
             }
         },
-        [getConnectionDropTarget, nodesRef, screenToCanvas, selectMany, selectedNodeIdsRef, setNodes, viewportRef],
+        [buildDragFrame, getConnectionDropTarget, nodesRef, screenToCanvas, selectMany, selectedNodeIdsRef, viewportRef],
     );
 
     const handleGlobalPointerUp = useCallback((event: PointerEvent) => {

@@ -63,6 +63,7 @@ const previewRequests = new Map<string, { source: string; promise: Promise<strin
 const previewDeletes = new Map<string, Promise<void>>();
 const previewEpochs = new Map<string, number>();
 const previewListeners = new Set<() => void>();
+const previewKeyListeners = new Map<string, Set<() => void>>();
 const serverUrls = new Map<string, string>();
 const serverUrlRequests = new Map<string, Promise<string | undefined>>();
 const previewQueue: Array<() => void> = [];
@@ -91,6 +92,17 @@ export function subscribeImagePreviews(listener: () => void) {
     previewListeners.add(listener);
     return () => {
         previewListeners.delete(listener);
+    };
+}
+
+/** 按 key 订阅：一张预览就绪只重渲染用到它的那个节点，不再刷新整屏图片节点。 */
+export function subscribeImagePreview(key: string, listener: () => void) {
+    const set = previewKeyListeners.get(key) ?? new Set<() => void>();
+    set.add(listener);
+    previewKeyListeners.set(key, set);
+    return () => {
+        set.delete(listener);
+        if (!set.size) previewKeyListeners.delete(key);
     };
 }
 
@@ -147,7 +159,7 @@ export async function deleteImagePreviews(keys: Iterable<string>) {
             });
         }),
     );
-    if (changed) notifyPreviewChange();
+    if (changed) notifyPreviewChange(uniqueKeys);
 }
 
 export async function deleteUnusedImagePreviews(prefix: string, usedKeys: ReadonlySet<string>) {
@@ -233,7 +245,7 @@ function cacheImagePreview(key: string, source: string, blob: Blob) {
     if (cached) URL.revokeObjectURL(cached.url);
     const url = URL.createObjectURL(blob);
     previewUrls.set(key, { source, url });
-    notifyPreviewChange();
+    notifyPreviewChange([key]);
     return url;
 }
 
@@ -242,12 +254,15 @@ function removeCachedPreview(key: string, notify = true) {
     if (!cached) return false;
     URL.revokeObjectURL(cached.url);
     previewUrls.delete(key);
-    if (notify) notifyPreviewChange();
+    if (notify) notifyPreviewChange([key]);
     return true;
 }
 
-function notifyPreviewChange() {
+function notifyPreviewChange(keys?: Iterable<string>) {
     previewRevision += 1;
+    if (keys) {
+        for (const key of keys) previewKeyListeners.get(key)?.forEach((listener) => listener());
+    }
     previewListeners.forEach((listener) => listener());
 }
 
