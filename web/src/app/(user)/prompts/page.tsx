@@ -1,14 +1,15 @@
 "use client";
 
-import { ExternalLink, FolderPlus, Search } from "lucide-react";
+import { ExternalLink, FolderPlus } from "lucide-react";
 import { type UIEvent, useState } from "react";
-import { App, Button, Input } from "antd";
+import { App, Button } from "antd";
 
 import { PromptCard } from "@/components/prompts/prompt-card";
 import { PromptDetailDialog } from "@/components/prompts/prompt-detail-dialog";
 import { usePromptList } from "@/components/prompts/use-prompt-list";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { PageHeader } from "@/components/ui/page-header";
+import { SearchField } from "@/components/ui/search-field";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -76,19 +77,17 @@ export default function PromptsPage() {
                     />
 
                     <section className="flex flex-col gap-4">
-                        <div className="flex h-11 w-full items-center gap-3 rounded-lg border border-border bg-card/70 px-4 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-2xl">
-                            <Search className="size-4 shrink-0 text-muted-foreground" />
-                            <Input
-                                variant="borderless"
-                                size="large"
-                                className="!bg-transparent"
-                                value={titleInput}
-                                placeholder="按标题查询，按 Enter 搜索"
-                                onChange={(event) => setTitleInput(event.target.value)}
-                                onPressEnter={searchByTitleInput}
-                            />
-                            <Button type="primary" size="small" onClick={searchByTitleInput}>搜索</Button>
-                        </div>
+                        <SearchField
+                            value={titleInput}
+                            onChange={setTitleInput}
+                            placeholder="按标题查询，按 Enter 搜索"
+                            onEnter={searchByTitleInput}
+                            trailing={
+                                <Button type="primary" size="small" onClick={searchByTitleInput}>
+                                    搜索
+                                </Button>
+                            }
+                        />
                         <div className="filter-tag-sheet grid gap-2 sm:gap-2.5">
                             <FilterTagGroup label="分类" options={promptCategoryOptions} isSelected={(value) => selectedCategory === value} onSelect={setSelectedCategory} />
                             <FilterTagGroup label="标签" options={promptTags} collapsible isSelected={(value) => value === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(value)} onSelect={toggleTag} />

@@ -14,6 +14,7 @@ import { useCopyText } from "@/hooks/use-copy-text";
 import { assetInsertPayload, libraryInsertPayload, type InsertAssetPayload } from "@/lib/asset-picker";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
+import { CANVAS_Z } from "../[id]/lib/canvas-layer";
 import { canvasStatusColors } from "@/app/(user)/canvas/lib/canvas-palette";
 import type { AssetLibraryItem } from "@/services/api/assets";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
@@ -146,9 +147,9 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, open, width, onWidthCh
 
     return (
         <>
-            {open ? <div className="fixed inset-0 z-[65] bg-black/35 md:hidden" onClick={onClose} aria-hidden /> : null}
+            {open ? <div className="fixed inset-0 bg-black/35 md:hidden" onClick={onClose} aria-hidden style={{ zIndex: CANVAS_Z.sideDrawer - 1 }} /> : null}
             <motion.div
-                className="relative z-[60] flex h-full shrink-0 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-[70] max-md:h-[100dvh]"
+                className="relative flex h-full shrink-0 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-[85] max-md:h-[100dvh]"
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: open ? width + 1 : 0, opacity: open ? 1 : 0 }}
                 transition={{ duration: resizing ? 0 : PANEL_MOTION_SECONDS, ease: PANEL_EASE }}

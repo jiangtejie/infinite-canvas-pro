@@ -2,10 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { App, Button, Input, Pagination } from "antd";
+import { App, Button, Pagination } from "antd";
 import { Download, FileUp, Plus, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { SearchField } from "@/components/ui/search-field";
 import { PunkAura } from "@/components/ui/punk-aura";
 import { LoadingState, EmptyState } from "@/components/ui/state-panel";
 import { readZip } from "@/lib/zip";
@@ -101,8 +102,19 @@ export default function CanvasPage() {
 
                 {projects.length ? (
                     <div className="flex flex-wrap items-center gap-2">
-                        <Input.Search allowClear placeholder="搜索画布名称" className="w-full max-w-sm" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{filteredProjects.length} / {projects.length}</span>
+                        <SearchField
+                            value={query}
+                            onChange={(value) => {
+                                setQuery(value);
+                                setPage(1);
+                            }}
+                            placeholder="搜索画布名称"
+                            trailing={
+                                <span className="shrink-0 font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">
+                                    {filteredProjects.length} / {projects.length}
+                                </span>
+                            }
+                        />
                     </div>
                 ) : null}
 

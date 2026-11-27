@@ -843,7 +843,7 @@ export default function ImagePage() {
                 <button
                     ref={workflowButtonRef}
                     type="button"
-                    className={`fixed z-40 inline-flex touch-none select-none items-center gap-2 rounded-lg border border-border bg-background/90 px-3.5 py-2.5 text-[13px] font-medium text-foreground shadow-lg backdrop-blur-xl transition hover:border-acid/45 hover:bg-accent ${hasCustomWorkflowButtonPosition ? "max-lg:!bottom-[calc(15rem+env(safe-area-inset-bottom))] max-lg:!left-auto max-lg:!right-5 max-lg:!top-auto" : "bottom-6 right-6"}`}
+                    className={`fixed z-40 hidden touch-none select-none items-center gap-2 rounded-lg border border-border bg-background/90 px-3.5 py-2.5 text-[13px] font-medium text-foreground shadow-lg backdrop-blur-xl transition hover:border-acid/45 hover:bg-accent lg:inline-flex ${hasCustomWorkflowButtonPosition ? "" : "bottom-6 right-6"}`}
                     style={hasCustomWorkflowButtonPosition ? { left: workflowButtonPosition.x, top: workflowButtonPosition.y } : undefined}
                     onPointerDown={handleWorkflowButtonPointerDown}
                     onPointerMove={handleWorkflowButtonPointerMove}

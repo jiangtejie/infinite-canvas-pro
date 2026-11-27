@@ -60,10 +60,10 @@ export function FilterTagGroup({ label, options, isSelected, onSelect, className
     }
 
     return (
-        <div className={cn("grid gap-2 sm:grid-cols-[64px_minmax(0,1fr)] sm:items-start", className)}>
+        <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-[64px_minmax(0,1fr)] sm:items-start", className)}>
             <div className="pt-1.5 font-mono text-[10px] font-medium tracking-[0.1em] text-muted-foreground/80 uppercase">{label}</div>
-            <div className="flex flex-col gap-1.5">
-                <div className="hide-scrollbar flex flex-wrap gap-2 pr-1 sm:max-h-[112px] sm:overflow-y-auto">{tags}</div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+                <div className="hide-scrollbar flex min-w-0 flex-wrap gap-2 pr-1 sm:max-h-[112px] sm:overflow-y-auto">{tags}</div>
                 {toggle}
             </div>
         </div>

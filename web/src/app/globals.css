@@ -798,6 +798,20 @@
         opacity: 1;
     }
 
+    /* 滚动区底部渐隐：内容没到底时提示还有更多，避免最后一行被硬切成半截 */
+    .scroll-fade-bottom {
+        -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent 100%);
+        mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent 100%);
+    }
+
+    /* 页面级滚动容器始终预留滚动条槽位，避免出现滚动条时整页内容横向跳动 8px */
+    main[class*="overflow-y-auto"],
+    main[class*="overflow-y-scroll"],
+    main[class*="overflow-auto"],
+    main[class*="overflow-scroll"] {
+        scrollbar-gutter: stable;
+    }
+
     /* 分段控件选中态改用内阴影描边，切换时没有 1px 抖动 */
     .ant-segmented-item-selected {
         box-shadow:
@@ -1329,3 +1343,4 @@ html[data-announcement="visible"] {
     border-color: color-mix(in oklch, var(--foreground) 16%, transparent) !important;
     background: color-mix(in oklch, var(--background) 72%, transparent) !important;
 }
+

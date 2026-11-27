@@ -1,14 +1,15 @@
 "use client";
 
-import { Copy, Download, FileUp, LayoutGrid, Package, PencilLine, Plus, Search, Trash2 } from "lucide-react";
+import { Copy, Download, FileUp, LayoutGrid, Package, PencilLine, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
-import { App, Button, Input, Pagination, type InputRef } from "antd";
+import { App, Button, Pagination, type InputRef } from "antd";
 import { saveAs } from "file-saver";
 
 import { AssetBrowserCard, AssetBrowserEmpty, AssetBrowserLoading, AssetKindFilter, assetKindLabel, type AssetBrowserItem, type AssetFilterKind } from "@/components/assets/asset-browser";
 import { AssetDetailDrawer, type AssetDetailModel } from "@/components/assets/asset-detail-drawer";
 import { PageHeader } from "@/components/ui/page-header";
+import { SearchField } from "@/components/ui/search-field";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { useCopyText } from "@/hooks/use-copy-text";
@@ -183,22 +184,16 @@ export default function AssetsPage() {
 
                     <section className="flex flex-col gap-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                            <div className="flex h-11 w-full items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-md">
-                                <Search className="size-4 shrink-0 text-muted-foreground" />
-                                <Input
-                                    ref={searchInputRef}
-                                    variant="borderless"
-                                    className="!bg-transparent"
-                                    allowClear
-                                    value={keyword}
-                                    placeholder="搜索标题、内容、分类、标签或来源"
-                                    onChange={(event) => {
-                                        setPage(1);
-                                        setKeyword(event.target.value);
-                                    }}
-                                />
-                                <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">/</kbd>
-                            </div>
+                            <SearchField
+                                inputRef={searchInputRef}
+                                value={keyword}
+                                onChange={(value) => {
+                                    setPage(1);
+                                    setKeyword(value);
+                                }}
+                                placeholder="搜索标题、内容、分类、标签或来源"
+                                trailing={<kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:block">/</kbd>}
+                            />
                             <AssetKindFilter value={kindFilter} onChange={(value) => { setPage(1); setKindFilter(value); }} />
                         </div>
                         {categories.length || tags.length ? (

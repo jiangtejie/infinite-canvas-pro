@@ -11,6 +11,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/state-panel";
 import { useCopyText } from "@/hooks/use-copy-text";
+import { SearchField } from "@/components/ui/search-field";
 import { useScreenLoadTiming } from "@/hooks/use-screen-load-timing";
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -933,19 +934,19 @@ export function CreativeWorkflowWorkspace({
                     </section>
                 ) : null}
 
-                <section className="flex flex-wrap items-center gap-2.5 rounded-xl border border-border/70 bg-card/60 p-2.5 lg:p-3">
-                    <Input.Search allowClear placeholder="搜索名称、分类、描述" className="w-full max-w-sm" value={query} onChange={(event) => setQuery(event.target.value)} />
+                <div className="flex flex-wrap items-center gap-3">
+                    <SearchField value={query} onChange={setQuery} placeholder="搜索名称、分类、描述" className="lg:max-w-sm" />
                     <Select
-                        className="w-36"
+                        className="w-32 shrink-0"
                         aria-label="工作流分类"
                         value={workflowCategory}
                         options={[{ value: "all", label: "全部分类" }, ...workflowCategories.map((category) => ({ value: category, label: category }))]}
                         onChange={setWorkflowCategory}
                     />
-                    <span className="ml-auto font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">
+                    <span className="ml-auto shrink-0 font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">
                         {workflowCategory === "all" ? "全部分类" : workflowCategory} · {filteredWorkflows.length} 个结果
                     </span>
-                </section>
+                </div>
 
                 <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {visibleWorkflows.map((workflow) => (

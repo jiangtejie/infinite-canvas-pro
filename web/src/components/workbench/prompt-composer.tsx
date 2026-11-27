@@ -27,11 +27,12 @@ export function WorkbenchSection({ title, count, children, collapsible = false, 
     );
 }
 
-export function PromptQuickActions({ onPaste, onClear, onOpenPromptLibrary, onOpenAssetPicker }: {
+export function PromptQuickActions({ onPaste, onClear, onOpenPromptLibrary, onOpenAssetPicker, onOpenWorkflow }: {
     onPaste: () => void;
     onClear: () => void;
     onOpenPromptLibrary: () => void;
     onOpenAssetPicker: () => void;
+    onOpenWorkflow?: () => void;
 }) {
     return (
         <div className="-ml-1.5 flex flex-wrap items-center gap-0.5">
@@ -47,11 +48,16 @@ export function PromptQuickActions({ onPaste, onClear, onOpenPromptLibrary, onOp
             <Button size="small" type="text" className="!h-7 !px-2 !text-[11px] !text-foreground/65 hover:!text-foreground" icon={<FolderPlus className="size-3.5" />} onClick={onOpenAssetPicker}>
                 素材库
             </Button>
+            {onOpenWorkflow ? (
+                <Button size="small" type="text" className="!h-7 !px-2 !text-[11px] !text-foreground/65 hover:!text-foreground" icon={<WandSparkles className="size-3.5" />} onClick={onOpenWorkflow}>
+                    工作流
+                </Button>
+            ) : null}
         </div>
     );
 }
 
-export function WorkbenchPromptSection({ prompt, placeholder, onPromptChange, onPastePrompt, onClearPrompt, onOpenPromptLibrary, onOpenAssetPicker }: {
+export function WorkbenchPromptSection({ prompt, placeholder, onPromptChange, onPastePrompt, onClearPrompt, onOpenPromptLibrary, onOpenAssetPicker, onOpenWorkflow }: {
     prompt: string;
     placeholder: string;
     onPromptChange: (value: string) => void;
@@ -59,10 +65,11 @@ export function WorkbenchPromptSection({ prompt, placeholder, onPromptChange, on
     onClearPrompt: () => void;
     onOpenPromptLibrary: () => void;
     onOpenAssetPicker: () => void;
+    onOpenWorkflow?: () => void;
 }) {
     return (
         <WorkbenchSection title="提示词">
-            <PromptQuickActions onPaste={onPastePrompt} onClear={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} />
+            <PromptQuickActions onPaste={onPastePrompt} onClear={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} onOpenWorkflow={onOpenWorkflow} />
             <Input.TextArea
                 value={prompt}
                 onChange={(event) => onPromptChange(event.target.value)}

@@ -1,13 +1,14 @@
 "use client";
 
-import { FolderPlus, Search } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { App, Button, Input, Pagination } from "antd";
+import { App, Button, Pagination } from "antd";
 import { AssetBrowserCard, AssetBrowserEmpty, AssetBrowserLoading, AssetKindFilter, type AssetBrowserItem, type AssetFilterKind } from "@/components/assets/asset-browser";
 import { AssetDetailDrawer, type AssetDetailModel } from "@/components/assets/asset-detail-drawer";
 import { FilterTagGroup } from "@/components/ui/filter-tag-group";
 import { PageHeader } from "@/components/ui/page-header";
+import { SearchField } from "@/components/ui/search-field";
 import { ErrorState } from "@/components/ui/state-panel";
 import { getProxyUrl } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
@@ -96,20 +97,14 @@ export default function AssetLibraryPage() {
 
                     <section className="flex flex-col gap-4">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                            <div className="flex h-11 w-full items-center gap-2 rounded-lg border border-border bg-card/70 px-3.5 backdrop-blur-xl transition-colors focus-within:border-acid/50 lg:max-w-md">
-                                <Search className="size-4 shrink-0 text-muted-foreground" />
-                                <Input
-                                    variant="borderless"
-                                    className="!bg-transparent"
-                                    allowClear
-                                    value={keyword}
-                                    placeholder="搜索标题、内容、分类或标签"
-                                    onChange={(event) => {
-                                        setPage(1);
-                                        setKeyword(event.target.value);
-                                    }}
-                                />
-                            </div>
+                            <SearchField
+                                value={keyword}
+                                onChange={(value) => {
+                                    setPage(1);
+                                    setKeyword(value);
+                                }}
+                                placeholder="搜索标题、内容、分类或标签"
+                            />
                             <AssetKindFilter
                                 value={(selectedType || "all") as AssetFilterKind}
                                 onChange={(value) => {

@@ -3,6 +3,7 @@
 import { Copy, FolderPlus } from "lucide-react";
 import { Button, Modal, Space, Tag } from "antd";
 
+import { RemoteImage } from "@/components/ui/remote-image";
 import { formatPromptDate, type Prompt } from "@/services/api/prompts";
 
 export function PromptDetailDialog({ prompt, onClose, onCopy, onSaveAsset }: { prompt: Prompt | null; onClose: () => void; onCopy: (prompt: string) => void; onSaveAsset?: (prompt: Prompt) => void }) {
@@ -14,7 +15,7 @@ export function PromptDetailDialog({ prompt, onClose, onCopy, onSaveAsset }: { p
                     <>
                         <div className="grid gap-5 md:grid-cols-[300px_minmax(0,1fr)]">
                             <div className="space-y-3">
-                                <img loading="lazy" decoding="async" src={prompt.coverUrl} alt={prompt.title} className="aspect-[4/3] w-full rounded-lg object-cover" />
+                                <RemoteImage src={prompt.coverUrl} alt={prompt.title} className="aspect-[4/3] w-full rounded-lg" />
                                 {preview ? <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-muted p-3 text-xs leading-5 text-muted-foreground">{preview}</pre> : null}
                             </div>
                             <div className="min-w-0">

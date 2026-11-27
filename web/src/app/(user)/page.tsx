@@ -189,7 +189,7 @@ export default function IndexPage() {
         <main className="relative h-full overflow-x-hidden overflow-y-auto bg-transparent text-foreground">
             <link rel="preload" as="image" href="/banners/88-anim-480.webp" imageSrcSet="/banners/88-anim-480.webp 480w" imageSizes="(max-width: 639px) calc(100vw - 2rem), 460px" fetchPriority="high" />
             <div className="page-shell relative">
-                <section className="relative isolate flex flex-col items-center pb-10 pt-12 sm:pt-16 lg:pt-20" aria-labelledby="home-title">
+                <section className="relative isolate flex flex-col items-center pb-8 pt-12 sm:pt-16 lg:pt-20" aria-labelledby="home-title">
                     <div aria-hidden className="neon-bloom-a left-[2%] top-24 h-[260px] w-[38%] max-w-[480px] opacity-70" />
                     <div aria-hidden className="neon-bloom-b right-[2%] top-16 h-[240px] w-[34%] max-w-[440px] opacity-60" />
                     <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[600px] overflow-hidden">
@@ -260,7 +260,7 @@ export default function IndexPage() {
                     <input ref={uploadInputRef} hidden type="file" accept="image/*,video/*,audio/*" onChange={onUploadInputChange} />
                 </section>
 
-                <section className="relative mt-16 sm:mt-20" aria-labelledby="home-tools-title">
+                <section className="relative mt-10 sm:mt-12" aria-labelledby="home-tools-title">
                     <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <span className="eyebrow">工作台</span>

@@ -1,10 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "antd";
 import { Sparkles } from "lucide-react";
 
 import { WorkbenchHeader, type WorkbenchLayout } from "@/components/workbench-header";
+import { cn } from "@/lib/utils";
 
 /** 侧边工作台面板的共用外壳：标题栏、滚动内容区与底部主操作。 */
 export function WorkbenchSidePanel({ title, currentLayout, onLayoutChange, canGenerate, onGenerate, generateLabel, generateHint, pendingCount = 0, children }: {
@@ -18,12 +19,31 @@ export function WorkbenchSidePanel({ title, currentLayout, onLayoutChange, canGe
     pendingCount?: number;
     children: ReactNode;
 }) {
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const [overflowing, setOverflowing] = useState(false);
+
+    // 内容超出可视区时给滚动区底部加渐隐，避免最后一行被裁成半截。
+    useEffect(() => {
+        const element = bodyRef.current;
+        if (!element) return;
+        const update = () => setOverflowing(element.scrollHeight - element.scrollTop - element.clientHeight > 4);
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(element);
+        if (element.firstElementChild) observer.observe(element.firstElementChild);
+        element.addEventListener("scroll", update, { passive: true });
+        return () => {
+            observer.disconnect();
+            element.removeEventListener("scroll", update);
+        };
+    }, []);
+
     return (
         <div className="punk-panel flex min-h-[460px] flex-col overflow-hidden rounded-2xl lg:min-h-0">
             <div className="shrink-0 overflow-hidden border-b border-border/60 px-5 py-4">
                 <WorkbenchHeader title={title} currentLayout={currentLayout} onLayoutChange={onLayoutChange} />
             </div>
-            <div className="thin-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">{children}</div>
+            <div ref={bodyRef} className={cn("thin-scrollbar min-h-0 flex-1 space-y-6 overflow-y-auto px-5 pt-5 pb-8", overflowing && "scroll-fade-bottom")}>{children}</div>
             <div className="shrink-0 border-t border-border/60 px-5 py-4">
                 {pendingCount ? (
                     <div className="mb-3 flex justify-center" role="status" aria-live="polite">

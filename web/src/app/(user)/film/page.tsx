@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Pagination } from "antd";
+import { Button, Pagination } from "antd";
 import { Library, Plus, Trash2 } from "lucide-react";
 
 import { PageHeader } from "@/components/ui/page-header";
+import { SearchField } from "@/components/ui/search-field";
 import { PunkAura } from "@/components/ui/punk-aura";
 import { EmptyState, LoadingState } from "@/components/ui/state-panel";
 import { CanvasDeleteProjectsDialog } from "../canvas/components/canvas-delete-projects-dialog";
@@ -64,10 +65,16 @@ export default function FilmPage() {
                 />
 
                 {projects.length ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Input.Search allowClear placeholder="搜索影视项目" className="w-full max-w-sm" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} />
-                        <span className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{filteredProjects.length} / {projects.length}</span>
-                    </div>
+                    <SearchField
+                        value={query}
+                        onChange={(value) => {
+                            setQuery(value);
+                            setPage(1);
+                        }}
+                        placeholder="搜索影视项目"
+                        className="lg:max-w-sm"
+                        trailing={<span className="shrink-0 font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">{filteredProjects.length} / {projects.length}</span>}
+                    />
                 ) : null}
 
                 {selectedIds.length ? (

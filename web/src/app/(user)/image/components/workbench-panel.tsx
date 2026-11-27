@@ -162,7 +162,7 @@ export function ImageWorkbenchPanel({
             generateHint={<WorkbenchCreditHint config={config} model={model} mode="image" count={config.count || 1} />}
             pendingCount={pendingCount}
         >
-            <WorkbenchPromptSection prompt={prompt} placeholder="描述画面主体、风格、构图、光线和用途" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} />
+            <WorkbenchPromptSection prompt={prompt} placeholder="描述画面主体、风格、构图、光线和用途" onPromptChange={onPromptChange} onPastePrompt={onPastePrompt} onClearPrompt={onClearPrompt} onOpenPromptLibrary={onOpenPromptLibrary} onOpenAssetPicker={onOpenAssetPicker} onOpenWorkflow={onOpenWorkflow} />
 
             <WorkbenchSection title="参考图" count={references.length}>
                 <div className="-ml-1 flex flex-wrap items-center gap-1">
