@@ -88,6 +88,9 @@ func SelectUserLocalModelChannelForModel(userID string, modelName string, channe
 		if baseURL == "" || apiKey == "" {
 			return model.ModelChannel{}, errors.New("本地渠道配置不完整")
 		}
+		if err := ValidateUserChannelBaseURL(baseURL); err != nil {
+			return model.ModelChannel{}, err
+		}
 		models := userLocalChannelModels(channel.Models)
 		if len(models) > 0 && !userLocalChannelHasModel(models, modelName) {
 			return model.ModelChannel{}, errors.New("本地渠道不支持该模型")

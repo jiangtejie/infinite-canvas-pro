@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { fixtureDocument } from "@/test/script-fixtures";
 import { installScriptMemoryDriver } from "@/test/script-memory-driver";
+import { axiosResponse } from "@/test/axios-adapter";
 
 const clearStorage = await installScriptMemoryDriver();
 const { configureScriptAccount, loadScriptProject, loadScriptVersions, syncScriptProject, useScriptStore } = await import("./use-script-store");
@@ -94,8 +95,8 @@ test("guest versions persist locally and activate only valid locks", async () =>
     assert.equal(useScriptStore.getState().documents[id].lockedVersionId, locked.id);
     assert.equal(useScriptStore.getState().versions[id][0].kind, "locked");
     const { default: localforage } = await import("localforage");
-    assert.equal((await localforage.getItem(`infinite-canvas:script:v2:version:account-1:${id}:${locked.id}`))?.id, locked.id);
-    assert.equal((await localforage.getItem(`infinite-canvas:script:v2:project:account-1:${id}`))?.lockedVersionId, locked.id);
+    assert.equal((await localforage.getItem<{ id: string }>(`infinite-canvas:script:v2:version:account-1:${id}:${locked.id}`))?.id, locked.id);
+    assert.equal((await localforage.getItem<{ lockedVersionId?: string }>(`infinite-canvas:script:v2:project:account-1:${id}`))?.lockedVersionId, locked.id);
 });
 
 test("online version save synchronizes pending edits before the version transaction", async () => {
@@ -112,12 +113,12 @@ test("online version save synchronizes pending edits before the version transact
     axios.defaults.adapter = async (config) => {
         const body = typeof config.data === "string" ? JSON.parse(config.data) : {};
         calls.push(`${config.method} ${config.url}`);
-        if (config.url === "/api/v1/script/projects") return { status: 200, data: { code: 0, data: { document: body, revision: 1 }, msg: "" } };
-        if (config.method === "get") return { status: 200, data: { code: 0, data: { items: [] }, msg: "" } };
+        if (config.url === "/api/v1/script/projects") return axiosResponse(config, { code: 0, data: { document: body, revision: 1 }, msg: "" });
+        if (config.method === "get") return axiosResponse(config, { code: 0, data: { items: [] }, msg: "" });
         assert.equal(config.url, "/api/v1/script/projects/p1/versions");
         assert.equal(body.baseRevision, 1);
         assert.equal(body.version.data.episodes[0].scenes[1].content, "待同步正文");
-        return { status: 200, data: { code: 0, data: { document: useScriptStore.getState().documents.p1, revision: 2 }, msg: "" } };
+        return axiosResponse(config, { code: 0, data: { document: useScriptStore.getState().documents.p1, revision: 2 }, msg: "" });
     };
     try {
         await useScriptStore.getState().saveVersion("p1", { scope: "project", label: "同步后版本" });
@@ -152,7 +153,7 @@ test("loading a pending project previews remote changes without moving the sync 
     useUserStore.setState({ token: "online-token" });
     const { default: axios } = await import("axios");
     const previousAdapter = axios.defaults.adapter;
-    axios.defaults.adapter = async () => ({ status: 200, data: { code: 0, data: { document: remote, revision: 2 }, msg: "" } });
+    axios.defaults.adapter = async (config) => axiosResponse(config, { code: 0, data: { document: remote, revision: 2 }, msg: "" });
     try {
         await loadScriptProject("p1");
     } finally {
@@ -189,9 +190,9 @@ test("guest login copies locked versions into the account partition", async () =
     const locked = await useScriptStore.getState().lockVersion(id, { scope: "project", label: "锁定" });
     await configureScriptAccount("account-1");
     const { default: localforage } = await import("localforage");
-    const version = await localforage.getItem(`infinite-canvas:script:v2:version:account-1:${id}:${locked.id}`);
+    const version = await localforage.getItem<{ id: string }>(`infinite-canvas:script:v2:version:account-1:${id}:${locked.id}`);
     assert.equal(version?.id, locked.id);
-    const document = await localforage.getItem(`infinite-canvas:script:v2:project:account-1:${id}`);
+    const document = await localforage.getItem<{ lockedVersionId?: string }>(`infinite-canvas:script:v2:project:account-1:${id}`);
     assert.equal(document?.lockedVersionId, locked.id);
 });
 
@@ -214,7 +215,7 @@ test("account configuration can retry after a storage failure", async () => {
         localforage.setItem = setItem;
     }
     await configureScriptAccount("account-1");
-    assert.equal((await localforage.getItem(`infinite-canvas:script:v2:project:account-1:${id}`))?.title, "接管重试");
+    assert.equal((await localforage.getItem<{ title: string }>(`infinite-canvas:script:v2:project:account-1:${id}`))?.title, "接管重试");
 });
 
 test("same-ID guest and account documents preserve both sides as a conflict", async () => {
@@ -252,7 +253,7 @@ test("failed project deletion retries from its local tombstone", async () => {
         assert.ok(config.url?.startsWith(`/api/v1/script/projects/${id}`));
         attempts += 1;
         if (attempts === 1) throw new Error("网络断开");
-        return { status: 200, data: { code: 0, data: { deleted: true }, msg: "" } };
+        return axiosResponse(config, { code: 0, data: { deleted: true }, msg: "" });
     };
     try {
         await assert.rejects(useScriptStore.getState().deleteProjects([id]), /网络断开|接口连接失败/);

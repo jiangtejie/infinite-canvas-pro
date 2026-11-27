@@ -39,6 +39,7 @@ type TokenClaims struct {
 
 func EnsureDefaultAdmin() error {
 	if strings.TrimSpace(config.Cfg.AdminUsername) == "" || strings.TrimSpace(config.Cfg.AdminPassword) == "" {
+		log.Println("WARNING: ADMIN_USERNAME 或 ADMIN_PASSWORD 为空，已跳过默认管理员创建")
 		return nil
 	}
 	WarnDefaultSecurityConfig()
@@ -109,6 +110,9 @@ func Register(username string, password string) (model.AuthSession, error) {
 }
 
 func Login(username string, password string) (model.AuthSession, error) {
+	if err := CheckLoginRateLimit(username); err != nil {
+		return model.AuthSession{}, err
+	}
 	user, ok, err := repository.GetUserByUsername(strings.TrimSpace(username))
 	if err != nil {
 		return model.AuthSession{}, err
@@ -116,6 +120,7 @@ func Login(username string, password string) (model.AuthSession, error) {
 	if !ok || bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)) != nil {
 		return model.AuthSession{}, safeMessageError{message: "用户名或密码错误"}
 	}
+	ResetLoginRateLimit(username)
 	if user.Status == model.UserStatusBan {
 		return model.AuthSession{}, safeMessageError{message: "账号已被禁用"}
 	}

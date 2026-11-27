@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -89,4 +90,47 @@ func isBlockedProxyIP(ip net.IP) bool {
 		return true
 	}
 	return ip4[0] == 0
+}
+
+// blockedChannelHosts 云平台元数据域名：用户自建渠道一律不允许指向这些地址。
+var blockedChannelHosts = map[string]bool{
+	"metadata.google.internal": true,
+	"metadata.goog":            true,
+	"instance-data":            true,
+	"fd00:ec2::254":            true,
+}
+
+// ValidateUserChannelBaseURL 限制用户自建渠道指向链路本地与云平台元数据地址。
+// 内网与回环地址仍允许：本地模型服务通常就部署在同一台机器或局域网内。
+func ValidateUserChannelBaseURL(rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return errors.New("本地渠道 Base URL 必须是 http/https 地址")
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host == "" {
+		return errors.New("本地渠道 Base URL 缺少域名")
+	}
+	if blockedChannelHosts[host] {
+		return errors.New("本地渠道 Base URL 不能指向云平台元数据地址")
+	}
+	if ip := net.ParseIP(host); ip != nil && isBlockedChannelHostIP(ip) {
+		return errors.New("本地渠道 Base URL 不能指向云平台元数据地址")
+	}
+	return nil
+}
+
+func isBlockedChannelHostIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	ip4 := ip.To4()
+	if ip4 == nil {
+		return false
+	}
+	// 100.64.0.0/10：包括部分云平台 metadata 与 CGNAT。
+	return ip4[0] == 100 && ip4[1] >= 64 && ip4[1] <= 127
 }

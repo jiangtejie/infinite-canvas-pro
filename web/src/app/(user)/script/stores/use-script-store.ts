@@ -429,13 +429,15 @@ export async function syncScriptProject(id: string) {
             await removeLocalScriptProject(id);
             return;
         }
-        const result = pending!.base.revision === 0
+        if (!pending) return;
+        const result = pending.base.revision === 0
             ? await api.createScriptProject(token, pending.document)
             : await api.changeScriptProject(token, id, scriptChangeRequest(pending));
-        if ("conflicts" in result && result.conflicts.length) {
+        const conflicts = result.conflicts;
+        if (conflicts?.length) {
             const preview = mergeScriptDocuments(pending.base, pending.document, result.document, pending.resolutions).document;
-            await writeScriptOutbox(accountId, id, { ...pending, conflicts: result.conflicts });
-            useScriptStore.setState((state) => ({ documents: { ...state.documents, [id]: preview }, conflicts: { ...state.conflicts, [id]: result.conflicts }, syncStates: { ...state.syncStates, [id]: "conflict" } }));
+            await writeScriptOutbox(accountId, id, { ...pending, conflicts });
+            useScriptStore.setState((state) => ({ documents: { ...state.documents, [id]: preview }, conflicts: { ...state.conflicts, [id]: conflicts }, syncStates: { ...state.syncStates, [id]: "conflict" } }));
             return;
         }
         applyView(id, result, true);

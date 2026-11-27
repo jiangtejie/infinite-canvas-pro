@@ -1,16 +1,8 @@
 import { apiDelete, apiGet, apiPost } from "./request";
-import type {
-    ScriptConflict,
-    ScriptConflictResolution,
-    ScriptProjectDocument,
-    ScriptProjectSummary,
-    ScriptSyncBaseline,
-    ScriptVersion,
-    ScriptVersionRestoreRequest,
-    ScriptVersionSummary,
-} from "@/app/(user)/script/types";
+import type { ScriptConflict, ScriptProjectDocument, ScriptProjectSummary, ScriptVersion, ScriptVersionSummary } from "@/app/(user)/script/types";
+import type { ScriptConflictResolution, ScriptSyncBaseline } from "@/app/(user)/script/utils/script-merge";
 
-export type ScriptProjectView = { document: ScriptProjectDocument; revision: number };
+export type ScriptProjectView = { document: ScriptProjectDocument; revision: number; conflicts?: ScriptConflict[] };
 export type ScriptChangeRequest = {
     baseRevision: number;
     baseHeaderHash: string;

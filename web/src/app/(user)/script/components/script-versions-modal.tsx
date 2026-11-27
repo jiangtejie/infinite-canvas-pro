@@ -30,7 +30,8 @@ export function ScriptVersionsModal({ open, project, initialEpisodeId, onClose }
     const [selectedId, setSelectedId] = useState("");
     const [label, setLabel] = useState("");
     const [busy, setBusy] = useState(false);
-    useEffect(() => { if (open) setEpisodeId(initialEpisodeId || project.episodes[0]?.id || ""); }, [open, initialEpisodeId, project.id]);
+    const defaultEpisodeId = initialEpisodeId || project.episodes[0]?.id || "";
+    useEffect(() => { if (open) setEpisodeId(defaultEpisodeId); }, [open, defaultEpisodeId]);
     const selected = versions.find((version) => version.id === selectedId) || versions[0] || null;
     const filtered = versions.filter((version) => filter === "all" || (filter === "project" ? version.scope === "project" : version.scope === "episode" && (!episodeId || version.episodeId === episodeId)));
     const diff = useMemo(() => selected ? diffScriptSnapshots(snapshotScriptContent(project), selected.data) : null, [project, selected]);

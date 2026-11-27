@@ -139,7 +139,7 @@ func summarizeAILogs(now time.Time) (model.AdminOverviewAI, []model.AdminOvervie
 	}
 	overviewAILogCache.Unlock()
 
-	items, err := readAICallLogs()
+	items, err := readAICallLogsCached()
 	if err != nil {
 		return model.AdminOverviewAI{}, nil, err
 	}

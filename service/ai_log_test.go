@@ -71,3 +71,23 @@ func TestListAICallLogsRefreshesWhenFilesChange(t *testing.T) {
 		t.Fatalf("expected cache to refresh to two logs, got total=%d err=%v", second.Total, err)
 	}
 }
+
+func TestListAICallLogsOrdersByCreatedAtAcrossFiles(t *testing.T) {
+	dir := t.TempDir()
+	withAILogDir(t, dir)
+	older := filepath.Join(dir, "ai-calls-2026-01-01.log")
+	newer := filepath.Join(dir, "ai-calls-2026-01-02.log")
+	if err := os.WriteFile(older, []byte("{\"id\":\"a\",\"createdAt\":\"2026-01-01 10:00:00\"}\n"), 0644); err != nil {
+		t.Fatalf("write log failed: %v", err)
+	}
+	if err := os.WriteFile(newer, []byte("{\"id\":\"b\",\"createdAt\":\"2026-01-02 10:00:00\"}\n"), 0644); err != nil {
+		t.Fatalf("write log failed: %v", err)
+	}
+	list, err := ListAICallLogs(model.Query{Page: 1, PageSize: 10})
+	if err != nil || list.Total != 2 {
+		t.Fatalf("expected two logs, got total=%d err=%v", list.Total, err)
+	}
+	if list.Items[0].ID != "b" || list.Items[1].ID != "a" {
+		t.Fatalf("expected newest first, got %q then %q", list.Items[0].ID, list.Items[1].ID)
+	}
+}

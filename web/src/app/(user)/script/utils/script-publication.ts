@@ -11,7 +11,7 @@ export function publicationSourceHash(document: ScriptProjectDocument, episodeId
     if (hasProjectLock) {
         return document.lockedVersionId && document.lockedVersionHash ? document.lockedVersionHash : null;
     }
-    if (selected.some((episode) => !episode!.lockedVersionId || !episode.lockedVersionHash)) return null;
+    if (selected.some((episode) => !episode?.lockedVersionId || !episode?.lockedVersionHash)) return null;
     return scriptDataHash(
         selected
             .map((episode) => `${episode!.id}:${episode!.lockedVersionHash}`)

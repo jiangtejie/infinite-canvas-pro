@@ -13,6 +13,7 @@ description: 使用 Docker Compose 部署矩灵画布
 git clone git@github.com:jiangtejie/infinite-canvas-pro.git
 cd infinite-canvas-pro
 cp .env.example .env
+# 先在 .env 里设置 ADMIN_PASSWORD，留空则不会创建管理员
 docker compose up -d
 ```
 
@@ -25,9 +26,11 @@ http://localhost:3000
 默认管理员账号：
 
 ```text
-用户名：admin
+用户名：.env 中的 ADMIN_USERNAME（默认 admin）
 密码：.env 中的 ADMIN_PASSWORD
 ```
+
+`ADMIN_PASSWORD` 留空时不会创建管理员账号，页面仍可游客使用，但无法进入管理后台。
 
 ## 本地构建镜像
 

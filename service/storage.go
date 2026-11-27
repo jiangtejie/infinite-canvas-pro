@@ -503,9 +503,7 @@ func DownloadStorageObject(id string, rangeHeader string) (DownloadedStorageObje
 			providers = append(providers, userStorageProvidersForOwner(config.StorageProvider, object.CreatedBy)...)
 		}
 	}
-	if settings, loadErr := repository.GetSettings(); loadErr == nil {
-		providers = append(providers, normalizePrivateStorageSetting(settings.Private.Storage).Providers...)
-	}
+	providers = append(providers, normalizePrivateStorageSetting(repository.GetPrivateStorageSetting()).Providers...)
 	if provider, ok := findStorageProviderForObject(object, providers); ok && storageProviderConfigured(provider) {
 		var stream storageObjectStream
 		var readErr error

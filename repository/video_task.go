@@ -115,7 +115,12 @@ func DeleteUserVideoTask(userID string, id string) error {
 	return db.Where("user_id = ? AND (id = ? OR upstream_task_id = ? OR upstream_video_id = ?)", userID, id, id, id).Delete(&model.VideoTask{}).Error
 }
 
-func ListDueVideoTasks(limit int) ([]model.VideoTask, error) {
+// activeVideoTaskStatuses 仍在等待上游结果的视频任务状态。
+var activeVideoTaskStatuses = []string{"queued", "in_progress", "processing", "running", "unknown"}
+
+// ListDueVideoTasks 按 last_polled_at 轮转取任务：只返回距上次轮询超过一个周期的任务，
+// 否则超过 limit 的旧任务会一直占住结果集，新任务永远轮询不到。
+func ListDueVideoTasks(dueBefore string, limit int) ([]model.VideoTask, error) {
 	db, err := DB()
 	if err != nil {
 		return nil, err
@@ -124,11 +129,28 @@ func ListDueVideoTasks(limit int) ([]model.VideoTask, error) {
 		limit = 100
 	}
 	var tasks []model.VideoTask
-	err = db.Where("status IN ?", []string{"queued", "in_progress", "processing", "running", "unknown"}).Where("(workflow_ref = '' OR workflow_ref IS NULL)").
+	err = db.Where("status IN ?", activeVideoTaskStatuses).
+		Where("(workflow_ref = '' OR workflow_ref IS NULL)").
+		Where("(last_polled_at = '' OR last_polled_at IS NULL OR last_polled_at < ?)", dueBefore).
+		Order("last_polled_at ASC").
 		Order("created_at ASC").
 		Limit(limit).
 		Find(&tasks).Error
 	return tasks, err
+}
+
+// HasActiveVideoTasks 判断是否仍有未结束的视频任务，用于轮询循环判断能否休眠。
+func HasActiveVideoTasks() (bool, error) {
+	db, err := DB()
+	if err != nil {
+		return false, err
+	}
+	var count int64
+	err = db.Model(&model.VideoTask{}).
+		Where("status IN ?", activeVideoTaskStatuses).
+		Where("(workflow_ref = '' OR workflow_ref IS NULL)").
+		Count(&count).Error
+	return count > 0, err
 }
 
 func DeleteFinishedVideoTasksBefore(before string) error {

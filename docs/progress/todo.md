@@ -63,6 +63,10 @@ description: 当前项目后续值得处理的事项
 - 【影视画布】镜头制作队列复用现有批量生成，刷新或关闭页面会中止轮询；进度不持久化，失败镜头需重新勾选；编译失败与首尾帧跳过仍只在执行清单确认中出现。
 - 【影视画布】快速创建菜单仍按源节点单向展示动作，未区分从 source/target 手柄拖出；场次上的「引用角色/场景/道具」「套用风格」只创建或定位节点、不建立边，文案与实际效果有语义差，后续可改为「新建/定位」文案或加一步「选择目标镜头」；连线态「上传/从素材库选择」插入的是未连线节点。
 
+- 【配置】`repository.GetSettings()` 仍是每次全量反序列化（渠道里带工作流 JSON 时体积更大）；做通用缓存要先解决 `normalizeSettings` 原地修改切片和 `WorkflowJSON map[string]any` 深拷贝的问题，目前只对存储段做了 30 秒窄缓存。
+- 【安全】`/api/proxy-image` 仍可匿名调用（已限制只透传图片、补 nosniff、限制 32MB），如需进一步收敛可改签名 URL 或登录态；用户本地渠道只挡链路本地与云平台 metadata，DNS rebinding 未防。
+- 【画布】`mentionReferencesByNodeId` 仍给每个节点新建数组，`React.memo(CanvasNode)` 实际不生效；`labelResourceNodes` 空输入未返回共享常量。
+
 ## 结构与工程
 
 - 【画布】`canvas/[id]/canvas-client-page.tsx` 约 1795 行、`canvas/[id]/canvas-editor.tsx` 3123 行；容器/侧栏/顶栏/舞台/弹窗/助手已分层，任务/视口/选中/生成/音频裁剪/Overlay 状态 hooks、媒体恢复、Overlay 类型与纯派生索引、动作节拍任务已迁出，剩余主要为提交与交互编排。z-index 档位未合并（合并会改遮挡，需专门回归）。画布库派生分页已收敛；侧栏剩余 effect 为动画与选中滚动，属真实副作用。
@@ -76,3 +80,4 @@ description: 当前项目后续值得处理的事项
 - 【无障碍】节点目前采用自然 Tab 序列而非单锚点 roving，是否改 roving tabindex 待评估。
 - 【导演台】工具栏收纳需产品确认。
 - 【配置】后台系统提示词已按「本地非空优先、否则后台兜底」接入生成链路；管理员强制统一推送模式（不允许用户覆盖）尚未实现，需产品确认。
+- 【CI】tag 发版（`docker-image.yml`）目前只受 Dockerfile 里的 `typecheck` 保护，不跑 `go test` / `bun test` / `lint`；`ci.yml` 只覆盖 main 与 PR。要让发版必须过测试，需给 build job 复用 CI 结果或加 `needs`。

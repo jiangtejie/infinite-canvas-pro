@@ -3,6 +3,34 @@ title: 待测试
 description: 当前版本已实现但仍需人工验证的变更项
 ---
 
+## AI 日志与配置读取
+
+- AI 日志列表改为按文件增量解析：每个日志文件缓存大小、修改时间与解析结果，任意写入只重读当天文件，其余文件直接复用；合并结果已按创建时间倒序，列表与后台概览不再每次请求全量排序（概览也改为复用同一份缓存）。
+- 系统存储配置改为窄读取 + 30 秒缓存（`repository.GetPrivateStorageSetting`）：只解析私有配置里的 storage 段，保存系统配置时失效；媒体下载不再为找 provider 而反序列化全部渠道与工作流配置。
+- `repository.GetSettings` 的解码错误不再被静默丢弃，会打日志（失败时仍按空配置继续，行为不变）。
+- `service/settings.go` 拆出 `service/model_channel_probe.go`：后台模型目录探测与测试的 13 个函数（473 行）独立，settings.go 从 1391 行降到 923 行；纯移动，无行为变化。
+- 验证：`go vet ./...` 与 `go test ./...` 通过；新增三组回归用例：AI 日志跨文件按时间倒序、视频任务按 `last_polled_at` 轮转（含 `HasActiveVideoTasks`）、存储配置缓存在保存后失效且调用方改写返回值不污染缓存。前端未改动。
+- 未实测：多实例部署下 30 秒存储配置缓存带来的配置生效延迟；AI 日志量很大（十万级条目）时的列表内存与首屏耗时。
+
+## 轮询公平性、图片代理与请求体上限
+
+- 视频轮询改为按 `last_polled_at` 轮转：`ListDueVideoTasks` 只取距上次轮询超过 5 秒的任务并按 `last_polled_at ASC` 排序，新增 `HasActiveVideoTasks` 让轮询循环在「有任务但都未到期」时继续等待而不是休眠。此前固定 `created_at ASC LIMIT 200`，未完成任务超过 200 时新任务永远查不到，只能等 2 小时超时退款。
+- `/api/proxy-image` 只透传 `image/*`，其余返回 415（JSON）；补 `X-Content-Type-Options: nosniff`，响应体限制 32MB。此前会把上游 `text/html` 原样在站点源下渲染，且没有大小上限。
+- 新增 `middleware.BodyLimit`，`/api` 组统一 256MB 上限，覆盖此前无上限的 AI 代理、画布任务与文件上传入口。
+- 用户本地渠道增加地址校验：拒绝非 http/https、链路本地、`0.0.0.0/8`、`100.64/10` 与云平台 metadata 域名；回环与内网仍放行（本地模型服务需要）。
+- 画布派生索引：连线按目标节点建 `connectionsByTargetNodeId`，视频首尾帧与参考选项从 O(N×E) 降为 O(E + 命中节点入边)，输出顺序不变。
+- 验证：`go vet` 与 `go test ./...` 通过；`bunx tsc --noEmit`、`bun run lint`、`bun test` 1008 条全过。
+- 未实测：多实例下的轮询轮转、真实上游返回非图片时的 415 表现、画布拖动帧率（未做 Profiler，隐藏帧 rAF 暂停）。
+
+## CI 门禁、工作流生图与登录防护
+
+- 修复工作流生图必挂：`creative-workflow-workspace.tsx` 仍在调用已被移入 `use-workflow-task-recovery.ts` 的 `saveWorkflowTaskLog`，且该函数未导出，任务创建成功后抛 ReferenceError、整批判为失败、生成记录不落库。现由 hook 返回值导出并在组件内解构。
+- 登录限流：`service/login_rate_limit.go` 按账号 10 次 / 10 分钟、全局 1200 次 / 10 分钟限制 `service.Login`，登录成功清零；同一账号连续试错会被锁定 10 分钟，管理员登录复用同一路径。
+- 默认管理员口令必须显式设置：`ADMIN_PASSWORD` 去掉 `infinite-canvas` 默认值，未设置时跳过建号并在启动日志提示；`.env.example`、快速开始与 Docker 文档同步。
+- 类型错误清零并接入镜像构建：修复 30 处类型错误（工作流未定义标识符、剧本类型导出与可空收窄、测试 axios 适配器字段、未使用变量），Dockerfile 在 `bun run build` 前增加 `bun run typecheck`；同时清掉唯一 lint 警告与 3 个测试的顺序依赖（`teamo.test.ts` 逐用例清空登录态，单独运行时本就通过）。
+- 验证：`bunx tsc --noEmit` 0 error、`bun run lint` 0 warning、`bun test` 1008 pass / 0 fail（185 文件）、`go vet ./...` 与 `gofmt -l` 通过。
+- 未实测：限流在真实并发下的表现（计数在进程内存，多实例不共享）；Docker 镜像构建（按约定未执行构建）。
+
 ## 导演板布局密度与新建归位
 
 - 单场镜头超过 6 个时，整理布局与增量落位改为列内两列：左列前半、右列后半（全片顺序只跨列一次），镜头间距仍按真实高度 + 40，两列水平间距 60，场次列宽 1080 内不重叠。

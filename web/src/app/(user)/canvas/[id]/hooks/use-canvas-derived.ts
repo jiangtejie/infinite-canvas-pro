@@ -55,6 +55,15 @@ export function useCanvasDerived({
     }, [collapsingBatchIds, nodes, size.height, size.width, viewport.k, viewport.x, viewport.y]);
 
     const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+    const connectionsByTargetNodeId = useMemo(() => {
+        const map = new Map<string, CanvasConnection[]>();
+        connections.forEach((connection) => {
+            const list = map.get(connection.toNodeId);
+            if (list) list.push(connection);
+            else map.set(connection.toNodeId, [connection]);
+        });
+        return map;
+    }, [connections]);
     const toolbarNode = toolbarNodeId ? nodeById.get(toolbarNodeId) || null : null;
     const overlayNode = activeOverlay ? nodeById.get(activeOverlay.nodeId) || null : null;
     const infoNode = activeOverlay?.kind === "info" ? overlayNode : null;
@@ -221,22 +230,20 @@ export function useCanvasDerived({
         const map = new Map<string, CanvasVideoFrameOption[]>();
         nodes.forEach((node) => {
             if (node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Config) return;
-            const options = connections.flatMap((connection) => {
-                if (connection.toNodeId !== node.id) return [];
+            const options = (connectionsByTargetNodeId.get(node.id) || []).flatMap((connection) => {
                 const imageNode = nodeById.get(connection.fromNodeId);
                 return isCanvasImageNodeType(imageNode?.type) && imageNode?.metadata?.content ? [{ nodeId: imageNode.id, label: imageNode.title || "图片节点", previewUrl: imageNode.metadata.content }] : [];
             });
             map.set(node.id, options);
         });
         return map;
-    }, [connections, nodeById, nodes]);
+    }, [connectionsByTargetNodeId, nodeById, nodes]);
 
     const videoResourceOptionsByNodeId = useMemo(() => {
         const map = new Map<string, CanvasVideoResourceOption[]>();
         nodes.forEach((node) => {
             if (node.type !== CanvasNodeType.Video && node.type !== CanvasNodeType.Config && node.type !== CanvasNodeType.Audio) return;
-            const options: CanvasVideoResourceOption[] = connections.flatMap<CanvasVideoResourceOption>((connection) => {
-                if (connection.toNodeId !== node.id) return [];
+            const options: CanvasVideoResourceOption[] = (connectionsByTargetNodeId.get(node.id) || []).flatMap<CanvasVideoResourceOption>((connection) => {
                 const source = nodeById.get(connection.fromNodeId);
                 if (!source) return [];
                 const label = source.title || source.id;
@@ -252,7 +259,7 @@ export function useCanvasDerived({
             map.set(node.id, options);
         });
         return map;
-    }, [connections, nodeById, nodes]);
+    }, [connectionsByTargetNodeId, nodeById, nodes]);
 
     return {
         visibleNodes,

@@ -4,6 +4,7 @@ import localforage from "localforage";
 
 import { fixtureDocument } from "@/test/script-fixtures";
 import { installScriptMemoryDriver } from "@/test/script-memory-driver";
+import { axiosResponse } from "@/test/axios-adapter";
 import { activateScriptVersion, createScriptVersion } from "@/app/(user)/script/utils/script-version";
 import { summarizeScriptProject } from "@/app/(user)/script/utils/script-document";
 import { CanvasNodeType } from "@/app/(user)/canvas/types";
@@ -215,9 +216,9 @@ test("apply reloads the source before rejecting a preview stale in another conte
     const previousAdapter = axios.defaults.adapter;
     axios.defaults.adapter = async (config) => {
         const url = config.url || "";
-        if (config.method === "get" && url === `/api/v1/script/projects/${document.id}`) return { status: 200, data: { code: 0, data: { document: remote, revision: 3 }, msg: "" } };
-        if (config.method === "get" && url === `/api/v1/script/projects/${document.id}/versions`) return { status: 200, data: { code: 0, data: { items: [{ id: remoteVersion.id }] }, msg: "" } };
-        if (config.method === "get" && url === `/api/v1/script/projects/${document.id}/versions/${remoteVersion.id}`) return { status: 200, data: { code: 0, data: remoteVersion, msg: "" } };
+        if (config.method === "get" && url === `/api/v1/script/projects/${document.id}`) return axiosResponse(config, { code: 0, data: { document: remote, revision: 3 }, msg: "" });
+        if (config.method === "get" && url === `/api/v1/script/projects/${document.id}/versions`) return axiosResponse(config, { code: 0, data: { items: [{ id: remoteVersion.id }] }, msg: "" });
+        if (config.method === "get" && url === `/api/v1/script/projects/${document.id}/versions/${remoteVersion.id}`) return axiosResponse(config, { code: 0, data: remoteVersion, msg: "" });
         throw new Error(`unexpected request ${config.method} ${url}`);
     };
     try {

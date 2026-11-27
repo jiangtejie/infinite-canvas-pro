@@ -214,26 +214,20 @@ func ProxyImage(w http.ResponseWriter, r *http.Request) {
 		FailWithStatus(w, http.StatusBadGateway, "代理图片请求失败: "+resp.Status)
 		return
 	}
+	// 只透传图片：否则上游返回的 text/html 会在本站源下执行（同源 XSS）。
 	contentType := resp.Header.Get("Content-Type")
-	isImage := strings.HasPrefix(contentType, "image/")
-	var data []byte
-	if isImage {
-		data, err = io.ReadAll(resp.Body)
-		if err != nil {
-			FailWithStatus(w, http.StatusBadGateway, "代理图片请求失败")
-			return
-		}
-	}
-	if contentType != "" {
-		w.Header().Set("Content-Type", contentType)
-	} else {
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-	w.Header().Set("Cache-Control", "public, max-age=86400")
-	w.WriteHeader(resp.StatusCode)
-	if isImage {
-		_, _ = w.Write(data)
+	if !strings.HasPrefix(contentType, "image/") {
+		FailWithStatus(w, http.StatusUnsupportedMediaType, "代理只支持图片资源")
 		return
 	}
-	_, _ = io.Copy(w, resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if err != nil {
+		FailWithStatus(w, http.StatusBadGateway, "代理图片请求失败")
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = w.Write(data)
 }

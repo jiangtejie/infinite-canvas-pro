@@ -236,7 +236,7 @@ func runVideoTaskPoller() {
 	for range videoTaskPollWake {
 		for {
 			current := time.Now()
-			tasks, err := repository.ListDueVideoTasks(200)
+			tasks, err := repository.ListDueVideoTasks(videoTaskTime(current.Add(-videoTaskPollInterval)), 200)
 			if err != nil {
 				log.Printf("list due video tasks failed err=%v", err)
 				waitForNextVideoTaskPoll()
@@ -256,6 +256,10 @@ func runVideoTaskPoller() {
 			} else {
 				workflowCursorCreatedAt, workflowCursorID = "", ""
 			}
+			hasVideoTasks, videoErr := repository.HasActiveVideoTasks()
+			if videoErr != nil {
+				log.Printf("check active video tasks failed err=%v", videoErr)
+			}
 			hasImageTasks, imageErr := repository.HasActiveCanvasImageTasks()
 			if imageErr != nil {
 				log.Printf("check active canvas image tasks failed err=%v", imageErr)
@@ -264,8 +268,8 @@ func runVideoTaskPoller() {
 			if audioErr != nil {
 				log.Printf("check active canvas audio tasks failed err=%v", audioErr)
 			}
-			if len(tasks) == 0 && len(workflowTasks) == 0 && !hasImageTasks && !hasAudioTasks {
-				if workflowErr != nil || imageErr != nil || audioErr != nil {
+			if len(tasks) == 0 && len(workflowTasks) == 0 && !hasVideoTasks && !hasImageTasks && !hasAudioTasks {
+				if workflowErr != nil || imageErr != nil || audioErr != nil || videoErr != nil {
 					waitForNextVideoTaskPoll()
 					continue
 				}

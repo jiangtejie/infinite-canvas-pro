@@ -1,5 +1,5 @@
-import type { ScriptConflictResolution, ScriptHeader, ScriptProjectDocument, ScriptScene } from "@/app/(user)/script/types";
-import { mergeScriptDocuments, type ScriptOutbox } from "@/app/(user)/script/utils/script-merge";
+import type { ScriptHeader, ScriptProjectDocument, ScriptScene } from "@/app/(user)/script/types";
+import { mergeScriptDocuments, type ScriptConflictResolution, type ScriptOutbox } from "@/app/(user)/script/utils/script-merge";
 import type { ScriptChangeRequest } from "@/services/api/script";
 
 export function scriptChangeRequest(outbox: ScriptOutbox): ScriptChangeRequest {

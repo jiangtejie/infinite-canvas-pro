@@ -27,6 +27,7 @@ import { nowMs, nowPerformanceMs } from "@/lib/now";
 
 import { buildImageHistoryLog, buildRunConfig, buildSeriesPromptDraftRequest, createBlankWorkflow, createDefaultInputValues, createStarterWorkflows, describeModelSelection, isDisposableReferenceFile, normalizeAgentDraft, normalizeSeriesDraft, normalizeWorkflow, parseSeriesPromptDrafts, recordToWorkflow, referenceUsedByWorkflowTask, renderWorkflowPrompt, resolveWorkflowRuntime, serializeHistoryLog, serializeSeriesDraft, seriesDraftStorageKey, workflowForRetry, workflowToRecord } from "./creative-workflow-model";
 import type { CreativeWorkflow, GenerationCategory, ImageHistoryLog, SeriesPromptDraft, WorkflowExternalTaskFailure, WorkflowExternalTaskStart, WorkflowExternalTaskSuccess, WorkflowGenerationConfig, WorkflowRunResult, WorkflowTask } from "./creative-workflow-types";
+import type { PersistedSeriesDraft } from "./creative-workflow-model";
 import { useWorkflowTaskRecovery } from "./use-workflow-task-recovery";
 import { WorkflowAgentModal } from "./workflow-agent-modal";
 import { SeriesPromptDraftCard, WorkflowCard, WorkflowTaskCard } from "./workflow-cards";
@@ -524,7 +525,7 @@ export function CreativeWorkflowWorkspace({
         setSeriesDrafts((value) => value.map((item) => (item.id === id ? { ...item, ...patch } : item)));
     };
 
-    const { pollRecoveredWorkflowTasks, recoverWorkflowTasks, trackWorkflowTaskLogs, untrackWorkflowTask, completeTrackedWorkflowTask, stopWorkflowTask } = useWorkflowTaskRecovery({
+    const { pollRecoveredWorkflowTasks, recoverWorkflowTasks, trackWorkflowTaskLogs, untrackWorkflowTask, saveWorkflowTaskLog, stopWorkflowTask } = useWorkflowTaskRecovery({
         token,
         effectiveConfig,
         stoppingTaskIds,

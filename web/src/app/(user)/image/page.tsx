@@ -19,7 +19,7 @@ import { useImageGeneration } from "./hooks/use-image-generation";
 import { useImageBatchGeneration } from "./hooks/use-image-batch-generation";
 import { useImageHistorySync } from "./hooks/use-image-history-sync";
 import { useImageResultActions } from "./hooks/use-image-result-actions";
-import { logStore, shouldDeleteReferenceFile, createWorkflowResultId, mergePendingLogResults, imageLogIdentityKeys, dedupeGenerationLogs, readStoredLogs, readStoredCategories, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, imageExtension, clampWorkflowButtonPosition } from "./history";
+import { logStore, shouldDeleteReferenceFile, createWorkflowResultId, mergePendingLogResults, imageLogIdentityKeys, dedupeGenerationLogs, readStoredLogs, readStoredCategories, serializeLog, imageTaskChannelId, resolveImageChannelId, buildGenerationLogConfig, clampWorkflowButtonPosition } from "./history";
 import { readWorkbenchDraft, saveWorkbenchDraft } from "./draft";
 import { PromptSelectDialog } from "@/components/prompts/prompt-select-dialog";
 import { AssetPickerModal, type InsertAssetPayload } from "@/components/assets/asset-picker-modal";

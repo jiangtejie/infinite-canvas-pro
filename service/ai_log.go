@@ -104,9 +104,7 @@ func ListAICallLogs(q model.Query) (model.AICallLogList, error) {
 		}
 		items = filtered
 	}
-	sort.SliceStable(items, func(i, j int) bool {
-		return items[i].CreatedAt > items[j].CreatedAt
-	})
+	// readAICallLogsCached 已按创建时间倒序返回，这里不再重复排序。
 	total := len(items)
 	start := q.Offset()
 	if start >= total {
@@ -213,11 +211,16 @@ func LocalDirectAILogEnabled() bool {
 	return setting.LocalDirectReportEnabled != nil && *setting.LocalDirectReportEnabled
 }
 
-func appendAICallLog(item model.AICallLog) error {
+func aiLogDir() string {
 	dir := strings.TrimSpace(config.Cfg.AILogDir)
 	if dir == "" {
 		dir = filepath.Join("data", "logs", "ai-calls")
 	}
+	return dir
+}
+
+func appendAICallLog(item model.AICallLog) error {
+	dir := aiLogDir()
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -235,10 +238,17 @@ func appendAICallLog(item model.AICallLog) error {
 	return nil
 }
 
+type aiLogFileCache struct {
+	size    int64
+	modTime int64
+	items   []model.AICallLog
+}
+
 var aiLogListCache struct {
 	sync.Mutex
 	loaded    bool
 	signature string
+	files     map[string]aiLogFileCache
 	items     []model.AICallLog
 }
 
@@ -270,35 +280,52 @@ func readAICallLogsCached() ([]model.AICallLog, error) {
 		aiLogListCache.Unlock()
 		return items, nil
 	}
+	// 缓存表整体替换，不会原地修改，这里可以先拿出去做增量比对。
+	previous := aiLogListCache.files
 	aiLogListCache.Unlock()
 
-	items, err := readAICallLogs()
+	items, files, err := readAICallLogsIncrementally(previous)
 	if err != nil {
 		return nil, err
 	}
 	aiLogListCache.Lock()
 	aiLogListCache.loaded = true
 	aiLogListCache.signature = signature
-	aiLogListCache.items = append([]model.AICallLog(nil), items...)
+	aiLogListCache.files = files
+	aiLogListCache.items = items
 	aiLogListCache.Unlock()
-	return items, nil
+	return append([]model.AICallLog(nil), items...), nil
 }
 
-func readAICallLogs() ([]model.AICallLog, error) {
+// readAICallLogsIncrementally 复用未变化文件的解析结果，只重读大小或修改时间变化的日志；
+// 返回的条目已按创建时间倒序，列表与概览直接使用，不需要再排序。
+func readAICallLogsIncrementally(previous map[string]aiLogFileCache) ([]model.AICallLog, map[string]aiLogFileCache, error) {
 	files, err := aiLogFiles()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	caches := make(map[string]aiLogFileCache, len(files))
 	items := []model.AICallLog{}
 	for _, file := range files {
-		fileItems, err := readAICallLogFile(file)
-		if err != nil {
-			log.Printf("read ai call log file failed file=%s err=%v", file, err)
+		info, statErr := os.Stat(file)
+		if statErr != nil {
 			continue
 		}
+		if cached, ok := previous[file]; ok && cached.size == info.Size() && cached.modTime == info.ModTime().UnixNano() {
+			caches[file] = cached
+			items = append(items, cached.items...)
+			continue
+		}
+		fileItems, readErr := readAICallLogFile(file)
+		if readErr != nil {
+			log.Printf("read ai call log file failed file=%s err=%v", file, readErr)
+			continue
+		}
+		caches[file] = aiLogFileCache{size: info.Size(), modTime: info.ModTime().UnixNano(), items: fileItems}
 		items = append(items, fileItems...)
 	}
-	return items, nil
+	sort.SliceStable(items, func(i, j int) bool { return items[i].CreatedAt > items[j].CreatedAt })
+	return items, caches, nil
 }
 
 func readAICallLogFile(filePath string) ([]model.AICallLog, error) {
@@ -327,11 +354,7 @@ func readAICallLogFile(filePath string) ([]model.AICallLog, error) {
 }
 
 func aiLogFiles() ([]string, error) {
-	dir := strings.TrimSpace(config.Cfg.AILogDir)
-	if dir == "" {
-		dir = filepath.Join("data", "logs", "ai-calls")
-	}
-	files, err := filepath.Glob(filepath.Join(dir, "ai-calls-*.log"))
+	files, err := filepath.Glob(filepath.Join(aiLogDir(), "ai-calls-*.log"))
 	if err != nil {
 		return nil, err
 	}

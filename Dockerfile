@@ -18,6 +18,7 @@ COPY CHANGELOG.md /app/CHANGELOG.md
 COPY web ./
 COPY --from=bridge-build /bridge/ /app/web/public/
 ENV CANVAS_PREBUILT_BRIDGE=1
+RUN bun run typecheck
 RUN bun run build
 
 # 构建 Go 后端入口。

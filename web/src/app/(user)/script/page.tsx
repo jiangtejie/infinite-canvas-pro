@@ -40,7 +40,7 @@ export default function ScriptListPage() {
     const [importOpen, setImportOpen] = useState(false);
     const [importTitle, setImportTitle] = useState("");
     const [importText, setImportText] = useState("");
-    const [importFileName, setImportFileName] = useState("");
+    const [, setImportFileName] = useState("");
     const [importPreview, setImportPreview] = useState<ScriptProjectDocument | null>(null);
     const [importing, setImporting] = useState(false);
 

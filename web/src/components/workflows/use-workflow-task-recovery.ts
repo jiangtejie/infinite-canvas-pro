@@ -294,5 +294,5 @@ export function useWorkflowTaskRecovery({ token, effectiveConfig, stoppingTaskId
         });
     };
 
-    return { pollRecoveredWorkflowTasks, recoverWorkflowTasks, trackWorkflowTaskLogs, untrackWorkflowTask, completeTrackedWorkflowTask, stopWorkflowTask };
+    return { pollRecoveredWorkflowTasks, recoverWorkflowTasks, trackWorkflowTaskLogs, untrackWorkflowTask, completeTrackedWorkflowTask, saveWorkflowTaskLog, stopWorkflowTask };
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 
 import axios from "axios";
 import localforage from "localforage";
@@ -27,6 +27,11 @@ const config = (overrides: Partial<AiConfig> = {}): AiConfig => ({
 } as AiConfig);
 
 const emptyInput: Required<VideoReferenceInput> = { references: [], videoReferences: [], audioReferences: [], firstFrame: null, lastFrame: null };
+
+// 本文件只验证未登录的本地直连；其他测试文件可能留下登录态，逐个用例先清空。
+beforeEach(() => {
+    useUserStore.setState({ token: "" });
+});
 
 test("识别 TeamoRouter 视频渠道，排除 Google 与普通 OpenAI", () => {
     assert.equal(isTeamoVideoConfig(config()), true);

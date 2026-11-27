@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { App, Button, Input, Modal } from "antd";
+import { App, Input, Modal } from "antd";
 import type { ScriptProjectDocument } from "../types";
 
 import { cn, errorMessage } from "@/lib/utils";
